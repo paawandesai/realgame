@@ -2,6 +2,7 @@
 // run in the Rust simulation (crates/sim), compiled to WebAssembly.
 
 import init, { WebGame } from "./pkg/realgame_sim.js";
+import { trackSessionStart } from "./analytics";
 import { FormulaRing, byId } from "./ring";
 import { prettyFormula, type CastResult, type GameState, type Tier } from "./types";
 
@@ -57,6 +58,7 @@ async function boot(): Promise<void> {
 }
 
 function start(tier: Tier, memory: WebAssembly.Memory): void {
+  trackSessionStart(tier);
   byId("start").hidden = true;
   byId("game").hidden = false;
   document.body.dataset.tier = tier;

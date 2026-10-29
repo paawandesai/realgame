@@ -1,13 +1,28 @@
 {
   "name": "realgame-dev-hooks",
   "private": true,
-  "description": "Git hooks for the whole repo (Rust + web). The game itself lives in crates/ and web/.",
+  "description": "Repo tooling: git hooks, Cloudflare deploy (wrangler) and the analytics Functions tests. The game itself lives in crates/ and web/.",
   "license": "UNLICENSED",
+  "type": "module",
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=2 --test-reporter=spec \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "build:site": "bash scripts/build-site.sh",
+    "deploy": "bash scripts/deploy.sh",
+    "db:setup": "bash scripts/deploy.sh --db-only",
+    "db:migrate:local": "wrangler d1 migrations apply realgame-analytics --local",
+    "dev:pages": "npm run db:migrate:local && wrangler pages dev --port 8788",
+    "analytics:purge": "wrangler d1 execute realgame-analytics --remote --command \"DELETE FROM events WHERE day < date('now', '-89 days')\""
   },
   "devDependencies": {
+    "@types/node": "22.20.5",
     "husky": "9.1.7",
-    "lint-staged": "16.4.0"
+    "lint-staged": "16.4.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.153.0"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }
