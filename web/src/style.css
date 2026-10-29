@@ -434,7 +434,8 @@ kbd {
 
 .fx-label {
   position: absolute;
-  transform: translate(-50%, -130%);
+  z-index: 5;
+  transform: translate(-50%, 0);
   padding: 6px 12px;
   border-radius: var(--radius);
   background: var(--panel);
@@ -474,8 +475,8 @@ body[data-tier="seedling"] .fx-label {
 }
 
 @keyframes label-rise {
-  from { opacity: 0; transform: translate(-50%, -90%); }
-  to { opacity: 1; transform: translate(-50%, -130%); }
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 .slot.suggested {

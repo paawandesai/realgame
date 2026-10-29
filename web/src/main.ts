@@ -1455,6 +1455,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       frameParts: () => [...frameParts],
       renderer: () => (gl ? "webgl" : "2d"),
       fxStats: () => fx.stats(),
+      maxWavePx: () => fx.maxWavePx,
+      /** The last impact point in page (client) pixels. */
+      impactPx: () => {
+        const p = fx.lastImpact;
+        if (!p) return null;
+        const r = canvas.getBoundingClientRect();
+        return [r.left + ((p[0] - game.view_x()) / w) * r.width, r.top + (p[1] / h) * r.height];
+      },
       room: () => game.room(),
       aim: () => Array.from(game.aim()),
     };

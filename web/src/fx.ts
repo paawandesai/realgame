@@ -10,10 +10,16 @@ const POOL_SIZE = 512;
 /** Bolts fly 6 cells per tick in the sim; 60 ticks a second. */
 const BOLT_CELLS_PER_MS = (6 * 60) / 1000;
 const CHARGE_MS = 150;
-const FLASH_MS = 80;
-const SHAKE_MS = 120;
+const FLASH_MS = 160;
+const SHAKE_MS = 280;
+/** A bolt is always on screen for at least this long, even at point-blank
+ * range, so every cast visibly flies; its impact visuals wait for it. */
+const MIN_BOLT_MS = 130;
+const WAVE_MS = 520;
 const LABEL_MS = 2600;
 const LABEL_FIX_MS = 7000;
+/** The caption stays at least this far (CSS px) from the impact point. */
+const LABEL_GAP_PX = 64;
 
 /** Okabe-Ito palette, so colours stay distinguishable for colour-blind players. */
 const COLOR = {
@@ -60,6 +66,18 @@ interface Bolt {
   x1: number;
   y1: number;
   born: number;
+  /** Flight time on screen, ms. */
+  dur: number;
+  color: string;
+}
+
+/** An expanding shockwave ring, sized by the reaction's |ΔH|. */
+interface Wave {
+  x: number;
+  y: number;
+  born: number;
+  /** Final radius in cells. */
+  r: number;
   color: string;
 }
 
@@ -99,6 +117,8 @@ interface Label {
   y: number;
   born: number;
   life: number;
+  /** Which side of the impact the caption sits on, chosen once. */
+  above: boolean | null;
 }
 
 /** The overlay never needs more than this many backing pixels per world cell:
@@ -121,6 +141,13 @@ export class FxLayer {
   private bolts: Bolt[] = [];
   private charges: Timed[] = [];
   private flashes: Timed[] = [];
+  private waves: Wave[] = [];
+  /** Impacts whose bolt is still flying on screen. */
+  private pending: { e: Fx; out: CastOutcome | undefined; at: number }[] = [];
+  /** Brief full-stage tint after a big exothermic blast. */
+  private bloom = { born: -Infinity, alpha: 0, color: "" };
+  /** For automated checks: the largest shockwave radius drawn, in CSS px. */
+  maxWavePx = 0;
   private orbs: Orb[] = [];
   private ghosts: Ghost[] = [];
   private labels: Label[] = [];
@@ -291,6 +318,35 @@ export class FxLayer {
     });
   }
 
+  /** Prebaked soft glows for bolt heads, one per colour. */
+  private readonly heads = new Map<string, HTMLCanvasElement | null>();
+  private headSprite(hex: string): HTMLCanvasElement | null {
+    let s = this.heads.get(hex);
+    if (s === undefined) {
+      const n = parseInt(hex.slice(1), 16);
+      s = bakeGlow(`${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`, 1);
+      this.heads.set(hex, s);
+    }
+    return s;
+  }
+
+  /** Big, slow-fading chunks thrown upward that fall back under gravity. */
+  private debris(x: number, y: number, n: number, colors: string[], now: number, speed: number): void {
+    this.spawn(n, (p, i) => {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
+      const s = speed * (0.5 + Math.random() * 0.8);
+      p.x = x;
+      p.y = y;
+      p.vx = Math.cos(a) * s;
+      p.vy = Math.sin(a) * s;
+      p.g = 0.00025;
+      p.born = now;
+      p.life = 700 + Math.random() * 500;
+      p.size = 1.4 + Math.random() * 1.4;
+      p.color = colors[i % colors.length]!;
+    });
+  }
+
   private bubbles(x: number, y: number, n: number, color: (i: number) => string, now: number): void {
     this.spawn(n, (p, i) => {
       p.x = x + (Math.random() - 0.5) * 8;
@@ -316,12 +372,23 @@ export class FxLayer {
         case "charge":
           this.charges.push({ x: e.x, y: e.y, born: now, life: CHARGE_MS, color: boltColor(out), radius: 6 });
           break;
-        case "bolt":
-          this.bolts.push({ id: e.id, x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, born: now, color: boltColor(out) });
+        case "bolt": {
+          const dist = Math.hypot(e.tx - e.x, e.ty - e.y);
+          const dur = Math.max(MIN_BOLT_MS, dist / BOLT_CELLS_PER_MS);
+          this.bolts.push({ id: e.id, x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, born: now, dur, color: boltColor(out) });
           break;
-        case "impact":
-          this.impact(e, out, now);
+        }
+        case "impact": {
+          // The visuals land when the on-screen bolt does.
+          const b = this.bolts.find((x) => x.id === e.id);
+          const at = b ? b.born + b.dur : now;
+          if (at > now) {
+            b!.x1 = e.x;
+            b!.y1 = e.y;
+            this.pending.push({ e, out, at });
+          } else this.impact(e, out, now);
           break;
+        }
         case "splash":
           this.burst(e.x, e.y, 10, COLOR.water, 0.04, now, 0.0003);
           break;
@@ -347,7 +414,7 @@ export class FxLayer {
           break;
         case "arc":
           this.flashes.push({ x: e.tx, y: e.ty, born: now, life: 160, color: COLOR.frost, radius: 4 });
-          this.bolts.push({ id: -1, x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, born: now - 1000, color: COLOR.frost });
+          this.bolts.push({ id: -1, x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, born: now - 1000, dur: 1, color: COLOR.frost });
           break;
         case "fizzle":
           this.fizzle(e, out, now);
@@ -374,27 +441,31 @@ export class FxLayer {
     }
   }
 
+  /** Where the last impact landed, in world cells (for automated checks). */
+  lastImpact: [number, number] | null = null;
+
   private impact(e: Fx, out: CastOutcome | undefined, now: number): void {
+    this.lastImpact = [e.x, e.y];
     this.bolts = this.bolts.filter((b) => b.id !== e.id);
     const dh = Math.abs(e.dh_kj);
     const warm = e.dh_kj < 0;
     const cold = e.dh_kj > 0;
-    // One soft flash, never repeated quickly.
-    this.flashes.push({
-      x: e.x,
-      y: e.y,
-      born: now,
-      life: FLASH_MS,
-      color: warm ? COLOR.spark : cold ? COLOR.frost : COLOR.water,
-      radius: 6 + Math.min(14, dh / 40),
-    });
-    const n = Math.max(10, Math.min(60, Math.round(10 + dh / 10)));
+    const tint = warm ? COLOR.spark : cold ? COLOR.frost : COLOR.water;
+    // One bloom flash (never repeated quickly), bigger for more heat.
+    this.flashes.push({ x: e.x, y: e.y, born: now, life: FLASH_MS, color: tint, radius: 10 + Math.min(26, dh / 18) });
+    this.flashes.push({ x: e.x, y: e.y, born: now, life: FLASH_MS / 2, color: "#ffffff", radius: 5 + Math.min(8, dh / 60) });
+    // A shockwave ring: warm for heat out, frost blue for heat in.
+    this.waves.push({ x: e.x, y: e.y, born: now, r: 10 + Math.min(40, dh / 12), color: warm ? COLOR.heat : cold ? COLOR.frost : "#d8f0ff" });
+    if (warm && dh > 100 && !this.reducedMotion) this.bloom = { born: now, alpha: Math.min(0.3, dh / 1600), color: "255,214,120" };
+    const n = Math.max(12, Math.min(60, Math.round(12 + dh / 10)));
     const palette = warm ? [COLOR.spark, COLOR.heat, COLOR.oxygen] : cold ? [COLOR.frost, "#ffffff"] : [COLOR.water, "#d8f0ff"];
-    window.setTimeout(() => this.burst(e.x, e.y, n, (i) => palette[i % palette.length]!, 0.04 + Math.min(0.08, dh / 6000), performance.now(), warm ? 0.00004 : 0.0003), 50);
+    this.burst(e.x, e.y, n, (i) => palette[i % palette.length]!, 0.05 + Math.min(0.08, dh / 6000), now + 40, warm ? 0.00004 : 0.0003);
+    // Ember (or ice-chip) debris: chunky, thrown up and falling back.
+    this.debris(e.x, e.y, Math.max(6, Math.min(28, Math.round(6 + dh / 25))), warm ? [COLOR.heat, COLOR.oxygen, COLOR.spark] : cold ? [COLOR.frost, "#ffffff"] : [COLOR.water], now, 0.05 + Math.min(0.06, dh / 8000));
     if (cold) this.frostBorn = now;
     // Shake and hit-stop scale with the heat released or absorbed.
     if (!this.reducedMotion) {
-      this.shakeAmp = Math.max(1, Math.min(8, dh / 100));
+      this.shakeAmp = Math.max(1.5, Math.min(10, dh / 50));
       this.shakeBorn = now;
       if (dh > 400) this.hitStop = 3;
     }
@@ -471,20 +542,35 @@ export class FxLayer {
     }
     // One label at a time keeps the scene readable.
     for (const l of this.labels) l.el.remove();
-    this.labels = [{ el, x, y, born: performance.now(), life }];
+    this.labels = [{ el, x, y, born: performance.now(), life, above: null }];
     this.stage.append(el);
     this.placeLabel(this.labels[0]!);
   }
 
   private placeLabel(l: Label): void {
-    // Keep the whole label on screen, whatever its width.
+    // Keep the whole label on screen, whatever its width, and clear of the
+    // impact point: the blast is the show, the caption sits beside it.
     const sw = this.stage.clientWidth;
     const sh = this.stage.clientHeight;
-    const half = l.el.offsetWidth / 2 + 8;
+    const lw = l.el.offsetWidth;
+    const lh = l.el.offsetHeight;
+    const half = lw / 2 + 8;
     const x = ((l.x - this.viewX) / this.viewW) * sw;
-    const y = (l.y / this.viewH) * sh;
-    l.el.style.left = `${Math.max(half, Math.min(sw - half, x))}px`;
-    l.el.style.top = `${Math.max(sh * 0.2, Math.min(sh * 0.8, y))}px`;
+    const y = (l.y / this.viewH) * sh - this.liftPx;
+    const top = sh * 0.17;
+    const bottom = sh * 0.86;
+    if (l.above === null) l.above = y - LABEL_GAP_PX - lh >= top || y + LABEL_GAP_PX + lh > bottom;
+    let ty = l.above ? y - LABEL_GAP_PX - lh : y + LABEL_GAP_PX;
+    ty = Math.max(top, Math.min(bottom - lh, ty));
+    let tx = Math.max(half, Math.min(sw - half, x));
+    // Still over the impact after clamping? Slide sideways instead.
+    const overlapsY = ty < y + LABEL_GAP_PX && ty + lh > y - LABEL_GAP_PX;
+    if (overlapsY && Math.abs(tx - x) < lw / 2 + LABEL_GAP_PX) {
+      tx = x > sw / 2 ? x - lw / 2 - LABEL_GAP_PX : x + lw / 2 + LABEL_GAP_PX;
+      tx = Math.max(half, Math.min(sw - half, tx));
+    }
+    l.el.style.left = `${tx}px`;
+    l.el.style.top = `${ty}px`;
   }
 
   // ----------------------------------------------------------------- draw
@@ -508,6 +594,22 @@ export class FxLayer {
     this.overlayDrawn = busy;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+    // Impacts whose bolt has now arrived.
+    if (this.pending.length) {
+      const due = this.pending.filter((p) => p.at <= now);
+      this.pending = this.pending.filter((p) => p.at > now);
+      for (const p of due) this.impact(p.e, p.out, now);
+    }
+
+    // Bloom: a soft warm wash over the whole stage for a big blast.
+    const bt = (now - this.bloom.born) / 220;
+    if (bt >= 0 && bt < 1) {
+      ctx.globalAlpha = this.bloom.alpha * (1 - bt);
+      ctx.fillStyle = `rgb(${this.bloom.color})`;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.globalAlpha = 1;
+    }
+
     // Charge rings at the gauntlet.
     this.charges = this.charges.filter((c) => now - c.born < c.life);
     for (const c of this.charges) {
@@ -520,32 +622,85 @@ export class FxLayer {
       ctx.stroke();
     }
 
-    // Bolts with a fading trail.
-    this.bolts = this.bolts.filter((b) => now - b.born < 1400);
+    // Bolts: a glowing head with a long fading trail and sparks shed behind.
+    this.bolts = this.bolts.filter((b) => (b.id === -1 ? now - b.born < 1400 : now - b.born < b.dur + 400));
     for (const b of this.bolts) {
+      const arc = b.id === -1;
       const dist = Math.hypot(b.x1 - b.x0, b.y1 - b.y0) || 1;
-      const t = Math.min(1, ((now - b.born) * BOLT_CELLS_PER_MS) / dist);
+      const t = arc ? 1 : Math.min(1, (now - b.born) / b.dur);
+      if (!arc && t >= 1) continue;
       const hx = b.x0 + (b.x1 - b.x0) * t;
       const hy = b.y0 + (b.y1 - b.y0) * t;
-      const tail = Math.max(0, t - 18 / dist);
+      const tail = arc ? 0 : Math.max(0, t - 28 / dist);
       const tx = b.x0 + (b.x1 - b.x0) * tail;
       const ty = b.y0 + (b.y1 - b.y0) * tail;
       const grad = ctx.createLinearGradient(sx(tx), sy(ty), sx(hx), sy(hy));
       grad.addColorStop(0, "rgba(255,255,255,0)");
       grad.addColorStop(1, b.color);
-      ctx.globalAlpha = b.id === -1 ? Math.max(0, 1 - (now - b.born - 1000) / 400) : 1;
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 2 * k;
+      ctx.globalAlpha = arc ? Math.max(0, 1 - (now - b.born - 1000) / 400) : 1;
       ctx.lineCap = "round";
+      if (!arc) {
+        // Soft outer glow under the core line.
+        ctx.globalCompositeOperation = "lighter";
+        ctx.strokeStyle = grad;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 6 * k;
+        ctx.beginPath();
+        ctx.moveTo(sx(tx), sy(ty));
+        ctx.lineTo(sx(hx), sy(hy));
+        ctx.stroke();
+        const sprite = this.headSprite(b.color);
+        ctx.globalAlpha = 1;
+        if (sprite) ctx.drawImage(sprite, sx(hx) - 7 * k, sy(hy) - 7 * k, 14 * k, 14 * k);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+        if (!this.reducedMotion && Math.random() < 0.7) {
+          this.spawn(1, (p) => {
+            p.x = hx;
+            p.y = hy;
+            p.vx = (Math.random() - 0.5) * 0.02;
+            p.vy = (Math.random() - 0.5) * 0.02;
+            p.born = now;
+            p.life = 220 + Math.random() * 180;
+            p.size = 0.8 + Math.random() * 0.8;
+            p.color = b.color;
+          });
+        }
+      }
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = (arc ? 2 : 3) * k;
       ctx.beginPath();
       ctx.moveTo(sx(tx), sy(ty));
       ctx.lineTo(sx(hx), sy(hy));
       ctx.stroke();
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.arc(sx(hx), sy(hy), 1.4 * k, 0, Math.PI * 2);
+      ctx.arc(sx(hx), sy(hy), (arc ? 1.4 : 2.2) * k, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // Shockwaves: a ring that races out and thins as it fades.
+    this.waves = this.waves.filter((w) => now - w.born < WAVE_MS);
+    const css = this.canvas.clientWidth / this.canvas.width;
+    for (const w of this.waves) {
+      const t = (now - w.born) / WAVE_MS;
+      const ease = 1 - (1 - t) * (1 - t) * (1 - t);
+      const r = (2 + (w.r - 2) * ease) * k;
+      this.maxWavePx = Math.max(this.maxWavePx, r * css);
+      ctx.globalAlpha = 0.9 * (1 - t);
+      ctx.strokeStyle = w.color;
+      ctx.lineWidth = Math.max(1, (3.5 * (1 - t) + 0.5) * k);
+      ctx.beginPath();
+      ctx.arc(sx(w.x), sy(w.y), r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.35 * (1 - t);
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.strokeStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(sx(w.x), sy(w.y), r * 0.82, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
 
     // Impact flashes: a single soft fade.
     this.flashes = this.flashes.filter((f) => now - f.born < f.life);
@@ -605,7 +760,6 @@ export class FxLayer {
       ctx.beginPath();
       ctx.arc(sx(x), sy(y), 3 * k, 0, Math.PI * 2);
       ctx.fill();
-      const css = this.canvas.clientWidth / this.canvas.width;
       o.el.hidden = now < o.born;
       o.el.style.left = `${sx(x) * css}px`;
       o.el.style.top = `${(sy(y) - 6 * k) * css}px`;
@@ -651,12 +805,13 @@ export class FxLayer {
   }
 
   /** Counts of what is on screen right now (for automated checks). */
-  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number } {
+  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number; waves: number } {
     let particles = 0;
     for (const p of this.pool) if (p.alive) particles++;
     return {
       particles,
-      bolts: this.bolts.length,
+      waves: this.waves.length,
+      bolts: this.bolts.filter((b) => b.id !== -1 && performance.now() - b.born < b.dur).length,
       ghosts: this.ghosts.length,
       flashes: this.flashes.length,
       labels: this.labels.length,
@@ -665,10 +820,10 @@ export class FxLayer {
 
   /** Whether anything is drawn on the overlay canvas this frame. */
   private busy(now: number): boolean {
-    if (this.charges.length || this.bolts.length || this.flashes.length || this.orbs.length || this.ghosts.length) {
+    if (this.charges.length || this.bolts.length || this.flashes.length || this.orbs.length || this.ghosts.length || this.waves.length || this.pending.length) {
       return true;
     }
-    if (now - this.frostBorn < 700) return true;
+    if (now - this.frostBorn < 700 || now - this.bloom.born < 220) return true;
     for (const p of this.pool) if (p.alive) return true;
     return false;
   }
