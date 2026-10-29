@@ -1762,12 +1762,9 @@ impl Game {
         let made = made.join(" + ");
         let air = if lone { " (O2 from the air)" } else { "" };
         match (self.tier, reacted) {
+            // The card adds the sourced ΔH for this equation on its own line.
             (Tier::Apprentice, Some(eq)) => {
-                let sign = if res.dh_kj < 0.0 { "-" } else { "+" };
-                lines.push(format!(
-                    "What happened: {eq}{air}, ΔH {sign}{:.1} kJ",
-                    res.dh_kj.abs()
-                ));
+                lines.push(format!("What happened: {eq}{air}"));
             }
             // Seedlings never see half molecules: say it in words.
             (_, Some(eq)) if eq.contains('/') || lone => {
@@ -2901,7 +2898,9 @@ mod tests {
                 if tier == Tier::Seedling {
                     assert!(!out.label.contains('/'), "{}", out.label);
                 } else {
-                    assert!(out.label.contains("ΔH"), "{}", out.label);
+                    // ΔH of exactly what reacted, shown once by the card.
+                    assert!(out.delta_h_kj.is_some_and(|dh| dh < 0.0));
+                    assert!(out.label.contains("What happened: "), "{}", out.label);
                 }
             }
         }

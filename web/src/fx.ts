@@ -797,7 +797,9 @@ export class FxLayer {
       const fix = document.createElement("button");
       fix.type = "button";
       // An arrow pointing at nothing gets a spell to use, not a fix.
-      fix.textContent = `${out.reason === "no_products" ? "Use it" : "Fix it"}: ${prettyFormula(out.suggestion)}`;
+      // Fix an unbalanced spell; otherwise (a lone gas, a mix) it is a spell to try.
+      const verb = out.reason === "no_products" ? "Use it" : out.imbalance.length > 0 ? "Fix it" : "Try";
+      fix.textContent = `${verb}: ${prettyFormula(out.suggestion)}`;
       const s = out.suggestion;
       fix.addEventListener("click", () => this.onFix(s));
       el.append(fix);
