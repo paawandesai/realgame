@@ -128,6 +128,19 @@ impl Grid {
         }
     }
 
+    /// Copies columns `x0..x1` (cells, temperatures and per-cell state) from
+    /// another grid of the same size, such as a freshly built level.
+    pub fn copy_columns(&mut self, from: &Grid, x0: usize, x1: usize) {
+        debug_assert!(self.w == from.w && self.h == from.h);
+        let x1 = x1.min(self.w);
+        for y in 0..self.h {
+            let (a, b) = (y * self.w + x0, y * self.w + x1);
+            self.cells[a..b].copy_from_slice(&from.cells[a..b]);
+            self.temp[a..b].copy_from_slice(&from.temp[a..b]);
+            self.aux[a..b].copy_from_slice(&from.aux[a..b]);
+        }
+    }
+
     pub fn fill_rect(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, s: Species) {
         for y in y0..y1 {
             for x in x0..x1 {

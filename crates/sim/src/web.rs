@@ -86,6 +86,27 @@ impl WebGame {
         serde_json::to_string(&self.game.state()).unwrap_or_default()
     }
 
+    /// Starts the room the player is in again (earlier rooms stay solved).
+    /// Returns the room, 0-based.
+    pub fn restart_room(&mut self) -> u32 {
+        self.game.restart_room() as u32
+    }
+
+    /// Starts the whole trial again.
+    pub fn restart(&mut self) {
+        self.game.restart();
+    }
+
+    /// Opens every gate and fills the suit (after the trial).
+    pub fn free_play(&mut self) {
+        self.game.free_play();
+    }
+
+    /// The room the player is in, 0-based.
+    pub fn room(&self) -> u32 {
+        self.game.room() as u32
+    }
+
     /// Draws the viewport and returns a pointer to VIEW_W * HEIGHT RGBA bytes in
     /// WebAssembly memory. `lens` switches to the temperature view; `alpha`
     /// (0..=1) is how far the display is between the last two ticks.

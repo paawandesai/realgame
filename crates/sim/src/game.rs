@@ -62,6 +62,9 @@ const GATHER_RADIUS: i32 = 48;
 const AUTO_AIM_TICKS: u64 = 180;
 pub const PLAYER_W: f32 = 6.0;
 pub const PLAYER_H: f32 = 12.0;
+/// Where a new trial starts: beside the burning hedge, already within soft
+/// auto-aim reach of it, so the very first spell lands on the fire.
+pub const SPAWN_X: f32 = 176.0;
 /// Movement tuning, in cells and ticks (60 ticks a second).
 const RUN_MAX: f32 = 2.2;
 /// Reaches RUN_MAX in under 7 ticks from a standstill.
@@ -265,6 +268,8 @@ pub struct Game {
     bolts: Vec<Bolt>,
     state_version: u64,
     state_sig: u64,
+    /// The seed the level was built from (restarting a room rebuilds it).
+    seed: u64,
 }
 
 impl Game {
@@ -284,9 +289,9 @@ impl Game {
         let mut game = Game {
             grid,
             player: Player {
-                x: 12.0,
+                x: SPAWN_X,
                 y: 130.0,
-                prev_x: 12.0,
+                prev_x: SPAWN_X,
                 prev_y: 130.0,
                 vx: 0.0,
                 vy: 0.0,
@@ -337,6 +342,7 @@ impl Game {
             bolts: vec![],
             state_version: 1,
             state_sig: 0,
+            seed,
         };
         game.build_level();
         game.snap_camera();
@@ -2219,6 +2225,22 @@ mod bolts {
             .filter(|&(x, y)| g.grid.temp_at(x, y) > 200.0)
             .count();
         assert!(hot > 50, "only {hot} hot cells");
+    }
+
+    #[test]
+    fn the_first_water_card_from_the_spawn_lands_on_the_fire() {
+        for tier in [Tier::Sprout, Tier::Seedling] {
+            let mut g = Game::new(tier, 42);
+            for _ in 0..30 {
+                g.tick(0);
+            }
+            let hits = g.rooms.hedges[0].hits;
+            assert_eq!(g.cast("water").outcome, Outcome::Full);
+            for _ in 0..60 {
+                g.tick(0);
+            }
+            assert!(g.rooms.hedges[0].hits > hits, "{tier:?}: missed the hedge");
+        }
     }
 
     #[test]

@@ -205,6 +205,38 @@ impl Rooms {
     }
 }
 
+impl Rooms {
+    /// Puts room `k`'s state back the way a freshly built level has it.
+    fn reset_room(&mut self, k: usize, fresh: &Rooms) {
+        self.gates_open[k] = false;
+        // Room 1's intro is spoken when the level is built; later rooms
+        // introduce themselves again when the player is back inside.
+        self.entered[k] = k == 0;
+        self.last_heat = None;
+        match k {
+            0 => self.hedges[0] = fresh.hedges[0].clone(),
+            1 => {
+                self.ice_start = fresh.ice_start;
+                self.ice_left = fresh.ice_left;
+                self.ice_heated = false;
+                self.torch = fresh.torch.clone();
+            }
+            2 => {
+                self.trap_h2 = 0;
+                self.trap_peak = 0;
+            }
+            _ => {
+                self.hedges[1] = fresh.hedges[1].clone();
+                self.brazier_lit = false;
+                self.vent_lit = fresh.vent_lit;
+                self.vent_wet_until = fresh.vent_wet_until;
+                self.ch4_loose = fresh.ch4_loose;
+                self.capture_cells = fresh.capture_cells;
+            }
+        }
+    }
+}
+
 impl Default for Rooms {
     fn default() -> Self {
         Rooms::new()
@@ -222,6 +254,11 @@ pub struct Goal {
     pub done: bool,
     /// "Fire left" for the hedges, 0..=1.
     pub meter: Option<f32>,
+    /// The spell that moves this goal on right now: "water", "boom",
+    /// "split" (for hints; any other valid solution still counts).
+    pub need: &'static str,
+    /// Where to stand (player centre, world cells) to cast `need` at it.
+    pub stand_x: i32,
 }
 
 /// The torch as the renderer needs it.
@@ -897,6 +934,8 @@ impl Game {
                 y: HEDGE1.y0 - 10,
                 done: r.gates_open[0],
                 meter: Some(r.hedges[0].meter()),
+                need: "water",
+                stand_x: 200,
             },
             Goal {
                 room: 2,
@@ -905,6 +944,8 @@ impl Game {
                 y: ICE.y0 - 8,
                 done: r.gates_open[1],
                 meter: None,
+                need: "boom",
+                stand_x: 440,
             },
             Goal {
                 room: 3,
@@ -913,6 +954,13 @@ impl Game {
                 y: gy,
                 done: r.gates_open[2],
                 meter: None,
+                // Make the gas first, then light it.
+                need: if r.trap_h2 >= TRAP_MIN_H2 {
+                    "boom"
+                } else {
+                    "split"
+                },
+                stand_x: 686,
             },
             Goal {
                 room: 4,
@@ -921,8 +969,68 @@ impl Game {
                 y: BRAZIER.y0 - 10,
                 done: r.brazier_lit,
                 meter: Some(r.hedges[1].meter()),
+                // The hedge blocks the way: put it out, then light the bowl.
+                need: if r.hedges[1].out { "boom" } else { "water" },
+                // In front of the hedge, then through it beside the brazier.
+                stand_x: if r.hedges[1].out { 1218 } else { 1150 },
             },
         ]
+    }
+
+    /// Starts the room the player is in again: its cells and state come back
+    /// from a freshly built level with the same seed, earlier rooms stay
+    /// solved, the player stands at the room's entrance and the suit gets
+    /// its starter charge back. Returns the room (0-based).
+    pub fn restart_room(&mut self) -> usize {
+        let k = self.room();
+        let fresh = Game::new(self.tier, self.seed);
+        self.grid
+            .copy_columns(&fresh.grid, k * ROOM_W, (k + 1) * ROOM_W);
+        self.rooms.reset_room(k, &fresh.rooms);
+        if let Some(o) = self.objectives.get_mut(k) {
+            o.done = false;
+        }
+        self.bolts.clear();
+        self.misses_in_a_row = 0;
+        self.top_up_starter();
+        let x = if k == 0 {
+            SPAWN_X
+        } else {
+            (k * ROOM_W) as f32 + 12.0
+        };
+        let p = &mut self.player;
+        (p.x, p.y, p.vx, p.vy) = (x, GROUND_Y as f32 - PLAYER_H - 4.0, 0.0, 0.0);
+        (p.prev_x, p.prev_y, p.facing) = (p.x, p.y, 1);
+        self.snap_camera();
+        self.refresh_version();
+        k
+    }
+
+    /// Starts the whole trial again from the same seed.
+    pub fn restart(&mut self) {
+        *self = Game::new(self.tier, self.seed);
+    }
+
+    /// After the trial: every gate open and the suit full, to experiment.
+    pub fn free_play(&mut self) {
+        for k in 0..ROOMS {
+            self.open_gate(k);
+        }
+        let caps: Vec<(String, u32)> = self
+            .jars
+            .keys()
+            .map(|f| (f.clone(), Self::jar_cap(f)))
+            .collect();
+        self.jars.extend(caps);
+        self.refresh_version();
+    }
+
+    /// Gives back at least the charge a new trial starts with.
+    fn top_up_starter(&mut self) {
+        for (f, n) in [("H2O", Self::jar_cap("H2O")), ("H2", 4), ("O2", 2)] {
+            let jar = self.jars.entry(f.to_string()).or_insert(0);
+            *jar = (*jar).max(n);
+        }
     }
 
     pub fn torch_view(&self) -> TorchView {
@@ -1509,6 +1617,132 @@ mod marsh {
                 "seed {seed}: still burning after {casts} clouds"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod restart_tests {
+    use super::script::*;
+    use super::*;
+
+    #[test]
+    fn restarting_room_2_rebuilds_its_ice_and_keeps_room_1_solved() {
+        let mut g = Game::new(Tier::Seedling, 7);
+        settle(&mut g, 30);
+        assert!(walk_to(&mut g, 200.0, 2000));
+        assert!(douse(&mut g, 0, 4).is_some());
+        settle(&mut g, 20);
+        assert!(g.rooms.gates_open[0]);
+        assert!(walk_to(&mut g, 440.0, 2000), "stuck at {}", g.player.x);
+        cast_at(&mut g, "boom", ICE.centre());
+        settle(&mut g, 60);
+        assert!(
+            g.rooms.ice_left < g.rooms.ice_start,
+            "the boom melted nothing"
+        );
+        g.jars.insert("H2".into(), 0);
+
+        assert_eq!(g.restart_room(), 1);
+        settle(&mut g, 2);
+        assert_eq!(g.room(), 1);
+        assert_eq!(g.rooms.ice_left, g.rooms.ice_start);
+        assert!(!g.rooms.ice_heated);
+        assert!(g.rooms.gates_open[0], "room 1 must stay solved");
+        assert!(!g.rooms.gates_open[1]);
+        assert_eq!(g.grid.get(GATE_X[0] + 2, GROUND_Y - 4), Species::Air);
+        assert_eq!(g.grid.get(GATE_X[1] + 2, GROUND_Y - 4), Species::Door);
+        assert!(g.jars["H2"] >= 4, "starter charge comes back");
+        assert!(g.bolts_in_flight() == 0);
+    }
+
+    #[test]
+    fn restarting_room_1_lights_the_hedge_again_and_still_needs_the_player() {
+        let mut g = Game::new(Tier::Sprout, 42);
+        settle(&mut g, 30);
+        assert!(walk_to(&mut g, 200.0, 2000));
+        assert!(douse(&mut g, 0, 4).is_some());
+        settle(&mut g, 20);
+        assert!(g.rooms.gates_open[0]);
+        assert_eq!(g.restart_room(), 0);
+        assert!(!g.rooms.gates_open[0]);
+        assert_eq!(g.rooms.hedges[0].hits, 0);
+        settle(&mut g, 60);
+        assert!(g.rooms.hedges[0].burning > 0, "the hedge burns again");
+        assert!(!g.rooms.gates_open[0]);
+    }
+
+    #[test]
+    fn restart_rebuilds_the_same_level_from_the_seed() {
+        let mut a = Game::new(Tier::Seedling, 99);
+        settle(&mut a, 30);
+        a.cast("water");
+        settle(&mut a, 200);
+        a.restart();
+        let b = Game::new(Tier::Seedling, 99);
+        assert_eq!(a.ticks, 0);
+        assert!(a.grid.cells == b.grid.cells);
+        assert_eq!(a.jars, b.jars);
+    }
+
+    #[test]
+    fn free_play_opens_every_gate_and_fills_the_suit() {
+        let mut g = Game::new(Tier::Apprentice, 1);
+        g.free_play();
+        assert!(g.rooms.gates_open.iter().all(|&o| o));
+        for (f, n) in &g.jars {
+            assert_eq!(*n, Game::jar_cap(f), "{f}");
+        }
+        assert!(walk_to(&mut g, 440.0, 4000), "stuck at {}", g.player.x);
+    }
+
+    #[test]
+    fn goals_name_the_spell_that_moves_them_on() {
+        let g = Game::new(Tier::Sprout, 42);
+        let needs: Vec<_> = g.goals().iter().map(|goal| goal.need).collect();
+        assert_eq!(needs, ["water", "boom", "split", "water"]);
+        let mut g = Game::new(Tier::Seedling, 42);
+        teleport(&mut g, 1150.0);
+        assert!(douse(&mut g, 1, 4).is_some());
+        assert_eq!(g.goals()[3].need, "boom");
+        assert_eq!(g.goals()[3].stand_x, 1218);
+    }
+
+    #[test]
+    fn standing_where_each_goal_says_and_casting_its_spell_moves_it_on() {
+        // What a hint ladder or auto-walk relies on: stand at `stand_x`,
+        // cast `need` with soft auto-aim (Sprout cards, no aiming).
+        let mut g = Game::new(Tier::Sprout, 7);
+        settle(&mut g, 30);
+        let mut casts = 0;
+        for k in 0..ROOMS {
+            while !g.goals()[k].done {
+                let goal = g.goals()[k].clone();
+                assert!(
+                    walk_to(&mut g, goal.stand_x as f32, 3000),
+                    "room {k}: stuck at {}",
+                    g.player.x
+                );
+                let spell = goal.need;
+                // Wait for the suit to have what the spell needs, as a player would.
+                for _ in 0..40 {
+                    let ok = match spell {
+                        "water" => g.jars["H2O"] >= 1,
+                        "split" => g.jars["H2O"] >= 2,
+                        _ => g.jars["H2"] >= 2 && g.jars["O2"] >= 1,
+                    };
+                    if ok {
+                        break;
+                    }
+                    settle(&mut g, 15);
+                }
+                g.cast(spell);
+                land(&mut g);
+                settle(&mut g, 40);
+                casts += 1;
+                assert!(casts < 40, "room {k}: no progress with {spell}");
+            }
+        }
+        assert!(g.trial_complete());
     }
 }
 
