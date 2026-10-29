@@ -54,3 +54,12 @@ The first screen asks for an age band, which sets the tier:
 ## Science and accuracy
 
 All enthalpies come from standard enthalpies of formation in the NIST Chemistry WebBook, and latent heats from the CRC Handbook. A unit test re-derives each one with Hess's law, so a typo in the content file fails the build. Where the game simplifies (wood is treated as pure carbon, flame temperatures are capped at real adiabatic values), the code says so next to the rule. No content entry has been reviewed by a credentialed expert yet; `reviewed_by` is `null` until one is.
+
+## Checks before you push
+
+Running `npm install` once at the repository root sets up git hooks (husky):
+
+- **pre-commit** (about 1 s): `rustfmt --check` on staged Rust files, and `tsc` when web TypeScript is staged.
+- **pre-push** (about 10 s warm, under a minute from cold): rustfmt, clippy for native and wasm32, `cargo test`, the WebAssembly build, `tsc` and the Vite build.
+
+If a hook fails, fix the problem rather than bypassing it; CI runs the same checks plus the dependency audits.
