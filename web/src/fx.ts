@@ -4,7 +4,7 @@
 // the simulation. Strength comes from the sourced enthalpy on each event.
 
 import { words } from "./device";
-import { equationBalls } from "./icons";
+import { icon, type IconName } from "./icons";
 import { prettyFormula, type CastOutcome, type Fx, type Tier } from "./types";
 
 const POOL_SIZE = 512;
@@ -19,8 +19,6 @@ const MIN_BOLT_MS = 130;
 const WAVE_MS = 520;
 const LABEL_MS = 2600;
 const LABEL_FIX_MS = 7000;
-/** The caption stays at least this far (CSS px) from the impact point. */
-const LABEL_GAP_PX = 64;
 
 /** Animation progress in [0, 1]: an effect born after `now` (events handled
  * later in the same frame) has not started yet, rather than running backwards. */
@@ -141,14 +139,23 @@ interface Label {
   y: number;
   born: number;
   life: number;
-  /** Which side of the impact the caption sits on, chosen once. */
-  above: boolean | null;
 }
 
 /** The overlay never needs more than this many backing pixels per world cell:
  * sharp enough for icons and text, and it keeps per-frame raster cost flat on
  * big screens. */
 const MAX_PX_PER_CELL = 4;
+/** Sprout's cast card shows the spell's picture instead of an equation. */
+const SPROUT_PICTURE: Partial<Record<CastOutcome["spell"], IconName>> = {
+  water: "drop",
+  split: "bubbles",
+  boom: "boom",
+  cloud: "cloud",
+  gas: "methane",
+  fireball: "fire",
+  burn: "fire",
+};
+
 /** The player sprite (6 x 12 cells) plus a one-cell outline on every side. */
 const SPRITE_BOX_W = 8;
 const SPRITE_BOX_H = 14;
@@ -712,15 +719,21 @@ export class FxLayer {
     // A newer cast's label (such as a fizzle hint) is never covered by an older one.
     if (this.labels.some((l) => Number(l.el.dataset.cast) > out.id)) return;
     const el = document.createElement("div");
-    el.className = `fx-label ${out.outcome}`;
+    el.className = `fx-label cast-card ${out.outcome}`;
     el.dataset.cast = String(out.id);
-    if (out.outcome !== "unknown") {
+    // Sprout's card is a picture and a few words: no equation row.
+    const pic = SPROUT_PICTURE[out.spell];
+    if (this.tier === "sprout" && pic && out.outcome !== "unknown") {
+      const p = document.createElement("div");
+      p.className = "fx-pic";
+      p.append(icon(pic));
+      el.append(p);
+    }
+    if (out.outcome !== "unknown" && this.tier !== "sprout") {
       const eq = document.createElement("div");
       eq.className = "fx-eq";
-      // The youngest players see atoms as balls, never subscripts.
-      if (this.tier === "sprout") eq.append(equationBalls(out.equation));
       // Apprentice sees state symbols, so ΔH for H₂O(g) and H₂O(l) can't look contradictory.
-      else eq.textContent = prettyFormula(out.equation_states ?? out.equation);
+      eq.textContent = prettyFormula(out.equation_states ?? out.equation);
       el.append(eq);
     }
     // The sim writes short lines; each gets its own row so nothing runs on.
@@ -774,76 +787,82 @@ export class FxLayer {
     }
     // One label at a time keeps the scene readable.
     for (const l of this.labels) l.el.remove();
-    this.labels = [{ el, x, y, born: performance.now(), life, above: null }];
+    this.labels = [{ el, x, y, born: performance.now(), life }];
     this.stage.append(el);
     this.placeLabel(this.labels[0]!);
   }
 
   private placeLabel(l: Label): void {
-    // Keep the whole label on screen, whatever its width, and clear of the
-    // impact point: the blast is the show, the caption sits beside it.
-    const sw = this.stage.clientWidth;
-    const sh = this.stage.clientHeight;
-    const lw = l.el.offsetWidth;
-    const lh = l.el.offsetHeight;
-    const half = lw / 2 + 8;
-    const x = ((l.x - this.viewX) / this.viewW) * sw;
-    const y = (l.y / this.viewH) * sh - this.liftPx;
-    const top = sh * 0.17;
-    const bottom = sh * 0.86;
-    if (l.above === null) l.above = y - LABEL_GAP_PX - lh >= top || y + LABEL_GAP_PX + lh > bottom;
-    let ty = l.above ? y - LABEL_GAP_PX - lh : y + LABEL_GAP_PX;
-    ty = Math.max(top, Math.min(bottom - lh, ty));
-    let tx = Math.max(half, Math.min(sw - half, x));
-    // Still over the impact after clamping? Slide sideways instead.
-    const overlapsY = ty < y + LABEL_GAP_PX && ty + lh > y - LABEL_GAP_PX;
-    if (overlapsY && Math.abs(tx - x) < lw / 2 + LABEL_GAP_PX) {
-      tx = x > sw / 2 ? x - lw / 2 - LABEL_GAP_PX : x + lw / 2 + LABEL_GAP_PX;
-      tx = Math.max(half, Math.min(sw - half, tx));
-    }
-    [tx, ty] = this.clearOfPopups(tx, ty, lw, lh, sw, sh);
-    // Never past the stage's edges, whatever the steering above did.
-    tx = Math.max(lw / 2 + 4, Math.min(sw - lw / 2 - 4, tx));
-    ty = Math.max(4, Math.min(sh - lh - 4, ty));
-    l.el.style.left = `${tx}px`;
-    l.el.style.top = `${ty}px`;
+    this.dockEl(l.el);
   }
 
-  /** Moves a label (centre `tx`, top `ty`) off any visible HUD popup: below
-   * it, above it, or beside it, whichever first stays on the stage. */
-  private clearOfPopups(tx: number, ty: number, lw: number, lh: number, sw: number, sh: number): [number, number] {
+  /** Where the last docked card went, so it stays put while it still fits. */
+  private docked = new WeakMap<HTMLElement, { x: number; y: number; top: number }>();
+
+  /**
+   * Docks a transient card (the cast card, a "New Grimoire page" card, a
+   * room stamp) top-centre under the goal pill, then steps it sideways (or
+   * down) off anything it must never cover: goal markers, gates, meters,
+   * the pill and Mote's caption. The element is centred on `left`.
+   */
+  dockEl(el: HTMLElement): void {
+    const sw = this.stage.clientWidth;
+    const sh = this.stage.clientHeight;
+    const lw = el.offsetWidth;
+    const lh = el.offsetHeight;
+    if (lw === 0 || lh === 0) return;
     const s = this.stage.getBoundingClientRect();
+    const top = Math.max(4, Math.round(this.dockTop()));
     const rects: DOMRect[] = [];
-    for (const el of this.avoid()) {
-      if (!el || el.hidden || el.offsetParent === null) continue;
-      const r = el.getBoundingClientRect();
+    for (const o of this.keepClear()) {
+      if (!o || o === el || o.hidden || o.offsetParent === null) continue;
+      const r = o.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       rects.push(new DOMRect(r.left - s.left, r.top - s.top, r.width, r.height));
     }
     const pad = 8;
     const hits = (x: number, y: number) =>
-      rects.find((r) => x - lw / 2 < r.right + pad && x + lw / 2 > r.left - pad && y < r.bottom + pad && y + lh > r.top - pad);
-    const fits = (x: number, y: number) => x - lw / 2 >= 0 && x + lw / 2 <= sw && y >= 0 && y + lh <= sh;
-    let hit = hits(tx, ty);
-    if (!hit) return [tx, ty];
-    // Try each way out of each popup in the way, nearest first.
-    for (let tries = 0; hit && tries < 4; tries++) {
-      const r = hit;
-      const options: [number, number][] = [
-        [tx, r.bottom + pad + 1],
-        [tx, r.top - pad - lh - 1],
-        [r.left - pad - lw / 2 - 1, ty],
-        [r.right + pad + lw / 2 + 1, ty],
-      ];
-      options.sort((a, b) => Math.hypot(a[0] - tx, a[1] - ty) - Math.hypot(b[0] - tx, b[1] - ty));
-      const ok = options.find(([x, y]) => fits(x, y) && !hits(x, y));
-      if (ok) return ok;
-      const next = options.find(([x, y]) => fits(x, y));
-      if (!next) break;
-      [tx, ty] = next;
-      hit = hits(tx, ty);
+      rects.some((r) => x - lw / 2 < r.right + pad && x + lw / 2 > r.left - pad && y < r.bottom + pad && y + lh > r.top - pad);
+    const fits = (x: number, y: number) => x - lw / 2 >= 4 && x + lw / 2 <= sw - 4 && y >= 4 && y + lh <= sh - 4;
+    const last = this.docked.get(el);
+    let best: [number, number] | null = null;
+    if (last && last.top === top && fits(last.x, last.y) && !hits(last.x, last.y)) best = [last.x, last.y];
+    if (!best) {
+      const cx = sw / 2;
+      const xs = [cx, lw / 2 + 4, sw - lw / 2 - 4];
+      const ys = [top];
+      for (const r of rects) {
+        xs.push(r.left - pad - lw / 2 - 1, r.right + pad + lw / 2 + 1);
+        ys.push(r.bottom + pad + 1);
+      }
+      let score = Infinity;
+      for (const x of xs) {
+        for (const y of ys) {
+          if (y < top || !fits(x, y) || hits(x, y)) continue;
+          // Sideways is cheap; every pixel down covers more of the world.
+          const d = Math.abs(x - cx) + 3 * (y - top);
+          if (d < score) {
+            score = d;
+            best = [x, y];
+          }
+        }
+      }
     }
-    return [tx, ty];
+    const [x, y] = best ?? [sw / 2, Math.min(top, sh - lh - 4)];
+    this.docked.set(el, { x, y, top });
+    el.classList.add("docked");
+    el.style.left = `${Math.round(x)}px`;
+    el.style.top = `${Math.round(y)}px`;
+  }
+
+  /** Stage-relative y (px) where docked cards start: under the goal pill. */
+  dockTop: () => number = () => 80;
+  /** What a docked card must never cover. */
+  keepClear: () => (HTMLElement | null)[] = () => [];
+
+  /** Whether a cast card is on screen. */
+  get labelUp(): boolean {
+    return this.labels.length > 0;
   }
 
   // ----------------------------------------------------------------- draw

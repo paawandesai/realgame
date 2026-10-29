@@ -19,11 +19,14 @@ const GOAL_ICON: Record<Goal["kind"], IconName> = {
   brazier: "bowl",
 };
 
-/** How long the big banner stays before it shrinks into the chip. */
-const BANNER_MS = 3200;
+/** How long the big banner stays before it shrinks into the chip; with
+ * the shrink it is gone within 2.5 s. */
+const BANNER_MS = 2150;
+/** The shrink into the chip (matches the CSS transition). */
+const SHRINK_MS = 300;
 /** Input this soon after the banner appears doesn't dismiss it (the tap or
  * step that brought it up is still in flight). */
-const INPUT_GRACE_MS = 400;
+const INPUT_GRACE_MS = 250;
 
 export class ObjectiveBanner {
   private readonly banner: HTMLElement;
@@ -229,6 +232,6 @@ export class ObjectiveBanner {
     this.timer = window.setTimeout(() => {
       this.banner.hidden = true;
       this.sync();
-    }, 450);
+    }, SHRINK_MS);
   }
 }

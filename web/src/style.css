@@ -492,6 +492,28 @@ body[data-tier="seedling"] .fx-label {
   font-size: 1.3rem;
 }
 
+/* Docked top-centre under the goal column (fx.dockEl sets left/top). */
+.docked {
+  right: auto;
+  bottom: auto;
+}
+
+#discover.docked {
+  transform: translateX(-50%);
+}
+
+.fx-pic .icon,
+.fx-pic svg {
+  width: 56px;
+  height: 56px;
+}
+
+/* Sprout's new-page card is the picture and its name: no equation. */
+body[data-tier="sprout"] #discover .grim-eq,
+body[data-tier="sprout"] #discover .grim-dh {
+  display: none;
+}
+
 .fx-label.full { border-color: #f0c75e; }
 .fx-label.partial { border-color: var(--warn); }
 .fx-label.fizzle,
@@ -1312,14 +1334,16 @@ body.cast-full #spellbar {
   grid-column: 2;
   grid-row: 1 / span 2;
   position: relative;
-  min-height: 120px;
+  min-height: 138px;
 }
 
+/* The beam sits low enough that the pans' atom counts (which grow upward)
+ * never reach the "Atoms in = atoms out" caption above them. */
 #scale .beam {
   position: absolute;
   left: 6%;
   right: 6%;
-  top: 46px;
+  top: 64px;
   height: 6px;
   border-radius: 3px;
   background: #94a3b8;
@@ -1329,7 +1353,7 @@ body.cast-full #spellbar {
 #scale .post {
   position: absolute;
   left: 50%;
-  top: 46px;
+  top: 64px;
   bottom: 22px;
   width: 6px;
   margin-left: -3px;
@@ -2219,7 +2243,7 @@ body[data-tier="apprentice"] #jars-mini {
   font-weight: 700;
   pointer-events: none;
   animation: objective-in 0.35s ease-out;
-  transition: transform 0.4s ease-in, opacity 0.4s ease-in, top 0.4s ease-in;
+  transition: transform 0.28s ease-in, opacity 0.28s ease-in, top 0.28s ease-in;
 }
 
 #objective-banner.shrink {

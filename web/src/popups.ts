@@ -24,6 +24,8 @@ export class PopupQueue {
   private current: Popup | null = null;
   private shownAt = 0;
   private timer = 0;
+  /** A cast card is up: nothing from the queue shows until it is gone. */
+  private held = false;
 
   constructor() {
     const onInput = (e: Event) => {
@@ -58,6 +60,24 @@ export class PopupQueue {
     if (!this.current) this.next();
   }
 
+  /**
+   * While `on`, the queue waits: the popup on screen (if any) steps aside
+   * and comes back first, with its full time, once the hold ends. The cast
+   * card holds the queue, so a "New Grimoire page" card waits for it.
+   */
+  hold(on: boolean): void {
+    if (on === this.held) return;
+    this.held = on;
+    if (on) {
+      window.clearTimeout(this.timer);
+      if (this.current) {
+        this.current.el.hidden = true;
+        this.queue.unshift(this.current);
+        this.current = null;
+      }
+    } else if (!this.current) this.next();
+  }
+
   /** Drops every popup of these kinds (all kinds when none are given). */
   drop(...kinds: string[]): void {
     const hit = (p: Popup) => kinds.length === 0 || kinds.includes(p.kind);
@@ -69,7 +89,7 @@ export class PopupQueue {
     window.clearTimeout(this.timer);
     // Hidden at once (it fades in, never out), so two are never on screen.
     if (this.current) this.current.el.hidden = true;
-    const p = this.queue.shift() ?? null;
+    const p = this.held ? null : (this.queue.shift() ?? null);
     this.current = p;
     if (!p) return;
     p.el.hidden = false;

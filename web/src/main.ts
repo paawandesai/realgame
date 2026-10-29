@@ -283,12 +283,29 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   /** The Grimoire card, the room-clear stamp and the room score take turns. */
   const popups = new PopupQueue();
   // The cast-result bubble steers around whichever popup is up.
-  fx.avoid = () => [
-    popups.active,
+  // Cast cards and "New Grimoire page" cards dock top-centre under the
+  // goal column and step aside from goal markers, gates and meters.
+  fx.dockTop = () => {
+    const st = stage.getBoundingClientRect();
+    let bottom = 0;
+    for (const el of document.querySelectorAll<HTMLElement>("#hud-top > *")) {
+      if (el.hidden || el.offsetParent === null) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height > 0) bottom = Math.max(bottom, r.bottom - st.top);
+    }
+    return bottom > 0 ? bottom + 10 : 80;
+  };
+  fx.keepClear = () => [
     document.querySelector<HTMLElement>("#mote.show"),
     document.querySelector<HTMLElement>("#objective-banner:not(.shrink)"),
     document.querySelector<HTMLElement>("#goal-chip:not(.yield)"),
     document.querySelector<HTMLElement>("#hint-ghost"),
+    document.querySelector<HTMLElement>("#jars-mini"),
+    document.querySelector<HTMLElement>("#progress"),
+    document.querySelector<HTMLElement>("#book-btn"),
+    document.querySelector<HTMLElement>("#settings-btn"),
+    document.querySelector<HTMLElement>("#go-arrow"),
+    ...document.querySelectorAll<HTMLElement>(".goal-icon, .goal-meter, .trap-bar, .trap-text, .stand-label"),
   ];
   objective.onAnnounce = (line) => speech.say(line, speakable(line), true);
   /** Room 1 is done: the Apprentice hint line switches to the current goal. */
@@ -1164,6 +1181,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const nudged = nudgeFor !== null;
     if (nudged && next) level = Math.max(level, 2);
     if (goalChanged || level !== hint.level || nudged !== hint.nudged) applyHint(level, next);
+    // Never next to a cast card: one thing to read at a time.
+    const ghostWanted = hint.level >= 3 && next !== null;
+    if (hintGhost.hidden !== (!ghostWanted || fx.labelUp)) hintGhost.hidden = !ghostWanted || fx.labelUp;
     placeGhostHand(now);
   }
 
@@ -1219,7 +1239,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         speech.sayOnly(`Try: ${prettyFormula(spell)}`, speakable(`Try ${spell}`));
       }
     }
-    hintGhost.hidden = !showGhost;
+    // Never next to a cast card: one thing to read at a time.
+    hintGhost.hidden = !showGhost || fx.labelUp;
   }
 
   /** Sprout: a ghost hand taps the card to use (or the go arrow). */
@@ -1237,6 +1258,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const repeat = lastWorked?.spell === need && lastWorked.room === next.room - 1 && !goals.goVisible;
       target = goals.goVisible ? document.getElementById("go-arrow") : repeat ? null : cards.element(need as CardSpell);
     }
+    if (fx.labelUp) target = null;
     ghostHand.hidden = !target;
     if (!target) return;
     const r = target.getBoundingClientRect();
@@ -1653,6 +1675,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
    * reused for every room. */
   const roomClearEl = document.createElement("div");
   roomClearEl.id = "room-clear";
+  roomClearEl.className = "toast";
   roomClearEl.setAttribute("role", "status");
   roomClearEl.hidden = true;
   const roomClearText = document.createElement("span");
@@ -1988,6 +2011,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       shownGoalLine = objective.line;
     }
     framePortrait(viewX);
+    // One transient at a time: the queue waits while a cast card is up.
+    popups.hold(fx.labelUp);
+    const toast = popups.active;
+    if (toast?.id === "discover") fx.dockEl(toast);
     layoutTopHud();
     updateSpots(now);
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
