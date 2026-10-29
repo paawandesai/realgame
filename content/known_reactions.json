@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "notes": "Real, well-documented reactions that are NOT in this trial. The game uses this list only to tell a player that a balanced equation they typed is real chemistry. Nothing here can be cast, so no enthalpies are needed. Every entry names a source a reviewer can check.",
+  "reactions": [
+    { "equation": "2Na + Cl2 -> 2NaCl", "name": "Sodium burns in chlorine to make table salt", "source": "NIST Chemistry WebBook, NaCl(s) standard enthalpy of formation; Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 4" },
+    { "equation": "H2 + Cl2 -> 2HCl", "name": "Hydrogen chloride synthesis", "source": "NIST Chemistry WebBook, HCl(g) standard enthalpy of formation" },
+    { "equation": "N2 + 3H2 -> 2NH3", "name": "Haber-Bosch ammonia synthesis", "source": "NIST Chemistry WebBook, NH3(g) standard enthalpy of formation; Atkins' Physical Chemistry, 11th ed., ch. 6" },
+    { "equation": "2Mg + O2 -> 2MgO", "name": "Magnesium burns", "source": "NIST Chemistry WebBook, MgO(s) standard enthalpy of formation" },
+    { "equation": "4Fe + 3O2 -> 2Fe2O3", "name": "Iron oxidises (rust, simplified)", "source": "CRC Handbook of Chemistry and Physics, Standard Thermodynamic Properties of Chemical Substances, Fe2O3 (hematite)" },
+    { "equation": "4Al + 3O2 -> 2Al2O3", "name": "Aluminium oxidises", "source": "NIST Chemistry WebBook, Al2O3(s) standard enthalpy of formation" },
+    { "equation": "Fe2O3 + 2Al -> Al2O3 + 2Fe", "name": "Thermite: aluminium takes the oxygen from rust", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 7 (aluminothermic reduction); NIST Chemistry WebBook, Al2O3(s) and Fe2O3(s) standard enthalpies of formation" },
+    { "equation": "S + O2 -> SO2", "name": "Sulfur burns", "source": "NIST Chemistry WebBook, SO2(g) standard enthalpy of formation" },
+    { "equation": "2CO + O2 -> 2CO2", "name": "Carbon monoxide burns", "source": "NIST Chemistry WebBook, CO(g) and CO2(g) standard enthalpies of formation" },
+    { "equation": "2C + O2 -> 2CO", "name": "Carbon burns with little oxygen", "source": "NIST Chemistry WebBook, CO(g) standard enthalpy of formation" },
+    { "equation": "CO2 + C -> 2CO", "name": "Boudouard reaction", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 8 (carbon monoxide)" },
+    { "equation": "C3H8 + 5O2 -> 3CO2 + 4H2O", "name": "Propane burns", "source": "NIST Chemistry WebBook, propane standard enthalpy of combustion" },
+    { "equation": "2C2H6 + 7O2 -> 4CO2 + 6H2O", "name": "Ethane burns", "source": "NIST Chemistry WebBook, ethane standard enthalpy of combustion" },
+    { "equation": "C2H5OH + 3O2 -> 2CO2 + 3H2O", "name": "Ethanol burns", "source": "NIST Chemistry WebBook, ethanol standard enthalpy of combustion" },
+    { "equation": "C6H12O6 + 6O2 -> 6CO2 + 6H2O", "name": "Glucose is oxidised (respiration, overall)", "source": "Berg, Tymoczko & Stryer, Biochemistry, 9th ed., ch. 16-18 (overall equation of aerobic respiration)" },
+    { "equation": "6CO2 + 6H2O -> C6H12O6 + 6O2", "name": "Photosynthesis, overall", "source": "Berg, Tymoczko & Stryer, Biochemistry, 9th ed., ch. 19-20 (overall equation of photosynthesis)" },
+    { "equation": "2H2O2 -> 2H2O + O2", "name": "Hydrogen peroxide decomposes", "source": "NIST Chemistry WebBook, H2O2(l) standard enthalpy of formation; Greenwood & Earnshaw, ch. 14" },
+    { "equation": "CaCO3 -> CaO + CO2", "name": "Limestone is roasted to quicklime", "source": "NIST Chemistry WebBook, CaCO3(s) and CaO(s) standard enthalpies of formation" },
+    { "equation": "NaOH + HCl -> NaCl + H2O", "name": "Acid meets base (neutralisation)", "source": "Atkins & Jones, Chemical Principles, 7th ed., ch. 6 (neutralisation)" },
+    { "equation": "Zn + 2HCl -> ZnCl2 + H2", "name": "Zinc dissolves in acid and gives hydrogen", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 29" },
+    { "equation": "2K + 2H2O -> 2KOH + H2", "name": "Potassium meets water", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 4" },
+    { "equation": "2Na + 2H2O -> 2NaOH + H2", "name": "Sodium meets water", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 4" },
+    { "equation": "Xe + F2 -> XeF2", "name": "Xenon difluoride, a noble gas compound", "source": "Hoppe et al., Angew. Chem. 74, 903 (1962); Greenwood & Earnshaw, ch. 18" },
+    { "equation": "Kr + F2 -> KrF2", "name": "Krypton difluoride, made in the cold with electric discharge or UV", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 18" },
+    { "equation": "Xe + 2F2 -> XeF4", "name": "Xenon tetrafluoride", "source": "Claassen, Selig & Malm, J. Am. Chem. Soc. 84, 3593 (1962); Greenwood & Earnshaw, ch. 18" }
+  ]
+}

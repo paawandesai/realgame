@@ -8,33 +8,57 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main id="start" class="screen">
+    <main id="start" class="screen" hidden>
       <h1>Alchemist's Trial</h1>
       <p class="lead">Cast real chemistry. Watch the world react.</p>
-      <h2 id="age-question">How old are you?</h2>
+      <h2 id="age-question">Pick your level</h2>
       <div class="ages" role="group" aria-labelledby="age-question">
-        <button data-tier="sprout"><strong>4 to 7</strong><span>Pictures, read aloud</span></button>
-        <button data-tier="seedling"><strong>8 to 10</strong><span>Symbols, with hints</span></button>
-        <button data-tier="apprentice"><strong>11 and up</strong><span>Real equations and numbers</span></button>
+        <button type="button" data-tier="sprout" aria-label="Sprout, ages 4 to 7: tap the pictures, read aloud">
+          <span class="age-pic" data-icon="sprout"></span><strong>Sprout</strong>
+          <span class="age-note"><span class="age-how" data-icon="hand"></span>Tap the pictures</span>
+          <span class="age-years">Ages 4 to 7</span>
+        </button>
+        <button type="button" data-tier="seedling" aria-label="Seedling, ages 8 to 10: match the atoms with tiles">
+          <span class="age-pic" data-icon="sapling"></span><strong>Seedling</strong>
+          <span class="age-note"><span class="age-how" data-icon="atoms"></span>Match the atoms</span>
+          <span class="age-years">Ages 8 to 10</span>
+        </button>
+        <button type="button" data-tier="apprentice" aria-label="Apprentice, ages 11 and up: write real equations">
+          <span class="age-pic" data-icon="hat"></span><strong>Apprentice</strong>
+          <span class="age-note"><span class="age-how" data-icon="pencil"></span>Write real equations</span>
+          <span class="age-years">Ages 11 and up</span>
+        </button>
       </div>
-      <p class="small">Nothing you type leaves this device.</p>
+      <p class="small">Nothing you do leaves this device.</p>
     </main>
 
     <main id="game" class="screen" hidden>
-      <p id="rotate">Turn your device sideways to play.</p>
+      <div id="rotate" role="status">
+        <span class="rotate-pic" aria-hidden="true"><span class="rotate-phone" data-icon="phone"></span><span class="rotate-arrow" data-icon="restart"></span></span>
+        <p>Turn your device sideways to play.</p>
+      </div>
       <div id="stage">
         <canvas id="world" width="320" height="180" aria-label="Game world"></canvas>
 
-        <section id="status" aria-label="Your cultivation">
-          <div id="realm"></div>
-          <div class="bar"><div id="realm-fill"></div></div>
-        </section>
+        <div id="progress" role="img" aria-label="Rooms done"></div>
 
-        <section id="objectives" aria-label="Trial goals"><ol id="objective-list"></ol></section>
-
+        <button id="replay" type="button" aria-label="Say it again"></button>
         <div id="mote" role="status" aria-live="polite"><span class="mote-orb" aria-hidden="true"></span><span id="mote-text"></span></div>
 
         <div id="readout" aria-live="off"></div>
+
+        <!-- One column under the top bar for every top message, so they
+             stack and never overlap: the goal pill, then the hint chip,
+             then the tip, then one banner at a time. -->
+        <div id="hud-top">
+          <div id="hud-pill"></div>
+          <div id="hint-ghost" hidden>
+            <span id="hint-text"></span>
+            <button id="hint-use" type="button" hidden>Use it</button>
+          </div>
+          <p id="app-tutorial" hidden><span id="app-tutorial-text"></span> <button id="tutorial-skip" type="button">Skip</button></p>
+          <div id="hud-banners"></div>
+        </div>
 
         <section id="ring" hidden aria-label="Formula ring">
           <div id="tiles" role="group" aria-label="Substances"></div>
@@ -49,35 +73,115 @@
           </div>
         </section>
 
-        <div id="toast" hidden role="alert"></div>
-
-        <section id="hud-bottom">
-          <div id="jars" aria-label="Reagent jars"></div>
-          <div id="slots" aria-label="Quick-cast spells"></div>
+        <section id="hud-bottom" hidden>
+          <div id="caster">
+            <input id="cast-input" type="text" maxlength="64" autocomplete="off" spellcheck="false" enterkeyhint="go" aria-label="Type a formula or a word, then press Enter to cast" placeholder="Try: water" />
+            <button id="cast-go" type="button" class="primary">Cast</button>
+          </div>
+          <div id="slots-wrap">
+            <div id="slots" aria-label="Grimoire spells, keys 1 to 9"></div>
+            <button id="slots-more" type="button" aria-expanded="false" aria-controls="slots-more-list" hidden></button>
+            <div id="slots-more-list" role="group" aria-label="More spells" hidden></div>
+          </div>
           <div class="hud-buttons">
-            <button id="lens-btn" type="button" aria-pressed="false">Insight lens <kbd>Tab</kbd></button>
-            <button id="notebook-btn" type="button">Notebook <kbd>N</kbd></button>
+            <!-- In the bar, never over the world (it once hid the room-4 brazier). -->
+            <button id="lens-btn" type="button" aria-pressed="false" aria-label="Heat lens" hidden><span class="lens-word">Heat lens</span><span class="lens-icon" aria-hidden="true">°C</span> <kbd>L</kbd></button>
+            <button id="app-write" type="button" class="touch-only" aria-label="Write a spell"></button>
+            <button id="app-gather" type="button" class="touch-only" data-hold="gather" aria-label="Gather"></button>
           </div>
         </section>
+        <div id="lens-legend" hidden aria-label="Heat lens colours, degrees Celsius"></div>
+        <div id="challenge" class="toast" role="status" aria-live="polite" hidden></div>
 
-        <aside id="notebook" hidden aria-label="Lab notebook">
-          <h2>Lab notebook</h2>
-          <p class="small" id="notebook-empty">Reactions you discover are written here.</p>
-          <ul id="notebook-list"></ul>
-          <button id="notebook-close" type="button">Close</button>
+        <div id="jars-mini" aria-label="Suit gauges" hidden></div>
+
+        <button id="book-btn" type="button" aria-label="Grimoire" aria-expanded="false" aria-controls="grimoire-panel"></button>
+        <aside id="grimoire-panel" hidden role="dialog" aria-modal="false" aria-labelledby="grimoire-title">
+          <h2 id="grimoire-title" tabindex="-1">Grimoire</h2>
+          <p class="small" id="grimoire-count"></p>
+          <ul id="grimoire-cards" class="grim-cards"></ul>
+          <button id="grimoire-close" type="button" aria-label="Close the Grimoire"><span class="bi" data-icon="close"></span><span class="btn-word">Close</span></button>
+        </aside>
+        <div id="discover" class="toast" aria-live="polite" hidden></div>
+
+        <div id="moves" role="group" aria-label="Move">
+          <button type="button" data-key="left" aria-label="Walk left"></button>
+          <button type="button" data-key="right" aria-label="Walk right"></button>
+          <button type="button" data-key="jump" aria-label="Jump"></button>
+        </div>
+
+        <!-- Touch: casting and gathering, bottom-right (Seedling). -->
+        <div id="actions" role="group" aria-label="Actions" hidden>
+          <button type="button" id="act-gather" class="act" data-hold="gather" aria-label="Gather"></button>
+          <button type="button" id="act-tray" class="act act-wide" aria-label="Build a spell" aria-expanded="false"><span id="act-tray-text"></span></button>
+          <button type="button" id="act-cast" class="act primary" aria-label="Cast"></button>
+        </div>
+
+        <div id="cards" role="group" aria-label="Spell cards" hidden></div>
+
+        <div id="ghost-hand" aria-hidden="true" hidden></div>
+
+        <button id="settings-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="settings"></button>
+        <aside id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
+          <div class="menu-head">
+            <h2 id="settings-title">Menu</h2>
+            <button id="settings-close" type="button" aria-label="Close menu"><span class="mi" data-icon="close"></span><span class="menu-word">Close</span></button>
+          </div>
+          <div id="menu-body">
+            <div class="menu-actions">
+              <button id="menu-age" type="button" aria-label="Change age"><span class="mi" data-icon="sprout"></span><span class="menu-word">Change age</span></button>
+              <button id="menu-room" type="button" aria-label="Restart this room"><span class="mi" data-icon="restart"></span><span class="menu-word">Restart room</span></button>
+            </div>
+            <label class="row"><span class="mi" data-icon="mute"></span><input id="sound-mute" type="checkbox" /> <span class="menu-word">Mute sound</span></label>
+            <label class="row"><span class="mi" data-icon="speaker"></span><span class="menu-word">Volume</span> <input id="sound-master" type="range" min="0" max="100" step="5" /></label>
+            <label class="row text-only"><span class="mi" data-icon="boom"></span><span class="menu-word">Effects</span> <input id="sound-sfx" type="range" min="0" max="100" step="5" /></label>
+            <label class="row sprout-hide"><span class="mi" data-icon="talk"></span><input id="voice" type="checkbox" /> <span class="menu-word">Read aloud</span></label>
+            <label class="row text-only"><span class="mi" data-icon="captions"></span><input id="captions" type="checkbox" /> <span class="menu-word">Mentor captions</span></label>
+            <label class="row text-only"><span class="mi" data-icon="star"></span><input id="challenge-on" type="checkbox" /> <span class="menu-word">Room scores</span></label>
+            <label class="row sprout-hide"><span class="mi" data-icon="calm"></span><input id="motion" type="checkbox" /> <span class="menu-word">Calm motion</span></label>
+            <label class="row sprout-hide"><span class="mi" data-icon="clock"></span><span class="menu-word">Speed</span>
+              <select id="speed">
+                <option value="0.5">Slow</option>
+                <option value="0.75">Steady</option>
+                <option value="1">Normal</option>
+              </select>
+            </label>
+            <div class="menu-danger">
+              <button id="menu-trial" type="button" aria-label="Restart the whole trial"><span class="mi" data-icon="rewind"></span><span class="menu-word">Restart trial</span></button>
+            </div>
+          </div>
+          <div id="menu-more" aria-hidden="true">More below</div>
+          <div id="trial-confirm" role="alertdialog" aria-labelledby="trial-confirm-text" hidden>
+            <span class="confirm-pic" data-icon="rewind"></span>
+            <p id="trial-confirm-text">Start the whole trial again? Every room goes back to the start.</p>
+            <div class="confirm-buttons">
+              <button id="trial-yes" type="button" class="danger" aria-label="Yes, start the whole trial again"><span class="mi" data-icon="check"></span><span class="menu-word">Start over</span></button>
+              <button id="trial-no" type="button" class="primary" aria-label="No, keep playing"><span class="mi" data-icon="close"></span><span class="menu-word">Keep playing</span></button>
+            </div>
+          </div>
         </aside>
 
-        <div id="touch" aria-hidden="true">
-          <button data-key="left">&#9664;</button>
-          <button data-key="right">&#9654;</button>
-          <button data-key="jump">Jump</button>
-          <button data-key="gather">Gather</button>
-          <button data-key="ring">Ring</button>
-        </div>
+        <section id="end" hidden role="dialog" aria-labelledby="end-title">
+          <div class="burst" aria-hidden="true"></div>
+          <header class="end-head">
+            <h2 id="end-title" tabindex="-1">Breakthrough!</h2>
+            <p id="end-stars" hidden></p>
+            <p id="end-sub">You passed the Alchemist's Trial.</p>
+          </header>
+          <div id="end-scroll" class="end-scroll">
+            <ul id="grimoire" class="grim-cards" aria-label="Grimoire"></ul>
+          </div>
+          <footer class="end-buttons">
+            <button id="end-replay" type="button" class="primary" aria-label="Play again"><span class="bi" data-icon="restart"></span><span class="btn-word">Replay</span></button>
+            <button id="end-age" type="button" aria-label="Change age"><span class="bi bi-ages"><span data-icon="sprout"></span><span data-icon="sapling"></span><span data-icon="hat"></span></span><span class="btn-word">Change age</span></button>
+            <button id="end-free" type="button" aria-label="Free play: every door open"><span class="bi" data-icon="star"></span><span class="btn-word">Free play</span></button>
+          </footer>
+        </section>
       </div>
+      <section id="tray" hidden aria-label="Spell tray"></section>
       <p id="help" class="small">
-        Move <kbd>A</kbd><kbd>D</kbd> · Jump <kbd>Space</kbd> · Aim with the mouse · Gather: hold right-click or <kbd>G</kbd> ·
-        Formula ring <kbd>Q</kbd> · Cast: left-click or <kbd>Enter</kbd> · Saved spells <kbd>1</kbd>–<kbd>5</kbd>
+        Move <kbd>A</kbd><kbd>D</kbd> · Jump <kbd>Space</kbd> · Point to aim (or <kbd>T</kbd> goal, <kbd>Shift</kbd>+arrows nudge) · Type a spell <kbd>Enter</kbd> · Spells <kbd>1</kbd>–<kbd>9</kbd>
+        · Next spell <kbd>Tab</kbd> · Last spell <kbd>↑</kbd> · Gather <kbd>G</kbd> · Lens <kbd>L</kbd> · Grimoire <kbd>B</kbd> · Tiles <kbd>Q</kbd>
       </p>
     </main>
     <script type="module" src="/src/main.ts"></script>

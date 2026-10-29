@@ -1,17 +1,21 @@
 {
   "version": 1,
-  "notes": "Every reaction the game can cast. Enthalpies are standard values at 25 C and 1 atm, computed from standard enthalpies of formation in the NIST Chemistry WebBook (H2O(g) -241.826, H2O(l) -285.830, CO2(g) -393.51, CH4(g) -74.87 kJ/mol). Each entry needs a reviewer before it ships to classrooms.",
+  "notes": "Every reaction the game can cast. Enthalpies are standard values at 25 °C and 1 atm, computed from standard enthalpies of formation in the NIST Chemistry WebBook (H2O(g) -241.826, H2O(l) -285.830, CO2(g) -393.51, CH4(g) -74.87 kJ/mol). Each entry needs a reviewer before it ships to classrooms.",
   "reactions": [
     {
       "id": "water_synthesis",
       "name": "Conjure Water (hydrogen burns)",
       "equation": "2H2 + O2 -> 2H2O",
+      "equation_states": "2H2(g) + O2(g) -> 2H2O(g)",
       "delta_h_kj": -483.6,
       "product_state": "gas",
       "needs": "spark",
       "tier_min": "sprout",
       "concept": "Synthesis: two gases join into water and release a lot of heat.",
+      "short_sprout": "Boom! Water!",
+      "short_seedling": "Two gases join and give off heat.",
       "real_world": "Hydrogen fuel cells and the main engines of the Space Shuttle used this reaction.",
+      "safety": "Real hydrogen + oxygen mixtures explode violently; only trained chemists handle them.",
       "source": "NIST Chemistry WebBook, standard enthalpy of formation of H2O(g)",
       "reviewed_by": null
     },
@@ -19,11 +23,14 @@
       "id": "electrolysis_water",
       "name": "Split Water (electrolysis)",
       "equation": "2H2O -> 2H2 + O2",
+      "equation_states": "2H2O(l) -> 2H2(g) + O2(g)",
       "delta_h_kj": 571.7,
       "product_state": "gas",
       "needs": "electricity",
       "tier_min": "sprout",
       "concept": "Electricity can pull water apart into hydrogen and oxygen. It costs energy instead of releasing it.",
+      "short_sprout": "Zap! Water makes bubbles!",
+      "short_seedling": "Electricity splits water into two gases.",
       "real_world": "Green hydrogen plants split water with electricity from solar and wind.",
       "source": "NIST Chemistry WebBook, standard enthalpy of formation of H2O(l)",
       "reviewed_by": null
@@ -32,11 +39,14 @@
       "id": "methane_combustion",
       "name": "Fireball (methane burns)",
       "equation": "CH4 + 2O2 -> CO2 + 2H2O",
+      "equation_states": "CH4(g) + 2O2(g) -> CO2(g) + 2H2O(g)",
       "delta_h_kj": -802.3,
       "product_state": "gas",
       "needs": "spark",
       "tier_min": "seedling",
       "concept": "Combustion: a fuel joins with oxygen and makes carbon dioxide, water and heat.",
+      "short_sprout": "Whoosh! A big fireball!",
+      "short_seedling": "Methane burns into CO2, water and heat.",
       "real_world": "This is the flame on a gas stove.",
       "source": "NIST Chemistry WebBook, standard enthalpies of formation of CH4, CO2 and H2O(g)",
       "reviewed_by": null
@@ -45,11 +55,14 @@
       "id": "carbon_combustion",
       "name": "Burning wood (carbon burns)",
       "equation": "C + O2 -> CO2",
+      "equation_states": "C(s) + O2(g) -> CO2(g)",
       "delta_h_kj": -393.5,
       "product_state": "gas",
       "needs": "spark",
       "tier_min": "seedling",
       "concept": "Fire needs fuel, oxygen and heat. Take any one away and it goes out.",
+      "short_sprout": "Fire needs air!",
+      "short_seedling": "Fire needs fuel, oxygen and heat.",
       "real_world": "Wood is mostly carbon compounds; in the game it is simplified to pure carbon.",
       "source": "NIST Chemistry WebBook, standard enthalpy of formation of CO2(g)",
       "reviewed_by": null
@@ -69,7 +82,16 @@
       "substance": "H2O",
       "temperature_c": 100.0,
       "latent_heat_kj_per_mol": 40.65,
-      "source": "CRC Handbook of Chemistry and Physics, enthalpy of vaporization of water at 100 C",
+      "source": "CRC Handbook of Chemistry and Physics, enthalpy of vaporization of water at 100 °C",
+      "reviewed_by": null
+    },
+    {
+      "id": "water_vaporisation_25c",
+      "substance": "H2O",
+      "temperature_c": 25.0,
+      "latent_heat_kj_per_mol": 44.0,
+      "note": "Why 2H2 + O2 -> 2H2O(g) releases 483.6 kJ but splitting 2H2O(l) costs 571.7 kJ: the difference, about 88 kJ (2 × 44.0 kJ/mol), is the heat it takes to turn liquid water into steam at 25 °C.",
+      "source": "NIST Chemistry WebBook: standard enthalpies of formation H2O(g) -241.826 and H2O(l) -285.830 kJ/mol differ by 44.004 kJ/mol, the standard enthalpy of vaporization of water at 25 °C (CRC Handbook of Chemistry and Physics gives 44.0 kJ/mol)",
       "reviewed_by": null
     }
   ]

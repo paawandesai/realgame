@@ -8,8 +8,10 @@
 pub mod formula;
 pub mod game;
 pub mod grid;
+pub mod palette;
 pub mod reactions;
 pub mod species;
+pub mod spell;
 // wasm-bindgen's generated glue uses unsafe internally; our own code here does not.
 #[allow(unsafe_code)]
 pub mod web;

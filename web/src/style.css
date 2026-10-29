@@ -43,6 +43,7 @@ button:hover:not(:disabled) {
 }
 
 button:focus-visible,
+select:focus-visible,
 input:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
@@ -138,68 +139,19 @@ kbd {
   margin: 8px 0 0;
 }
 
-#status,
-#objectives,
 #mote,
 #readout,
 #hud-bottom,
-#toast,
-#ring,
-#notebook {
+#ring {
   position: absolute;
   background: var(--panel);
   border-radius: var(--radius);
   backdrop-filter: blur(4px);
 }
 
-#status {
-  top: 10px;
-  left: 10px;
-  padding: 8px 12px;
-  min-width: 200px;
-  font-weight: 600;
-}
-
-.bar {
-  margin-top: 6px;
-  height: 6px;
-  border-radius: 3px;
-  background: #334155;
-  overflow: hidden;
-}
-
-#realm-fill {
-  height: 100%;
-  width: 0;
-  background: var(--good);
-  transition: width 0.4s;
-}
-
-#objectives {
-  top: 10px;
-  right: 10px;
-  max-width: 34%;
-  padding: 8px 12px 8px 4px;
-  font-size: 0.85rem;
-}
-
-#objectives ol {
-  margin: 0;
-  padding-left: 22px;
-}
-
-#objectives li {
-  margin: 2px 0;
-}
-
-#objectives li.done {
-  color: var(--good);
-  text-decoration: line-through;
-}
-
 #mote {
-  top: 72px;
-  left: 10px;
+  top: 10px;
+  left: 84px;
   transform: translateY(-8px);
   max-width: 38%;
   padding: 10px 14px;
@@ -223,6 +175,18 @@ kbd {
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #e0f2fe, #38bdf8);
   box-shadow: 0 0 10px #38bdf8;
+}
+
+.mote-pic {
+  flex: none;
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+}
+
+.mote-pic .icon {
+  width: 100%;
+  height: 100%;
 }
 
 #readout {
@@ -277,11 +241,32 @@ kbd {
   transition: height 0.2s;
 }
 
-.f-h2o { background: #3b82f6; }
-.f-h2 { background: #f0abfc; }
-.f-o2 { background: #a5f3fc; }
-.f-ch4 { background: #bef264; }
-.f-co2 { background: #9ca3af; }
+/* The suit's next refill: a thin bar under the gauge that fills up. */
+.jar .refill {
+  display: block;
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.35);
+  overflow: hidden;
+}
+.jar .refill[hidden] { display: none; }
+.jar .refill > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #e2e8f0;
+  transition: width 0.2s linear;
+}
+/* Held still for a moment after a cast, so the cast's change reads first. */
+.jar .refill.paused > span { background: #94a3b8; }
+
+/* Okabe-Ito, matching the atom balls: H sky blue, O vermillion. */
+.f-h2o { background: #0072b2; }
+.f-h2 { background: #56b4e9; }
+.f-o2 { background: #d55e00; }
+.f-ch4 { background: #009e73; }
+.f-co2 { background: #8a8a90; }
 
 .jar.charge {
   font-size: 0.95rem;
@@ -317,14 +302,33 @@ kbd {
   gap: 6px;
 }
 
+.hud-buttons .speed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hud-buttons select {
+  font: inherit;
+  color: inherit;
+  background: #22303d;
+  border: 1px solid #3a4b5c;
+  border-radius: 8px;
+  padding: 6px 4px;
+}
+
 /* --------------------------------------------------------- formula ring */
 
 #ring {
   left: 50%;
-  top: 22%;
+  top: 8px;
   transform: translateX(-50%);
   width: min(560px, 92%);
-  padding: 14px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  z-index: 8;
+  padding: 12px;
   border: 1px solid #3a4b5c;
 }
 
@@ -344,8 +348,21 @@ kbd {
   font-weight: 600;
 }
 
+.tile {
+  max-width: 96px;
+}
+
 .tile .pic {
   font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+}
+
+.tile .pic svg {
+  width: 40px;
+  height: 40px;
 }
 
 #builder {
@@ -420,86 +437,272 @@ kbd {
   margin-top: 8px;
 }
 
-/* ---------------------------------------------------------------- toast */
+/* ------------------------------------------------------------ feedback */
 
-#toast {
-  left: 50%;
-  bottom: 96px;
-  transform: translateX(-50%);
-  max-width: 70%;
-  padding: 10px 14px;
-  border-left: 4px solid var(--quiet);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+#world-gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
 }
 
-#toast.good { border-left-color: var(--good); }
-#toast.fizzle { border-left-color: var(--warn); }
-#toast.bad { border-left-color: var(--bad); }
-
-.toast-eq {
-  font-size: 1.15rem;
-  font-weight: 700;
+#glow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
-#toast button {
-  align-self: flex-start;
-  margin-top: 4px;
+#fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
-/* ------------------------------------------------------------- notebook */
-
-#notebook {
-  top: 10px;
-  bottom: 10px;
-  right: 10px;
-  width: min(360px, 80%);
-  padding: 14px;
-  overflow-y: auto;
-  background: var(--panel-solid);
+/* Just the sprite box; placed with the translate property by fx.ts. */
+#player-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
 }
 
-#notebook h2 {
-  margin: 0 0 8px;
-}
-
-#notebook ul {
-  list-style: none;
-  padding: 0;
-}
-
-#notebook li {
-  border-top: 1px solid #2d3b49;
-  padding: 8px 0;
-}
-
-#notebook p {
-  margin: 4px 0;
-}
-
-/* --------------------------------------------------------------- touch */
-
-#touch {
+#player-layer[hidden] {
   display: none;
 }
 
-@media (pointer: coarse) {
-  #touch {
-    position: absolute;
-    display: flex;
-    gap: 8px;
-    bottom: 96px;
-    right: 10px;
+.fx-label {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, 0);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 2px solid var(--quiet);
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  pointer-events: none;
+  /* Wraps instead of running off the stage; never wider than the stage. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  width: max-content;
+  max-width: min(440px, calc(100% - 24px));
+  box-sizing: border-box;
+  animation: label-rise 0.25s ease-out;
+}
+
+.fx-ledger {
+  margin-top: 2px;
+  font-size: 0.85em;
+  font-weight: 700;
+  color: #cfeaff;
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-went {
+  font-size: 0.75em;
+  font-weight: 400;
+  color: var(--quiet);
+}
+
+.fx-note {
+  margin-top: 4px;
+  font-size: 0.75em;
+  font-weight: 400;
+  color: #ffe08a;
+}
+
+body[data-tier="sprout"] .fx-label,
+body[data-tier="seedling"] .fx-label {
+  font-size: 1.3rem;
+}
+
+/* Docked top-centre under the goal column (fx.dockEl sets left/top). */
+.docked {
+  right: auto;
+  bottom: auto;
+}
+
+#discover.docked {
+  transform: translateX(-50%);
+}
+
+.fx-pic .icon,
+.fx-pic svg {
+  width: 56px;
+  height: 56px;
+}
+
+/* Sprout's new-page card is the picture and its name: no equation. */
+body[data-tier="sprout"] #discover .grim-eq,
+body[data-tier="sprout"] #discover .grim-dh {
+  display: none;
+}
+
+.fx-label.full { border-color: #f0c75e; }
+.fx-label.partial { border-color: var(--warn); }
+.fx-label.fizzle,
+.fx-label.unknown { border-color: var(--quiet); }
+
+.fx-eq {
+  font-size: 1.15em;
+}
+
+.fx-dh {
+  font-size: 0.8em;
+  font-weight: 400;
+  color: var(--quiet);
+}
+
+.fx-label button {
+  margin-top: 6px;
+  min-height: 44px;
+  pointer-events: auto;
+}
+
+/* Seedling's unbalanced card: one line, a picture scale, Why? and Fix it. */
+.card-scale {
+  position: relative;
+  width: 132px;
+  height: 46px;
+  margin: 4px auto 0;
+}
+
+.card-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: #c9d6e2;
+  transition: transform 0.3s ease-out;
+}
+
+.card-pan {
+  position: absolute;
+  bottom: 4px;
+  width: 54px;
+  min-height: 6px;
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  gap: 2px;
+  border-bottom: 3px solid #c9d6e2;
+  border-radius: 0 0 8px 8px;
+}
+
+.card-pan:first-child { left: -6px; }
+.card-pan:last-child { right: -6px; }
+
+.card-ball {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.card-post {
+  position: absolute;
+  left: calc(50% - 3px);
+  top: 24px;
+  width: 6px;
+  height: 22px;
+  border-radius: 2px;
+  background: #8aa0b4;
+}
+
+.fx-buttons {
+  display: block;
+  text-align: center;
+}
+
+.fx-buttons button {
+  display: inline-block;
+  margin: 6px 4px 0;
+}
+
+.fx-why {
+  margin-top: 4px;
+  font-size: 0.8em;
+  font-weight: 400;
+}
+
+.fx-why[hidden] {
+  display: none;
+}
+
+@keyframes label-rise {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.slot.suggested {
+  border-color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-label,
+  .slot.suggested {
+    animation: none;
   }
-  #touch button {
-    min-width: 56px;
-    min-height: 48px;
-    background: var(--panel);
-  }
-  #help {
-    display: none;
-  }
+}
+
+/* ------------------------------------------------------------- settings */
+
+#settings-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 64px;
+  height: 64px;
+  font-size: 32px;
+  line-height: 1;
+  background: var(--panel);
+  z-index: 5;
+}
+
+#settings {
+  position: absolute;
+  top: 84px;
+  right: 10px;
+  width: min(300px, 80%);
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  z-index: 5;
+}
+
+#settings h2 {
+  margin: 0 0 8px;
+}
+
+#settings .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+#settings input[type="range"] {
+  flex: 1;
+  min-height: 32px;
+}
+
+#settings input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
 }
 
 /* Sprout: bigger targets, fewer words. */
@@ -539,5 +742,3804 @@ body[data-tier="sprout"] .tile .pic {
   #stage,
   #help {
     display: none;
+  }
+}
+
+/* ===================================================== v2 interface */
+
+.icon {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ------------------------------------------------------- start screen */
+
+.ages button {
+  align-items: center;
+  min-height: 96px;
+  min-width: 96px;
+}
+
+.age-pic {
+  width: 80px;
+  height: 80px;
+}
+
+.ages strong {
+  font-size: 1.4rem;
+}
+
+/* --------------------------------------------------------------- layout */
+
+body {
+  --below: 0px;
+}
+
+body[data-tier="seedling"] {
+  --below: 160px;
+}
+
+#stage {
+  width: min(100%, calc((100vh - 60px - var(--below)) * 16 / 9));
+}
+
+body[data-tier="sprout"] #help,
+body[data-tier="sprout"] #readout,
+body[data-tier="seedling"] #readout {
+  display: none;
+}
+
+/* ------------------------------------------------- goals and progress */
+
+#progress {
+  position: absolute;
+  top: 22px;
+  right: 84px;
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  pointer-events: none;
+}
+
+#progress .dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--quiet);
+  background: transparent;
+}
+
+#progress .dot.current {
+  border-color: #f0c75e;
+  box-shadow: 0 0 0 3px rgba(240, 199, 94, 0.35);
+}
+
+#progress .dot.done {
+  border-color: #f0c75e;
+  background: #f0c75e;
+}
+
+#goal-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.goal-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  padding: 6px;
+  border-radius: 50%;
+  background: rgba(15, 23, 32, 0.72);
+  border: 3px solid #ffffff;
+  will-change: transform;
+}
+
+.goal-icon.next {
+  border-color: #f0c75e;
+}
+
+.goal-icon.offscreen {
+  visibility: hidden;
+}
+
+.goal-meter {
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  top: -14px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(15, 23, 32, 0.85);
+  overflow: hidden;
+}
+
+.goal-meter > div {
+  height: 100%;
+  background: #d55e00;
+  transition: width 0.3s;
+}
+
+#hint-pulse {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 84px;
+  height: 84px;
+  margin: -42px 0 0 -42px;
+  border-radius: 50%;
+  border: 4px solid #f0c75e;
+  animation: hint-pulse 1.1s ease-out infinite;
+}
+
+@keyframes hint-pulse {
+  from { opacity: 1; scale: 0.6; }
+  to { opacity: 0; scale: 1.4; }
+}
+
+#go-arrow {
+  position: absolute;
+  right: 12px;
+  top: 42%;
+  width: 72px;
+  height: 72px;
+  padding: 10px;
+  border-radius: 50%;
+  color: #0f1720;
+  background: #f0c75e;
+  border: 3px solid #fff7d6;
+  z-index: 3;
+}
+
+#go-arrow.left {
+  right: auto;
+  left: 12px;
+}
+
+#go-arrow.hinting {
+  animation: pulse-gold 1s ease-in-out infinite;
+}
+
+@keyframes pulse-gold {
+  50% { box-shadow: 0 0 0 10px rgba(240, 199, 94, 0.45); }
+}
+
+/* ------------------------------------------------------ voice caption */
+
+#replay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 64px;
+  height: 64px;
+  padding: 12px;
+  background: var(--panel);
+  z-index: 4;
+}
+
+/* Ends before the room dots (right 158px, up to 140px wide) with a gap. */
+#mote {
+  max-width: calc(100% - 84px - 158px - 140px - 16px);
+}
+
+body[data-tier="sprout"] #mote,
+body[data-tier="seedling"] #mote {
+  font-size: 1.25rem;
+}
+
+/* ----------------------------------------------------------- moves */
+
+#moves {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+
+#moves button {
+  width: 64px;
+  height: 64px;
+  padding: 12px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+#moves .extra {
+  display: none;
+  width: auto;
+  padding: 0 12px;
+  font-size: 0.9rem;
+}
+
+body[data-tier="apprentice"] #moves {
+  display: none;
+  bottom: 110px;
+}
+
+@media (pointer: coarse) {
+  body[data-tier="apprentice"] #moves,
+  body[data-tier="apprentice"] #moves .extra {
+    display: flex;
+  }
+  #help {
+    display: none;
+  }
+}
+
+body[data-tier="seedling"] #moves button {
+  width: 56px;
+  height: 56px;
+}
+
+/* ---------------------------------------------------------- Sprout cards */
+
+#cards {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 10px;
+  z-index: 3;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  padding: 6px 6px 12px;
+  border: 3px solid #ffffff;
+  border-radius: 16px;
+  background: var(--panel-solid);
+  touch-action: none;
+  user-select: none;
+}
+
+.card-pic {
+  width: 52px;
+  height: 52px;
+}
+
+.card-word {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.card-gauge {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 5px;
+  height: 6px;
+  border-radius: 3px;
+  background: #334155;
+  overflow: hidden;
+}
+
+.card-gauge > span {
+  display: block;
+  height: 100%;
+  background: #56b4e9;
+}
+
+.card.empty {
+  opacity: 0.6;
+}
+
+.card.hint,
+.tray-tile.hint {
+  border-color: #f0c75e;
+  animation: pulse-gold 1s ease-in-out infinite;
+}
+
+/* Sprout: "not that one" (a wobble and a grey X) and "this one" (a bounce). */
+.card.wobble {
+  animation: card-wobble 0.45s ease-in-out;
+}
+
+.card-x {
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px #0f1720);
+}
+
+.card-x svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 4;
+}
+
+.card.bounce {
+  border-color: #f0c75e;
+  animation: card-bounce 0.6s ease-in-out 3;
+}
+
+@keyframes card-wobble {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-9deg); }
+  40% { transform: rotate(8deg); }
+  60% { transform: rotate(-6deg); }
+  80% { transform: rotate(4deg); }
+}
+
+@keyframes card-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-14px) scale(1.08); }
+  70% { transform: translateY(0) scale(0.97); }
+}
+
+.card-drag {
+  position: fixed;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  pointer-events: none;
+  opacity: 0.85;
+  z-index: 50;
+}
+
+/* --------------------------------------------------------- hints */
+
+#hint-ghost {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 2px dashed #f0c75e;
+  background: var(--panel);
+  font-size: 1.2rem;
+  font-weight: 600;
+  z-index: 4;
+}
+
+#hint-text .icon {
+  width: 48px;
+  height: 48px;
+}
+
+#hint-use {
+  min-height: 44px;
+}
+
+#ghost-hand {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  margin: -6px 0 0 -14px;
+  pointer-events: none;
+  opacity: 0.85;
+  z-index: 6;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+/* --------------------------------------------------------- menu */
+
+#settings-btn {
+  padding: 12px;
+  color: var(--ink);
+}
+
+#settings {
+  top: 84px;
+  max-height: calc(100% - 94px);
+  overflow-y: auto;
+}
+
+.menu-actions {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.menu-actions button,
+#settings-close {
+  min-height: 48px;
+}
+
+#settings select {
+  font: inherit;
+  color: inherit;
+  background: #22303d;
+  border: 1px solid #3a4b5c;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 4px 8px;
+}
+
+body[data-tier="sprout"] .menu-actions button,
+body[data-tier="sprout"] #settings-close {
+  min-height: 64px;
+  font-size: 1.15rem;
+}
+
+body[data-tier="sprout"] #settings .row {
+  min-height: 64px;
+}
+
+/* ---------------------------------------------------------- end */
+
+#end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  /* Opaque: nothing from the last room shows through the win screen. */
+  background: radial-gradient(circle, rgba(240, 199, 94, 0.35), rgba(240, 199, 94, 0) 65%), #0f1720;
+  z-index: 8;
+  /* Title on top, buttons at the bottom, always in view: only the cards
+     between them scroll. */
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+#end .end-head,
+#end .end-buttons {
+  flex: none;
+}
+
+#end .end-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#end .end-head p {
+  margin: 0;
+}
+
+#end-stars {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f0c75e;
+}
+
+#end .end-scroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#end .end-scroll .grim-cards {
+  margin: 4px 0;
+}
+
+#end h2:focus {
+  outline: none;
+}
+
+/* The burst glows behind the title, cards and buttons. */
+#end > :not(.burst) {
+  position: relative;
+  z-index: 1;
+}
+
+#end h2 {
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  margin: 0;
+  color: #f0c75e;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 24px rgba(240, 199, 94, 0.8);
+  animation: rise 0.8s ease-out;
+}
+
+#end .burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(240, 199, 94, 0.7);
+  background: rgba(240, 199, 94, 0.5);
+  animation: burst 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes burst {
+  from { box-shadow: 0 0 0 0 rgba(240, 199, 94, 0.7); }
+  to { box-shadow: 0 0 0 60vmax rgba(240, 199, 94, 0); }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(20px) scale(0.8); }
+  to { opacity: 1; transform: none; }
+}
+
+.end-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+}
+
+.end-buttons button {
+  min-height: 64px;
+  min-width: 140px;
+  font-size: 1.15rem;
+}
+
+/* Picture buttons (end screen, Grimoire close): an icon of 32px or more,
+   then the word for readers. */
+.end-buttons button,
+#grimoire-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.bi,
+.bi-ages > span {
+  flex: none;
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+}
+
+.bi svg,
+.bi-ages svg {
+  width: 100%;
+  height: 100%;
+}
+
+.bi.bi-ages {
+  display: inline-flex;
+  width: auto;
+  gap: 1px;
+}
+
+.bi-ages > span {
+  width: 24px;
+  height: 24px;
+}
+
+body[data-tier="sprout"] .end-buttons button {
+  min-height: 72px;
+}
+
+body[data-tier="sprout"] .bi:not(.bi-ages) {
+  width: 44px;
+  height: 44px;
+}
+
+body[data-tier="sprout"] .bi-ages > span {
+  width: 30px;
+  height: 30px;
+}
+
+/* ------------------------------------------------------ atoms as balls */
+
+.molecule {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 2px;
+}
+
+.molecule .ball {
+  margin-left: -4px;
+}
+
+.molecule .ball:first-child {
+  margin-left: 0;
+}
+
+.ball {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: inset -2px -2px 3px rgba(0, 0, 0, 0.35);
+}
+
+.eq-balls {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+}
+
+.eq-sep {
+  padding: 0 4px;
+  color: var(--quiet);
+}
+
+.orb-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(150, 62, 0, 0.95);
+  font-weight: 700;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------- Seedling tray */
+
+#tray {
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, 240px);
+  grid-template-rows: auto auto;
+  gap: 8px 12px;
+  width: min(100%, 1100px);
+  margin: 8px auto 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+}
+
+#tray[hidden] {
+  display: none;
+}
+
+.bar-row {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* "New spell": the game just put this room's spell in the bar (or, once the
+   player has built their own, offers it with a tap). */
+.tray-new {
+  position: absolute;
+  left: 12px;
+  top: -14px;
+  z-index: 2;
+  min-height: 28px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  border: 2px solid #f0c75e;
+  background: #2a2410;
+  color: #ffe08a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.tray-new.offer {
+  pointer-events: auto;
+  min-height: 36px;
+  top: -20px;
+}
+
+.tray-new.pulse {
+  animation: pulse-gold 0.9s ease-in-out 3;
+}
+
+/* The goal's spell replaced an edited bar: one tap brings the old one back. */
+.tray-undo {
+  position: absolute;
+  left: 140px;
+  top: -18px;
+  z-index: 2;
+  min-height: 36px;
+  min-width: 64px;
+  padding: 2px 14px;
+  border-radius: 999px;
+  border: 2px solid #9fb3c8;
+  background: #1a2633;
+  color: #e6eef6;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* A cast that cannot move the goal while a spell waits: a big button. */
+.tray-new.offer.big {
+  top: -34px;
+  min-height: 56px;
+  padding: 6px 56px 6px 18px;
+  font-size: 1.15rem;
+  background: #f0c75e;
+  color: #0f1720;
+}
+
+.tray-new-hand {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin-top: -14px;
+  color: #fff;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  animation: hand-tap 0.9s ease-in-out infinite;
+}
+
+@keyframes hand-tap {
+  50% { transform: translate(-3px, -6px); }
+}
+
+body[data-motion="calm"] .tray-new-hand {
+  animation: none;
+}
+
+#act-tray.new-spell {
+  animation: pulse-gold 0.9s ease-in-out 3;
+}
+
+body[data-motion="calm"] .tray-new.pulse,
+body[data-motion="calm"] #act-tray.new-spell {
+  animation: none;
+}
+
+#spellbar {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 56px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 3px solid #3a4b5c;
+  background: #0b1219;
+  font-size: 1.25rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+body.cast-full #spellbar {
+  border-color: #f0c75e;
+  box-shadow: 0 0 14px rgba(240, 199, 94, 0.8);
+}
+
+.bar-term {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 2px;
+  border-radius: 8px;
+  background: #22303d;
+}
+
+/* The molecule's "how many": tap to count up (1-4, then round again). */
+.bar-coef {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-weight: 700;
+  font-size: 1.2rem;
+  border: 2px solid var(--accent);
+}
+
+.bar-coef::after {
+  content: "▴";
+  position: absolute;
+  right: 3px;
+  top: 0;
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+
+.bar-coef.one {
+  color: var(--quiet);
+}
+
+.bar-coef.fix {
+  border: 3px solid #f0c75e;
+  color: #f0c75e;
+  animation: pulse-gold 0.9s ease-in-out infinite;
+}
+
+/* One-time ghost hand on the number to change, the first time the scale tips. */
+.coef-hint {
+  position: absolute;
+  z-index: 4;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.coef-hand {
+  position: absolute;
+  left: -10px;
+  top: -6px;
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+  animation: coef-tap 1s ease-in-out infinite;
+}
+
+.coef-hand svg {
+  width: 100%;
+  height: 100%;
+}
+
+.coef-say {
+  position: absolute;
+  /* Above the bar and to the right, clear of the "New spell" label. */
+  left: 90px;
+  bottom: 24px;
+  width: max-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 2px solid #f0c75e;
+  background: #2a2410;
+  color: #ffe08a;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+@keyframes coef-tap {
+  50% { transform: translate(2px, 6px) scale(0.92); }
+}
+
+body[data-motion="calm"] .coef-hand {
+  animation: none;
+}
+
+.bar-formula {
+  font-weight: 700;
+}
+
+.bar-chip.op {
+  color: var(--quiet);
+  font-weight: 700;
+}
+
+.bar-chip.arrow {
+  color: var(--accent);
+}
+
+.bar-chip.empty {
+  color: var(--quiet);
+  font-size: 1rem;
+}
+
+.tray-key,
+.tray-cast {
+  min-width: 56px;
+  min-height: 56px;
+  font-size: 1.1rem;
+}
+
+.tray-cast {
+  min-width: 96px;
+}
+
+#tray-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.tray-tile {
+  min-width: 48px;
+  min-height: 52px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.tray-tile.mol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 72px;
+  padding: 4px 8px;
+}
+
+.tray-tile .formula {
+  font-size: 1rem;
+}
+
+#scale {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  position: relative;
+  min-height: 138px;
+}
+
+/* The beam sits low enough that the pans' atom counts (which grow upward)
+ * never reach the "Atoms in = atoms out" caption above them. */
+#scale .beam {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 64px;
+  height: 6px;
+  border-radius: 3px;
+  background: #94a3b8;
+  transition: transform 0.4s ease;
+}
+
+#scale .post {
+  position: absolute;
+  left: 50%;
+  top: 64px;
+  bottom: 22px;
+  width: 6px;
+  margin-left: -3px;
+  background: #64748b;
+}
+
+#scale .pan {
+  position: absolute;
+  bottom: 6px;
+  width: 46%;
+  min-height: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  justify-content: center;
+  gap: 2px 6px;
+  padding: 2px;
+  border-bottom: 4px solid #94a3b8;
+  border-radius: 0 0 12px 12px;
+}
+
+#scale .pan.left {
+  left: 0;
+}
+
+#scale .pan.right {
+  right: 0;
+}
+
+.pan-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  max-width: 100%;
+}
+
+.pan-group .ball {
+  width: 10px;
+  height: 10px;
+}
+
+.pan-count {
+  font-size: 0.75rem;
+  margin-left: 3px;
+}
+
+.scale-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.scale-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--quiet);
+}
+
+/* "Before" / "After" hang under each pan and tip with it. */
+#scale .pan .pan-title {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #cfeaff;
+}
+
+#scale[data-state="balanced"] .beam {
+  background: #f0c75e;
+}
+
+#scale[data-state="balanced"] .scale-label {
+  color: #f0c75e;
+}
+
+#scale[data-state="tipped"] .scale-label {
+  color: var(--warn);
+}
+
+#jars-mini {
+  position: absolute;
+  top: 84px;
+  left: 10px;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------ calmer motion */
+
+body[data-motion="calm"] *,
+body[data-motion="calm"] *::before {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hint-pulse,
+  .card.hint,
+  #go-arrow.hinting,
+  #end .burst {
+    animation: none;
+  }
+}
+
+/* Short screens: smaller cards and tiles. */
+@media (max-height: 500px) {
+  body[data-tier="seedling"] {
+    --below: 140px;
+  }
+  .tray-tile.mol {
+    min-width: 60px;
+  }
+}
+
+/* ------------------------------------------- Apprentice spell box (W17) */
+
+#hud-bottom {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#caster {
+  display: flex;
+  gap: 6px;
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+#cast-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 10px;
+  font: 1.1rem system-ui, sans-serif;
+  letter-spacing: 0.03em;
+  font-variant-numeric: slashed-zero;
+  color: var(--ink);
+  background: #0b1219;
+  border: 2px solid #3a4b5c;
+  border-radius: 8px;
+}
+
+#cast-input:focus {
+  border-color: var(--accent);
+}
+
+#cast-input::placeholder {
+  color: #94a3b8;
+}
+
+#cast-go {
+  min-height: 44px;
+}
+
+.slot {
+  flex-direction: row;
+  gap: 6px;
+  min-height: 44px;
+  max-width: 140px;
+  font-size: 0.9rem;
+}
+
+.slot-pic {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.slot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot.armed {
+  border-color: #f0c75e;
+  box-shadow: 0 0 0 2px rgba(240, 199, 94, 0.5);
+}
+
+#app-tutorial {
+  position: absolute;
+  left: 50%;
+  bottom: 78px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 8px 6px 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#app-tutorial code {
+  color: var(--accent);
+  font-size: 1.05em;
+}
+
+#app-tutorial button {
+  min-height: 36px;
+}
+
+#challenge {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 4;
+}
+
+body[data-tier="apprentice"] #jars-mini {
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------- hover card */
+
+#hovercard {
+  position: absolute;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid #f0c75e;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  font-size: 0.9rem;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#hovercard p {
+  margin: 4px 0 0;
+}
+
+#hovercard .hc-source {
+  color: var(--quiet);
+  font-size: 0.8rem;
+}
+
+/* ------------------------------------------------------- Grimoire (W18) */
+
+#book-btn {
+  position: absolute;
+  top: 10px;
+  right: 84px;
+  width: 64px;
+  height: 64px;
+  padding: 10px;
+  background: var(--panel);
+  z-index: 5;
+}
+
+#book-btn[data-count]:not([data-count="0"])::after {
+  content: attr(data-count);
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  min-width: 20px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: #f0c75e;
+  color: #0f1720;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+#progress {
+  right: 158px;
+}
+
+#grimoire-panel {
+  position: absolute;
+  top: 84px;
+  right: 10px;
+  left: 10px;
+  max-width: 760px;
+  margin-left: auto;
+  max-height: calc(100% - 94px);
+  overflow-y: auto;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  z-index: 6;
+}
+
+#grimoire-panel h2 {
+  margin: 0 0 4px;
+}
+
+#grimoire-close {
+  min-height: 48px;
+  min-width: 120px;
+}
+
+.grim-cards {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 0;
+  margin: 8px 0;
+  perspective: 800px;
+}
+
+.grim-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 160px;
+  min-height: 150px;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  text-align: center;
+}
+
+.grim-card:focus-visible {
+  outline: 3px solid var(--accent);
+}
+
+.grim-pic {
+  width: 52px;
+  height: 52px;
+}
+
+/* Sprout's win screen: the picture and its name, nothing to read. */
+body[data-tier="sprout"] #grimoire .grim-eq,
+body[data-tier="sprout"] #grimoire .grim-dh,
+body[data-tier="sprout"] #grimoire .grim-words,
+body[data-tier="sprout"] #grimoire .grim-where {
+  display: none;
+}
+
+.grim-card.soon {
+  border-style: dashed;
+}
+
+.grim-card.silhouette {
+  border-color: #3a4b5c;
+  border-style: dashed;
+}
+
+.grim-card.silhouette .grim-pic {
+  filter: brightness(0) opacity(0.45);
+}
+
+.grim-card.silhouette .grim-name {
+  color: var(--quiet);
+  font-size: 1.6rem;
+}
+
+.grim-eq {
+  font-size: 0.9rem;
+}
+
+.grim-dh {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.grim-dh.exo {
+  color: #f0c75e;
+}
+
+.grim-dh.endo {
+  color: #7cc4f0;
+}
+
+.grim-words {
+  font-size: 0.78rem;
+  color: var(--quiet);
+}
+
+.grim-note {
+  font-size: 0.72rem;
+  color: var(--quiet);
+  border-left: 2px solid #7cc4f0;
+  padding-left: 6px;
+}
+
+.grim-src {
+  font-size: 0.72rem;
+  color: var(--quiet);
+  font-style: italic;
+}
+
+.grim-card.flip {
+  animation: card-flip 0.9s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+/* Face-on from the first frame: it grows and brightens, never edge-on. */
+@keyframes card-flip {
+  0% { transform: scale(0.6); opacity: 0; filter: brightness(1.8); }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: none; opacity: 1; filter: none; }
+}
+
+/* The popup corner: under the Grimoire button, clear of the caption (top
+   left), the room dots and the cast-result bubble (which steers around it). */
+#discover {
+  position: absolute;
+  right: 10px;
+  top: 84px;
+  max-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  perspective: 800px;
+  pointer-events: none;
+  z-index: 7;
+}
+
+#discover .grim-card {
+  width: 180px;
+  box-shadow: 0 0 24px rgba(240, 199, 94, 0.7);
+}
+
+/* The popup copy shows the picture, name, equation and ΔH; the rest is in the book. */
+.grim-card.compact .grim-words,
+.grim-card.compact .grim-note,
+.grim-card.compact .grim-src,
+.grim-card.compact .grim-more,
+.grim-card.compact .grim-more-body {
+  display: none;
+}
+
+.popup-in {
+  animation: popup-in 0.2s ease-out;
+}
+
+@keyframes popup-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.discover-title {
+  font-size: 1.15rem;
+  color: #f0c75e;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+}
+
+.confetti {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* Behind the card, so it never covers the words. */
+  z-index: -1;
+}
+
+.confetti span {
+  position: absolute;
+  width: 10px;
+  height: 6px;
+  border-radius: 2px;
+  animation: confetti 1.6s ease-out forwards;
+}
+
+@keyframes confetti {
+  from { transform: translate(0, 0) rotate(0); opacity: 1; }
+  to { transform: translate(var(--dx), calc(var(--dy) + 120px)) rotate(var(--rot)); opacity: 0; }
+}
+
+/* One row whatever the number of spells: the list scrolls sideways instead. */
+#hud-bottom {
+  flex-wrap: nowrap;
+}
+
+#caster {
+  flex: 0 1 340px;
+  min-width: 180px;
+}
+
+/* The spell row: as many slots as fit, then a "+N" button with the rest. */
+#slots-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#slots {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Narrow: picture and number only (the name is on the hover card). */
+#slots.compact .slot-name {
+  display: none;
+}
+
+#slots.compact .slot {
+  padding: 4px;
+}
+
+#slots-more {
+  flex: none;
+  min-width: 52px;
+  min-height: 44px;
+  font-weight: 700;
+  border-color: var(--accent);
+}
+
+#slots-more-list {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid var(--accent);
+  z-index: 8;
+}
+
+#slots-more-list .slot {
+  max-width: none;
+}
+
+/* The heat lens has its own corner, above the spell bar on the right. */
+/* The lens button sits in the spell bar, never over the world. */
+#lens-btn {
+  flex: none;
+  min-height: 44px;
+  background: var(--panel);
+  white-space: nowrap;
+}
+
+.slot {
+  flex: none;
+}
+
+.hud-buttons {
+  flex: none;
+}
+
+/* ================================================ touch and small screens */
+
+.touch-only,
+.lens-icon {
+  display: none;
+}
+
+#actions {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+
+.act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 12px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.act.primary {
+  background: #0f766e;
+}
+
+.act-wide {
+  width: auto;
+  min-width: 64px;
+  max-width: 200px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (pointer: fine) {
+  #actions {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .touch-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Apprentice: move buttons bottom-left, spells and actions bottom-right. */
+  body[data-tier="apprentice"] #moves {
+    display: flex;
+    bottom: 10px;
+  }
+
+  body[data-tier="apprentice"] #hud-bottom {
+    left: auto;
+    right: 10px;
+    bottom: 10px;
+    /* Clear of the move buttons on the left. */
+    max-width: calc(100% - 240px);
+    padding: 0;
+    gap: 6px;
+    background: none;
+    backdrop-filter: none;
+  }
+
+  body[data-tier="apprentice"] #caster,
+  #lens-btn .lens-word,
+  #lens-btn kbd,
+  .slot kbd,
+  .slot-name {
+    display: none;
+  }
+
+  #lens-btn .lens-icon {
+    display: inline;
+    font-weight: 700;
+  }
+
+  #lens-btn {
+    width: 56px;
+    height: 56px;
+    padding: 8px;
+    background: var(--panel-solid);
+  }
+
+  .slot,
+  .hud-buttons button {
+    width: 56px;
+    height: 56px;
+    min-width: 0;
+    padding: 8px;
+    justify-content: center;
+    background: var(--panel-solid);
+  }
+
+  .slot-pic {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Seedling: the tile tray becomes a drawer opened from the Spell button. */
+  body[data-tier="seedling"] {
+    --below: 0px;
+  }
+
+  body[data-tier="seedling"] #tray {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 62vh;
+    overflow-y: auto;
+    margin: 0;
+    z-index: 20;
+    transform: translateY(105%);
+    transition: transform 0.2s ease-out;
+  }
+
+  body.tray-open[data-tier="seedling"] #tray {
+    transform: none;
+  }
+}
+
+/* Short screens (phones held sideways): the stage fills the height and the
+ * HUD shrinks to icons at the edges, leaving the middle of the world clear. */
+@media (max-height: 500px) {
+  #game {
+    padding: 0;
+  }
+
+  #help,
+  #readout {
+    display: none !important;
+  }
+
+  #stage {
+    width: min(100vw, calc((100vh - var(--below)) * 16 / 9));
+    border-radius: 0;
+  }
+
+  #replay,
+  #settings-btn,
+  #book-btn {
+    top: 8px;
+    width: 48px;
+    height: 48px;
+    padding: 8px;
+  }
+
+  #replay {
+    left: 8px;
+  }
+
+  #settings-btn {
+    right: 8px;
+  }
+
+  #book-btn {
+    right: 62px;
+  }
+
+  #progress {
+    top: 16px;
+    right: 118px;
+    padding: 5px 8px;
+    gap: 6px;
+  }
+
+  #progress .dot {
+    width: 12px;
+    height: 12px;
+  }
+
+  #mote,
+  body[data-tier="sprout"] #mote,
+  body[data-tier="seedling"] #mote {
+    top: 8px;
+    left: 62px;
+    max-width: calc(100% - 62px - 215px);
+    padding: 6px 10px;
+    font-size: 0.95rem;
+  }
+
+  #jars-mini {
+    top: 62px;
+    left: 8px;
+    flex-direction: column;
+    padding: 4px;
+    gap: 3px;
+  }
+
+  #jars-mini .jar {
+    flex-direction: row;
+    min-width: 0;
+    gap: 4px;
+    font-size: 0.72rem;
+  }
+
+  #jars-mini .jar .glass {
+    width: 12px;
+    height: 16px;
+  }
+
+  #moves {
+    left: 8px;
+    bottom: 8px;
+    gap: 6px;
+  }
+
+  #moves button,
+  body[data-tier="seedling"] #moves button {
+    width: 52px;
+    height: 52px;
+    padding: 10px;
+  }
+
+  #cards,
+  #actions,
+  body[data-tier="apprentice"] #hud-bottom {
+    right: 8px;
+    bottom: 8px;
+    gap: 6px;
+  }
+
+  .card {
+    width: 64px;
+    height: 64px;
+    padding: 4px 4px 10px;
+  }
+
+  .card-pic {
+    width: 40px;
+    height: 40px;
+  }
+
+  .card-word {
+    display: none;
+  }
+
+  .act,
+  .slot,
+  .hud-buttons button {
+    width: 52px;
+    height: 52px;
+    padding: 8px;
+  }
+
+  .act-wide {
+    width: auto;
+    max-width: 150px;
+    font-size: 0.9rem;
+  }
+
+  #hint-ghost,
+  #challenge {
+    top: 62px;
+    font-size: 1rem;
+  }
+
+  #hint-text .icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  #grimoire-panel,
+  #settings {
+    top: 62px;
+    max-height: calc(100% - 70px);
+  }
+
+  .grim-card {
+    width: 132px;
+    min-height: 0;
+  }
+
+  #discover {
+    top: 62px;
+  }
+
+  #discover .grim-card {
+    width: 150px;
+  }
+
+  /* Above the world's middle, not over it. */
+  #app-tutorial {
+    top: 60px;
+    bottom: auto;
+    padding: 3px 4px 3px 10px;
+    font-size: 0.85rem;
+  }
+
+  #app-tutorial button {
+    min-height: 28px;
+    padding: 2px 8px;
+  }
+
+  #ring {
+    top: 8px;
+    max-height: calc(100% - 16px);
+    overflow-y: auto;
+  }
+}
+
+/* ------------------------------------------------- room objective */
+
+#objective-banner {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(86%, 760px);
+  padding: 14px 22px;
+  border-radius: 16px;
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 0 6px rgba(240, 199, 94, 0.18);
+  font-size: 1.4rem;
+  font-weight: 700;
+  pointer-events: none;
+  animation: objective-in 0.35s ease-out;
+  transition: transform 0.28s ease-in, opacity 0.28s ease-in, top 0.28s ease-in;
+}
+
+#objective-banner.shrink {
+  top: 6%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.45);
+}
+
+body[data-tier="sprout"] #objective-banner {
+  font-size: 1.9rem;
+}
+
+#objective-banner .objective-pic {
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+body[data-tier="sprout"] #objective-banner .objective-pic {
+  width: 80px;
+  height: 80px;
+}
+
+@keyframes objective-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* "Walk this way": in the chip's place while the next goal is off screen. */
+#walk-prompt {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 6px 20px 6px 12px;
+  border-radius: 999px;
+  background: var(--panel-solid);
+  border: 3px solid #f0c75e;
+  color: #ffe08a;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+#walk-prompt[hidden] {
+  display: none;
+}
+
+#walk-prompt.left {
+  flex-direction: row-reverse;
+}
+
+.walk-pic {
+  display: inline-flex;
+  width: 52px;
+  height: 52px;
+  animation: walk-nudge 0.9s ease-in-out infinite;
+}
+
+#walk-prompt.left .walk-pic {
+  animation-name: walk-nudge-left;
+}
+
+.walk-pic svg {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes walk-nudge {
+  50% { transform: translateX(8px); }
+}
+
+@keyframes walk-nudge-left {
+  50% { transform: translateX(-8px); }
+}
+
+body[data-motion="calm"] .walk-pic {
+  animation: none;
+}
+
+#goal-chip {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Wraps instead of running past its border: the steps go on as many
+     lines as they need, and the bonus star always gets its own line. */
+  flex-wrap: wrap;
+  row-gap: 2px;
+  max-width: min(70%, 620px);
+  min-height: 44px;
+  padding: 4px 14px 4px 6px;
+  /* Round ends on one line, rounded corners (not a lozenge that cuts the
+     text off) when it wraps. */
+  border-radius: 22px;
+  background: var(--panel);
+  border: 1px solid #f0c75e;
+  font-weight: 600;
+  text-align: left;
+}
+
+#goal-chip .objective-pic {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+#goal-chip .objective-text {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#objective-banner .objective-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.objective-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+#goal-chip .objective-steps {
+  flex-direction: row;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  row-gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.85em;
+}
+
+#goal-chip .objective-step {
+  white-space: normal;
+  min-width: 0;
+}
+
+#goal-chip .objective-step .step-mark {
+  flex: none;
+}
+
+/* "Bonus: light it with ..." is a line of its own, never squeezed in. */
+#goal-chip .objective-step.bonus {
+  flex-basis: 100%;
+}
+
+.objective-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.objective-step .step-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  border: 2px solid #f0c75e;
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+/* Sprout's steps are pictures: an icon, or the trap's bar that fills. */
+.step-pic {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step-pic .icon,
+.step-pic svg {
+  width: 30px;
+  height: 30px;
+}
+
+.step-bar {
+  display: inline-block;
+  width: 44px;
+  height: 12px;
+  border-radius: 6px;
+  border: 2px solid #96d2ff;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+.step-bar > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #96d2ff, #ffa046);
+  transition: width 0.3s;
+}
+
+.objective-step.done .step-bar {
+  border-color: #9be7a8;
+}
+
+.objective-step.done {
+  color: #9be7a8;
+}
+
+.objective-step.done .step-mark {
+  background: #2e9d4f;
+  border-color: #9be7a8;
+  color: #ffffff;
+}
+
+#goal-chip.ticked {
+  border-color: #9be7a8;
+}
+
+#goal-chip.pop {
+  animation: chip-pop 0.5s ease-out;
+}
+
+@keyframes chip-pop {
+  0% { box-shadow: 0 0 0 0 rgba(240, 199, 94, 0.8); }
+  100% { box-shadow: 0 0 0 12px rgba(240, 199, 94, 0); }
+}
+
+body[data-tier="sprout"] #goal-chip,
+body[data-tier="seedling"] #goal-chip {
+  font-size: 1.15rem;
+  min-height: 56px;
+  border-radius: 28px;
+}
+
+body[data-tier="sprout"] #goal-chip .objective-pic {
+  width: 44px;
+  height: 44px;
+}
+
+body[data-motion="calm"] #objective-banner,
+body[data-motion="calm"] #goal-chip.pop {
+  animation: none;
+  transition: none;
+}
+
+@media (max-height: 500px) {
+  #goal-chip {
+    top: 60px;
+    min-height: 36px;
+    font-size: 0.9rem;
+  }
+  #objective-banner {
+    font-size: 1.1rem;
+  }
+}
+
+/* ------------------------------------- room 3: gas pocket and battery */
+
+#goal-area {
+  position: absolute;
+  border: 3px dashed #f0c75e;
+  border-radius: 6px;
+  background: rgba(240, 199, 94, 0.12);
+  animation: area-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes area-glow {
+  50% { background: rgba(240, 199, 94, 0.26); }
+}
+
+#battery-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -130%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--panel-solid);
+  border: 1px solid #56b4e9;
+  color: #cfeaff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+body[data-tier="sprout"] #battery-tag {
+  font-size: 1rem;
+}
+
+#stand-spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  will-change: transform;
+}
+
+#stand-spot::before {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: -9px;
+  width: 56px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid #f0c75e;
+  background: rgba(240, 199, 94, 0.3);
+  box-shadow: 0 0 14px rgba(240, 199, 94, 0.8);
+  animation: stand-glow 1.2s ease-in-out infinite alternate;
+}
+
+#stand-spot .stand-label {
+  position: absolute;
+  left: 0;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 32, 0.8);
+  color: #f0c75e;
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+body[data-tier="sprout"] #stand-spot .stand-label::before {
+  content: "⬇ ";
+}
+
+@keyframes stand-glow {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+body[data-motion="calm"] #stand-spot::before {
+  animation: none;
+}
+
+#goal-pointer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 52px;
+  height: 52px;
+  margin: 22px 0 0 -16px;
+  z-index: 6;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+body[data-motion="calm"] #goal-area {
+  animation: none;
+}
+
+/* ------------------------------------------------------ room clear */
+
+#room-clear {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-radius: 18px;
+  background: rgba(15, 23, 32, 0.85);
+  border: 3px solid #f0c75e;
+  color: #ffe9a8;
+  font-size: 2rem;
+  font-weight: 800;
+  pointer-events: none;
+  animation: room-clear 1.8s ease-out forwards;
+}
+
+#room-clear .icon {
+  width: 56px;
+  height: 56px;
+}
+
+@keyframes room-clear {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
+}
+
+body[data-motion="calm"] #room-clear {
+  animation: none;
+}
+
+/* ------------------------------------------------- jump hint (F6) */
+
+#jump-hint {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 56px;
+  height: 56px;
+  margin: -64px 0 0 -28px;
+  padding: 8px;
+  border-radius: 50%;
+  color: #0f1720;
+  background: #f0c75e;
+  border: 3px solid #fff7d6;
+  z-index: 6;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+#jump-hint .icon {
+  width: 100%;
+  height: 100%;
+  animation: hop 0.7s ease-in-out infinite;
+}
+
+@keyframes hop {
+  50% { transform: translateY(-8px); }
+}
+
+#jump-hint .jump-word {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #0f1720;
+  color: #f0c75e;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+#moves button.hinting {
+  animation: pulse-gold 1s ease-in-out infinite;
+  background: #f0c75e;
+  color: #0f1720;
+}
+
+body[data-motion="calm"] #jump-hint .icon,
+body[data-motion="calm"] #moves button.hinting {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #jump-hint .icon,
+  #moves button.hinting {
+    animation: none;
+  }
+}
+
+/* ------------------- Grimoire cards: the long words wait behind "More" */
+
+.grim-more {
+  margin-top: 2px;
+  min-height: 32px;
+  padding: 2px 14px;
+  border-radius: 999px;
+  border: 1px solid #f0c75e;
+  background: transparent;
+  color: #f0c75e;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grim-more-body {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.grim-card.show-more .grim-more-body {
+  display: flex;
+}
+
+body[data-tier="seedling"] .grim-card.found {
+  cursor: pointer;
+}
+
+body[data-tier="seedling"] .grim-card > .grim-words,
+body[data-tier="sprout"] .grim-card > .grim-words {
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------ F13: locked spells, live gauges */
+
+.slot.locked {
+  opacity: 0.6;
+  border-style: dashed;
+  filter: grayscale(0.7);
+  position: relative;
+}
+
+.slot.locked .slot-pic::after {
+  content: "🔒";
+  position: absolute;
+  font-size: 0.7rem;
+  transform: translate(-6px, -4px);
+}
+
+.slot.locked {
+  padding-top: 12px;
+}
+
+.slot-need {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2px;
+  font-size: 0.62rem;
+  line-height: 1;
+  text-align: center;
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+.slot.shake {
+  animation: slot-shake 0.3s;
+}
+
+@keyframes slot-shake {
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+#jars-mini {
+  pointer-events: auto;
+}
+
+#jars-mini .jar {
+  position: relative;
+  cursor: help;
+  border-radius: 6px;
+}
+
+#jars-mini .jar:focus-visible {
+  outline: 2px solid var(--accent, #56b4e9);
+}
+
+#jars-mini .jar.empty {
+  opacity: 0.6;
+}
+
+#jars-mini .jar.pulse .glass {
+  animation: jar-pulse 0.5s ease-out;
+}
+
+@keyframes jar-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(240, 199, 94, 0.9); }
+  100% { box-shadow: 0 0 0 8px rgba(240, 199, 94, 0); }
+}
+
+.gauge-tick {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  transform: translateX(-50%);
+  font-weight: 800;
+  font-size: 0.95rem;
+  pointer-events: none;
+  text-shadow: 0 1px 2px #000;
+  animation: gauge-tick 1.4s ease-out forwards;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.gauge-tick.up { color: #7ee08a; }
+.gauge-tick.down { color: #ffb38a; }
+
+@keyframes gauge-tick {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -22px); }
+}
+
+.grim-where {
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: var(--quiet);
+  text-align: center;
+}
+
+/* ------------------------------------------------ F14: start screen and menu */
+
+.age-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.age-how {
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  color: var(--ink);
+}
+
+.ages .age-years {
+  font-size: 0.85rem;
+}
+
+.ages button {
+  position: relative;
+}
+
+.ages button.last {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(86, 180, 233, 0.35);
+}
+
+.ages .age-last {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+#settings {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 12px;
+}
+
+#settings[hidden] {
+  display: none;
+}
+
+.menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  margin-bottom: 6px;
+}
+
+.menu-head h2 {
+  margin: 0;
+}
+
+#settings-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 10px;
+}
+
+#menu-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+#settings .mi {
+  flex: none;
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  color: var(--ink);
+}
+
+.menu-actions button,
+.menu-danger button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+#settings .row {
+  min-height: 40px;
+}
+
+.menu-danger {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #3a4b5c;
+}
+
+#menu-trial {
+  min-height: 48px;
+  color: #ffc9a8;
+}
+
+#menu-more {
+  flex: none;
+  margin-top: 4px;
+  padding: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--accent);
+  border-top: 1px solid #3a4b5c;
+  cursor: pointer;
+}
+
+#menu-more::after {
+  content: " \25BE";
+}
+
+#menu-more[hidden] {
+  display: none;
+}
+
+#trial-confirm {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  background: var(--panel-solid);
+  border-radius: var(--radius);
+  z-index: 2;
+}
+
+#trial-confirm[hidden] {
+  display: none;
+}
+
+.confirm-pic {
+  width: 64px;
+  height: 64px;
+  color: #ffc9a8;
+}
+
+#trial-confirm p {
+  margin: 0;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-buttons button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 96px;
+  min-height: 72px;
+}
+
+.confirm-buttons .mi {
+  width: 32px;
+  height: 32px;
+}
+
+button.danger {
+  background: #5a2a1a;
+  border-color: #d55e00;
+}
+
+/* Sprout reads pictures: options that only make sense as words are hidden,
+   and the rest are big picture rows. */
+body[data-tier="sprout"] #settings .text-only,
+body[data-tier="sprout"] #settings .sprout-hide {
+  display: none;
+}
+
+body[data-tier="sprout"] #settings .mi {
+  width: 32px;
+  height: 32px;
+}
+
+body[data-tier="sprout"] #menu-trial {
+  min-height: 64px;
+}
+
+/* The tutorial's Skip is a real touch target on every screen. */
+#tutorial-skip,
+#app-tutorial #tutorial-skip {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ------------------------------------------------ F15: portrait phones */
+
+#rotate {
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+#rotate p {
+  margin: 0;
+}
+
+.rotate-pic {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  color: var(--ink);
+}
+
+.rotate-phone,
+.rotate-arrow {
+  position: absolute;
+  display: block;
+}
+
+.rotate-phone {
+  inset: 15px;
+  animation: rotate-phone 2.4s ease-in-out infinite;
+}
+
+.rotate-arrow {
+  top: -6px;
+  left: -10px;
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+  transform: scaleX(-1);
+}
+
+@keyframes rotate-phone {
+  0%, 20% { transform: rotate(0deg); }
+  55%, 85% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  #rotate {
+    display: flex;
+  }
+
+  /* Sprout plays upright too (phones are the main device for ages 4 to 7):
+     the world letterboxed full-width at the top, big cards and move buttons
+     along the bottom where thumbs are. */
+  body[data-tier="sprout"] #rotate {
+    display: none;
+  }
+
+  body[data-tier="sprout"] #game {
+    padding: 0;
+  }
+
+  /* The world is zoomed (1.6x) and slides sideways to keep the player in
+     view (see the portrait framing in main.ts); the HUD stays put. */
+  body[data-tier="sprout"] #game {
+    overflow: hidden;
+    min-height: 100vh;
+  }
+
+  body[data-tier="sprout"] #stage {
+    --zoom-w: 160vw;
+    display: block;
+    width: var(--zoom-w);
+    margin-top: 72px;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  body[data-tier="sprout"] #help,
+  body[data-tier="sprout"] #readout {
+    display: none !important;
+  }
+
+  body[data-tier="sprout"] #replay,
+  body[data-tier="sprout"] #settings-btn,
+  body[data-tier="sprout"] #book-btn {
+    position: fixed;
+    top: 8px;
+    width: 56px;
+    height: 56px;
+    padding: 8px;
+  }
+
+  body[data-tier="sprout"] #replay {
+    left: 8px;
+  }
+
+  body[data-tier="sprout"] #settings-btn {
+    right: 8px;
+  }
+
+  body[data-tier="sprout"] #book-btn {
+    right: 72px;
+  }
+
+  body[data-tier="sprout"] #progress {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+
+  /* Mote's words and the goal sit just under the world, not over it. */
+  body[data-tier="sprout"] #mote {
+    position: fixed;
+    top: calc(72px + 90vw + 8px);
+    left: 8px;
+    right: 8px;
+    max-width: none;
+  }
+
+  body[data-tier="sprout"] #goal-chip {
+    position: fixed;
+    top: calc(72px + 90vw + 64px);
+  }
+
+  body[data-tier="sprout"] #objective-banner {
+    position: fixed;
+    top: calc(72px + 90vw + 150px);
+    width: max-content;
+    max-width: calc(100vw - 32px);
+  }
+
+  body[data-tier="sprout"] #objective-banner.shrink {
+    top: calc(72px + 90vw + 64px);
+  }
+
+  body[data-tier="sprout"] #go-arrow {
+    right: calc(var(--off-right, 0px) + 12px);
+  }
+
+  body[data-tier="sprout"] #go-arrow.left {
+    left: calc(var(--off-left, 0px) + 12px);
+    right: auto;
+  }
+
+  body[data-tier="sprout"] #room-clear,
+  body[data-tier="sprout"] #discover,
+  body[data-tier="sprout"] #end {
+    position: fixed;
+  }
+
+  body[data-tier="sprout"] #cards {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  body[data-tier="sprout"] .card {
+    min-width: 72px;
+    min-height: 72px;
+  }
+
+  body[data-tier="sprout"] #moves {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 120px;
+    justify-content: flex-start;
+  }
+
+  body[data-tier="sprout"] #moves [data-key="jump"] {
+    margin-left: auto;
+  }
+
+  body[data-tier="sprout"] #moves button {
+    width: 72px;
+    height: 72px;
+  }
+
+  body[data-tier="sprout"] #settings {
+    position: fixed;
+    top: 72px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: calc(100vh - 84px);
+  }
+}
+
+/* ------------------------------------------------ F16: heat lens legend */
+
+#lens-legend {
+  position: absolute;
+  right: 10px;
+  bottom: 136px;
+  width: 280px;
+  padding: 8px 14px 10px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  z-index: 4;
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+#lens-legend[hidden] {
+  display: none;
+}
+
+.legend-title {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.legend-bar {
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid #3a4b5c;
+}
+
+.legend-ticks {
+  position: relative;
+  height: 30px;
+}
+
+.legend-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  padding-top: 5px;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.legend-tick::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 5px;
+  background: var(--ink);
+}
+
+.legend-note {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--quiet);
+}
+
+.lens-spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -30px 0 0 -26px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid #ff8a5c;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.lens-spot.cold {
+  border-color: #7cc8ff;
+}
+
+@media (max-height: 500px) {
+  #lens-legend {
+    bottom: 64px;
+    width: 220px;
+    font-size: 0.7rem;
+  }
+}
+
+/* Goal markers are signposts, not buttons: no solid disc or white rim,
+   just the picture with a soft glow and a small pointer at the target. */
+.goal-icon {
+  background: none;
+  border: none;
+  padding: 2px;
+  filter: drop-shadow(0 0 4px rgba(15, 23, 32, 0.95)) drop-shadow(0 0 8px rgba(240, 199, 94, 0.35));
+  pointer-events: none;
+  cursor: default;
+}
+
+.goal-icon.next {
+  border: none;
+}
+
+.goal-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  margin-left: -6px;
+  border: 6px solid transparent;
+  border-top-color: #f0c75e;
+  border-bottom: 0;
+}
+
+/* The ice wall's "ice left" meter is ice blue, not fire orange. */
+.goal-icon[data-kind="ice"] .goal-meter > div {
+  background: #56b4e9;
+}
+
+/* Room 3: how full the gas trap is. */
+#trap-meter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 6px;
+  border-radius: 999px;
+  background: var(--panel-solid);
+  border: 2px solid #96d2ff;
+  color: #e6f4ff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#trap-meter .icon {
+  width: 22px;
+  height: 22px;
+}
+
+#trap-meter .trap-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 72px;
+  padding: 2px;
+  border-radius: 5px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+#trap-meter .trap-bar > div {
+  height: 6px;
+  width: 0;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* Hydrogen blue and oxygen orange, as the bubbles are drawn. */
+#trap-meter .trap-h2 {
+  background: #96d2ff;
+}
+
+#trap-meter .trap-o2 {
+  background: #ffa046;
+}
+
+#trap-meter.full {
+  border-color: #f0c75e;
+  animation: pulse-gold 1s ease-in-out infinite;
+}
+
+.card.ready {
+  border-color: #f0c75e;
+  animation: pulse-gold 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #trap-meter.full,
+  .card.ready {
+    animation: none;
+  }
+}
+
+/* The suit's own refills: one quiet grey chip, apart from cast results. */
+.suit-tick {
+  position: absolute;
+  left: 6px;
+  top: 100%;
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px dashed #9aa5b1;
+  background: rgba(15, 23, 32, 0.75);
+  color: #c4ccd4;
+  font-size: 0.75rem;
+  font-style: italic;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: suit-tick 2.6s ease-out forwards;
+}
+
+.suit-icon {
+  font-style: normal;
+}
+
+@keyframes suit-tick {
+  0% { opacity: 0; }
+  15% { opacity: 0.9; }
+  75% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+.suit-note {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 30px;
+  max-width: min(340px, 80vw);
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid #9aa5b1;
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.jar.charge[data-source="crystal"] {
+  border-color: #cc79a7;
+}
+
+body[data-motion="calm"] .suit-tick {
+  animation: none;
+  opacity: 0.9;
+}
+
+/* Short screens: the cast card stays small enough to leave the scene visible. */
+@media (max-height: 500px) {
+  .fx-label,
+  body[data-tier="sprout"] .fx-label,
+  body[data-tier="seedling"] .fx-label {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    max-width: min(360px, calc(100% - 16px));
+  }
+  .fx-label button {
+    min-height: 36px;
+    margin-top: 3px;
+  }
+}
+
+/* ------------------------------------- one top message channel (F9) */
+
+/* Every top message stacks in one column under the top bar: the goal pill,
+   then the hint chip, then the tip, then one banner at a time. Flow layout
+   means none of them can ever sit on another. */
+#hud-top {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: min(86%, 760px);
+  pointer-events: none;
+}
+
+#hud-pill,
+#hud-banners {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+#hud-pill:empty,
+#hud-banners:empty {
+  display: none;
+}
+
+#hud-top #goal-chip,
+#hud-top #walk-prompt,
+#hud-top #hint-ghost,
+#hud-top #app-tutorial,
+#hud-top #objective-banner,
+#hud-top #room-clear,
+#hud-top #challenge {
+  position: static;
+  top: auto;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#hud-top #goal-chip,
+#hud-top #walk-prompt,
+#hud-top #hint-ghost,
+#hud-top #app-tutorial {
+  pointer-events: auto;
+}
+
+#hud-top #goal-chip.yield,
+#hud-top #app-tutorial.yield {
+  display: none;
+}
+
+#hud-top #objective-banner {
+  animation: objective-in-flow 0.35s ease-out;
+  transition: transform 0.4s ease-in, opacity 0.4s ease-in;
+  transform-origin: top center;
+}
+
+#hud-top #objective-banner.shrink {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+@keyframes objective-in-flow {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+#hud-top #room-clear {
+  animation: room-clear-flow 1.8s ease-out forwards;
+  transform-origin: top center;
+}
+
+@keyframes room-clear-flow {
+  0% { opacity: 0; transform: scale(0.5); }
+  15% { opacity: 1; transform: scale(1.15); }
+  30% { transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+
+body[data-motion="calm"] #hud-top #objective-banner,
+body[data-motion="calm"] #hud-top #room-clear {
+  animation: none;
+  transition: none;
+}
+
+#hud-top #app-tutorial {
+  white-space: normal;
+}
+
+@media (max-height: 500px) {
+  #hud-top {
+    top: 60px;
+    gap: 6px;
+  }
+
+  #hud-top #room-clear {
+    font-size: 1.4rem;
+    padding: 8px 16px;
+  }
+
+  #hud-top #room-clear .icon {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Sprout upright: the column sits over the sky at the top of the world
+   (the player stands near the bottom of it), clear of Mote's words and of
+   the move buttons and cards below the world. The banner stays short: its
+   steps are already ticked off in the pill. */
+@media (orientation: portrait) and (max-width: 700px) {
+  body[data-tier="sprout"] #hud-top {
+    position: fixed;
+    top: 80px;
+    max-width: calc(100vw - 32px);
+  }
+
+  body[data-tier="sprout"] #hud-top #objective-banner {
+    font-size: 1.4rem;
+    padding: 10px 16px;
+  }
+
+  body[data-tier="sprout"] #hud-top #objective-banner .objective-pic {
+    width: 56px;
+    height: 56px;
+  }
+
+  body[data-tier="sprout"] #hud-top #objective-banner .objective-steps {
+    display: none;
+  }
+
+  body[data-tier="sprout"] #hud-top #goal-chip {
+    font-size: 1rem;
+    min-height: 48px;
+  }
+
+  body[data-tier="sprout"] #hud-top #room-clear {
+    font-size: 1.5rem;
+  }
+}
+
+/* F14: world labels stay inside the picture and off goal markers. goals.ts
+   measures each label and sets a nudge; it adds to however the label is
+   placed (its transform, translate or margin). */
+#battery-tag,
+#trap-meter,
+.lens-spot {
+  left: var(--nudge-x, 0px);
+  top: var(--nudge-y, 0px);
+}
+
+#stand-spot .stand-label {
+  left: var(--nudge-x, 0px);
+  bottom: calc(14px - var(--nudge-y, 0px));
+}
+
+/* F16: a hotkey slot that just cast shows a draining sweep while it
+   recharges; pressing it again during that time flashes "recharging". */
+.slot.cooling,
+.slot.refused {
+  position: relative;
+}
+
+.slot.cooling::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(15, 23, 32, 0.55);
+  transform-origin: left center;
+  animation: slot-cool 600ms linear forwards;
+  pointer-events: none;
+}
+
+@keyframes slot-cool {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.slot.refused::before {
+  content: "recharging";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  border: 2px solid #f0c75e;
+  background: rgba(15, 23, 32, 0.85);
+  color: #f0c75e;
+  font-size: 0.7rem;
+  font-weight: 800;
+  animation: slot-refused 450ms ease-out forwards;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes slot-refused {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+body[data-motion="calm"] .slot.cooling::after {
+  animation-timing-function: steps(3);
+}
+
+/* Small screens: the lens button in the bar is a "°C" key, not words. */
+@media (max-height: 500px), (max-width: 900px) {
+  #lens-btn .lens-word,
+  #lens-btn kbd {
+    display: none;
+  }
+
+  #lens-btn .lens-icon {
+    display: inline;
+    font-weight: 700;
+  }
+}
+
+/* ------------------------------- Seedling/Apprentice: the aim's target */
+
+#aim-target {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% 0;
+  pointer-events: none;
+  z-index: 5;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(15, 23, 32, 0.75);
+  color: #fff;
+  font: 600 12px/1.3 system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+#aim-target[hidden] {
+  display: none;
+}
+
+/* ------------------------------------- Sprout: one bullseye, tap pops */
+
+#bullseye {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(
+    circle,
+    #e8473c 0 18%,
+    #fff 18% 36%,
+    #e8473c 36% 54%,
+    #fff 54% 68%,
+    rgba(15, 23, 32, 0.8) 68% 78%,
+    transparent 78%
+  );
+  opacity: 0.9;
+}
+
+#bullseye[hidden] {
+  display: none;
+}
+
+.tap-pop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  border: 4px solid #8fd3ff;
+  pointer-events: none;
+  z-index: 5;
+  animation: tap-pop 0.45s ease-out forwards;
+}
+
+@keyframes tap-pop {
+  from { scale: 0.3; opacity: 1; }
+  to { scale: 1.3; opacity: 0; }
+}
+
+body[data-motion="calm"] .tap-pop {
+  animation-duration: 0.01s;
+}
+
+/* An optional bonus step (the methane bonus star): quieter than the steps
+   that clear the room. */
+.objective-step.bonus {
+  opacity: 0.8;
+  font-style: italic;
+}
+.objective-step.bonus.done { opacity: 1; color: #f0c040; }
+
+/* Safety notes on boom cards and the Boom Grimoire page. */
+.fx-safety, .grim-safety {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: #fbbf24;
+}
+.fx-standback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+.fx-standback svg, .grim-safety svg { width: 28px; height: 28px; }
+
+/* Sprout: a "later" page is a clock picture, not words. */
+.grim-name > svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* ------------------------------------------ round 4: teach before solving */
+
+/* Seedling's first "Fix it" points at one number: it glows gold and the
+ * ghost hand (fixed, so the stage's edge never clips it) taps on it. */
+.bar-coef.teach {
+  border: 3px solid #f0c75e;
+  color: #f0c75e;
+  box-shadow: 0 0 0 4px rgba(240, 199, 94, 0.35);
+  animation: pulse-gold 0.9s ease-in-out infinite;
+}
+
+#ghost-hand.teach {
+  position: fixed;
+  z-index: 40;
+  margin: 2px 0 0 -10px;
+}
+
+/* The beam wobbles up toward its light side, and that pan glows. */
+#scale.wobble .beam {
+  animation: scale-wobble 1.1s ease-in-out infinite;
+}
+
+@keyframes scale-wobble {
+  0%,
+  100% { transform: rotate(var(--tilt, 0deg)); }
+  50% { transform: rotate(calc(var(--tilt, 0deg) * 1.7)); }
+}
+
+#scale[data-light="left"] .pan.left,
+#scale[data-light="right"] .pan.right,
+#scale[data-light="both"] .pan {
+  border-bottom-color: #f0c75e;
+  box-shadow: 0 6px 10px -6px rgba(240, 199, 94, 0.8);
+}
+
+body[data-motion="calm"] #scale.wobble .beam,
+body[data-motion="calm"] .bar-coef.teach {
+  animation: none;
+}
+
+/* The key list is for keyboards, and only until the first spell works. */
+body[data-input="touch"] #help,
+body.cast-ok #help {
+  display: none;
+}
+
+/* Short screens: a cast card takes the goal pill's place while it is up
+ * (one message at a time), and with the tray drawer open the card drops
+ * its small scale (the tray shows the big one) so it fits above it. */
+@media (max-height: 500px) {
+  body.card-up #hud-top #goal-chip {
+    display: none;
+  }
+  body.tray-open .cast-card .card-scale {
+    display: none;
+  }
+}
+
+/* ------------------------- Sprout cues (round 4): badges, cloud, bullseye */
+
+#battery-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#battery-tag .icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+body[data-tier="sprout"] #battery-tag .icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* A small card picture on a goal marker: which card it needs. */
+.goal-badge {
+  position: absolute;
+  right: -12px;
+  bottom: -10px;
+  width: 26px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 7px;
+  background: #0f1720;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.goal-badge.badge-star {
+  border-color: #f0c75e;
+}
+
+/* Sprout's gas pocket: a glowing cloud of bubbles, no outline box. */
+#goal-area.sprout-cloud {
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(143, 211, 255, 0.45) 0%, rgba(143, 211, 255, 0.18) 55%, transparent 75%);
+  animation: cloud-glow 1.6s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#goal-area.sprout-cloud .cloud-pic {
+  position: absolute;
+  inset: 8% 30%;
+  opacity: 0.85;
+}
+
+#goal-area.sprout-cloud .cloud-eye {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #e8473c 0 22%, #fff 22% 44%, #e8473c 44% 66%, transparent 66%);
+  animation: eye-pulse 1s ease-in-out infinite;
+}
+
+@keyframes cloud-glow {
+  50% {
+    filter: brightness(1.3);
+  }
+}
+
+@keyframes eye-pulse {
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+body[data-motion="calm"] #goal-area.sprout-cloud,
+body[data-motion="calm"] #goal-area.sprout-cloud .cloud-eye {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #goal-area.sprout-cloud,
+  #goal-area.sprout-cloud .cloud-eye {
+    animation: none;
+  }
+}
+
+/* The aim layer sits under the player layer, so the bullseye never covers
+ * the player; over the player it shrinks to a thin ring. */
+#aim-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#aim-layer #bullseye {
+  z-index: auto;
+}
+
+#bullseye.ring {
+  background: none;
+  border: 3px solid rgba(232, 71, 60, 0.9);
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  box-shadow: 0 0 0 2px rgba(15, 23, 32, 0.6);
+}
+
+/* Safety notes: a warning picture, then the words. */
+.fx-safety,
+.grim-safety {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fx-safety svg,
+.grim-safety svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+body[data-tier="sprout"] .grim-safety svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* The electrolyser at work: beads fly from the water jar into the gas jars
+ * (#jars-mini is already positioned, so beads place inside it). */
+.jar-bead {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: #56b4e9;
+  box-shadow: 0 0 6px rgba(143, 211, 255, 0.9);
+}
+
+.jar-bead.f-o2 {
+  background: #d55e00;
+  box-shadow: 0 0 6px rgba(255, 170, 110, 0.9);
+}
+
+/* ------------------------------------------------ free play: challenges */
+
+#free-btn {
+  position: absolute;
+  top: 84px;
+  right: 10px;
+  width: 56px;
+  height: 56px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  z-index: 6;
+}
+
+#free-btn::after {
+  content: attr(data-count);
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f0c75e;
+  color: #0f1720;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+#free-btn[hidden],
+#free-panel[hidden] {
+  display: none;
+}
+
+#free-panel {
+  position: absolute;
+  top: 84px;
+  right: 76px;
+  width: min(320px, calc(100% - 20px));
+  max-height: calc(100% - 180px);
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  color: #f4f6f8;
+  z-index: 3;
+}
+
+#free-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+#free-panel h2 .icon {
+  width: 20px;
+  height: 20px;
+}
+
+#free-challenges {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.free-challenge {
+  display: grid;
+  grid-template-columns: 28px 1fr 22px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+body[data-tier="sprout"] .free-challenge {
+  font-size: 1.05rem;
+  grid-template-columns: 36px 1fr 26px;
+}
+
+.free-challenge.done .free-text {
+  color: #9be7b0;
+}
+
+.free-pic .icon,
+.free-tick .icon {
+  width: 100%;
+  height: auto;
+}
+
+.free-tick {
+  color: #55d17a;
+}
+
+.free-resets {
+  display: grid;
+  grid-template-columns: auto repeat(4, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.free-resets-label {
+  font-size: 0.8rem;
+  color: #c9d3dc;
+}
+
+.free-reset {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #1c2a38;
+  border: 1px solid #3a4b5c;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+body[data-tier="sprout"] .free-reset {
+  min-height: 64px;
+}
+
+.free-reset {
+  justify-content: center;
+}
+
+.free-reset .icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.free-reset-num {
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+@media (max-height: 500px) {
+  #free-btn {
+    top: 64px;
+    width: 48px;
+    height: 48px;
+  }
+
+  #free-panel {
+    top: 64px;
+    right: 66px;
+    max-height: calc(100% - 140px);
+    font-size: 0.85rem;
   }
 }

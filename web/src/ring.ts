@@ -1,6 +1,8 @@
 // The formula ring: tiles to build an equation, coefficient dials, and a text
 // box for players who would rather type.
 
+import { words } from "./device";
+import { icon, molecule, type IconName } from "./icons";
 import { prettyFormula, type Tier } from "./types";
 
 interface Term {
@@ -11,15 +13,17 @@ interface Term {
 interface TileDef {
   formula: string;
   name: string;
-  picture: string;
+  /** A picture icon, or null to draw the molecule as atom balls. */
+  picture: IconName | null;
 }
 
+// Pictures are drawn, not emoji: methane gets its own molecule icon, never a fire.
 const TILES: TileDef[] = [
-  { formula: "H2O", name: "Water", picture: "💧" },
-  { formula: "H2", name: "Hydrogen", picture: "🎈" },
-  { formula: "O2", name: "Oxygen", picture: "🫧" },
-  { formula: "CH4", name: "Methane", picture: "🔥" },
-  { formula: "CO2", name: "Carbon dioxide", picture: "☁️" },
+  { formula: "H2O", name: "Water", picture: "drop" },
+  { formula: "H2", name: "Hydrogen", picture: null },
+  { formula: "O2", name: "Oxygen", picture: null },
+  { formula: "CH4", name: "Methane", picture: "methane" },
+  { formula: "CO2", name: "Carbon dioxide", picture: "cloud" },
 ];
 
 export class FormulaRing {
@@ -49,7 +53,7 @@ export class FormulaRing {
       b.setAttribute("aria-label", `${t.name}, ${t.formula}`);
       const pic = document.createElement("span");
       pic.className = "pic";
-      pic.textContent = t.picture;
+      pic.append(t.picture ? icon(t.picture) : molecule(t.formula));
       const label = document.createElement("span");
       label.textContent = tier === "sprout" ? t.name : prettyFormula(t.formula);
       b.append(pic, label);
@@ -66,6 +70,10 @@ export class FormulaRing {
         this.cast();
       } else if (e.key === "Escape") {
         this.toggle(false);
+      } else if (e.key.toLowerCase() === "q" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // No element symbol has a Q, so Q here can only mean "close the ring".
+        e.preventDefault();
+        if (!e.repeat) this.toggle(false);
       }
       // Typing letters like Q or N must not trigger game shortcuts.
       e.stopPropagation();
@@ -85,8 +93,12 @@ export class FormulaRing {
 
   toggle(open = !this.isOpen): void {
     this.root.hidden = !open;
-    if (open && !this.input.hidden) this.input.focus();
+    // preventScroll: the stage clips its children, and a focus scroll would
+    // slide the whole game world out of view.
+    if (open && !this.input.hidden) this.input.focus({ preventScroll: true });
     if (!open) this.input.blur();
+    const stage = this.root.parentElement;
+    if (stage) stage.scrollTop = 0;
   }
 
   text(): string {
@@ -169,7 +181,7 @@ export class FormulaRing {
         this.equation.append(chip);
       });
     };
-    addSide(this.left, "Tap substances to start");
+    addSide(this.left, words("Tap substances to start"));
     if (this.onRight || this.right.length > 0) {
       this.equation.append(textSpan(" → ", "op arrow"));
       addSide(this.right, "What do they make?");
