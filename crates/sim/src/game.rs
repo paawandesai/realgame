@@ -28,6 +28,11 @@ pub const HEIGHT: usize = 180;
 /// How quickly the camera catches up once the player leaves the deadzone.
 const CAMERA_LERP: f32 = 0.2;
 
+/// A balanced equation that is in neither reaction list. Balancing proves
+/// the atoms add up; it says nothing about whether the reaction happens, so
+/// the game does not judge it either way.
+const BALANCED_NOT_IN_BOOK: &str = "Atoms balance. This reaction isn't in my book yet. Balancing shows the atoms add up, not whether it happens.";
+
 pub const INPUT_LEFT: u32 = 1;
 pub const INPUT_RIGHT: u32 = 2;
 pub const INPUT_JUMP: u32 = 4;
@@ -1388,6 +1393,15 @@ impl Game {
                     &unreacted,
                     reacted.as_deref(),
                 );
+                // Same rule as an unbalanced equation: amounts taken more
+                // than once are never taken silently.
+                if self.tier > Tier::Sprout {
+                    if let Some(again) = Self::taken_again_line(typed, &res) {
+                        let mut lines: Vec<&str> = label.lines().collect();
+                        lines.insert(1.min(lines.len()), &again);
+                        label = lines.join("\n");
+                    }
+                }
             } else if !balanced {
                 label = self.unbalanced_label(typed, outcome, &res, &unreacted, reacted.as_deref());
             } else if multiple > 1 && outcome == Outcome::Full && self.tier > Tier::Sprout {
@@ -1551,9 +1565,9 @@ impl Game {
                 known: false,
             } => self
                 .line(
-                    "Atoms match, but no reaction.",
-                    "Atoms match, but balancing doesn't make it happen.",
-                    "Atoms match, but I don't know this reaction. Balancing alone doesn't make it happen.",
+                    "Atoms match! Not in my book yet.",
+                    BALANCED_NOT_IN_BOOK,
+                    BALANCED_NOT_IN_BOOK,
                 )
                 .into(),
             Rejection::NoChange => "Nothing changes: that's not a reaction.".into(),
@@ -1773,6 +1787,7 @@ impl Game {
                 }
             };
             let mut lines = vec![first, not_balanced];
+            lines.extend(Self::taken_again_line(typed, res));
             if outcome != Outcome::Fizzle {
                 let made: Vec<String> = res
                     .products
@@ -1798,6 +1813,7 @@ impl Game {
             });
             return lines.join("\n");
         }
+        lines.extend(Self::taken_again_line(typed, res));
         if let Some(eq) = reacted {
             lines.push(if self.tier >= Tier::Apprentice {
                 let sign = if res.dh_kj < 0.0 { "-" } else { "+" };
@@ -1868,6 +1884,39 @@ impl Game {
             }
         }
         lines.join("\n")
+    }
+
+    /// The one rule for amounts taken more than once: when the typed amounts
+    /// could not make even one whole set of products, the suit took them
+    /// again (up to 4 times) and the card says so, naming exactly what left
+    /// the jars: "Your amounts were taken twice: 2CH4 + 2O2". None when they
+    /// were taken as written or nothing was drawn.
+    fn taken_again_line(typed: &crate::formula::Equation, res: &Resolution) -> Option<String> {
+        if res.times <= 1 || res.drawn.is_empty() {
+            return None;
+        }
+        let how = match res.times {
+            2 => "twice".to_string(),
+            n => format!("{n} times"),
+        };
+        let terms: Vec<String> = typed
+            .reactants
+            .iter()
+            .filter_map(|t| {
+                let n = res.drawn.get(&t.formula).copied().unwrap_or(0);
+                (n > 0).then(|| {
+                    if n == 1 {
+                        t.formula.clone()
+                    } else {
+                        format!("{n}{}", t.formula)
+                    }
+                })
+            })
+            .collect();
+        Some(format!(
+            "Your amounts were taken {how}: {}",
+            terms.join(" + ")
+        ))
     }
 
     /// Leftover atoms in words with no fractions: "1 oxygen atom".
@@ -2951,6 +3000,97 @@ mod tests {
     }
 
     #[test]
+    fn amounts_taken_more_than_once_are_stated_and_leftovers_add_up() {
+        // Playtest round 4: CH4 + O2 is short of oxygen for one whole set, so
+        // the suit takes the typed amounts twice. The card says so, with the
+        // amounts that actually left the jars, and the leftover line is
+        // typed amounts x 2 minus what reacted.
+        for tier in [Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            g.jars.insert("CH4".into(), 4);
+            let before = g.jars.clone();
+            let out = g.cast("CH4 + O2 -> CO2 + H2O");
+            assert_eq!(out.outcome, Outcome::Partial, "{}", out.label);
+            assert!(
+                out.label
+                    .contains("Your amounts were taken twice: 2CH4 + 2O2"),
+                "{tier:?}: {}",
+                out.label
+            );
+            // What was drawn (stated on the card) is exactly 2CH4 + 2O2.
+            let mut drawn = Atoms::new();
+            drawn.insert("C".into(), 2);
+            drawn.insert("H".into(), 8);
+            drawn.insert("O".into(), 4);
+            assert_eq!(out.consumed, drawn, "{tier:?}");
+            // CH4 + 2O2 reacted; 2 - 1 = 1 CH4 and 2 - 2 = 0 O2 are left.
+            assert_eq!(out.reacted.as_deref(), Some("CH4 + 2O2 -> CO2 + 2H2O"));
+            assert_eq!(out.unreacted, ["1 CH4"]);
+            let jar = |j: &std::collections::BTreeMap<String, u32>, k: &str| {
+                j.get(k).copied().unwrap_or(0)
+            };
+            assert_eq!(jar(&before, "CH4") - jar(&g.jars, "CH4"), 1);
+            assert_eq!(jar(&before, "O2") - jar(&g.jars, "O2"), 2);
+            if tier == Tier::Apprentice {
+                assert!(out.label.contains("1 CH4 left over"), "{}", out.label);
+            } else {
+                // Whole atoms only, and only atoms of what was typed.
+                let first = out.label.lines().next().unwrap();
+                assert_eq!(
+                    first,
+                    "Oops! 1 carbon atom and 4 hydrogen atoms are left over. Tap Fix it."
+                );
+            }
+            // Never leftovers of something the player did not type.
+            for name in ["H2O", "CO2", "H2 ", "oxygen atom"] {
+                let leftover_line = out
+                    .label
+                    .lines()
+                    .find(|l| l.contains("left over"))
+                    .unwrap_or("");
+                assert!(!leftover_line.contains(name), "{}", out.label);
+            }
+        }
+        // Amounts taken as written say nothing about being taken again.
+        for tier in [Tier::Seedling, Tier::Apprentice] {
+            let out = game(tier).cast("H2 + O2 -> H2O");
+            assert_eq!(out.outcome, Outcome::Partial);
+            assert!(!out.label.contains("taken"), "{}", out.label);
+        }
+        // A mix with no arrow follows the same rule.
+        let mut g = game(Tier::Apprentice);
+        g.jars.insert("CH4".into(), 4);
+        let out = g.cast("CH4 + O2");
+        assert!(
+            out.label
+                .contains("Your amounts were taken twice: 2CH4 + 2O2"),
+            "{}",
+            out.label
+        );
+    }
+
+    #[test]
+    fn thermite_is_known_real_and_unknown_balanced_casts_are_not_judged() {
+        let thermite = "Fe2O3 + 2Al -> Al2O3 + 2Fe";
+        for tier in [Tier::Seedling, Tier::Apprentice] {
+            let r = game(tier).cast(thermite);
+            assert_eq!(r.outcome, Outcome::Unknown);
+            assert_eq!(r.reason, Some("not_in_world"));
+            assert!(r.label.contains("real chemistry"), "{}", r.label);
+            // Balanced, but in neither book: neutral, never "doesn't happen".
+            let r = game(tier).cast("O2 + O2 -> O4");
+            assert_eq!(r.label, BALANCED_NOT_IN_BOOK);
+            assert!(!r.label.contains("doesn't make it happen"));
+        }
+        assert_eq!(
+            game(Tier::Sprout).cast(thermite).label,
+            "Real, but not here yet!"
+        );
+        let r = game(Tier::Sprout).cast("O2 + O2 -> O4");
+        assert!(!r.label.contains("no reaction"), "{}", r.label);
+    }
+
+    #[test]
     fn running_out_always_names_the_substance_and_how_to_get_more() {
         for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
             for (jar, text) in [
@@ -3254,8 +3394,9 @@ mod tests {
             let r = g.cast("He + O2 -> HeO2");
             assert_eq!(r.reason, Some("noble_gas"));
             assert_eq!(r.label, "Helium doesn't react.");
+            // Round 4: balanced but unknown is neutral ("in my book yet").
             let r = g.cast("O2 + O2 -> O4");
-            assert!(r.label.contains("Atoms match"), "{}", r.label);
+            assert!(r.label.contains("in my book yet"), "{}", r.label);
         }
         let mut g = game(Tier::Apprentice);
         let r = g.cast("N2 + 3H2 -> 2NH3");

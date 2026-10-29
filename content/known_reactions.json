@@ -8,6 +8,7 @@
     { "equation": "2Mg + O2 -> 2MgO", "name": "Magnesium burns", "source": "NIST Chemistry WebBook, MgO(s) standard enthalpy of formation" },
     { "equation": "4Fe + 3O2 -> 2Fe2O3", "name": "Iron oxidises (rust, simplified)", "source": "CRC Handbook of Chemistry and Physics, Standard Thermodynamic Properties of Chemical Substances, Fe2O3 (hematite)" },
     { "equation": "4Al + 3O2 -> 2Al2O3", "name": "Aluminium oxidises", "source": "NIST Chemistry WebBook, Al2O3(s) standard enthalpy of formation" },
+    { "equation": "Fe2O3 + 2Al -> Al2O3 + 2Fe", "name": "Thermite: aluminium takes the oxygen from rust", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 7 (aluminothermic reduction); NIST Chemistry WebBook, Al2O3(s) and Fe2O3(s) standard enthalpies of formation" },
     { "equation": "S + O2 -> SO2", "name": "Sulfur burns", "source": "NIST Chemistry WebBook, SO2(g) standard enthalpy of formation" },
     { "equation": "2CO + O2 -> 2CO2", "name": "Carbon monoxide burns", "source": "NIST Chemistry WebBook, CO(g) and CO2(g) standard enthalpies of formation" },
     { "equation": "2C + O2 -> 2CO", "name": "Carbon burns with little oxygen", "source": "NIST Chemistry WebBook, CO(g) standard enthalpy of formation" },

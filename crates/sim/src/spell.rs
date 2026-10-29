@@ -517,6 +517,10 @@ pub struct Resolution {
     pub power: f32,
     /// Enthalpy change of what actually reacted, kJ (sourced table value, scaled).
     pub dh_kj: f32,
+    /// How many times the typed amounts were taken (2 when "CH4 + O2" was
+    /// short of oxygen for one whole set and ran as 2CH4 + 2O2). 0 or 1:
+    /// taken as written.
+    pub times: u32,
 }
 
 fn add_atoms(into: &mut Atoms, from: &Atoms, times: u32) {
@@ -604,7 +608,10 @@ fn resolve_times(
     stock: &Stock,
     times: u32,
 ) -> Resolution {
-    let mut r = Resolution::default();
+    let mut r = Resolution {
+        times,
+        ..Default::default()
+    };
     // The smallest whole set of products: 2H2O -> H2O, CO2 + 2H2O stays.
     let g = known.products.iter().fold(0, |g, t| gcd(g, t.coef)).max(1);
     let unit: Vec<(String, u32)> = known
