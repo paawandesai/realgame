@@ -54,6 +54,13 @@ const WATER_CELLS_PER_MOL: u32 = 40;
 const WATER_COOL_RADIUS: i32 = 6;
 /// How far past a heat burst's radius ice still melts, in cells.
 const ICE_MELT_EXTRA: i32 = 3;
+/// Game scale for ice: one cell of ice stands for this many moles of water
+/// (5.4 g). A blast's heat melts |dH| / 6.01 kJ/mol (enthalpy of fusion,
+/// CRC, from the reaction table) moles, so a balanced boom (-483.6 kJ, NIST)
+/// melts about 80 mol, which is 268 cells: the whole 240-cell wall.
+const ICE_MOL_PER_CELL: f32 = 0.3;
+/// Heat spreads through ice it touches up to this far from the blast.
+const ICE_SPREAD_REACH: i32 = 24;
 /// ...and soaks through this many burning cells of a hedge it hits.
 const SOAK_CELLS_PER_MOL: u32 = 160;
 /// One mole of the cloud spell is this many cells of CO2...
@@ -283,6 +290,8 @@ pub struct Game {
     pub crystal_max_kj: f32,
     /// Energy to split 2 H2O, kJ (the sourced +571.7 from the reaction table).
     split_kj: f32,
+    /// Enthalpy of fusion of water, kJ/mol (sourced, from the reaction table).
+    fusion_kj: f32,
     condense_timer: u32,
     electro_timer: u32,
     gather_cells: u32,
@@ -369,6 +378,7 @@ impl Game {
             crystal_kj: split_kj * CRYSTAL_SPLITS,
             crystal_max_kj: split_kj * CRYSTAL_SPLITS,
             split_kj,
+            fusion_kj: book.latent_heat("water_melting"),
             condense_timer: 0,
             electro_timer: 0,
             gather_cells: 0,
@@ -1761,7 +1771,15 @@ impl Game {
                 };
                 // Ice soaks up the blast's heat (fusion, 6.01 kJ/mol, CRC), so it melts
                 // a little past the fireball's edge.
-                let melted = self.melt_ice(at, radius + ICE_MELT_EXTRA);
+                let mut melted = self.melt_ice(at, radius + ICE_MELT_EXTRA);
+                // The rest of the heat spreads through the ice it touches:
+                // melting takes 6.01 kJ per mole, whatever the shape.
+                let budget = shot.dh_kj.abs() / self.fusion_kj / ICE_MOL_PER_CELL;
+                let budget = (budget as u32).saturating_sub(melted);
+                melted += self.melt_ice_through(at, radius + ICE_MELT_EXTRA + 2, budget);
+                if melted > 0 {
+                    self.ice_progress_line(shot.spell);
+                }
                 self.rooms.last_heat = Some((self.ticks, at.0, at.1));
                 if melted > 0 || rooms::ICE.grow(radius + 4).contains(at.0, at.1) {
                     self.rooms.ice_heated = true;
@@ -1816,6 +1834,58 @@ impl Game {
             }
         }
         doused
+    }
+
+    /// Heat conducted through ice: starting from ice within `r` of `at`, the
+    /// nearest connected ice cells melt first, up to `budget` cells.
+    fn melt_ice_through(&mut self, at: (i32, i32), r: i32, budget: u32) -> u32 {
+        if budget == 0 {
+            return 0;
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        let mut queue = std::collections::VecDeque::new();
+        // Seeds: ice next to the blast (and next to what it just melted).
+        let mut seeds = vec![];
+        for dy in -r..=r {
+            for dx in -r..=r {
+                let (x, y) = (at.0 + dx, at.1 + dy);
+                if dx * dx + dy * dy <= r * r
+                    && self.grid.in_bounds(x, y)
+                    && self.grid.get(x, y) == Species::Ice
+                {
+                    seeds.push((dx * dx + dy * dy, x, y));
+                }
+            }
+        }
+        seeds.sort_unstable();
+        for (_, x, y) in seeds {
+            if seen.insert((x, y)) {
+                queue.push_back((x, y));
+            }
+        }
+        let mut melted = 0;
+        while let Some((x, y)) = queue.pop_front() {
+            if melted >= budget {
+                break;
+            }
+            if self.grid.get(x, y) != Species::Ice {
+                continue;
+            }
+            self.grid.set(x, y, Species::Water, 1.0);
+            melted += 1;
+            for (dx, dy) in [(0, -1), (0, 1), (-1, 0), (1, 0)] {
+                let (nx, ny) = (x + dx, y + dy);
+                if (nx - at.0).abs() <= ICE_SPREAD_REACH
+                    && (ny - at.1).abs() <= ICE_SPREAD_REACH
+                    && self.grid.in_bounds(nx, ny)
+                    && self.grid.get(nx, ny) == Species::Ice
+                    && seen.insert((nx, ny))
+                {
+                    queue.push_back((nx, ny));
+                }
+            }
+        }
+        melted
     }
 
     /// Heat melts ice within `r` straight into water. Returns cells melted.

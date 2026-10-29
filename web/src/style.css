@@ -3120,3 +3120,8 @@ body[data-tier="sprout"] #menu-trial {
   border-top-color: #f0c75e;
   border-bottom: 0;
 }
+
+/* The ice wall's "ice left" meter is ice blue, not fire orange. */
+.goal-icon[data-kind="ice"] .goal-meter > div {
+  background: #56b4e9;
+}

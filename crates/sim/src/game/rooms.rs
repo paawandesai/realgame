@@ -1007,6 +1007,27 @@ impl Game {
         }
     }
 
+    /// Some of the ice wall melted but not enough to pass: say how much is
+    /// left and to go again (the gate opens on its own when it's enough).
+    pub(super) fn ice_progress_line(&mut self, spell: &str) {
+        if self.rooms.gates_open[1] || self.rooms.ice_start == 0 {
+            return;
+        }
+        let left = self.count_in(ICE, Species::Ice);
+        if left * 10 <= self.rooms.ice_start {
+            return;
+        }
+        let pct = (100 * left / self.rooms.ice_start).max(1);
+        let line = match self.tier {
+            Tier::Sprout => "Half melted! Again!".to_string(),
+            Tier::Seedling => format!("{pct}% of the ice left. Boom again!"),
+            Tier::Apprentice => format!(
+                "{pct}% of the ice is left. Melting ice takes 6.01 kJ per mole (latent heat of fusion, CRC), so a bigger {spell} melts more: balance it, or cast again."
+            ),
+        };
+        self.say(line);
+    }
+
     /// A CO2 cloud landed at `at`: any hedge it hit is blanketed, so its
     /// flames die and its wood cools for `SMOTHER_TICKS`.
     pub(super) fn smother(&mut self, at: (i32, i32)) {
@@ -1189,7 +1210,12 @@ impl Game {
                 x: ix,
                 y: ICE.y0 + 6,
                 done: r.gates_open[1],
-                meter: None,
+                // "Ice left", 0..=1, like the hedges' fire meter.
+                meter: Some(if r.ice_start == 0 {
+                    0.0
+                } else {
+                    r.ice_left as f32 / r.ice_start as f32
+                }),
                 need: "boom",
                 stand_x: 440,
                 text: self.objective_line(1),
@@ -2463,6 +2489,72 @@ mod restart_tests {
                     g.rooms.ice_left, g.rooms.ice_start
                 );
                 assert!(!g.rooms.torch.lit, "the card went to the torch");
+            }
+        }
+    }
+
+    /// One balanced boom from where the goal says to stand clears room 2
+    /// within 5 s, on every tier, aimed the way that tier aims.
+    #[test]
+    fn one_balanced_boom_from_the_stand_spot_clears_the_ice() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for seed in 1..=10u64 {
+                let mut g = Game::new(tier, seed);
+                g.open_gate(0);
+                let stand = g.goals()[1].stand_x;
+                teleport(&mut g, stand as f32);
+                let out = match tier {
+                    // A tapped card with no aim: soft auto-aim.
+                    Tier::Sprout => {
+                        let out = g.cast("boom");
+                        land(&mut g);
+                        out
+                    }
+                    // Pointing at the goal marker.
+                    Tier::Seedling => {
+                        let m = &g.goals()[1];
+                        let at = (m.x, m.y);
+                        cast_at(&mut g, "2H2 + O2 -> 2H2O", at)
+                    }
+                    Tier::Apprentice => cast_at(&mut g, "2H2 + O2 -> 2H2O", ICE.centre()),
+                };
+                assert_eq!(out.outcome, Outcome::Full, "{tier:?} seed {seed}");
+                settle(&mut g, 5 * 60);
+                assert!(
+                    g.rooms.gates_open[1],
+                    "{tier:?} seed {seed}: ice left {} of {}",
+                    g.rooms.ice_left, g.rooms.ice_start
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_weak_boom_melts_part_of_the_ice_and_says_go_again() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = Game::new(tier, 42);
+            g.open_gate(0);
+            teleport(&mut g, 440.0);
+            g.messages.clear();
+            // Half a boom: only one H2 left in the jar, so half the heat.
+            g.jars.insert("H2".into(), 1);
+            let out = cast_at(&mut g, "2H2 + O2 -> 2H2O", ICE.centre());
+            assert_ne!(out.outcome, Outcome::Fizzle, "{tier:?}");
+            settle(&mut g, 60);
+            assert!(
+                !g.rooms.gates_open[1],
+                "{tier:?}: half a boom cleared it: {} {} {}",
+                out.equation, out.dh_kj, g.rooms.ice_left
+            );
+            let left = g.goals()[1].meter.expect("ice meter");
+            assert!(left > 0.1 && left < 0.9, "{tier:?}: ice left {left}");
+            let said = g.messages.join(" | ");
+            assert!(
+                said.contains("gain") || said.contains("Again"),
+                "{tier:?}: {said}"
+            );
+            if tier == Tier::Apprentice {
+                assert!(said.contains("6.01 kJ"), "{said}");
             }
         }
     }

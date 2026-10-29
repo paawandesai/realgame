@@ -61,6 +61,10 @@ const TRAY_STARTERS = ["H2O", "H2 + O2 -> H2O", "H2O -> H2 + O2", "H2O"];
 /** Spells that work from the very first second (the suit starts charged). */
 const STARTER_SLOTS = BAR_SPELLS.map((b) => b.formula);
 
+/** What to aim at for each goal, in words and as a picture. */
+const AIM_WORDS: Record<Goal["kind"], string> = { fire: "fire", ice: "ice", gas: "bubbles", brazier: "bowl" };
+const GOAL_PICTURE: Record<Goal["kind"], IconName> = { fire: "fire", ice: "ice", gas: "bubbles", brazier: "bowl" };
+
 const REALM_NAMES: Record<Tier, string> = {
   sprout: "Sprout",
   seedling: "Seedling",
@@ -959,6 +963,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let progressSig = "";
   const meters: number[] = [];
   let hintSpell = "";
+  /** The kind of spell ("boom", "water", ...) that last worked, and the
+   * room it was cast in: the hint never offers it straight back. */
+  let lastWorked: { spell: string; room: number } | null = null;
   hintUse.addEventListener("click", () => {
     if (!hintSpell) return;
     if (tray) tray.set(hintSpell);
@@ -972,6 +979,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (r.outcome === "full" || r.outcome === "partial") {
       hint.floor = 0;
       hint.misses = 0;
+      lastWorked = { spell: r.spell, room: game.room() };
     } else {
       hint.misses++;
       hint.floor = Math.max(hint.floor, hint.level);
@@ -1035,6 +1043,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const key = next ? `${next.room}:${next.need}:${goals.goVisible}` : "done";
     if (key !== hint.key) {
       hint.key = key;
+      // A new goal (or step): any spell is fair to suggest again.
+      lastWorked = null;
       hint.floor = 0;
       hint.misses = 0;
       hint.since = now;
@@ -1059,9 +1069,13 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     document.body.dataset.hint = String(level);
     goals.setHintLevel(level);
     const need: Goal["need"] | null = next ? (nudgeFor !== null ? "boom" : next.need) : null;
-    const spell = need ? SPELLS[tier][need] : "";
+    // That exact spell just worked here and the goal is not done: the
+    // advice is where to aim, not the same spell again.
+    const repeat = need !== null && next !== null && lastWorked?.spell === need && lastWorked.room === next.room - 1;
+    if (repeat && level >= 1) goals.pointAt = true;
+    const spell = need && !repeat ? SPELLS[tier][need] : "";
     hintSpell = spell;
-    const glow = level >= 2 && !goals.goVisible && need !== null;
+    const glow = level >= 2 && !goals.goVisible && need !== null && !repeat;
     cards?.setHint(glow ? (need as CardSpell) : null);
     tray?.setHint(glow ? spell : null);
     const slot = glow ? spell : "";
@@ -1075,6 +1089,16 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         hintText.textContent = "Walk this way";
         hintUse.hidden = true;
         speech.say("Walk this way! Tap the arrow.");
+      } else if (repeat && next) {
+        const where = AIM_WORDS[next.kind];
+        hintUse.hidden = true;
+        if (tier === "sprout") {
+          hintText.replaceChildren(icon(GOAL_PICTURE[next.kind]));
+          speech.say(`Again! Aim at the ${where}!`);
+        } else {
+          hintText.textContent = `Again: aim right at the ${where}`;
+          speech.say(`Again: aim right at the ${where}.`);
+        }
       } else if (tier === "sprout") {
         const card = CARDS.find((c) => c.spell === need);
         hintText.replaceChildren(icon(card?.picture ?? "drop"));
@@ -1100,7 +1124,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     let target: Element | null = null;
     if (show) {
       const need = nudgeFor !== null ? "boom" : next.need;
-      target = goals.goVisible ? document.getElementById("go-arrow") : cards.element(need as CardSpell);
+      // The card just worked: point at the target (the goal pointer), not the card.
+      const repeat = lastWorked?.spell === need && lastWorked.room === next.room - 1 && !goals.goVisible;
+      target = goals.goVisible ? document.getElementById("go-arrow") : repeat ? null : cards.element(need as CardSpell);
     }
     ghostHand.hidden = !target;
     if (!target) return;
