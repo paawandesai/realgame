@@ -29,8 +29,6 @@ const STEP_MS = 1000 / 60;
  * anything beyond is dropped so a slow device slows the game down instead of
  * spiralling into ever longer frames. */
 const MAX_STEPS_PER_FRAME = 2;
-/** With no choice on the start screen, the youngest tier starts by itself. */
-const AUTOSTART_MS = 8000;
 /** Hint ladder: when each step (pulse, glowing card, full hint) shows after
  * no progress. Sprouts get help sooner. */
 const HINT_IDLE_MS: Record<Tier, [number, number, number]> = {
@@ -107,6 +105,8 @@ function speakNow(line: string): void {
 const TYPE_GAP_MS = 700;
 /** How long a number key waits to see whether a formula follows ("2H2"). */
 const HOTKEY_WAIT_MS = 250;
+/** After a hotkey casts, the same key waits this long (shown as a sweep). */
+const HOTKEY_COOLDOWN_MS = 600;
 /** Words the spell box understands (see ALIASES in crates/sim/src/spell.rs). */
 const SPELL_WORDS = ["water", "h20", "fire", "fireball", "methane", "boom", "pop", "split", "bubbles", "hydrogen", "oxygen", "cloud", "smother", "co2"];
 
@@ -143,26 +143,20 @@ async function boot(): Promise<void> {
 }
 
 /**
- * Three picture buttons. With no choice and no activity for 8 s the game
- * starts by itself (as the last level picked on this device, else Sprout);
- * any pointer move, touch, focus or key press starts the wait over, so a
- * player who is still deciding is never whisked away.
+ * Three picture buttons. Nothing starts until one is picked: a child who is
+ * still choosing is never dropped into a level, and there is no timer bar
+ * to read as a race. The last level picked here is marked "Last time".
  */
 function showStartScreen(onChoose: (tier: Tier) => void): void {
   const screen = byId("start");
   screen.hidden = false;
   let chosen = false;
   const last = storageGet("lastTier");
-  const fallback: Tier = isTier(last) ? last : "sprout";
-  const choose = (tier: Tier, remember: boolean) => {
+  const choose = (tier: Tier) => {
     if (chosen) return;
     chosen = true;
-    window.clearInterval(timer);
-    for (const [type, fn] of listeners) window.removeEventListener(type, fn, true);
-    if (remember) {
-      storageSet("tier", tier);
-      storageSet("lastTier", tier);
-    }
+    storageSet("tier", tier);
+    storageSet("lastTier", tier);
     onChoose(tier);
   };
   for (const pic of screen.querySelectorAll("[data-icon]")) setIcon(pic, pic.getAttribute("data-icon") as IconName);
@@ -181,26 +175,9 @@ function showStartScreen(onChoose: (tier: Tier) => void): void {
     b.addEventListener("pointerenter", () => speakNow(name));
     b.addEventListener("click", () => {
       speakNow(name);
-      choose(tier, true);
+      choose(tier);
     });
   }
-  const fill = byId("autostart-fill");
-  const text = byId("autostart-text");
-  let began = performance.now();
-  /** Activity puts the countdown back to the start. */
-  const wake = () => {
-    began = performance.now();
-  };
-  const listeners: [string, () => void][] = ["pointermove", "pointerdown", "touchstart", "keydown", "focusin", "wheel"].map((t) => [t, wake]);
-  for (const [type, fn] of listeners) window.addEventListener(type, fn, true);
-  const timer = window.setInterval(() => {
-    const t = (performance.now() - began) / AUTOSTART_MS;
-    fill.style.width = `${Math.min(100, t * 100)}%`;
-    // Only a quiet screen counts down; while someone is choosing it just asks.
-    text.textContent = t < 0.5 ? "Take your time" : `Starting as ${REALM_NAMES[fallback]} soon`;
-    // Not remembered: the next visit asks again.
-    if (t >= 1) choose(fallback, false);
-  }, 100);
 }
 
 function start(tier: Tier, memory: WebAssembly.Memory): void {
@@ -481,12 +458,24 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const spell = tier === "sprout" ? CARDS[Number(k) - 1]?.spell : slots[Number(k) - 1];
       if (!spell || (tier === "sprout" && !cards?.element(spell as CardSpell))) return;
       if (castInput) {
+        const at = Number(k) - 1;
+        // The same key again while it is about to fire or recharging: say so
+        // on the slot instead of silently restarting the wait.
+        if ((pendingHotkey && pendingSlot === at) || performance.now() < (slotReadyAt[at] ?? 0)) {
+          flashSlot(at, "refused");
+          remember(e, null);
+          return;
+        }
         // A hotkey fires a moment later, unless it was the start of a formula.
         cancelHotkey();
+        pendingSlot = at;
         pendingHotkey = window.setTimeout(() => {
           pendingHotkey = 0;
+          pendingSlot = -1;
           // Cast for real now: these keys can no longer start a formula.
           typed.keys = [];
+          slotReadyAt[at] = performance.now() + HOTKEY_COOLDOWN_MS;
+          flashSlot(at, "cooling");
           castSlot(spell);
         }, HOTKEY_WAIT_MS);
         remember(e, cancelHotkey);
@@ -514,9 +503,23 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   /** Keys typed in quick succession, with how to undo what each one did. */
   const typed: { at: number; keys: { ch: string; undo: (() => void) | null }[] } = { at: 0, keys: [] };
   let pendingHotkey = 0;
+  /** Which slot the pending hotkey casts (-1: none). */
+  let pendingSlot = -1;
+  /** When each hotkey slot may cast again (performance.now() ms). */
+  const slotReadyAt: number[] = [];
   function cancelHotkey(): void {
     window.clearTimeout(pendingHotkey);
     pendingHotkey = 0;
+    pendingSlot = -1;
+  }
+  /** Replays a slot's "cooling" sweep or "refused" flash; the class goes
+   * again when the animation ends, so nothing piles up. */
+  function flashSlot(at: number, kind: "cooling" | "refused"): void {
+    const b = slotButtons[at];
+    if (!b) return;
+    b.classList.remove(kind);
+    void b.offsetWidth;
+    b.classList.add(kind);
   }
   function remember(e: KeyboardEvent, undo: (() => void) | null): void {
     if (castInput && !e.repeat && e.key.length === 1) typed.keys.push({ ch: e.key, undo });
@@ -1289,6 +1292,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       if (lock) c.lines.unshift(`Locked: ${lock.hint()}`);
       return c;
     });
+    b.addEventListener("animationend", (e) => {
+      if (e.animationName === "slot-cool") b.classList.remove("cooling");
+      if (e.animationName === "slot-refused") b.classList.remove("refused");
+    });
     slotButtons[i] = b;
     return b;
   }
@@ -1473,6 +1480,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const cause = delta > 0 ? lastCause.get(formula) : undefined;
     if (cause) t.dataset.cause = cause;
     el.root.append(t);
+    // Gone when its float ends (or after a while if animations are off), and
+    // never more than three at once, so a long session never piles them up.
+    t.addEventListener("animationend", () => t.remove(), { once: true });
+    const ticks = el.root.querySelectorAll(".gauge-tick");
+    for (let i = 0; i < ticks.length - 3; i++) ticks[i]!.remove();
     el.root.classList.remove("pulse");
     void el.root.offsetWidth;
     el.root.classList.add("pulse");
@@ -1563,6 +1575,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         : parts.map(([f, n]) => `${n > 0 ? "+" : "−"}${Math.abs(n)} ${prettyFormula(f)}`).join(", ");
     chip.append(gear, words);
     jars.append(chip);
+    for (const old of [...jars.querySelectorAll(".suit-tick")].slice(0, -2)) old.remove();
     window.setTimeout(() => chip.remove(), 2600);
     if (!suitExplained) {
       suitExplained = true;

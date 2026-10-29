@@ -644,26 +644,6 @@ body[data-tier="sprout"] .tile .pic {
   font-size: 1.4rem;
 }
 
-#autostart {
-  max-width: 320px;
-  margin: 0 auto 16px;
-  color: var(--quiet);
-}
-
-.autostart-bar {
-  height: 8px;
-  border-radius: 4px;
-  background: #334155;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-#autostart-fill {
-  height: 100%;
-  width: 0;
-  background: var(--good);
-}
-
 /* --------------------------------------------------------------- layout */
 
 body {
@@ -1890,13 +1870,12 @@ body[data-tier="apprentice"] #jars-mini {
 }
 
 /* The heat lens has its own corner, above the spell bar on the right. */
+/* The lens button sits in the spell bar, never over the world. */
 #lens-btn {
-  position: absolute;
-  right: 10px;
-  bottom: 90px;
+  flex: none;
   min-height: 44px;
   background: var(--panel);
-  z-index: 3;
+  white-space: nowrap;
 }
 
 .slot {
@@ -1996,7 +1975,6 @@ body[data-tier="apprentice"] #jars-mini {
     width: 56px;
     height: 56px;
     padding: 8px;
-    bottom: 76px;
     background: var(--panel-solid);
   }
 
@@ -3505,5 +3483,84 @@ body[data-motion="calm"] #hud-top #room-clear {
 
   body[data-tier="sprout"] #hud-top #room-clear {
     font-size: 1.5rem;
+  }
+}
+
+/* F14: world labels stay inside the picture and off goal markers. goals.ts
+   measures each label and sets a nudge; it adds to however the label is
+   placed (its transform, translate or margin). */
+#battery-tag,
+#trap-meter,
+.lens-spot {
+  left: var(--nudge-x, 0px);
+  top: var(--nudge-y, 0px);
+}
+
+#stand-spot .stand-label {
+  left: var(--nudge-x, 0px);
+  bottom: calc(14px - var(--nudge-y, 0px));
+}
+
+/* F16: a hotkey slot that just cast shows a draining sweep while it
+   recharges; pressing it again during that time flashes "recharging". */
+.slot.cooling,
+.slot.refused {
+  position: relative;
+}
+
+.slot.cooling::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(15, 23, 32, 0.55);
+  transform-origin: left center;
+  animation: slot-cool 600ms linear forwards;
+  pointer-events: none;
+}
+
+@keyframes slot-cool {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.slot.refused::before {
+  content: "recharging";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  border: 2px solid #f0c75e;
+  background: rgba(15, 23, 32, 0.85);
+  color: #f0c75e;
+  font-size: 0.7rem;
+  font-weight: 800;
+  animation: slot-refused 450ms ease-out forwards;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes slot-refused {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+body[data-motion="calm"] .slot.cooling::after {
+  animation-timing-function: steps(3);
+}
+
+/* Small screens: the lens button in the bar is a "°C" key, not words. */
+@media (max-height: 500px), (max-width: 900px) {
+  #lens-btn .lens-word,
+  #lens-btn kbd {
+    display: none;
+  }
+
+  #lens-btn .lens-icon {
+    display: inline;
+    font-weight: 700;
   }
 }

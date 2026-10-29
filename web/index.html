@@ -29,10 +29,6 @@
           <span class="age-years">Ages 11 and up</span>
         </button>
       </div>
-      <div id="autostart" aria-live="polite">
-        <div class="autostart-bar"><div id="autostart-fill"></div></div>
-        <span id="autostart-text">Take your time</span>
-      </div>
       <p class="small">Nothing you do leaves this device.</p>
     </main>
 
@@ -88,11 +84,12 @@
             <div id="slots-more-list" role="group" aria-label="More spells" hidden></div>
           </div>
           <div class="hud-buttons">
+            <!-- In the bar, never over the world (it once hid the room-4 brazier). -->
+            <button id="lens-btn" type="button" aria-pressed="false" aria-label="Heat lens" hidden><span class="lens-word">Heat lens</span><span class="lens-icon" aria-hidden="true">°C</span> <kbd>L</kbd></button>
             <button id="app-write" type="button" class="touch-only" aria-label="Write a spell"></button>
             <button id="app-gather" type="button" class="touch-only" data-hold="gather" aria-label="Gather"></button>
           </div>
         </section>
-        <button id="lens-btn" type="button" aria-pressed="false" aria-label="Heat lens" hidden><span class="lens-word">Heat lens</span><span class="lens-icon" aria-hidden="true">°C</span> <kbd>L</kbd></button>
         <div id="lens-legend" hidden aria-label="Heat lens colours, degrees Celsius"></div>
         <div id="challenge" role="status" aria-live="polite" hidden></div>
 

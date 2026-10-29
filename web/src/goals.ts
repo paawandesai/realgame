@@ -273,6 +273,81 @@ export class GoalMarkers {
       const x = (next.x - viewX) * kx;
       this.pulse.style.transform = `translate(${x.toFixed(1)}px, ${(next.y * ky).toFixed(1)}px)`;
     }
+    this.keepLabelsClear();
+  }
+
+  /** The world labels this layer places: name tags, meters and lens readings. */
+  private labels(): HTMLElement[] {
+    const out: HTMLElement[] = [this.battery, this.trapMeter];
+    const stand = this.stand.firstElementChild;
+    if (!this.stand.hidden && stand instanceof HTMLElement) out.push(stand);
+    for (const el of this.layer.querySelectorAll<HTMLElement>(".lens-spot")) out.push(el);
+    return out.filter((el) => !el.hidden);
+  }
+
+  /**
+   * Keeps every world label inside the visible picture and off the goal
+   * markers: a label slides sideways to stay in view, and one that would sit
+   * on a marker moves above or below it. Reads all the boxes first, then
+   * writes, so a frame costs one layout.
+   */
+  private keepLabelsClear(): void {
+    const labels = this.labels();
+    if (labels.length === 0) return;
+    const canvas = this.stage.querySelector("canvas");
+    const st = this.stage.getBoundingClientRect();
+    const cv = canvas?.getBoundingClientRect() ?? st;
+    const pad = 4;
+    const box = {
+      left: Math.max(st.left, cv.left) + pad,
+      right: Math.min(st.right, cv.right) - pad,
+      top: Math.max(st.top, cv.top) + pad,
+      bottom: Math.min(st.bottom, cv.bottom) - pad,
+    };
+    const markers = this.markers
+      .filter((m) => !m.el.hidden && !m.el.classList.contains("offscreen"))
+      .map((m) => m.el.getBoundingClientRect());
+    const reads = labels.map((el) => [el, el.getBoundingClientRect()] as const);
+    for (const [el, now] of reads) {
+      const [ox, oy] = [Number(el.dataset.nx ?? 0), Number(el.dataset.ny ?? 0)];
+      // Where the label would be with no nudge.
+      let l = now.left - ox;
+      let t = now.top - oy;
+      const wd = now.width;
+      const ht = now.height;
+      const fitX = (x: number) => Math.max(box.left, Math.min(x, box.right - wd));
+      const fitY = (y: number) => Math.max(box.top, Math.min(y, box.bottom - ht));
+      l = fitX(l);
+      t = fitY(t);
+      const hits = (x: number, y: number) =>
+        markers.find((m) => x < m.right && m.left < x + wd && y < m.bottom && m.top < y + ht);
+      const m = hits(l, t);
+      if (m) {
+        // Above the marker, else below it, else beside it.
+        const tries: [number, number][] = [
+          [l, m.top - ht - 2],
+          [l, m.bottom + 2],
+          [m.right + 2, t],
+          [m.left - wd - 2, t],
+        ];
+        for (const [x, y] of tries) {
+          const fx = fitX(x);
+          const fy = fitY(y);
+          if (!hits(fx, fy)) {
+            [l, t] = [fx, fy];
+            break;
+          }
+        }
+      }
+      const nx = Math.round(l - (now.left - ox));
+      const ny = Math.round(t - (now.top - oy));
+      if (nx === ox && ny === oy) continue;
+      el.dataset.nx = String(nx);
+      el.dataset.ny = String(ny);
+      // A nudge in its own property, so it adds to whatever places the label.
+      el.style.setProperty("--nudge-x", `${nx}px`);
+      el.style.setProperty("--nudge-y", `${ny}px`);
+    }
   }
 
   /** Screen position (stage px) of the next goal, for the ghost hand. */
