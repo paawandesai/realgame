@@ -43,14 +43,18 @@ impl WebGame {
         self.game.tick(input);
     }
 
+    /// The player pointed somewhere on purpose.
     pub fn set_aim(&mut self, x: i32, y: i32) {
-        self.game.aim = (
-            x.clamp(0, WORLD_W as i32 - 1),
-            y.clamp(0, HEIGHT as i32 - 1),
-        );
+        self.game.set_aim(x, y, true);
     }
 
-    /// Returns a JSON `CastResult`.
+    /// Keeps the aim under a resting pointer while the camera scrolls; does
+    /// not count as aiming on purpose (so soft auto-aim can still help).
+    pub fn track_aim(&mut self, x: i32, y: i32) {
+        self.game.set_aim(x, y, false);
+    }
+
+    /// Returns a JSON `CastOutcome`. Every input gets one; there is no error path.
     pub fn cast(&mut self, formula: &str) -> String {
         serde_json::to_string(&self.game.cast(formula)).unwrap_or_default()
     }
@@ -58,6 +62,12 @@ impl WebGame {
     /// Returns the presentation events (JSON array of `Fx`) since the last call.
     pub fn take_fx(&mut self) -> String {
         serde_json::to_string(&self.game.take_fx()).unwrap_or_default()
+    }
+
+    /// Bumps whenever anything the HUD shows changes, so `state()` (which
+    /// builds JSON) only needs calling when this moves.
+    pub fn state_version(&self) -> f64 {
+        self.game.state_version() as f64
     }
 
     /// Returns a JSON `State` for the HUD. Drains pending mentor messages.

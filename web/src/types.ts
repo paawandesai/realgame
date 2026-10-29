@@ -10,8 +10,13 @@ export interface Objective {
 
 export interface GameState {
   tier: Tier;
+  /** Suit gauges in moles (one water cast is 1 H2O). */
   jars: Record<string, number>;
-  charge: number;
+  jar_caps: Record<string, number>;
+  crystal_kj: number;
+  crystal_max_kj: number;
+  near_crystal: boolean;
+  state_version: number;
   objectives: Objective[];
   messages: string[];
   player_x: number;
@@ -26,22 +31,60 @@ export interface GameState {
   view_x: number;
 }
 
+export type Outcome = "full" | "partial" | "fizzle" | "unknown";
+
+/** Element symbol -> atom count. */
+export type Atoms = Record<string, number>;
+
 /** A presentation-only event from the simulation (see `Fx` in game.rs). */
 export interface Fx {
-  kind: "land";
+  kind:
+    | "charge"
+    | "bolt"
+    | "impact"
+    | "fizzle"
+    | "unknown"
+    | "splash"
+    | "hiss"
+    | "melt"
+    | "arc"
+    | "bubble"
+    | "door"
+    | "discover"
+    | "land";
   x: number;
   y: number;
+  tx: number;
+  ty: number;
+  dh_kj: number;
+  outcome: Outcome | null;
+  leftovers: Atoms;
+  reaction_id: string | null;
+  /** The cast this event belongs to (0 when no cast caused it). */
+  id: number;
   power: number;
 }
 
-export interface CastResult {
-  ok: boolean;
-  kind: "release" | "reaction" | "fizzle" | "error";
-  message: string;
+/** What a cast did (see `CastOutcome` in game.rs). Every cast returns one. */
+export interface CastOutcome {
+  id: number;
+  outcome: Outcome;
+  spell: "water" | "boom" | "split" | "cloud" | "gas" | "fireball" | "burn" | "unknown";
+  input: string;
   equation: string;
+  reaction_id: string | null;
+  consumed: Atoms;
+  from_air: Atoms;
+  products: Record<string, number>;
+  leftovers: Atoms;
+  missing: string[];
+  source_x: number | null;
+  source_y: number | null;
+  power: number;
+  dh_kj: number;
+  label: string;
   suggestion: string | null;
   imbalance: string[];
-  reaction_id: string | null;
   concept: string | null;
   real_world: string | null;
   delta_h_kj: number | null;

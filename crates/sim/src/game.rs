@@ -1,10 +1,11 @@
 //! Game rules on top of the grid: the player, reagent jars, casting, and the
 //! first breakthrough trial.
 
-use crate::formula::{parse_equation, Equation};
-use crate::grid::{Grid, AMBIENT_C, FLAME_C_IN_O2, WOOD_IGNITION_C};
+use crate::formula::Atoms;
+use crate::grid::{Grid, AMBIENT_C, WOOD_IGNITION_C};
 use crate::reactions::ReactionBook;
-use crate::species::Species;
+use crate::species::{Phase, Species};
+use crate::spell::{self, Outcome, Plan, Resolution, Stock};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -22,7 +23,28 @@ pub const INPUT_RIGHT: u32 = 2;
 pub const INPUT_JUMP: u32 = 4;
 pub const INPUT_GATHER: u32 = 8;
 
-const JAR_CAPACITY: u32 = 200;
+/// Suit gauges, in moles of game matter: one water cast uses 1 H2O.
+const H2O_CAP: u32 = 10;
+/// The condenser collar adds one water cast this often (90 ticks = 1.5 s).
+pub const CONDENSE_TICKS: u32 = 90;
+/// The wrist electrolyser splits condensed water this often: fast beside a
+/// crystal, a slow trickle from the solar strip elsewhere.
+const ELECTRO_TICKS_NEAR: u32 = 12;
+const ELECTRO_TICKS_SOLAR: u32 = 150;
+/// How close (in cells) the player must be to a crystal to draw on it.
+const CRYSTAL_RANGE: i32 = 16;
+/// The crystal holds enough energy for this many splits, and refills slowly.
+const CRYSTAL_SPLITS: f32 = 10.0;
+const CRYSTAL_RECHARGE_KJ_PER_TICK: f32 = 1.0;
+/// One water cast becomes a stream this many cells big...
+const WATER_CELLS_PER_MOL: u32 = 40;
+/// ...that cools everything within this radius of where it lands.
+const WATER_COOL_RADIUS: i32 = 6;
+/// Gas spells and gathering: cells per mole of gas.
+const GAS_CELLS_PER_MOL: u32 = 3;
+/// Gathering: cells of water per mole, and how far (cells) the suit can pull from.
+const WATER_GATHER_CELLS_PER_MOL: u32 = 4;
+const GATHER_RADIUS: i32 = 48;
 pub const PLAYER_W: f32 = 6.0;
 pub const PLAYER_H: f32 = 12.0;
 /// Movement tuning, in cells and ticks (60 ticks a second).
@@ -72,17 +94,42 @@ pub struct Objective {
     pub done: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct CastResult {
-    pub ok: bool,
-    /// "release", "reaction", "fizzle" or "error".
-    pub kind: String,
-    pub message: String,
+/// Everything a cast did, for the HUD, the floating label and the tests.
+/// Every cast returns one of these; there is no bare error path.
+#[derive(Debug, Clone, Serialize)]
+pub struct CastOutcome {
+    /// Matches the `id` on this cast's FX events.
+    pub id: u32,
+    pub outcome: Outcome,
+    /// "water", "boom", "split", "cloud", "gas", "fireball", "burn" or "unknown".
+    pub spell: &'static str,
+    /// What the player typed.
+    pub input: String,
+    /// The formula actually cast (after aliases and auto-balancing).
     pub equation: String,
+    pub reaction_id: Option<String>,
+    /// Atoms taken from the suit and the air.
+    pub consumed: Atoms,
+    /// Atoms taken from the air (part of `consumed`).
+    pub from_air: Atoms,
+    /// Molecules made, or poured out for a plain substance.
+    pub products: Stock,
+    /// Atoms that did not react and went back to the suit.
+    pub leftovers: Atoms,
+    /// Reagents the suit was short of.
+    pub missing: Vec<String>,
+    /// Where to get the first missing reagent, if any is in the world.
+    pub source_x: Option<i32>,
+    pub source_y: Option<i32>,
+    /// Share of the full effect, 0..=1.
+    pub power: f32,
+    /// Enthalpy of what actually reacted, kJ (from the sourced table).
+    pub dh_kj: f32,
+    /// A short tier-appropriate line for the floating label.
+    pub label: String,
     /// A corrected equation the UI can offer as a one-tap fix.
     pub suggestion: Option<String>,
     pub imbalance: Vec<String>,
-    pub reaction_id: Option<String>,
     pub concept: Option<String>,
     pub real_world: Option<String>,
     /// Shown at Apprentice tier and above, with its source.
@@ -91,22 +138,40 @@ pub struct CastResult {
     pub first_discovery: bool,
 }
 
-/// A presentation-only event for the browser (particles, sound). Never feeds
-/// back into the simulation.
+/// A presentation-only event for the browser (particles, sound, labels).
+/// Never feeds back into the simulation.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Fx {
     pub kind: &'static str,
     pub x: f32,
     pub y: f32,
-    /// Kind-specific strength, such as landing speed.
+    /// A second point: the bolt's aim, the nearest source for a fizzle, the
+    /// player's hand for leftover orbs, or the crystal for an arc.
+    pub tx: f32,
+    pub ty: f32,
+    pub dh_kj: f32,
+    pub outcome: Option<Outcome>,
+    pub leftovers: Atoms,
+    pub reaction_id: Option<String>,
+    /// The cast this event belongs to (0 for events not caused by a cast).
+    pub id: u32,
+    /// Kind-specific strength, such as landing speed or effect power.
     pub power: f32,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct State {
     pub tier: Tier,
+    /// Suit gauges in moles (one water cast is 1 H2O).
     pub jars: BTreeMap<String, u32>,
-    pub charge: u32,
+    pub jar_caps: BTreeMap<String, u32>,
+    /// Energy stored in the crystal battery, kJ, and its capacity.
+    pub crystal_kj: f32,
+    pub crystal_max_kj: f32,
+    /// Whether the player stands close enough to draw on a crystal.
+    pub near_crystal: bool,
+    /// Bumps whenever anything on the HUD changes.
+    pub state_version: u64,
     pub objectives: Vec<Objective>,
     pub messages: Vec<String>,
     pub player_x: f32,
@@ -144,25 +209,42 @@ pub struct Game {
     pub grid: Grid,
     pub player: Player,
     pub tier: Tier,
+    /// Suit gauges in moles.
     pub jars: BTreeMap<String, u32>,
-    pub charge: u32,
+    /// Atoms handed back by unbalanced casts that don't yet make a whole
+    /// molecule (one O waits here until a second joins it as O2).
+    pub loose: Atoms,
+    /// Crystal battery energy, kJ. Electrolysis draws on it.
+    pub crystal_kj: f32,
+    pub crystal_max_kj: f32,
+    /// Energy to split 2 H2O, kJ (the sourced +571.7 from the reaction table).
+    split_kj: f32,
+    condense_timer: u32,
+    electro_timer: u32,
+    gather_cells: u32,
     pub objectives: Vec<Objective>,
     messages: Vec<String>,
     fx: Vec<Fx>,
     pub aim: (i32, i32),
+    /// The tick the player last aimed on purpose (for soft auto-aim).
+    aim_tick: u64,
+    pub ticks: u64,
     /// Camera left edge in world cells, and its value one tick ago (for
     /// interpolation). A pure function of the player's path, so deterministic.
     pub view_x: f32,
     pub prev_view_x: f32,
     book: ReactionBook,
     pub discovered: Vec<String>,
-    fizzles_in_a_row: u32,
+    misses_in_a_row: u32,
+    next_cast_id: u32,
     gathered_water: u32,
     electrolysis_casts: u32,
     torch_lit: bool,
     met_crystal: bool,
     gather_target: Option<Species>,
     announced_complete: bool,
+    state_version: u64,
+    state_sig: u64,
 }
 
 impl Game {
@@ -175,6 +257,10 @@ impl Game {
             book.latent_heat("water_boiling"),
             book.latent_heat("water_melting"),
         );
+        let split_kj = book
+            .by_id("electrolysis_water")
+            .map(|(r, _)| r.delta_h_kj)
+            .unwrap_or(571.7);
         let mut game = Game {
             grid,
             player: Player {
@@ -193,26 +279,45 @@ impl Game {
                 jumping: false,
             },
             tier,
-            jars: ["H2O", "H2", "O2", "CH4"]
-                .iter()
-                .map(|k| (k.to_string(), 0))
-                .collect(),
-            charge: 0,
+            // A full water tank, and gas "left over from your last trial":
+            // enough that the first spells work with no gathering at all.
+            jars: [
+                ("H2O", H2O_CAP),
+                ("H2", 4),
+                ("O2", 2),
+                ("CH4", 0),
+                ("CO2", 0),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), *v))
+            .collect(),
+            loose: Atoms::new(),
+            crystal_kj: split_kj * CRYSTAL_SPLITS,
+            crystal_max_kj: split_kj * CRYSTAL_SPLITS,
+            split_kj,
+            condense_timer: 0,
+            electro_timer: 0,
+            gather_cells: 0,
             objectives: vec![],
             messages: vec![],
             fx: vec![],
             aim: (40, 140),
+            aim_tick: 0,
+            ticks: 0,
             view_x: 0.0,
             prev_view_x: 0.0,
             book,
             discovered: vec![],
-            fizzles_in_a_row: 0,
+            misses_in_a_row: 0,
+            next_cast_id: 1,
             gathered_water: 0,
             electrolysis_casts: 0,
             torch_lit: false,
             met_crystal: false,
             gather_target: None,
             announced_complete: false,
+            state_version: 1,
+            state_sig: 0,
         };
         game.build_trial();
         game.snap_camera();
@@ -223,11 +328,28 @@ impl Game {
         self.messages.push(text.into());
     }
 
-    fn emit(&mut self, kind: &'static str, x: f32, y: f32, power: f32) {
+    fn emit(&mut self, fx: Fx) {
         // Bounded so a page that stops draining can't grow memory forever.
         if self.fx.len() < 256 {
-            self.fx.push(Fx { kind, x, y, power });
+            self.fx.push(fx);
         }
+    }
+
+    /// A simple event with no reaction attached.
+    fn emit_at(&mut self, kind: &'static str, x: f32, y: f32, power: f32) {
+        self.emit(Fx {
+            kind,
+            x,
+            y,
+            tx: x,
+            ty: y,
+            dh_kj: 0.0,
+            outcome: None,
+            leftovers: Atoms::new(),
+            reaction_id: None,
+            id: 0,
+            power,
+        });
     }
 
     /// Drains the presentation events since the last call.
@@ -296,7 +418,7 @@ impl Game {
         self.objectives = vec![
             Objective {
                 id: "gather",
-                text: "Gather water from the stream (point at it and hold G)".into(),
+                text: "Top up your water at the stream (hold G)".into(),
                 done: false,
             },
             Objective {
@@ -306,7 +428,7 @@ impl Game {
             },
             Objective {
                 id: "split",
-                text: "Walk up to the crystal, then split water: 2H2O -> 2H2 + O2".into(),
+                text: "Split water into hydrogen and oxygen: 2H2O -> 2H2 + O2".into(),
                 done: false,
             },
             Objective {
@@ -320,33 +442,25 @@ impl Game {
                 done: false,
             },
         ];
-        self.say("Your core is empty. Let's fill it. Walk to the stream and gather some water.");
+        self.say("Fire! Your suit is full of water. Aim at the flames and cast H2O.");
     }
 
     // ----------------------------------------------------------------- update
 
     pub fn tick(&mut self, input: u32) {
+        self.ticks += 1;
         self.player.prev_x = self.player.x;
         self.player.prev_y = self.player.y;
         self.move_player(input);
         self.update_camera();
-        if input & INPUT_GATHER != 0 {
-            // Lock onto what was under the cursor when gathering started.
-            if self.gather_target.is_none() {
-                self.gather_target = self.substance_near_aim();
-            }
-            if let Some(target) = self.gather_target {
-                self.gather(target);
-            }
-        } else {
-            self.gather_target = None;
-        }
+        self.gather_tick(input & INPUT_GATHER != 0);
         // Only the area around the camera is simulated; distant rooms wait.
         let vx = self.view_x.round() as usize;
         self.grid
             .step_columns(vx.saturating_sub(VIEW_W), vx + 2 * VIEW_W);
-        self.touch_crystal();
+        self.suit_tick();
         self.check_objectives();
+        self.refresh_version();
     }
 
     fn camera_bounds(x: f32) -> f32 {
@@ -494,7 +608,7 @@ impl Game {
                 if self.player.vy > LAND_FX_SPEED && !swimming {
                     let (fx, fy) = (self.player.x + PLAYER_W / 2.0, self.player.y + PLAYER_H);
                     let power = self.player.vy;
-                    self.emit("land", fx, fy, power);
+                    self.emit_at("land", fx, fy, power);
                 }
                 self.player.vy = 0.0;
                 self.player.jumping = false;
@@ -507,6 +621,12 @@ impl Game {
         self.player.grounded = self.on_ground();
     }
 
+    /// Where spells leave the gauntlet.
+    pub fn hand(&self) -> (f32, f32) {
+        let p = &self.player;
+        (p.x + PLAYER_W / 2.0 + p.facing as f32 * 4.0, p.y + 4.0)
+    }
+
     fn aim_in_reach(&self) -> bool {
         let (px, py) = (
             self.player.x + PLAYER_W / 2.0,
@@ -516,30 +636,109 @@ impl Game {
         (dx * dx + dy * dy).sqrt() <= REACH
     }
 
-    /// Pulls the substance under the cursor into its jar, one cell per tick,
-    /// taking only that substance so nearby gases aren't scooped up by accident.
-    fn gather(&mut self, target: Species) {
-        if !self.aim_in_reach() {
-            return;
+    /// Points the gauntlet. `on_purpose` is false when the browser only keeps
+    /// the aim under a resting pointer while the camera scrolls.
+    pub fn set_aim(&mut self, x: i32, y: i32, on_purpose: bool) {
+        let aim = (
+            x.clamp(0, WORLD_W as i32 - 1),
+            y.clamp(0, HEIGHT as i32 - 1),
+        );
+        if on_purpose {
+            self.aim_tick = self.ticks.max(1);
         }
-        let (ax, ay) = self.aim;
-        let Some(jar) = target.jar() else { return };
-        if self.jar(jar) >= JAR_CAPACITY {
-            return;
+        self.aim = aim;
+    }
+
+    pub fn jar_cap(formula: &str) -> u32 {
+        match formula {
+            "H2O" => H2O_CAP,
+            "H2" => 12,
+            "O2" => 6,
+            _ => 10,
         }
-        for r in 0..6i32 {
+    }
+
+    /// Visits cells in square rings around `(cx, cy)`, nearest ring first,
+    /// until `f` returns true or `max_r` is passed. Deterministic order.
+    fn rings(cx: i32, cy: i32, max_r: i32, mut f: impl FnMut(i32, i32) -> bool) {
+        for r in 0..=max_r {
             for dy in -r..=r {
                 for dx in -r..=r {
-                    let (x, y) = (ax + dx, ay + dy);
-                    if self.grid.get(x, y) == target && self.grid.in_bounds(x, y) {
-                        self.add(jar, 1);
-                        if jar == "H2O" {
-                            self.gathered_water += 1;
-                        }
-                        self.grid.set(x, y, Species::Air, AMBIENT_C);
+                    if (dx.abs() == r || dy.abs() == r) && f(cx + dx, cy + dy) {
                         return;
                     }
                 }
+            }
+        }
+    }
+
+    /// The nearest gatherable cell to the hand whose gauge has room.
+    fn nearest_gatherable(&self) -> Option<Species> {
+        let (hx, hy) = self.hand();
+        let mut found = None;
+        Self::rings(hx as i32, hy as i32, GATHER_RADIUS, |x, y| {
+            let s = self.grid.get(x, y);
+            if !self.grid.in_bounds(x, y) {
+                return false;
+            }
+            match s.jar() {
+                Some(j) if self.jar(j) < Self::jar_cap(j) => {
+                    found = Some(s);
+                    true
+                }
+                _ => false,
+            }
+        });
+        found
+    }
+
+    /// Gather (G): pulls the substance under the aim if there is one in reach,
+    /// otherwise the nearest gatherable source, a few cells per tick. It locks
+    /// onto that substance while held, so nearby gases aren't scooped up by accident.
+    fn gather_tick(&mut self, held: bool) {
+        if !held {
+            self.gather_target = None;
+            self.gather_cells = 0;
+            return;
+        }
+        let aimed = self.substance_near_aim().filter(|_| self.aim_in_reach());
+        if self.gather_target.is_none() {
+            self.gather_target = aimed.or_else(|| self.nearest_gatherable());
+        }
+        let Some(target) = self.gather_target else {
+            return;
+        };
+        let Some(jar) = target.jar() else { return };
+        if self.jar(jar) >= Self::jar_cap(jar) {
+            return;
+        }
+        let (origin, radius) = if aimed == Some(target) {
+            (self.aim, 6)
+        } else {
+            let (hx, hy) = self.hand();
+            ((hx as i32, hy as i32), GATHER_RADIUS)
+        };
+        let mut picked = Vec::with_capacity(3);
+        Self::rings(origin.0, origin.1, radius, |x, y| {
+            if self.grid.in_bounds(x, y) && self.grid.get(x, y) == target {
+                picked.push((x, y));
+            }
+            picked.len() >= 3
+        });
+        let per_mol = if jar == "H2O" {
+            WATER_GATHER_CELLS_PER_MOL
+        } else {
+            GAS_CELLS_PER_MOL
+        };
+        for (x, y) in picked {
+            self.grid.set(x, y, Species::Air, AMBIENT_C);
+            if jar == "H2O" {
+                self.gathered_water += 1;
+            }
+            self.gather_cells += 1;
+            if self.gather_cells >= per_mol {
+                self.gather_cells = 0;
+                self.add(jar, 1);
             }
         }
     }
@@ -557,20 +756,81 @@ impl Game {
         })
     }
 
-    fn touch_crystal(&mut self) {
-        // The crystal charges anything within a few cells of it.
+    /// The nearest crystal cell within reach of the player, if any.
+    pub fn nearest_crystal(&self) -> Option<(i32, i32)> {
         let (cx, cy) = (
             (self.player.x + PLAYER_W / 2.0) as i32,
             (self.player.y + PLAYER_H / 2.0) as i32,
         );
-        let near = (-8..=8)
-            .any(|dx| (-8..=8).any(|dy| self.grid.get(cx + dx, cy + dy) == Species::Crystal));
-        if near && self.charge < 3 {
-            self.charge = 3;
-            if !self.met_crystal {
-                self.met_crystal = true;
-                self.say("Your suit is charged. Electricity can pull water apart. Try casting 2H2O -> 2H2 + O2.");
+        let mut found = None;
+        Self::rings(cx, cy, CRYSTAL_RANGE, |x, y| {
+            let hit = self.grid.get(x, y) == Species::Crystal && self.grid.in_bounds(x, y);
+            if hit {
+                found = Some((x, y));
             }
+            hit
+        });
+        found
+    }
+
+    /// The suit's real devices: a condenser collar that pulls water out of the
+    /// air, and a wrist electrolyser that splits condensed water 2:1 into
+    /// hydrogen and oxygen, powered by a crystal (fast) or a solar strip (slow).
+    /// The electrolyser draws on the condenser directly, so it never empties
+    /// the water tank the player casts from.
+    fn suit_tick(&mut self) {
+        if self.jar("H2O") < H2O_CAP {
+            self.condense_timer += 1;
+            if self.condense_timer >= CONDENSE_TICKS {
+                self.condense_timer = 0;
+                self.add("H2O", 1);
+            }
+        } else {
+            self.condense_timer = 0;
+        }
+        self.crystal_kj = (self.crystal_kj + CRYSTAL_RECHARGE_KJ_PER_TICK).min(self.crystal_max_kj);
+
+        let crystal = self.nearest_crystal();
+        if crystal.is_some() && !self.met_crystal {
+            self.met_crystal = true;
+            self.say("The crystal stores electricity. Your suit uses it to split water into hydrogen and oxygen, fast.");
+        }
+        let room =
+            self.jar("H2") + 2 <= Self::jar_cap("H2") && self.jar("O2") < Self::jar_cap("O2");
+        if !room {
+            self.electro_timer = 0;
+            return;
+        }
+        let powered = crystal.filter(|_| self.crystal_kj >= self.split_kj);
+        let period = if powered.is_some() {
+            ELECTRO_TICKS_NEAR
+        } else {
+            ELECTRO_TICKS_SOLAR
+        };
+        self.electro_timer += 1;
+        if self.electro_timer < period {
+            return;
+        }
+        self.electro_timer = 0;
+        // 2H2O -> 2H2 + O2: always exactly two hydrogen for each oxygen.
+        self.add("H2", 2);
+        self.add("O2", 1);
+        if let Some((x, y)) = powered {
+            self.crystal_kj -= self.split_kj;
+            let (hx, hy) = self.hand();
+            self.emit(Fx {
+                kind: "arc",
+                x: x as f32,
+                y: y as f32,
+                tx: hx,
+                ty: hy,
+                dh_kj: self.split_kj,
+                outcome: None,
+                leftovers: Atoms::new(),
+                reaction_id: Some("electrolysis_water".into()),
+                id: 0,
+                power: 1.0,
+            });
         }
     }
 
@@ -659,154 +919,514 @@ impl Game {
 
     // ----------------------------------------------------------------- casting
 
-    pub fn cast(&mut self, text: &str) -> CastResult {
-        let mut result = self.cast_inner(text);
-        // The most common slip for young players: a zero instead of the letter O.
-        if !result.ok && text.contains('0') {
-            let alt = text.replace('0', "O");
-            if self.recognises(&alt) {
-                result.message = format!(
-                    "Did you type a zero (0) instead of the letter O? {}",
-                    result.message
+    /// The one cast pipeline. Every input, on every tier, comes back as an
+    /// outcome (Full, Partial, Fizzle or Unknown) with at least one FX event;
+    /// nothing fails silently or with text alone.
+    pub fn cast(&mut self, text: &str) -> CastOutcome {
+        let id = self.next_cast_id;
+        self.next_cast_id += 1;
+        let input: String = text.chars().take(crate::formula::MAX_INPUT_LEN).collect();
+        let plan = spell::plan(&self.book, &input, self.tier == Tier::Sprout);
+        let (hx, hy) = self.hand();
+
+        let (res, spell, equation, reaction_id, balanced) = match &plan {
+            Plan::Unknown { suggestion } => {
+                self.misses_in_a_row += 1;
+                let out = self.unknown_outcome(id, &input, suggestion.clone());
+                self.emit(Fx {
+                    kind: "unknown",
+                    x: hx,
+                    y: hy,
+                    tx: hx,
+                    ty: hy,
+                    dh_kj: 0.0,
+                    outcome: Some(Outcome::Unknown),
+                    leftovers: Atoms::new(),
+                    reaction_id: None,
+                    id,
+                    power: 0.0,
+                });
+                self.refresh_version();
+                return out;
+            }
+            Plan::Release { formula, coef } => {
+                let r = spell::resolve_release(formula, *coef, &self.jars);
+                let spell = match formula.as_str() {
+                    "H2O" => "water",
+                    "CO2" => "cloud",
+                    _ => "gas",
+                };
+                let eq = if *coef > 1 {
+                    format!("{coef}{formula}")
+                } else {
+                    formula.clone()
+                };
+                (r, spell, eq, None, true)
+            }
+            Plan::React {
+                reaction_id,
+                typed,
+                air_o2,
+                balanced,
+            } => {
+                let (reaction, known) = self
+                    .book
+                    .by_id(reaction_id)
+                    .cloned()
+                    .expect("plans only name reactions from the book");
+                let r = spell::resolve_reaction(
+                    &reaction, &known, typed, *balanced, *air_o2, &self.jars,
                 );
-                result.suggestion = Some(alt);
+                let spell = match reaction_id.as_str() {
+                    "water_synthesis" => "boom",
+                    "electrolysis_water" => "split",
+                    "methane_combustion" => "fireball",
+                    _ => "burn",
+                };
+                (
+                    r,
+                    spell,
+                    typed.to_string(),
+                    Some(reaction_id.clone()),
+                    *balanced,
+                )
+            }
+        };
+        let outcome = res.outcome.unwrap_or(Outcome::Fizzle);
+
+        // Commit the reagents: draw what was used, hand back the leftovers.
+        for (f, n) in &res.drawn {
+            self.take(f, *n);
+        }
+        for (f, n) in &res.returned {
+            self.add(f, *n);
+        }
+        for (el, n) in &res.loose {
+            *self.loose.entry(el.clone()).or_insert(0) += n;
+        }
+        self.recombine_loose();
+        // Splitting water costs energy: the crystal pays when it is in reach.
+        if spell == "split" && res.units > 0 && self.nearest_crystal().is_some() {
+            let cost = self.split_kj * res.units as f32;
+            self.crystal_kj = (self.crystal_kj - cost).max(0.0);
+        }
+        if spell == "split" && res.units > 0 {
+            self.electrolysis_casts += 1;
+        }
+
+        // Unbalanced or empty casts count as misses; a fix is offered to
+        // Seedlings at once and to Apprentices after three in a row.
+        let mut suggestion = None;
+        let mut imbalance = vec![];
+        if let Plan::React { typed, .. } = &plan {
+            if !balanced {
+                imbalance = typed.imbalance_report();
             }
         }
-        result
+        if outcome == Outcome::Full {
+            self.misses_in_a_row = 0;
+        } else {
+            self.misses_in_a_row += 1;
+            let offer = self.tier == Tier::Seedling || self.misses_in_a_row >= 3;
+            if offer && !balanced {
+                if let Plan::React {
+                    typed, reaction_id, ..
+                } = &plan
+                {
+                    suggestion = typed
+                        .balanced_version()
+                        .map(|b| b.to_string())
+                        .or_else(|| self.book.by_id(reaction_id).map(|(_, k)| k.to_string()));
+                }
+            }
+        }
+
+        let first = match &reaction_id {
+            Some(rid) if res.units > 0 && !self.discovered.contains(rid) => {
+                self.discovered.push(rid.clone());
+                true
+            }
+            _ => false,
+        };
+        let entry = reaction_id
+            .as_ref()
+            .and_then(|r| self.book.by_id(r))
+            .map(|(r, _)| r.clone());
+        if first {
+            if let Some(r) = &entry {
+                self.say(r.concept.clone());
+            }
+        }
+        let show_numbers = self.tier >= Tier::Apprentice;
+        let source_hint = res.missing.first().and_then(|m| self.nearest_source(m));
+        let consumed = {
+            let mut c = spell::stock_atoms(&res.drawn);
+            for (el, n) in &res.from_air {
+                *c.entry(el.clone()).or_insert(0) += n;
+            }
+            c
+        };
+        let label = self.label(spell, outcome, &res);
+        let out = CastOutcome {
+            id,
+            outcome,
+            spell,
+            input,
+            equation,
+            reaction_id: reaction_id.clone(),
+            consumed,
+            from_air: res.from_air.clone(),
+            products: res.products.clone(),
+            leftovers: res.leftovers.clone(),
+            missing: res.missing.clone(),
+            source_x: source_hint.map(|p| p.0),
+            source_y: source_hint.map(|p| p.1),
+            power: res.power,
+            dh_kj: res.dh_kj,
+            label,
+            suggestion,
+            imbalance,
+            concept: entry.as_ref().map(|r| r.concept.clone()),
+            real_world: entry.as_ref().map(|r| r.real_world.clone()),
+            delta_h_kj: entry.as_ref().filter(|_| show_numbers).map(|_| res.dh_kj),
+            source: entry
+                .as_ref()
+                .filter(|_| show_numbers)
+                .map(|r| r.source.clone()),
+            first_discovery: first,
+        };
+
+        let shot = Shot {
+            id,
+            spell,
+            outcome,
+            products: res.products.clone(),
+            power: res.power,
+            dh_kj: res.dh_kj,
+            leftovers: res.leftovers.clone(),
+            reaction_id,
+            first,
+        };
+        if outcome == Outcome::Fizzle {
+            // Nothing reacts and nothing in the world changes: one grey puff
+            // where the spell would have landed, pointing at a source.
+            let (ix, iy) = self.trace((hx, hy), self.aim);
+            let (tx, ty) = source_hint.map_or((-1.0, -1.0), |(x, y)| (x as f32, y as f32));
+            self.emit(Fx {
+                kind: "fizzle",
+                x: ix as f32,
+                y: iy as f32,
+                tx,
+                ty,
+                dh_kj: 0.0,
+                outcome: Some(Outcome::Fizzle),
+                leftovers: Atoms::new(),
+                reaction_id: shot.reaction_id.clone(),
+                id,
+                power: 0.0,
+            });
+        } else {
+            self.launch(shot);
+        }
+        self.refresh_version();
+        out
     }
 
-    /// Whether a formula names a jar or a reaction the game knows.
-    fn recognises(&self, text: &str) -> bool {
-        match parse_equation(text) {
-            Ok(eq) if !eq.has_arrow => {
-                eq.reactants.len() == 1 && Species::from_jar(&eq.reactants[0].formula).is_some()
-            }
-            Ok(eq) => self.book.find_by_species(&eq).is_some(),
-            Err(_) => false,
-        }
-    }
-
-    fn cast_inner(&mut self, text: &str) -> CastResult {
-        let mut eq = match parse_equation(text) {
-            Ok(eq) => eq,
-            Err(e) => {
-                let r = CastResult {
-                    kind: "error".into(),
-                    message: e.to_string(),
-                    ..Default::default()
-                };
-                return r;
-            }
-        };
-        if !self.aim_in_reach() {
-            return CastResult {
-                kind: "error".into(),
-                message: "That's too far away. Move closer.".into(),
-                ..Default::default()
-            };
-        }
-        if !eq.has_arrow {
-            return self.release(&eq);
-        }
-        let Some((reaction, known)) = self.book.find_by_species(&eq).cloned() else {
-            let message = if eq.is_balanced() {
-                "Balanced! But this reaction isn't in the codex yet, so nothing happens."
-                    .to_string()
-            } else {
-                "Nothing happens. Mote doesn't know that reaction.".to_string()
-            };
-            return CastResult {
-                kind: "fizzle".into(),
-                message,
-                equation: eq.to_string(),
-                imbalance: eq.imbalance_report(),
-                ..Default::default()
-            };
-        };
-
-        let mut fixed_note = None;
-        if !eq.is_balanced() {
-            let imbalance = eq.imbalance_report();
-            if self.tier == Tier::Sprout {
-                fixed_note = Some(format!("Mote fixed the numbers for you: {known}."));
-                eq = known.clone();
-            } else {
-                self.fizzles_in_a_row += 1;
-                let offer_fix = self.tier == Tier::Seedling || self.fizzles_in_a_row >= 3;
-                let message = format!("Sooty puff! Almost: {}.", imbalance.join("; "));
-                self.puff();
-                return CastResult {
-                    kind: "fizzle".into(),
-                    message,
-                    equation: eq.to_string(),
-                    suggestion: offer_fix.then(|| {
-                        eq.balanced_version()
-                            .map(|b| b.to_string())
-                            .unwrap_or_else(|| known.to_string())
-                    }),
-                    imbalance,
-                    reaction_id: Some(reaction.id.clone()),
-                    ..Default::default()
-                };
-            }
-        }
-        self.fizzles_in_a_row = 0;
-
-        if Tier::parse(&reaction.tier_min) > self.tier {
-            let message = format!(
-                "{} unlocks at a higher realm. Keep climbing!",
-                reaction.name
-            );
-            return CastResult {
-                kind: "fizzle".into(),
-                message,
-                equation: eq.to_string(),
-                ..Default::default()
-            };
-        }
-
-        let outcome = match reaction.id.as_str() {
-            "electrolysis_water" => self.electrolysis(),
-            "water_synthesis" => self.burn_hydrogen(),
-            "methane_combustion" => self.burn_methane(),
-            "carbon_combustion" => Err(
-                "Wood burns on its own once it's hot enough and has air. Try heating it.".into(),
-            ),
-            _ => Err("That reaction isn't wired up yet.".into()),
-        };
-        match outcome {
-            Err(message) => CastResult {
-                kind: "fizzle".into(),
-                message,
-                equation: eq.to_string(),
-                reaction_id: Some(reaction.id.clone()),
-                ..Default::default()
+    fn unknown_outcome(&self, id: u32, input: &str, suggestion: Option<String>) -> CastOutcome {
+        CastOutcome {
+            id,
+            outcome: Outcome::Unknown,
+            spell: "unknown",
+            input: input.to_string(),
+            equation: input.trim().to_string(),
+            reaction_id: None,
+            consumed: Atoms::new(),
+            from_air: Atoms::new(),
+            products: Stock::new(),
+            leftovers: Atoms::new(),
+            missing: vec![],
+            source_x: None,
+            source_y: None,
+            power: 0.0,
+            dh_kj: 0.0,
+            label: match &suggestion {
+                Some(s) => format!("Did you mean {s}? (letter O, not zero)"),
+                None => "Not in your Grimoire yet".into(),
             },
-            Ok(message) => {
-                let first = !self.discovered.contains(&reaction.id);
-                if first {
-                    self.discovered.push(reaction.id.clone());
-                }
-                let message = match fixed_note {
-                    Some(note) => format!("{note} {message}"),
-                    None => message,
-                };
-                let show_numbers = self.tier >= Tier::Apprentice;
-                CastResult {
-                    ok: true,
-                    kind: "reaction".into(),
-                    message,
-                    equation: eq.to_string(),
-                    reaction_id: Some(reaction.id.clone()),
-                    concept: Some(reaction.concept.clone()),
-                    real_world: Some(reaction.real_world.clone()),
-                    delta_h_kj: show_numbers.then_some(reaction.delta_h_kj),
-                    source: show_numbers.then(|| reaction.source.clone()),
-                    first_discovery: first,
-                    ..Default::default()
+            suggestion,
+            imbalance: vec![],
+            concept: None,
+            real_world: None,
+            delta_h_kj: None,
+            source: None,
+            first_discovery: false,
+        }
+    }
+
+    /// A short line for the floating label at the impact point.
+    fn label(&self, spell: &str, outcome: Outcome, res: &Resolution) -> String {
+        let young = self.tier == Tier::Sprout;
+        if outcome == Outcome::Fizzle {
+            let what = res.missing.first().map(String::as_str).unwrap_or("");
+            let name = match what {
+                "H2O" => "water",
+                "H2" => "hydrogen",
+                "O2" => "oxygen",
+                "CO2" => "carbon dioxide",
+                "CH4" => "methane",
+                _ => what,
+            };
+            return if young {
+                format!("Out of {name}!")
+            } else {
+                format!("Not enough {what}")
+            };
+        }
+        let main = match (spell, young) {
+            ("water", true) => "Splash!",
+            ("water", false) => "Water stream",
+            ("boom", true) => "Boom! Hydrogen and oxygen made water",
+            ("boom", false) => "Boom! Hydrogen burns into water",
+            ("split", true) => "Bubbles! Water split in two",
+            ("split", false) => "Water split: 2 hydrogen for each oxygen",
+            ("cloud", _) => "Carbon dioxide cloud",
+            ("fireball", _) => "Fireball! Methane burns",
+            ("burn", _) => "Carbon burns",
+            _ => "Gas released",
+        };
+        let mut text = main.to_string();
+        if !res.from_air.is_empty() {
+            text.push_str(if young {
+                " (with air)"
+            } else {
+                " (oxygen from the air: smaller flame)"
+            });
+        }
+        if !res.leftovers.is_empty() {
+            text.push_str(&format!(
+                "  {} left over",
+                spell::leftover_label(&res.leftovers)
+            ));
+        }
+        text
+    }
+
+    /// Joins loose leftover atoms back into whole molecules the suit stores.
+    fn recombine_loose(&mut self) {
+        for (el, jar) in [("O", "O2"), ("H", "H2")] {
+            while self.loose.get(el).copied().unwrap_or(0) >= 2 {
+                *self.loose.get_mut(el).expect("checked") -= 2;
+                self.add(jar, 1);
+            }
+        }
+        self.loose.retain(|_, n| *n > 0);
+    }
+
+    /// The nearest place in the world to get more of a reagent.
+    fn nearest_source(&self, formula: &str) -> Option<(i32, i32)> {
+        let wanted: &[Species] = match formula {
+            "H2O" => &[Species::Water, Species::Ice],
+            "H2" | "O2" => &[Species::Crystal],
+            "CH4" => &[Species::CH4],
+            "CO2" => &[Species::CO2, Species::Flame],
+            "C" => &[Species::Wood],
+            _ => return None,
+        };
+        let (hx, hy) = self.hand();
+        let mut best: Option<(f32, (i32, i32))> = None;
+        for y in 0..HEIGHT as i32 {
+            for x in 0..WORLD_W as i32 {
+                if wanted.contains(&self.grid.get(x, y)) {
+                    let d = (x as f32 - hx).powi(2) + (y as f32 - hy).powi(2);
+                    if best.is_none_or(|(bd, _)| d < bd) {
+                        best = Some((d, (x, y)));
+                    }
                 }
             }
         }
+        best.map(|(_, p)| p)
+    }
+
+    /// Where a spell from `from` toward `to` would land: the first cell that is
+    /// solid, liquid or burning (so water lands *in* the fire), or `to` itself.
+    pub fn trace(&self, from: (f32, f32), to: (i32, i32)) -> (i32, i32) {
+        let (dx, dy) = (to.0 as f32 - from.0, to.1 as f32 - from.1);
+        let len = (dx * dx + dy * dy).sqrt().min(BOLT_RANGE);
+        let steps = len.ceil().max(1.0) as i32;
+        let (sx, sy) = if len > 0.0 {
+            let d = (dx * dx + dy * dy).sqrt();
+            (dx / d, dy / d)
+        } else {
+            (0.0, 0.0)
+        };
+        let mut last = (from.0.floor() as i32, from.1.floor() as i32);
+        // A spell cast while swimming passes out of the water it started in.
+        let mut leaving_liquid = self.grid.get(last.0, last.1).phase() == Phase::Liquid;
+        for i in 1..=steps {
+            let (x, y) = (
+                (from.0 + sx * i as f32).floor() as i32,
+                (from.1 + sy * i as f32).floor() as i32,
+            );
+            last = (x, y);
+            let s = self.grid.get(x, y);
+            if leaving_liquid && s.phase() == Phase::Liquid {
+                continue;
+            }
+            leaving_liquid = false;
+            if Self::stops_bolt(s) {
+                return last;
+            }
+        }
+        last
+    }
+
+    fn stops_bolt(s: Species) -> bool {
+        !s.is_gas()
+    }
+
+    fn launch(&mut self, shot: Shot) {
+        let (hx, hy) = self.hand();
+        self.emit(Fx {
+            kind: "charge",
+            x: hx,
+            y: hy,
+            tx: self.aim.0 as f32,
+            ty: self.aim.1 as f32,
+            dh_kj: shot.dh_kj,
+            outcome: Some(shot.outcome),
+            leftovers: Atoms::new(),
+            reaction_id: shot.reaction_id.clone(),
+            id: shot.id,
+            power: shot.power,
+        });
+        let at = self.trace((hx, hy), self.aim);
+        self.impact(&shot, at);
+    }
+
+    /// The spell lands: the reaction changes the world around `at`.
+    fn impact(&mut self, shot: &Shot, at: (i32, i32)) {
+        let (hx, hy) = self.hand();
+        let base = Fx {
+            kind: "impact",
+            x: at.0 as f32,
+            y: at.1 as f32,
+            tx: hx,
+            ty: hy,
+            dh_kj: shot.dh_kj,
+            outcome: Some(shot.outcome),
+            leftovers: shot.leftovers.clone(),
+            reaction_id: shot.reaction_id.clone(),
+            id: shot.id,
+            power: shot.power,
+        };
+        self.emit(base.clone());
+        let n = |f: &str| shot.products.get(f).copied().unwrap_or(0);
+        let mut extra: Vec<&'static str> = vec![];
+        match shot.spell {
+            "water" => {
+                let doused = self.cool_area(at, WATER_COOL_RADIUS);
+                let cells = (n("H2O") * WATER_CELLS_PER_MOL).min(4 * WATER_CELLS_PER_MOL);
+                self.spawn_blob_at(at, Species::Water, cells, AMBIENT_C);
+                extra.push("splash");
+                if doused > 0 {
+                    extra.push("hiss");
+                }
+            }
+            "cloud" => {
+                self.spawn_blob_at(at, Species::CO2, n("CO2") * 10 * GAS_CELLS_PER_MOL, 10.0);
+                extra.push("bubble");
+            }
+            "gas" => {
+                for f in ["O2", "CH4", "H2"] {
+                    if let Some(s) = Species::from_jar(f) {
+                        self.spawn_blob_at(at, s, n(f) * 4 * GAS_CELLS_PER_MOL, AMBIENT_C);
+                    }
+                }
+                extra.push("bubble");
+            }
+            "split" => {
+                // Exactly two hydrogen cells for each oxygen cell, like the equation.
+                self.spawn_blob_at(at, Species::H2, n("H2") * GAS_CELLS_PER_MOL, 15.0);
+                self.spawn_blob_at(at, Species::O2, n("O2") * GAS_CELLS_PER_MOL, 15.0);
+                extra.push("bubble");
+            }
+            _ => {
+                // Combustion: heat scaled from the sourced enthalpy.
+                let radius = Self::burst_radius(shot.dh_kj);
+                let peak = match shot.spell {
+                    "fireball" => 1200.0,
+                    "burn" => 700.0,
+                    _ => 900.0,
+                };
+                let melted = self.melt_ice(at, radius);
+                self.heat_burst(at, radius, peak * (0.5 + 0.5 * shot.power));
+                self.spawn_blob_at(at, Species::Steam, n("H2O") * 4, 300.0);
+                self.spawn_blob_at(at, Species::CO2, n("CO2") * 4, 300.0);
+                if melted > 0 {
+                    extra.push("melt");
+                }
+            }
+        }
+        if shot.first {
+            extra.push("discover");
+        }
+        for kind in extra {
+            self.emit(Fx {
+                kind,
+                ..base.clone()
+            });
+        }
+    }
+
+    /// Blast radius in cells from |ΔH| in kJ: about 9 cells for 2H2 + O2.
+    fn burst_radius(dh_kj: f32) -> i32 {
+        (3.0 + dh_kj.abs().sqrt() / 3.5).clamp(3.0, 14.0) as i32
+    }
+
+    /// Water lands: flames within `r` go out and hot things cool. Returns how
+    /// many flame cells were put out.
+    fn cool_area(&mut self, at: (i32, i32), r: i32) -> u32 {
+        let mut doused = 0;
+        for dy in -r..=r {
+            for dx in -r..=r {
+                if dx * dx + dy * dy > r * r {
+                    continue;
+                }
+                let (x, y) = (at.0 + dx, at.1 + dy);
+                if !self.grid.in_bounds(x, y) {
+                    continue;
+                }
+                let i = self.grid.idx(x as usize, y as usize);
+                match self.grid.cells[i] {
+                    Species::Flame => {
+                        self.grid.set(x, y, Species::Steam, 100.0);
+                        doused += 1;
+                    }
+                    Species::Wood => self.grid.temp[i] = self.grid.temp[i].min(40.0),
+                    _ if self.grid.temp[i] > 100.0 => self.grid.temp[i] = 100.0,
+                    _ => {}
+                }
+            }
+        }
+        doused
+    }
+
+    /// Heat melts ice within `r` straight into water. Returns cells melted.
+    fn melt_ice(&mut self, at: (i32, i32), r: i32) -> u32 {
+        let mut melted = 0;
+        for dy in -r..=r {
+            for dx in -r..=r {
+                let (x, y) = (at.0 + dx, at.1 + dy);
+                if dx * dx + dy * dy <= r * r
+                    && self.grid.get(x, y) == Species::Ice
+                    && self.grid.in_bounds(x, y)
+                {
+                    self.grid.set(x, y, Species::Water, 30.0);
+                    melted += 1;
+                }
+            }
+        }
+        melted
     }
 
     fn jar(&self, k: &str) -> u32 {
@@ -820,15 +1440,19 @@ impl Game {
     }
 
     fn add(&mut self, k: &str, n: u32) {
+        let cap = Self::jar_cap(k);
         let v = self.jars.entry(k.to_string()).or_insert(0);
-        *v = (*v + n).min(JAR_CAPACITY);
+        *v = (*v + n).min(cap);
     }
 
-    /// Puts `n` cells of `s` into open space around the aim point, nearest first.
-    fn spawn_blob(&mut self, s: Species, n: u32, t: f32) -> u32 {
-        let (ax, ay) = self.aim;
+    /// Puts `n` cells of `s` into open space around `at`, nearest first.
+    fn spawn_blob_at(&mut self, at: (i32, i32), s: Species, n: u32, t: f32) -> u32 {
+        let (ax, ay) = at;
         let mut placed = 0;
-        for r in 0..12i32 {
+        if n == 0 {
+            return 0;
+        }
+        for r in 0..20i32 {
             for dy in -r..=r {
                 for dx in -r..=r {
                     if placed >= n {
@@ -848,103 +1472,9 @@ impl Game {
         placed
     }
 
-    fn release(&mut self, eq: &Equation) -> CastResult {
-        let term = &eq.reactants[0];
-        if eq.reactants.len() != 1 {
-            let message =
-                "To pour from a jar, name one substance, like H2O. To react things, add an arrow."
-                    .to_string();
-            return CastResult {
-                kind: "error".into(),
-                message,
-                ..Default::default()
-            };
-        }
-        let Some(species) = Species::from_jar(&term.formula) else {
-            let message = format!("You don't have a jar of {}.", term.formula);
-            return CastResult {
-                kind: "error".into(),
-                message,
-                ..Default::default()
-            };
-        };
-        let have = self.jar(&term.formula);
-        if have == 0 {
-            let message = format!("Your {} jar is empty. Gather some first.", term.formula);
-            return CastResult {
-                kind: "fizzle".into(),
-                message,
-                equation: eq.to_string(),
-                ..Default::default()
-            };
-        }
-        let amount = have.min(12u32.saturating_mul(term.coef));
-        let placed = self.spawn_blob(species, amount, AMBIENT_C);
-        self.take(&term.formula, placed);
-        let message = format!("You released {placed} units of {}.", species.props().name);
-        CastResult {
-            ok: true,
-            kind: "release".into(),
-            message,
-            equation: eq.to_string(),
-            ..Default::default()
-        }
-    }
-
-    fn electrolysis(&mut self) -> Result<String, String> {
-        if self.charge == 0 {
-            return Err(
-                "Splitting water needs electricity. Touch the crystal to charge your suit.".into(),
-            );
-        }
-        let water = self.jar("H2O").min(24) / 2 * 2;
-        if water < 2 {
-            return Err("You need at least 2 units of water in your jar.".into());
-        }
-        self.take("H2O", water);
-        self.add("H2", water);
-        self.add("O2", water / 2);
-        self.charge -= 1;
-        self.electrolysis_casts += 1;
-        Ok(format!("Bubbles fizz: {water} water became {water} hydrogen and {} oxygen. Twice as much hydrogen, just like the equation says.", water / 2))
-    }
-
-    fn burn_hydrogen(&mut self) -> Result<String, String> {
-        let pairs = (self.jar("H2") / 2).min(self.jar("O2")).min(6);
-        if pairs == 0 {
-            return Err("You need 2 hydrogen for every 1 oxygen. Split some water first.".into());
-        }
-        self.take("H2", pairs * 2);
-        self.take("O2", pairs);
-        self.spawn_blob(Species::Steam, pairs * 2, FLAME_C_IN_O2);
-        self.heat_burst(3 + pairs as i32, 900.0);
-        Ok(format!(
-            "Pop! {} hydrogen and {} oxygen became {} water as hot steam.",
-            pairs * 2,
-            pairs,
-            pairs * 2
-        ))
-    }
-
-    fn burn_methane(&mut self) -> Result<String, String> {
-        let n = self.jar("CH4").min(self.jar("O2") / 2).min(6);
-        if n == 0 {
-            return Err("You need 1 methane and 2 oxygen. Marsh vents give off methane.".into());
-        }
-        self.take("CH4", n);
-        self.take("O2", n * 2);
-        self.spawn_blob(Species::CO2, n, FLAME_C_IN_O2);
-        self.spawn_blob(Species::Steam, n * 2, FLAME_C_IN_O2);
-        self.heat_burst(4 + n as i32, 1200.0);
-        Ok(format!(
-            "Whoosh! {n} methane burned into {n} carbon dioxide and {} water.",
-            n * 2
-        ))
-    }
-
     /// The visible flash and heat of a spell going off.
-    fn heat_burst(&mut self, radius: i32, peak: f32) {
-        let (ax, ay) = self.aim;
+    fn heat_burst(&mut self, at: (i32, i32), radius: i32, peak: f32) {
+        let (ax, ay) = at;
         for dy in -radius..=radius {
             for dx in -radius..=radius {
                 let d2 = dx * dx + dy * dy;
@@ -968,21 +1498,36 @@ impl Game {
         }
     }
 
-    /// A harmless puff for a fizzled cast: a little warm air, nothing else.
-    fn puff(&mut self) {
+    // ------------------------------------------------------------------- state
+
+    /// A cheap fingerprint of everything the HUD shows; the version bumps
+    /// when it changes so the browser only rebuilds JSON when it must.
+    fn refresh_version(&mut self) {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.jars.hash(&mut h);
+        ((self.crystal_kj / self.crystal_max_kj * 100.0) as u32).hash(&mut h);
+        self.objectives
+            .iter()
+            .filter(|o| o.done)
+            .count()
+            .hash(&mut h);
+        self.messages.len().hash(&mut h);
+        self.discovered.len().hash(&mut h);
         let (ax, ay) = self.aim;
-        for dy in -1..=1 {
-            for dx in -1..=1 {
-                let (x, y) = (ax + dx, ay + dy);
-                if self.grid.in_bounds(x, y) && self.grid.get(x, y) == Species::Air {
-                    let i = self.grid.idx(x as usize, y as usize);
-                    self.grid.temp[i] = 70.0;
-                }
-            }
+        (self.grid.get(ax, ay) as u8).hash(&mut h);
+        (self.grid.temp_at(ax, ay) as i32).hash(&mut h);
+        self.nearest_crystal().is_some().hash(&mut h);
+        let sig = h.finish();
+        if sig != self.state_sig {
+            self.state_sig = sig;
+            self.state_version += 1;
         }
     }
 
-    // ------------------------------------------------------------------- state
+    pub fn state_version(&self) -> u64 {
+        self.state_version
+    }
 
     pub fn state(&mut self) -> State {
         let (ax, ay) = self.aim;
@@ -990,7 +1535,15 @@ impl Game {
         State {
             tier: self.tier,
             jars: self.jars.clone(),
-            charge: self.charge,
+            jar_caps: self
+                .jars
+                .keys()
+                .map(|k| (k.clone(), Self::jar_cap(k)))
+                .collect(),
+            crystal_kj: self.crystal_kj,
+            crystal_max_kj: self.crystal_max_kj,
+            near_crystal: self.nearest_crystal().is_some(),
+            state_version: self.state_version,
             objectives: self.objectives.clone(),
             messages: std::mem::take(&mut self.messages),
             player_x: self.player.x,
@@ -1006,6 +1559,23 @@ impl Game {
     }
 }
 
+/// A resolved spell on its way to where it lands.
+#[derive(Debug, Clone)]
+struct Shot {
+    id: u32,
+    spell: &'static str,
+    outcome: Outcome,
+    products: Stock,
+    power: f32,
+    dh_kj: f32,
+    leftovers: Atoms,
+    reaction_id: Option<String>,
+    first: bool,
+}
+
+/// How far a spell flies before it lands on its own, in cells.
+const BOLT_RANGE: f32 = 200.0;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1016,66 +1586,189 @@ mod tests {
         g
     }
 
+    /// Lets any spell in flight land and the world react.
+    fn settle(g: &mut Game, ticks: u32) {
+        for _ in 0..ticks {
+            g.tick(0);
+        }
+    }
+
+    fn suit_atoms(g: &Game) -> Atoms {
+        let mut a = spell::stock_atoms(&g.jars);
+        for (el, n) in &g.loose {
+            *a.entry(el.clone()).or_insert(0) += n;
+        }
+        a
+    }
+
+    fn sum(a: &Atoms, b: &Atoms) -> Atoms {
+        let mut out = a.clone();
+        for (el, n) in b {
+            *out.entry(el.clone()).or_insert(0) += n;
+        }
+        out.retain(|_, n| *n > 0);
+        out
+    }
+
+    const FUZZ: [&str; 30] = [
+        "water",
+        "fire",
+        "H20",
+        "h20",
+        "2H2+O2->H2O",
+        "H2 + O2 -> H2O",
+        "xyz",
+        "",
+        "   ",
+        "2H2 + O2 -> 2H2O",
+        "boom",
+        "pop",
+        "split",
+        "bubbles",
+        "hydrogen",
+        "oxygen",
+        "cloud",
+        "smother",
+        "co2",
+        "H2O",
+        "2H2O -> 2H2 + O2",
+        "H2O -> H2 + O2",
+        "CH4 + 2O2 -> CO2 + 2H2O",
+        "C + O2 -> CO2",
+        "NaCl",
+        "->",
+        "2H2 + O2",
+        "9H2O",
+        "((H2",
+        "H2",
+    ];
+
     #[test]
-    fn electrolysis_needs_charge_then_conserves_atoms() {
-        let mut g = game(Tier::Apprentice);
-        g.jars.insert("H2O".into(), 20);
-        let r = g.cast("2H2O -> 2H2 + O2");
-        assert!(!r.ok);
-        g.charge = 1;
-        let r = g.cast("2H2O -> 2H2 + O2");
-        assert!(r.ok, "{}", r.message);
-        // 20 H2O = 40 H + 20 O  ->  20 H2 (40 H) + 10 O2 (20 O)
-        assert_eq!(g.jar("H2"), 20);
-        assert_eq!(g.jar("O2"), 10);
-        assert_eq!(g.jar("H2O"), 0);
-        assert_eq!(r.delta_h_kj, Some(571.7));
+    fn every_cast_yields_an_outcome_and_an_fx_event() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            for text in FUZZ {
+                g.take_fx();
+                let out = g.cast(text);
+                assert!(!out.label.is_empty(), "{text:?} has no label");
+                let fx = g.take_fx();
+                assert!(!fx.is_empty(), "{text:?} produced no FX");
+                assert!(fx.iter().all(|f| f.id == out.id || f.id == 0));
+                settle(&mut g, 2);
+            }
+        }
     }
 
     #[test]
-    fn unbalanced_cast_fizzles_for_seedling_with_a_fix() {
+    fn atoms_are_conserved_in_every_outcome() {
+        let mut g = game(Tier::Apprentice);
+        g.jars.insert("CH4".into(), 2);
+        for round in 0..3 {
+            for text in FUZZ {
+                let before = suit_atoms(&g);
+                let out = g.cast(text);
+                assert_eq!(
+                    out.consumed,
+                    sum(&spell::stock_atoms(&out.products), &out.leftovers),
+                    "{text:?} (round {round}) broke conservation: {out:?}"
+                );
+                // The suit loses exactly what went into products, minus what the air gave.
+                let after = suit_atoms(&g);
+                let lost: Atoms = before
+                    .iter()
+                    .map(|(el, n)| (el.clone(), n - after.get(el).copied().unwrap_or(0)))
+                    .filter(|(_, n)| *n > 0)
+                    .collect();
+                let mut expected = spell::stock_atoms(&out.products);
+                for (el, n) in &out.from_air {
+                    *expected.get_mut(el).expect("air atoms end up in products") -= n;
+                }
+                expected.retain(|_, n| *n > 0);
+                assert_eq!(lost, expected, "{text:?} suit accounting");
+            }
+        }
+    }
+
+    #[test]
+    fn unbalanced_hydrogen_is_partial_with_one_oxygen_left() {
+        let mut g = game(Tier::Apprentice);
+        let out = g.cast("H2 + O2 -> H2O");
+        assert_eq!(out.outcome, Outcome::Partial);
+        assert_eq!(out.leftovers, [("O".to_string(), 1)].into_iter().collect());
+        assert_eq!(out.products, [("H2O".to_string(), 1)].into_iter().collect());
+        assert_eq!(g.loose.get("O"), Some(&1), "the stray O waits in the suit");
+    }
+
+    #[test]
+    fn electrolysis_works_away_from_a_crystal_and_drains_it_near_one() {
+        let mut g = game(Tier::Apprentice);
+        assert!(g.nearest_crystal().is_none());
+        let kj = g.crystal_kj;
+        let out = g.cast("2H2O -> 2H2 + O2");
+        assert_eq!(out.outcome, Outcome::Full, "{}", out.label);
+        assert_eq!(
+            g.crystal_kj, kj,
+            "the solar strip powers it away from crystals"
+        );
+        assert_eq!(out.delta_h_kj, Some(571.7));
+        // Beside the crystal, the crystal pays the sourced +571.7 kJ per 2 H2O.
+        g.player.x = 184.0;
+        g.player.y = 136.0;
+        assert!(g.nearest_crystal().is_some());
+        let kj = g.crystal_kj;
+        let out = g.cast("4H2O -> 4H2 + 2O2");
+        assert_eq!(out.outcome, Outcome::Full);
+        assert_eq!(out.products.get("H2"), Some(&4));
+        assert_eq!(out.products.get("O2"), Some(&2));
+        assert!(
+            (kj - g.crystal_kj - 2.0 * 571.7).abs() < 0.01,
+            "drop {}",
+            kj - g.crystal_kj
+        );
+    }
+
+    #[test]
+    fn unbalanced_cast_is_partial_for_seedling_with_a_fix() {
         let mut g = game(Tier::Seedling);
-        g.jars.insert("H2".into(), 10);
-        g.jars.insert("O2".into(), 5);
         let r = g.cast("H2 + O2 -> H2O");
-        assert_eq!(r.kind, "fizzle");
+        assert_eq!(r.outcome, Outcome::Partial);
         assert_eq!(r.suggestion.as_deref(), Some("2H2 + O2 -> 2H2O"));
-        assert_eq!(g.jar("H2"), 10, "a fizzle costs nothing");
+        assert!(!r.imbalance.is_empty());
     }
 
     #[test]
     fn sprout_gets_auto_balanced() {
         let mut g = game(Tier::Sprout);
-        g.jars.insert("H2".into(), 4);
-        g.jars.insert("O2".into(), 2);
         let r = g.cast("H2 + O2 -> H2O");
-        assert!(r.ok, "{}", r.message);
+        assert_eq!(r.outcome, Outcome::Full, "{}", r.label);
+        assert_eq!(r.equation, "2H2 + O2 -> 2H2O");
         assert_eq!(r.delta_h_kj, None, "young players see words, not kJ");
-        assert_eq!(g.jar("H2"), 0);
+        assert_eq!(g.jar("H2"), 2);
     }
 
     #[test]
     fn apprentice_gets_no_fix_until_three_misses() {
         let mut g = game(Tier::Apprentice);
-        g.jars.insert("H2".into(), 4);
-        g.jars.insert("O2".into(), 2);
+        g.jars.insert("H2".into(), 12);
+        g.jars.insert("O2".into(), 6);
         assert!(g.cast("H2 + O2 -> H2O").suggestion.is_none());
         assert!(g.cast("H2 + O2 -> H2O").suggestion.is_none());
         assert!(g.cast("H2 + O2 -> H2O").suggestion.is_some());
     }
 
     #[test]
-    fn zero_instead_of_letter_o_gets_a_hint() {
+    fn zero_instead_of_letter_o_still_works_or_gets_a_hint() {
         let mut g = game(Tier::Seedling);
-        g.jars.insert("H2O".into(), 5);
-        let r = g.cast("H20");
-        assert!(!r.ok);
-        assert_eq!(r.suggestion.as_deref(), Some("H2O"));
+        assert_eq!(g.cast("H20").outcome, Outcome::Full, "the alias catches it");
+        let r = g.cast("2H20");
+        assert_eq!(r.outcome, Outcome::Unknown);
+        assert_eq!(r.suggestion.as_deref(), Some("2H2O"));
     }
 
     #[test]
     fn gathering_takes_only_the_aimed_substance() {
         let mut g = game(Tier::Seedling);
+        g.jars.insert("H2O".into(), 0);
         g.player.x = 40.0;
         g.aim = (50, 155);
         assert_eq!(g.grid.get(50, 155), Species::Water);
@@ -1083,29 +1776,117 @@ mod tests {
         for _ in 0..10 {
             g.tick(INPUT_GATHER);
         }
-        assert_eq!(g.jar("H2O"), 10);
+        assert!(g.jar("H2O") >= 5, "H2O {}", g.jar("H2O"));
         assert_eq!(g.jar("CO2"), 0);
     }
 
     #[test]
-    fn release_pours_water_into_the_world() {
+    fn gather_with_no_aim_picks_the_nearest_water() {
+        let mut g = game(Tier::Sprout);
+        g.jars.insert("H2O".into(), 0);
+        g.player.x = 40.0;
+        g.player.y = 130.0;
+        g.aim = (300, 20); // empty sky, far away
+        let water = g.grid.count(Species::Water);
+        for _ in 0..8 {
+            g.tick(INPUT_GATHER);
+        }
+        assert!(g.grid.count(Species::Water) < water);
+        assert!(g.jar("H2O") >= 4, "H2O {}", g.jar("H2O"));
+    }
+
+    #[test]
+    fn water_cast_pours_a_stream_into_the_world() {
         let mut g = game(Tier::Sprout);
         g.aim = (60, 100);
-        g.jars.insert("H2O".into(), 10);
         let before = g.grid.count(Species::Water);
         let r = g.cast("H2O");
-        assert!(r.ok);
-        assert_eq!(g.grid.count(Species::Water), before + 10);
-        assert_eq!(g.jar("H2O"), 0);
+        assert_eq!(r.outcome, Outcome::Full);
+        settle(&mut g, 30);
+        assert!(g.grid.count(Species::Water) >= before + 40);
+        assert_eq!(g.jar("H2O"), H2O_CAP - 1);
+    }
+
+    #[test]
+    fn a_fresh_game_casts_water_then_boom_with_no_gathering() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            for spell in ["water", "water", "water", "boom", "boom", "boom"] {
+                let out = g.cast(spell);
+                assert_eq!(
+                    out.outcome,
+                    Outcome::Full,
+                    "{tier:?} {spell}: {}",
+                    out.label
+                );
+                settle(&mut g, 120);
+            }
+        }
+    }
+
+    #[test]
+    fn condenser_refills_water_within_100_ticks() {
+        let mut g = game(Tier::Seedling);
+        g.jars.insert("H2O".into(), 0);
+        settle(&mut g, 100);
+        assert!(g.jar("H2O") >= 1);
+    }
+
+    #[test]
+    fn electrolyser_always_makes_two_hydrogen_per_oxygen() {
+        let mut g = game(Tier::Seedling);
+        g.jars.insert("H2".into(), 0);
+        g.jars.insert("O2".into(), 0);
+        // Away from the crystal: a slow trickle.
+        settle(&mut g, 400);
+        let (h, o) = (g.jar("H2"), g.jar("O2"));
+        assert!(h > 0 && h == 2 * o, "H2 {h}, O2 {o}");
+        // Beside it: fast, still 2:1, and the crystal pays for each split.
+        g.jars.insert("H2".into(), 0);
+        g.jars.insert("O2".into(), 0);
+        g.player.x = 184.0;
+        g.player.y = 136.0;
+        g.crystal_kj = g.crystal_max_kj - 1000.0;
+        let kj = g.crystal_kj;
+        settle(&mut g, 60);
+        let (h, o) = (g.jar("H2"), g.jar("O2"));
+        assert!(h >= 8 && h == 2 * o, "H2 {h}, O2 {o}");
+        let splits = o as f32;
+        let expected = splits * 571.7 - 60.0 * CRYSTAL_RECHARGE_KJ_PER_TICK;
+        assert!(
+            (kj - g.crystal_kj - expected).abs() < 1.0,
+            "drop {}",
+            kj - g.crystal_kj
+        );
+        // Every split cast is 2:1 too.
+        for _ in 0..3 {
+            let out = g.cast("split");
+            let (h, o) = (out.products.get("H2"), out.products.get("O2"));
+            assert_eq!(h.copied().unwrap_or(0), 2 * o.copied().unwrap_or(0));
+        }
+    }
+
+    #[test]
+    fn state_version_only_moves_when_the_hud_changes() {
+        let mut g = game(Tier::Seedling);
+        g.player.x = 600.0;
+        g.player.y = 120.0;
+        g.snap_camera();
+        settle(&mut g, 30);
+        g.state();
+        settle(&mut g, 2);
+        let v = g.state_version();
+        g.tick(0);
+        assert_eq!(g.state_version(), v, "nothing changed");
+        g.cast("water");
+        assert!(g.state_version() > v, "the water gauge dropped");
     }
 
     #[test]
     fn the_trial_can_be_finished() {
         let mut g = game(Tier::Apprentice);
         // Put the fire out by flooding the wood.
-        for _ in 0..30 {
-            g.tick(0);
-        }
+        settle(&mut g, 30);
         for x in 100..175 {
             for y in 100..148 {
                 if g.grid.get(x, y) == Species::Flame {
@@ -1118,15 +1899,12 @@ mod tests {
             }
         }
         g.gathered_water = 20;
-        g.jars.insert("H2O".into(), 24);
-        g.charge = 1;
         g.player.x = 200.0;
         g.aim = (228, 108);
-        assert!(g.cast("2H2O -> 2H2 + O2").ok);
-        assert!(g.cast("2H2 + O2 -> 2H2O").ok);
-        for _ in 0..120 {
-            g.tick(0);
-        }
+        assert_ne!(g.cast("2H2O -> 2H2 + O2").outcome, Outcome::Fizzle);
+        settle(&mut g, 10);
+        assert_eq!(g.cast("2H2 + O2 -> 2H2O").outcome, Outcome::Full);
+        settle(&mut g, 120);
         assert!(g.torch_lit, "torch should catch fire from the hydrogen pop");
         g.player.x = 285.0;
         g.tick(0);
@@ -1169,18 +1947,21 @@ mod balance {
             g.tick(0);
         }
         g.player.x = 60.0;
-        g.jars.insert("H2O".into(), 200);
-        for _ in 0..16 {
+        let mut casts = 0;
+        for _ in 0..10 {
             // Aim at burning wood, like a player chasing the fire.
             let target = (96..180)
                 .flat_map(|x| (100..150).map(move |y| (x, y)))
                 .find(|&(x, y)| {
-                    g.grid.get(x, y) == Species::Wood && g.grid.temp_at(x, y) >= WOOD_IGNITION_C
+                    g.grid.get(x, y) == Species::Flame
+                        || (g.grid.get(x, y) == Species::Wood
+                            && g.grid.temp_at(x, y) >= WOOD_IGNITION_C)
                 });
             let Some(aim) = target else { break };
             g.aim = aim;
-            g.cast("H2O");
-            for _ in 0..20 {
+            assert_eq!(g.cast("H2O").outcome, Outcome::Full);
+            casts += 1;
+            for _ in 0..30 {
                 g.tick(0);
             }
         }
@@ -1189,7 +1970,7 @@ mod balance {
         }
         assert!(
             g.objectives[1].done,
-            "fire still burning: {} hot wood",
+            "fire still burning after {casts} casts: {} hot wood",
             burning_wood(&g)
         );
     }

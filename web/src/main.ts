@@ -3,7 +3,7 @@
 
 import init, { WebGame } from "./pkg/realgame_sim.js";
 import { FormulaRing, byId } from "./ring";
-import { prettyFormula, type CastResult, type Fx, type GameState, type Tier } from "./types";
+import { prettyFormula, type CastOutcome, type Fx, type GameState, type Tier } from "./types";
 
 const INPUT = { left: 1, right: 2, jump: 4, gather: 8 } as const;
 const MAX_SLOTS = 5;
@@ -199,9 +199,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   function doCast(formula: string): void {
-    const result = JSON.parse(game.cast(formula)) as CastResult;
+    const result = JSON.parse(game.cast(formula)) as CastOutcome;
     showToast(result);
-    if (result.ok) {
+    if (result.outcome === "full" || result.outcome === "partial") {
       lastCast = formula;
       if (!slots.includes(formula)) {
         slots.unshift(formula);
@@ -223,10 +223,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   let toastTimer = 0;
-  function showToast(r: CastResult): void {
+  function showToast(r: CastOutcome): void {
     const toast = byId("toast");
     toast.replaceChildren();
-    toast.className = r.ok ? "good" : r.kind === "fizzle" ? "fizzle" : "bad";
+    const ok = r.outcome === "full" || r.outcome === "partial";
+    toast.className = r.outcome === "full" ? "good" : ok || r.outcome === "fizzle" ? "fizzle" : "bad";
     if (r.equation) {
       const eq = document.createElement("div");
       eq.className = "toast-eq";
@@ -234,9 +235,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       toast.append(eq);
     }
     const msg = document.createElement("div");
-    msg.textContent = r.message;
+    msg.textContent = r.label;
     toast.append(msg);
-    if (r.ok && r.delta_h_kj !== null) {
+    if (ok && r.delta_h_kj !== null) {
       const dh = document.createElement("div");
       dh.className = "small";
       const sign = r.delta_h_kj < 0 ? "released" : "absorbed";
@@ -337,7 +338,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     for (const m of s.messages) say(m);
 
     const done = s.objectives.filter((o) => o.done).length;
-    const key = JSON.stringify([s.jars, s.charge, done, s.trial_complete]);
+    const key = JSON.stringify([s.jars, Math.round((s.crystal_kj / s.crystal_max_kj) * 20), done, s.trial_complete]);
     byId("readout").textContent = `${s.aim_substance} · ${describeTemp(s.aim_temp_c)}`;
     if (key === lastHudKey) return;
     lastHudKey = key;
@@ -364,7 +365,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       jar.title = `${formula}: ${n}`;
       const fill = document.createElement("div");
       fill.className = `fill f-${formula.toLowerCase()}`;
-      fill.style.height = `${Math.min(100, (n / 60) * 100)}%`;
+      fill.style.height = `${Math.min(100, (n / (s.jar_caps[formula] ?? 10)) * 100)}%`;
       const glass = document.createElement("div");
       glass.className = "glass";
       glass.append(fill);
@@ -375,8 +376,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     const charge = document.createElement("div");
     charge.className = "jar charge";
-    charge.textContent = `⚡ ${s.charge}`;
-    charge.title = "Electricity charge";
+    const pct = Math.round((s.crystal_kj / s.crystal_max_kj) * 100);
+    charge.textContent = `⚡ ${pct}%`;
+    charge.title = "Crystal battery charge";
     jars.append(charge);
   }
 
@@ -405,6 +407,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let accumulator = 0;
   let lastTime = performance.now();
   let lastHudTime = -Infinity;
+  let stateVersion = -1;
 
   function loop(): void {
     const now = performance.now();
@@ -421,9 +424,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (steps > 0) handleFx(JSON.parse(game.take_fx()) as Fx[]);
     const alpha = accumulator / STEP_MS;
     ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
-    if (pointer && steps > 0) game.set_aim(...toGrid(pointer[0], pointer[1]));
-    if (now - lastHudTime >= 100 || state === null) {
+    if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1]));
+    // JSON is only built when something on the HUD actually changed.
+    const version = game.state_version();
+    if (state === null || (version !== stateVersion && now - lastHudTime >= 100)) {
       lastHudTime = now;
+      stateVersion = version;
       state = JSON.parse(game.state()) as GameState;
       renderHud(state);
     }
