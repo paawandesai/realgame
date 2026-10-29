@@ -72,6 +72,15 @@
           <button id="notebook-close" type="button">Close</button>
         </aside>
 
+        <button id="settings-btn" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settings">&#9881;</button>
+        <aside id="settings" hidden aria-label="Settings">
+          <h2>Settings</h2>
+          <label class="row"><input id="sound-mute" type="checkbox" /> Mute sound</label>
+          <label class="row">Volume <input id="sound-master" type="range" min="0" max="100" step="5" /></label>
+          <label class="row">Effects <input id="sound-sfx" type="range" min="0" max="100" step="5" /></label>
+          <button id="settings-close" type="button">Close</button>
+        </aside>
+
         <div id="touch" aria-hidden="true">
           <button data-key="left">&#9664;</button>
           <button data-key="right">&#9654;</button>

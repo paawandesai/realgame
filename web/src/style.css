@@ -177,7 +177,7 @@ kbd {
 
 #objectives {
   top: 10px;
-  right: 10px;
+  right: 84px;
   max-width: 34%;
   padding: 8px 12px 8px 4px;
   font-size: 0.85rem;
@@ -534,6 +534,52 @@ body[data-tier="seedling"] .fx-label {
 
 #notebook p {
   margin: 4px 0;
+}
+
+/* ------------------------------------------------------------- settings */
+
+#settings-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 64px;
+  height: 64px;
+  font-size: 32px;
+  line-height: 1;
+  background: var(--panel);
+  z-index: 5;
+}
+
+#settings {
+  position: absolute;
+  top: 84px;
+  right: 10px;
+  width: min(300px, 80%);
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  z-index: 5;
+}
+
+#settings h2 {
+  margin: 0 0 8px;
+}
+
+#settings .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+#settings input[type="range"] {
+  flex: 1;
+  min-height: 32px;
+}
+
+#settings input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
 }
 
 /* --------------------------------------------------------------- touch */

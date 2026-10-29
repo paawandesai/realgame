@@ -2,6 +2,7 @@
 // run in the Rust simulation (crates/sim), compiled to WebAssembly.
 
 import init, { WebGame } from "./pkg/realgame_sim.js";
+import { Sfx } from "./audio";
 import { FxLayer } from "./fx";
 import { FormulaRing, byId } from "./ring";
 import { prettyFormula, type CastOutcome, type Fx, type GameState, type Tier } from "./types";
@@ -103,6 +104,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let state: GameState | null = null;
 
   const ring = new FormulaRing(tier, (formula) => requestCast(formula));
+  const sfx = new Sfx(tier);
+  // Browsers only allow audio after a gesture; the first one creates the AudioContext.
+  const unlockAudio = () => sfx.unlock();
+  window.addEventListener("pointerdown", unlockAudio, { capture: true });
+  window.addEventListener("keydown", unlockAudio, { capture: true });
+  setupSettings(sfx);
   const fx = new FxLayer(byId("stage"), [canvas], w, h, tier, (fix) => {
     ring.set(fix);
     ring.toggle(true);
@@ -226,7 +233,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     outcomes.set(result.id, result);
     if (outcomes.size > 32) outcomes.delete(outcomes.keys().next().value as number);
     // Events from the cast itself (charge, bolt, fizzle) show at once.
-    fx.handle(JSON.parse(game.take_fx()) as Fx[], outcomes, performance.now());
+    const events = JSON.parse(game.take_fx()) as Fx[];
+    sfx.handle(events, outcomes);
+    fx.handle(events, outcomes, performance.now());
     castCount++;
     renderSlots();
     if (result.outcome === "full" || result.outcome === "partial") {
@@ -386,7 +395,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   /** Presentation events from the simulation: particles, flashes, labels. */
   function handleFx(events: Fx[]): void {
-    if (events.length > 0) fx.handle(events, outcomes, performance.now());
+    if (events.length === 0) return;
+    sfx.handle(events, outcomes);
+    fx.handle(events, outcomes, performance.now());
   }
 
   let accumulator = 0;
@@ -436,6 +447,27 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   renderSlots();
   renderNotebook();
   requestAnimationFrame(loop);
+}
+
+/** The gear menu: sound settings, saved per device. */
+function setupSettings(sfx: Sfx): void {
+  const panel = byId("settings");
+  const btn = byId<HTMLButtonElement>("settings-btn");
+  const mute = byId<HTMLInputElement>("sound-mute");
+  const master = byId<HTMLInputElement>("sound-master");
+  const effects = byId<HTMLInputElement>("sound-sfx");
+  const show = (open: boolean) => {
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+  };
+  mute.checked = sfx.settings.muted;
+  master.value = String(Math.round(sfx.settings.master * 100));
+  effects.value = String(Math.round(sfx.settings.sfx * 100));
+  btn.addEventListener("click", () => show(panel.hidden));
+  byId("settings-close").addEventListener("click", () => show(false));
+  mute.addEventListener("change", () => sfx.set({ muted: mute.checked }));
+  master.addEventListener("input", () => sfx.set({ master: Number(master.value) / 100 }));
+  effects.addEventListener("input", () => sfx.set({ sfx: Number(effects.value) / 100 }));
 }
 
 boot().catch((err: unknown) => {
