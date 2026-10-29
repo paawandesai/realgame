@@ -189,6 +189,22 @@ impl WebGame {
         self.game.free_play();
     }
 
+    /// Free play: rebuilds room `k` (0-based) from the seed, with its target
+    /// (hedge, ice, gas trap, brazier) back. Returns the room.
+    pub fn reset_room(&mut self, k: u32) -> u32 {
+        self.game.reset_room(k as usize) as u32
+    }
+
+    /// Free play's challenges as a JSON array, and the Grimoire pages they
+    /// have unlocked: `{"challenges": [...], "unlocked": [...]}`.
+    pub fn free_play_state(&self) -> String {
+        serde_json::json!({
+            "challenges": self.game.challenges(),
+            "unlocked": self.game.unlocked_pages(),
+        })
+        .to_string()
+    }
+
     /// The room the player is in, 0-based.
     pub fn room(&self) -> u32 {
         self.game.room() as u32

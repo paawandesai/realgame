@@ -49,6 +49,16 @@ export class Grimoire {
     return true;
   }
 
+  /** A challenge earned a "coming soon" page: it becomes a full page.
+   * Returns true the first time. */
+  unlock(id: string): boolean {
+    const page = GRIMOIRE_PAGES.find((p) => p.id === id);
+    if (!page || this.found.has(id)) return false;
+    this.found.add(id);
+    storageSet(KEY, JSON.stringify([...this.found]));
+    return true;
+  }
+
   /**
    * Fills a list with the pages: face up if found, a silhouette if not,
    * then the "coming soon" page. `cleared` holds the rooms (1-4) already
@@ -157,6 +167,20 @@ export class Grimoire {
     words.className = "grim-words";
     words.textContent = this.tier === "apprentice" ? (spell?.note ?? page.short ?? "") : (page.short ?? "");
     li.append(eq, words);
+    const phase = page.phase ? this.book.phases.get(page.phase) : undefined;
+    if (phase && this.tier !== "sprout") {
+      // A phase change from the sourced table: energy in per mole, no reaction.
+      const dh = document.createElement("span");
+      dh.className = "grim-dh endo";
+      dh.textContent = `ΔH +${phase.kj.toFixed(2)} kJ/mol · energy in, at ${phase.c} °C`;
+      li.append(dh);
+      if (this.tier === "apprentice") {
+        const src = document.createElement("span");
+        src.className = "grim-src";
+        src.textContent = phase.source;
+        li.append(src);
+      }
+    }
     if (this.tier === "apprentice" && spell?.noteSource) {
       const src = document.createElement("span");
       src.className = "grim-src";
@@ -174,9 +198,10 @@ export class Grimoire {
     const li = document.createElement("li");
     li.className = "grim-card";
     li.dataset.id = id;
-    const has = this.found.has(id) && !page.soon;
+    // A "coming soon" page a free-play challenge unlocked is a full page.
+    const has = this.found.has(id);
     li.classList.add(has ? "found" : "silhouette");
-    if (page.soon) li.classList.add("soon");
+    if (page.soon && !has) li.classList.add("soon");
     if (flip && has) li.classList.add("flip");
     const pic = document.createElement("span");
     pic.className = "grim-pic";
@@ -184,7 +209,7 @@ export class Grimoire {
     const name = document.createElement("strong");
     name.className = "grim-name";
     li.append(pic, name);
-    if (page.soon) {
+    if (page.soon && !has) {
       // Sprout: a clock picture (later), no words.
       if (this.tier === "sprout") name.append(icon("clock"));
       else name.textContent = page.name;

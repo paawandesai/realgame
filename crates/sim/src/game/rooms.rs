@@ -1311,6 +1311,7 @@ impl Game {
             made += 1;
         }
         if made > 0 {
+            self.free_note_split(made);
             self.rooms.gas_made = true;
             self.crystal_kj = (self.crystal_kj - self.split_kj * made as f32).max(0.0);
             let (cx, cy) = CRYSTAL.centre();
@@ -1551,7 +1552,14 @@ impl Game {
     /// solved, the player stands at the room's entrance and the suit gets
     /// its starter charge back. Returns the room (0-based).
     pub fn restart_room(&mut self) -> usize {
-        let k = self.room();
+        self.reset_room(self.room())
+    }
+
+    /// Rebuilds room `k` (0-based) from the seed as `restart_room` does,
+    /// from anywhere: free play's "Reset room" buttons. Its gate closes
+    /// until its goal is met again; other rooms are left as they are.
+    pub fn reset_room(&mut self, k: usize) -> usize {
+        let k = k.min(ROOMS - 1);
         let fresh = Game::new(self.tier, self.seed);
         self.grid
             .copy_columns(&fresh.grid, k * ROOM_W, (k + 1) * ROOM_W);
@@ -1571,6 +1579,7 @@ impl Game {
         (p.x, p.y, p.vx, p.vy) = (x, GROUND_Y as f32 - PLAYER_H - 4.0, 0.0, 0.0);
         (p.prev_x, p.prev_y, p.facing) = (p.x, p.y, 1);
         self.snap_camera();
+        self.free_room_reset(k);
         self.refresh_version();
         k
     }
@@ -1591,6 +1600,9 @@ impl Game {
             .map(|f| (f.clone(), Self::jar_cap(f)))
             .collect();
         self.jars.extend(caps);
+        if self.free.is_none() {
+            self.start_free_play();
+        }
         self.refresh_version();
     }
 

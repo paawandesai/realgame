@@ -27,26 +27,36 @@ interface PhaseChange {
   id: string;
   note?: string;
   source: string;
+  temperature_c?: number;
+  latent_heat_kj_per_mol?: number;
 }
 
 export interface Book {
   byId: Map<string, BookReaction>;
+  /** Sourced phase changes (melting, boiling): kJ/mol taken in, at °C. */
+  phases: Map<string, { kj: number; c: number; source: string }>;
   /** Why steam and liquid water give different ΔH (sourced), if present. */
   vaporNote: { text: string; source: string } | null;
 }
 
 export function parseBook(json: string): Book {
   const byId = new Map<string, BookReaction>();
+  const phases: Book["phases"] = new Map();
   let vaporNote: Book["vaporNote"] = null;
   try {
     const t = JSON.parse(json) as { reactions?: BookReaction[]; phase_changes?: PhaseChange[] };
     for (const r of t.reactions ?? []) byId.set(r.id, r);
+    for (const p of t.phase_changes ?? []) {
+      if (typeof p.latent_heat_kj_per_mol === "number" && typeof p.temperature_c === "number") {
+        phases.set(p.id, { kj: p.latent_heat_kj_per_mol, c: p.temperature_c, source: p.source });
+      }
+    }
     const v = (t.phase_changes ?? []).find((p) => p.id === "water_vaporisation_25c");
     if (v?.note) vaporNote = { text: v.note, source: v.source };
   } catch {
     // The table is compiled into the sim; an unreadable copy only loses the cards.
   }
-  return { byId, vaporNote };
+  return { byId, phases, vaporNote };
 }
 
 /** The one card that explains why steam and liquid water give different ΔH
@@ -112,8 +122,11 @@ export interface GrimoirePage {
   formula?: string;
   /** Sprout and Seedling words for a pour page. */
   short?: string;
-  /** Shown on a page that comes in a later trial. */
+  /** Shown on a page that comes in a later trial (or that a free-play
+   * challenge unlocks). */
   soon?: string;
+  /** A sourced phase change in reactions.json this page shows (melting). */
+  phase?: string;
 }
 
 const ALL: Tier[] = ["sprout", "seedling", "apprentice"];
@@ -184,7 +197,21 @@ export const GRIMOIRE_PAGES: GrimoirePage[] = [
     again: "",
     whereSprout: "More soon!",
     tiers: [],
-    soon: "Coming soon. Wood is mostly cellulose (C, H, O); burning makes CO2 and H2O.",
+    soon: "Coming soon, or earn it in free play: smother a flame with CO2. Wood is mostly cellulose (C, H, O); burning makes CO2 and H2O.",
+  },
+  {
+    id: "water_melting",
+    name: "Melting ice",
+    picture: "ice",
+    room: 2,
+    where: "",
+    again: "",
+    whereSprout: "More soon!",
+    tiers: [],
+    formula: "H2O(s) -> H2O(l)",
+    short: "Ice takes in heat to melt.",
+    phase: "water_melting",
+    soon: "Coming soon, or earn it in free play: melt the ice using under 500 kJ.",
   },
 ];
 

@@ -9,7 +9,9 @@ use crate::spell::{self, Outcome, Plan, Rejection, Resolution, Stock};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
+mod free;
 mod rooms;
+pub use free::Challenge;
 pub use rooms::{Goal, Rect, TorchView, DOOR_TOP, GATE_W, GATE_X, GROUND_Y};
 
 /// The world is four 320-cell rooms side by side; the camera shows one room's width.
@@ -404,6 +406,8 @@ pub struct Game {
     /// Step every column each tick instead of only the active region around
     /// the camera (the worst case, for benchmarks and tooling).
     pub step_all_columns: bool,
+    /// Free play's challenges and counters (None during the trial).
+    pub(crate) free: Option<free::FreePlay>,
     /// Multiplies walking speed, acceleration and air speed
     /// (`Tier::walk_scale`; 1.0 is the base tuning).
     pub walk_scale: f32,
@@ -476,6 +480,7 @@ impl Game {
             prev_view_x: 0.0,
             step_all_columns: false,
             walk_scale: tier.walk_scale(),
+            free: None,
             book,
             discovered: vec![],
             misses_in_a_row: 0,
@@ -552,6 +557,7 @@ impl Game {
         }
         self.suit_tick();
         self.update_rooms(input & INPUT_GATHER != 0);
+        self.free_tick();
         self.refresh_version();
     }
 
@@ -1178,6 +1184,12 @@ impl Game {
     /// outcome (Full, Partial, Fizzle or Unknown) with at least one FX event;
     /// nothing fails silently or with text alone.
     pub fn cast(&mut self, text: &str) -> CastOutcome {
+        let out = self.cast_inner(text);
+        self.free_note_cast(&out);
+        out
+    }
+
+    fn cast_inner(&mut self, text: &str) -> CastOutcome {
         let id = self.next_cast_id;
         self.next_cast_id += 1;
         let input: String = text.chars().take(crate::formula::MAX_INPUT_LEN).collect();
@@ -2331,6 +2343,7 @@ impl Game {
                 }
                 if at.0 as usize / ROOM_W == 2 && n("H2") > 0 {
                     self.rooms.gas_made = true;
+                    self.free_note_split(1);
                 }
                 // Exactly two hydrogen cells for each oxygen cell, like the equation.
                 self.spawn_blob_at(at, Species::H2, n("H2") * GAS_CELLS_PER_MOL, 15.0);

@@ -2,6 +2,7 @@
 // and chemistry run in the Rust simulation (crates/sim), compiled to
 // WebAssembly.
 
+import { FreePlayPanel, type FreePlayState } from "./freeplay";
 import init, { WebGame, heat_lut, reaction_book } from "./pkg/realgame_sim.js";
 import { Sfx } from "./audio";
 import { BAR_SPELLS, HoverCard, parseBook, spellCardLines, type SpellDef } from "./book";
@@ -1291,6 +1292,16 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     renderGrimoire();
   }
 
+  /** A free-play challenge unlocked a "coming soon" page: it turns over. */
+  function unlockedPage(id: string): void {
+    if (!grimoire.unlock(id)) return;
+    const host = byId("discover");
+    grimoire.celebrate(host, id, fx.reducedMotion);
+    popups.push({ kind: "discover", el: host, ms: DISCOVER_MS, dismissOnInput: true });
+    unseenPages.add(id);
+    renderGrimoire();
+  }
+
   /** What gets read aloud for a cast: the label, plus a nudge on a miss. */
   function outcomeSpeech(r: CastOutcome): string {
     let line = words(r.label).replace(/\n/g, " ");
@@ -1760,6 +1771,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const gatesSeen: boolean[] = [];
   function renderHud(s: GameState): void {
     for (const m of s.messages) speech.say(m);
+    renderFree();
     byId("readout").textContent = `${s.aim_substance} · ${describeTemp(s.aim_temp_c)}`;
 
     // Cards and tray pre-fills follow the room the player has reached.
@@ -2102,8 +2114,43 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     byId("end").hidden = true;
     game.free_play();
     cards?.unlock(["water", "boom", "split", "cloud"]);
+    freePanel.show();
+    renderFree();
     speech.say(tier === "sprout" ? "Free play! All open!" : "Free play! Every door is open.");
   });
+
+  // ------------------------------------------------------------- free play
+
+  const freePanel = new FreePlayPanel(
+    stage,
+    tier,
+    (k) => {
+      game.reset_room(k);
+      resetHints();
+      autoWalk = null;
+      tray?.reset();
+      popups.drop();
+      speech.say(tier === "sprout" ? "All new! Try again!" : `Room ${k + 1} reset.`);
+    },
+    (line) => speech.sayOnly(line),
+  );
+  /** Pages unlocked by challenges that the Grimoire has already shown. */
+  const unlockSeen = new Set<string>();
+  function renderFree(): void {
+    if (!freePlay) return;
+    let st: FreePlayState;
+    try {
+      st = JSON.parse(game.free_play_state()) as FreePlayState;
+    } catch {
+      return;
+    }
+    freePanel.render(st);
+    for (const id of st.unlocked) {
+      if (unlockSeen.has(id)) continue;
+      unlockSeen.add(id);
+      unlockedPage(id);
+    }
+  }
 
   // ------------------------------------------------------------------- menu
 
@@ -2254,6 +2301,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     endTimer = 0;
     ended = false;
     freePlay = false;
+    freePanel.hide();
+    unlockSeen.clear();
     byId("end").hidden = true;
     popups.drop();
     castCount = 0;
@@ -2717,6 +2766,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       room: () => game.room(),
       /** Opens every gate (as free play does), to reach later rooms quickly. */
       openGates: () => game.free_play(),
+      /** Free play's challenge list and unlocked pages, as the panel shows them. */
+      freePlay: () => JSON.parse(game.free_play_state()) as FreePlayState,
       aim: () => Array.from(game.aim()),
       /** Where the reticle (or Sprout's bullseye) is, in world cells. */
       shownAim: () => Array.from(game.shown_aim()),
