@@ -2426,7 +2426,7 @@ body[data-motion="calm"] #room-clear {
   animation: none;
 }
 
-/* ------------------------------------------- Sprout jump hint (F6) */
+/* ------------------------------------------------- jump hint (F6) */
 
 #jump-hint {
   position: absolute;

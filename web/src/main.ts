@@ -1791,7 +1791,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     updateSpots(now);
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
     updateLift(now, viewX);
-    if (jumpHint) jumpHintTick(now, viewX);
+    jumpHintTick(now, viewX);
     hintTick(now);
     // JSON is only built when something on the HUD actually changed.
     const version = game.state_version();
@@ -1809,21 +1809,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     frameParts[2] = frameParts[2]! * 0.95 + (tFx - tRender) * 0.05;
     frameParts[3] = frameParts[3]! * 0.95 + (end - tFx) * 0.05;
   }
-  // Sprout: pushing against a ledge or wall with no progress brings up a
-  // bouncing jump arrow over the player and pulses the jump button.
+  // Every tier: pushing against a wall too tall to step up (more than 2
+  // cells) with no progress for 1.5 s brings up a bouncing jump arrow over
+  // the player and pulses the jump button.
   const JUMP_HINT_MS = 1500;
-  let jumpHint: HTMLElement | null = null;
   const blocked = { since: -1, x: 0 };
-  if (tier === "sprout") {
-    jumpHint = document.createElement("div");
-    jumpHint.id = "jump-hint";
-    jumpHint.setAttribute("aria-hidden", "true");
-    jumpHint.hidden = true;
-    jumpHint.append(icon("jump"));
-    goals.layer.append(jumpHint);
-  }
+  const jumpHint = document.createElement("div");
+  jumpHint.id = "jump-hint";
+  jumpHint.setAttribute("aria-hidden", "true");
+  jumpHint.hidden = true;
+  jumpHint.append(icon("jump"));
+  goals.layer.append(jumpHint);
   function jumpHintTick(now: number, viewX: number): void {
-    if (!jumpHint) return;
     const pushing =
       keys.has("a") || keys.has("arrowleft") || held.has("left") || keys.has("d") || keys.has("arrowright") || held.has("right");
     const jumping = keys.has(" ") || keys.has("w") || keys.has("arrowup") || held.has("jump");

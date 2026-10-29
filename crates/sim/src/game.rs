@@ -610,7 +610,9 @@ impl Game {
                 self.player.x = x;
                 continue;
             }
-            let climb = if grounded {
+            // On the ground or wading: a swimmer bumping a low pit lip
+            // steps out the same way.
+            let climb = if grounded || swimming {
                 (1..=STEP_UP).find(|&up| !self.box_blocked(x, y - up as f32))
             } else {
                 None

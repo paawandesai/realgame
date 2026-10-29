@@ -63,6 +63,10 @@ const TORCH_H: i32 = 12;
 pub const ICE: Rect = Rect::new(470, 128, 482, GROUND_Y);
 const ICE_ROCK: Rect = Rect::new(458, 0, 496, 128);
 const PIT: Rect = Rect::new(504, GROUND_Y, 576, 164);
+/// The pit's stairs: each step is this many cells high...
+const PIT_RISER: i32 = 2;
+/// ...and this many cells deep.
+const PIT_TREAD: i32 = 2;
 // Room 3: Crystal Lab.
 pub const CRYSTAL: Rect = Rect::new(668, 134, 674, GROUND_Y);
 pub const POOL: Rect = Rect::new(732, GROUND_Y, 784, 160);
@@ -469,6 +473,15 @@ impl Game {
             g.set(x, y, Species::Ice, -5.0);
         }
         g.fill_rect(PIT.x0, PIT.y0, PIT.x1, PIT.y1, Species::Air);
+        // Stone stairs down each side of the pit, 2-cell risers, so holding
+        // walk alone climbs out (the step-up handles 2 cells; no jump needed).
+        let rises = (PIT.y1 - PIT.y0) / PIT_RISER;
+        for k in 1..rises {
+            let top = PIT.y0 + k * PIT_RISER;
+            let w = k * PIT_TREAD;
+            g.fill_rect(PIT.x0, top, PIT.x0 + w, PIT.y1, Species::Stone);
+            g.fill_rect(PIT.x1 - w, top, PIT.x1, PIT.y1, Species::Stone);
+        }
         self.build_gate(1);
 
         // ---- Room 3: Crystal Lab.
@@ -1931,6 +1944,38 @@ mod tests {
                 // The prompt is said once, not every tick.
                 let again = g.state().messages;
                 assert!(!again.iter().any(|m| m.contains("Now Boom")));
+            }
+        }
+    }
+
+    /// Holds right only (never jump) for up to `max` ticks; returns the
+    /// tick the player's centre reached `x`, or where it got stuck.
+    fn hold_right_to(g: &mut Game, x: f32, max: u32) -> Result<u32, f32> {
+        for t in 0..max {
+            if g.player.x + PLAYER_W / 2.0 >= x {
+                return Ok(t);
+            }
+            g.tick(INPUT_RIGHT);
+        }
+        Err(g.player.x + PLAYER_W / 2.0)
+    }
+
+    #[test]
+    fn holding_right_from_room_2_reaches_the_crystal_with_no_jumps() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for seed in SEEDS {
+                let mut g = Game::new(tier, seed);
+                g.open_gate(0);
+                teleport(&mut g, 440.0);
+                melt_ice_with_booms(&mut g, 3000);
+                assert!(g.rooms.gates_open[1], "{tier:?} seed {seed}: ice");
+                settle(&mut g, 120);
+                // The meltwater fills the pit: walk in, wade, climb the lip.
+                let reached = hold_right_to(&mut g, (CRYSTAL.x0 - 12) as f32, 600);
+                assert!(
+                    reached.is_ok(),
+                    "{tier:?} seed {seed}: stuck at {reached:?}"
+                );
             }
         }
     }
