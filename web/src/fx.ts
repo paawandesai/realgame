@@ -44,6 +44,7 @@ const COLOR = {
   grey: "#9aa5b1",
   co2: "#cfd6dd",
   gold: "#f0c75e",
+  methane: "#7fe0c0",
 } as const;
 
 /** Each gauge's colour, for gather beams and refill streams. */
@@ -441,6 +442,21 @@ export class FxLayer {
           } else {
             this.bubbles(e.x, e.y, 12, () => (out?.spell === "cloud" ? COLOR.co2 : COLOR.grey), now);
           }
+          break;
+        case "seep":
+          // Big methane bubbles breaking the marsh surface: where to gather.
+          this.spawn(this.reducedMotion ? 1 : 3, (p, i) => {
+            p.x = e.x + (Math.random() - 0.5) * 6;
+            p.y = e.y + 1;
+            p.vx = (Math.random() - 0.5) * 0.004;
+            p.vy = -0.012 - Math.random() * 0.01;
+            p.g = 0;
+            p.born = now + i * 140;
+            p.life = 1100 + Math.random() * 400;
+            p.size = 1.6 + Math.random() * 1.4;
+            p.color = COLOR.methane;
+            p.ring = true;
+          });
           break;
         case "arc":
           this.flashes.push({ x: e.tx, y: e.ty, born: now, life: 160, color: COLOR.frost, radius: 4 });

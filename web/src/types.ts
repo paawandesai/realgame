@@ -90,6 +90,8 @@ export interface Fx {
     | "land"
     /** The suction beam while gathering (reaction_id is the jar). */
     | "gather"
+    /** Methane bubbling up from a marsh vent (no reaction). */
+    | "seep"
     /** A gauge went up; reaction_id is "cause:jar" (condense, split, capture, gather). */
     | "gain";
   x: number;

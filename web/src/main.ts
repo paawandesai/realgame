@@ -1132,7 +1132,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     BAR_SPELLS.find((b) => b.formula === f) ?? { formula: f, name: "Your spell", picture: "wand", reaction: null, note: "A spell you typed." };
 
   /** Where the reagent a spell needs comes from, while the suit has none. */
-  const METHANE_HINT = () => `Gather methane from the marsh bubbles in room 4: ${isTouch() ? "hold the scoop" : "hold G"}.`;
+  const METHANE_HINT = () => `${isTouch() ? "Hold the scoop" : "Hold G"} in the bubbles at the marsh (room 4) to gather methane.`;
   const LOCKS: Record<string, { jar: string; hint: () => string }> = {
     methane_combustion: { jar: "CH4", hint: METHANE_HINT },
     CO2: { jar: "CO2", hint: () => "Catch CO₂ first: stand near a flame and your suit pulls it in." },

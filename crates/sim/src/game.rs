@@ -68,6 +68,8 @@ const GAS_CELLS_PER_MOL: u32 = 3;
 /// Gathering: cells of water per mole, and how far (cells) the suit can pull from.
 const WATER_GATHER_CELLS_PER_MOL: u32 = 4;
 const GATHER_RADIUS: i32 = 48;
+/// Gather held this long (0.5 s) with nothing coming in says why.
+const GATHER_WHY_TICKS: u32 = 30;
 /// Sprout and Seedling aim at the obvious target when the player has not
 /// aimed on purpose for this long (2 s).
 const AUTO_AIM_TICKS: u64 = 120;
@@ -303,6 +305,11 @@ pub struct Game {
     pub rooms: rooms::Rooms,
     met_crystal: bool,
     gather_target: Option<Species>,
+    /// Ticks gather has been held this press, whether anything came in,
+    /// and whether the reason nothing did has been said.
+    gather_held: u32,
+    gather_got: bool,
+    gather_told: bool,
     bolts: Vec<Bolt>,
     state_version: u64,
     state_sig: u64,
@@ -382,6 +389,9 @@ impl Game {
             rooms: rooms::Rooms::new(),
             met_crystal: false,
             gather_target: None,
+            gather_held: 0,
+            gather_got: false,
+            gather_told: false,
             bolts: vec![],
             state_version: 1,
             state_sig: 0,
@@ -703,19 +713,26 @@ impl Game {
         if !held {
             self.gather_target = None;
             self.gather_cells = 0;
+            self.gather_held = 0;
+            self.gather_got = false;
+            self.gather_told = false;
             return;
         }
-        let aimed = self.substance_near_aim().filter(|_| self.aim_in_reach());
-        if self.gather_target.is_none() {
+        self.gather_held += 1;
+        // Gathering skips full jars: aiming at water with a full water jar
+        // still pulls the nearest gas that has room.
+        let has_room = |g: &Self, s: Species| s.jar().is_some_and(|j| g.jar(j) < Self::jar_cap(j));
+        let aimed = self
+            .substance_near_aim()
+            .filter(|&s| self.aim_in_reach() && has_room(self, s));
+        if self.gather_target.is_none_or(|s| !has_room(self, s)) {
             self.gather_target = aimed.or_else(|| self.nearest_gatherable());
         }
         let Some(target) = self.gather_target else {
+            self.gather_says_why();
             return;
         };
         let Some(jar) = target.jar() else { return };
-        if self.jar(jar) >= Self::jar_cap(jar) {
-            return;
-        }
         let (origin, radius) = if aimed == Some(target) {
             (self.aim, 6)
         } else {
@@ -734,7 +751,11 @@ impl Game {
         } else {
             GAS_CELLS_PER_MOL
         };
+        if picked.is_empty() {
+            self.gather_says_why();
+        }
         if let Some(&(x, y)) = picked.first() {
+            self.gather_got = true;
             // The suction beam: from the cells being pulled to the hand.
             let (hx, hy) = self.hand();
             self.emit(Fx {
@@ -759,6 +780,63 @@ impl Game {
                 self.gain(jar, 1, "gather", (x as f32, y as f32));
             }
         }
+    }
+
+    /// Gather has been held a moment and nothing came in: say why, once per
+    /// press (every jar in reach is full, or there is nothing to gather).
+    fn gather_says_why(&mut self) {
+        if self.gather_got || self.gather_told || self.gather_held < GATHER_WHY_TICKS {
+            return;
+        }
+        self.gather_told = true;
+        let (hx, hy) = self.hand();
+        let mut full = None;
+        Self::rings(hx as i32, hy as i32, GATHER_RADIUS, |x, y| {
+            if self.grid.in_bounds(x, y) {
+                full = self.grid.get(x, y).jar();
+            }
+            full.is_some()
+        });
+        let line = match full {
+            Some(jar) => {
+                let name = match jar {
+                    "H2O" => "water",
+                    "H2" => "hydrogen",
+                    "O2" => "oxygen",
+                    "CO2" => "carbon dioxide",
+                    "CH4" => "methane",
+                    other => other,
+                };
+                match self.tier {
+                    Tier::Sprout => {
+                        let mut c = name.chars();
+                        let first = c.next().map(|f| f.to_ascii_uppercase());
+                        format!("{}{} jar full!", first.unwrap_or(' '), c.as_str())
+                    }
+                    Tier::Seedling => format!("Your {name} jar is full. Cast first."),
+                    Tier::Apprentice => format!(
+                        "Your {name} jar is full ({}/{}): cast some before gathering more.",
+                        self.jar(jar),
+                        Self::jar_cap(jar)
+                    ),
+                }
+            }
+            None if self.room() == ROOMS - 1 => self
+                .line(
+                    "No bubbles here! Go closer!",
+                    "No methane in reach. Stand in the bubbles.",
+                    "No methane in reach: stand at the marsh, under the rock where the bubbles collect.",
+                )
+                .to_string(),
+            None => self
+                .line(
+                    "Nothing to grab here!",
+                    "Nothing to gather here. Find water or gas.",
+                    "Nothing to gather in reach: stand near water or a gas.",
+                )
+                .to_string(),
+        };
+        self.say(line);
     }
 
     /// The gatherable substance at the aim point, or the nearest one within 3 cells.

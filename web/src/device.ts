@@ -32,6 +32,12 @@ export function initDevice(onChange: () => void = () => {}): void {
 
 /** Rewrites an instruction for the current device ("Tap" or "Click"). */
 export function words(text: string): string {
-  if (touch) return text.replace(/\bpress Enter\b/g, "tap Go").replace(/\bClick\b/g, "Tap").replace(/\bclick\b/g, "tap");
+  if (touch)
+    return text
+      .replace(/\bHold G\b/g, "Hold the scoop")
+      .replace(/\bhold G\b/g, "hold the scoop")
+      .replace(/\bpress Enter\b/g, "tap Go")
+      .replace(/\bClick\b/g, "Tap")
+      .replace(/\bclick\b/g, "tap");
   return text.replace(/\bTap\b/g, "Click").replace(/\btap\b/g, "click");
 }

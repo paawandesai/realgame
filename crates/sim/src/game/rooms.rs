@@ -84,8 +84,19 @@ const VENT_LIT_TICKS: u64 = 4;
 const VENT_WET_TICKS: u64 = 180;
 /// Heat this close to a vent's mouth lights it.
 const VENT_LIGHT_R: i32 = 6;
-/// Vents stop when this much methane is already loose in the room.
+/// Vents stop when this much methane is already pooled near them.
 const VENT_MAX_CH4: usize = 40;
+/// A rock overhang above the marsh. Methane (0.717 g/L at 0 C, CRC Handbook)
+/// is lighter than air (1.293 g/L), so it rises and pools under the rock
+/// within reach of the suit, as hydrogen does under room 3's roof.
+const MARSH_CAP: Rect = Rect::new(990, 104, 1074, 108);
+/// The pocket under the overhang, between its two lips.
+const MARSH_POCKET: Rect = Rect::new(994, 108, 1070, 122);
+/// Where to stand to gather the marsh methane: at the marsh's edge.
+#[cfg(test)]
+pub const MARSH_STAND_X: i32 = 996;
+/// Methane counted toward the vents' cap: the pocket and the air below it.
+const MARSH_AIR: Rect = Rect::new(990, 104, 1074, GROUND_Y + 8);
 const ALCOVE_ROOF: Rect = Rect::new(1176, 118, GATE_X[3], 124);
 pub const HEDGE2: Rect = Rect::new(1182, 124, 1198, GROUND_Y);
 pub const BRAZIER: Rect = Rect::new(1234, 141, 1244, GROUND_Y);
@@ -472,6 +483,10 @@ impl Game {
         self.flatten(ALCOVE_ROOF.x0 - 2, GATE_X[3]);
         let g = &mut self.grid;
         g.fill_rect(MARSH.x0, MARSH.y0, MARSH.x1, MARSH.y1, Species::Water);
+        let c = MARSH_CAP;
+        g.fill_rect(c.x0, c.y0, c.x1, c.y1, Species::Stone);
+        g.fill_rect(c.x0, c.y1, MARSH_POCKET.x0, MARSH_POCKET.y1, Species::Stone);
+        g.fill_rect(MARSH_POCKET.x1, c.y1, c.x1, MARSH_POCKET.y1, Species::Stone);
         g.fill_rect(
             ALCOVE_ROOF.x0,
             ALCOVE_ROOF.y0,
@@ -619,8 +634,8 @@ impl Game {
             ),
             3 => self.line(
                 "Fire! Then light the bowl!",
-                "Put out the hedge, then light the brazier.",
-                "The marsh bubbles methane. Put out the hedge with water or carbon dioxide, then light the brazier.",
+                "Douse hedge, light brazier. Hold G in bubbles.",
+                "The marsh bubbles methane: hold G in the bubbles to gather it. Put out the hedge with water or carbon dioxide, then light the brazier.",
             ),
             _ => return,
         };
@@ -647,8 +662,9 @@ impl Game {
             return;
         }
         if self.ticks.is_multiple_of(60) {
-            let room4 = Rect::new(3 * ROOM_W as i32, 0, WORLD_W as i32, HEIGHT as i32);
-            self.rooms.ch4_loose = self.count_in(room4, Species::CH4);
+            // Only methane near the vents counts: gas that wandered off (up
+            // to the sky, or into the alcove) no longer stops them.
+            self.rooms.ch4_loose = self.count_in(MARSH_AIR, Species::CH4);
         }
         for (k, &vent) in VENTS.iter().enumerate() {
             let Some((x, y)) = self.vent_mouth(vent) else {
@@ -679,6 +695,11 @@ impl Game {
             let period = if lit { VENT_LIT_TICKS } else { VENT_TICKS };
             if !(self.ticks + k as u64 * 7).is_multiple_of(period) {
                 continue;
+            }
+            if !lit {
+                // Big, visible bubbles where the methane comes up (they keep
+                // marking the spot even while the pocket is full).
+                self.emit_at("seep", x as f32, y as f32, 1.0);
             }
             if !lit && self.rooms.ch4_loose as usize >= VENT_MAX_CH4 {
                 continue;
@@ -2141,6 +2162,78 @@ mod marsh {
             let mut g = hedge2_put_out(Tier::Sprout, seed, Some(3));
             boom_lights_brazier_from_the_left(&mut g, false, seed);
         }
+    }
+
+    /// Holds G for `ticks` ticks, standing still.
+    fn hold_gather(g: &mut Game, ticks: u32) {
+        for _ in 0..ticks {
+            g.tick(INPUT_GATHER);
+        }
+    }
+
+    #[test]
+    fn marsh_methane_stays_in_reach_after_a_minute_and_fuels_a_fireball() {
+        for tier in [Tier::Seedling, Tier::Apprentice] {
+            for seed in SEEDS {
+                let mut g = Game::new(tier, seed);
+                teleport(&mut g, 1150.0);
+                assert!(
+                    douse(&mut g, 1, 4).is_some(),
+                    "seed {seed}: hedge 2 burning"
+                );
+                g.jars.insert("CH4".into(), 0);
+                settle(&mut g, 60 * 60);
+                assert!(
+                    walk_to(&mut g, MARSH_STAND_X as f32, 800),
+                    "seed {seed}: can't reach the marsh, at {}",
+                    g.player.x
+                );
+                hold_gather(&mut g, 3 * 60);
+                assert!(
+                    g.jars["CH4"] >= 2,
+                    "{tier:?} seed {seed}: gathered {} CH4",
+                    g.jars["CH4"]
+                );
+                assert_eq!(
+                    g.cast("fireball").outcome,
+                    Outcome::Full,
+                    "{tier:?} seed {seed}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn gathering_with_nothing_in_reach_says_why() {
+        let mut g = Game::new(Tier::Seedling, 42);
+        teleport(&mut g, 1120.0);
+        let before = g.jars.clone();
+        g.messages.clear();
+        hold_gather(&mut g, 40);
+        assert_eq!(before, g.jars);
+        assert!(
+            g.messages.iter().any(|m| m.contains("No methane in reach")),
+            "{:?}",
+            g.messages
+        );
+        // A full jar is skipped, and named.
+        let mut g = Game::new(Tier::Apprentice, 42);
+        settle(&mut g, 2);
+        walk_to(&mut g, 60.0, 600);
+        let cap = Game::jar_cap("H2O");
+        g.jars.insert("H2O".into(), cap);
+        // Full gas jars too, so the electrolyser doesn't draw the water down.
+        g.jars.insert("H2".into(), Game::jar_cap("H2"));
+        g.jars.insert("O2".into(), Game::jar_cap("O2"));
+        let before = g.jars.clone();
+        g.messages.clear();
+        hold_gather(&mut g, 40);
+        assert_eq!(before["H2O"], g.jars["H2O"]);
+        assert!(
+            g.messages.iter().any(|m| m.contains("water jar is full")),
+            "{:?}",
+            g.messages
+        );
     }
 
     #[test]
