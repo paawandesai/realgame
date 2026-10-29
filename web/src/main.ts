@@ -1359,7 +1359,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     },
     H2: {
       name: "Hydrogen",
-      from: () => "Your wrist electrolyser splits water from the tank: 2 H₂O → 2 H₂ + O₂. Slow on solar power, fast beside a crystal.",
+      from: () =>
+        "Your wrist electrolyser splits water from the tank: 2 H₂O → 2 H₂ + O₂, using 571.7 kJ of ⚡ battery each time. The sun recharges ⚡ slowly; a crystal fast.",
     },
     O2: {
       name: "Oxygen",
@@ -1441,23 +1442,92 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       el.root.setAttribute("aria-label", `${JAR_INFO[formula]?.name ?? formula}: ${n}`);
       shown.push(el.root);
     }
-    if (tier === "apprentice") {
+    if (tier !== "sprout") {
       if (!chargeEl) {
         chargeEl = document.createElement("div");
         chargeEl.className = "jar charge";
-        chargeEl.title = "Crystal battery charge";
       }
-      chargeEl.textContent = `⚡ ${Math.round((s.crystal_kj / s.crystal_max_kj) * 100)}%`;
+      // The battery and what is charging it right now: a crystal (fast) or
+      // the solar strip (slow). Splitting water draws it down.
+      const pct = Math.round((s.crystal_kj / s.crystal_max_kj) * 100);
+      const crystal = s.charge_source === "crystal";
+      chargeEl.textContent = `⚡ ${pct}% ${crystal ? "💎" : "☀"}`;
+      chargeEl.dataset.source = s.charge_source;
+      chargeEl.title = crystal
+        ? "Suit battery, charging fast from the crystal. Splitting water uses 571.7 kJ per 2 H₂O."
+        : "Suit battery, charging slowly from the solar strip. Splitting water uses 571.7 kJ per 2 H₂O.";
+      chargeEl.setAttribute("aria-label", `Battery ${pct}%, charging from ${crystal ? "the crystal" : "the sun"}`);
       shown.push(chargeEl);
     }
     setChildren(jars, shown);
     if (shownJars) {
+      // The player's own casts get a chip on each gauge; what the suit did by
+      // itself (condenser, electrolyser, scrubber) is pooled into one slow chip.
       for (const [formula, n] of Object.entries(s.jars)) {
         const d = n - (shownJars[formula] ?? 0);
-        if (d !== 0) gaugeTick(formula, d);
+        const bg = s.background[formula] ?? 0;
+        const mine = d - bg;
+        if (mine !== 0) gaugeTick(formula, mine);
+        if (bg !== 0) suitPending.set(formula, (suitPending.get(formula) ?? 0) + bg);
       }
+    } else {
+      for (const [formula, bg] of Object.entries(s.background)) if (bg !== 0) suitPending.set(formula, (suitPending.get(formula) ?? 0) + bg);
     }
     shownJars = { ...s.jars };
+    flushSuitChip();
+  }
+
+  // ------------------------------------------------- the suit's own refills
+
+  /** At most one background chip this often, so casts stay readable. */
+  const SUIT_CHIP_MS = 3000;
+  const suitPending = new Map<string, number>();
+  let suitChipAt = -Infinity;
+  let suitExplained = false;
+  let suitTimer = 0;
+  /** One soft chip for everything the suit did by itself since the last
+   * one: "⚙ suit: +1 H₂O, +2 H₂, +1 O₂, −2 H₂O" merged per gauge. */
+  function flushSuitChip(): void {
+    const now = performance.now();
+    const wait = suitChipAt + SUIT_CHIP_MS - now;
+    if (wait > 0) {
+      window.clearTimeout(suitTimer);
+      suitTimer = window.setTimeout(flushSuitChip, wait + 10);
+      return;
+    }
+    const parts = [...suitPending].filter(([, n]) => n !== 0);
+    suitPending.clear();
+    if (parts.length === 0) return;
+    const jars = byId("jars-mini");
+    if (!jars.isConnected) return;
+    suitChipAt = now;
+    const chip = document.createElement("span");
+    chip.className = "suit-tick";
+    chip.setAttribute("aria-hidden", "true");
+    const gear = document.createElement("span");
+    gear.className = "suit-icon";
+    gear.textContent = "⚙";
+    const words = document.createElement("span");
+    words.textContent =
+      tier === "sprout"
+        ? "suit refill"
+        : parts.map(([f, n]) => `${n > 0 ? "+" : "−"}${Math.abs(n)} ${prettyFormula(f)}`).join(", ");
+    chip.append(gear, words);
+    jars.append(chip);
+    window.setTimeout(() => chip.remove(), 2600);
+    if (!suitExplained) {
+      suitExplained = true;
+      const note = document.createElement("span");
+      note.className = "suit-note";
+      note.textContent =
+        tier === "sprout"
+          ? "⚙ Your suit fills itself slowly."
+          : tier === "seedling"
+            ? "⚙ Your suit refills itself: water from air, split by ⚡."
+            : "⚙ Grey chips are your suit working by itself: the collar condenses water from the air, and the electrolyser splits it (2H₂O → 2H₂ + O₂) using ⚡ battery energy. Your casts show in colour.";
+      jars.append(note);
+      window.setTimeout(() => note.remove(), 7000);
+    }
   }
 
   /** A gate opened: a big star stamp so it reads as done. One element,

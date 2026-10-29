@@ -632,6 +632,20 @@ export class FxLayer {
     const text = document.createElement("div");
     text.textContent = out.label;
     el.append(text);
+    // What this cast spent and made, from its own coefficients, and where
+    // the products went (the suit's own refills show apart, by the gauges).
+    if (this.tier !== "sprout" && out.ledger && out.outcome !== "fizzle" && out.outcome !== "unknown") {
+      const ledger = document.createElement("div");
+      ledger.className = "fx-ledger";
+      ledger.textContent = prettyFormula(out.ledger);
+      el.append(ledger);
+      if (out.went) {
+        const went = document.createElement("div");
+        went.className = "fx-went";
+        went.textContent = prettyFormula(out.went);
+        el.append(went);
+      }
+    }
     if (this.tier === "apprentice" && out.delta_h_kj !== null && out.delta_h_kj !== 0) {
       const dh = document.createElement("div");
       dh.className = "fx-dh";

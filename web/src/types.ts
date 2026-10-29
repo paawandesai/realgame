@@ -16,6 +16,11 @@ export interface GameState {
   crystal_kj: number;
   crystal_max_kj: number;
   near_crystal: boolean;
+  /** What charges the ⚡ battery now. */
+  charge_source: "crystal" | "solar";
+  /** Gauge changes the suit made by itself since the last state, per jar
+   * (condenser, electrolyser, CO2 scrubber), apart from the player's casts. */
+  background: Record<string, number>;
   state_version: number;
   objectives: Objective[];
   messages: string[];
@@ -129,6 +134,12 @@ export interface CastOutcome {
   imbalance: string[];
   /** Reagent molecules that did not react ("1 H2", "½ O2"). */
   unreacted: string[];
+  /** The reaction that actually ran ("H2 + 1/2 O2 -> H2O"); its ΔH is dh_kj. */
+  reacted: string | null;
+  /** What the cast spent and made: "-2 H2, -1 O2, +2 H2O". */
+  ledger: string | null;
+  /** Where the products went: "2 H2O released as steam". */
+  went: string | null;
   /** The simplest balanced form, or the substance poured; null if unbalanced. */
   canonical: string | null;
   /** How many times the simplest form was cast (2 for 4H2 + 2O2). */

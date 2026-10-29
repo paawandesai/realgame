@@ -45,9 +45,18 @@ const ELECTRO_TICKS_SOLAR: u32 = 150;
 const SPLIT_RESERVE: u32 = 2;
 /// How close (in cells) the player must be to a crystal to draw on it.
 const CRYSTAL_RANGE: i32 = 16;
-/// The crystal holds enough energy for this many splits, and refills slowly.
+/// The suit's battery (the ⚡ gauge) holds enough energy for this many
+/// splits. Every split, by the electrolyser or a split spell, draws the
+/// sourced +571.7 kJ per 2 H2O from it.
 const CRYSTAL_SPLITS: f32 = 10.0;
-const CRYSTAL_RECHARGE_KJ_PER_TICK: f32 = 1.0;
+/// Standing by a crystal charges the battery fast (a split every
+/// `ELECTRO_TICKS_NEAR` ticks costs a little more, so it still visibly dips)...
+const CRYSTAL_CHARGE_KJ_PER_TICK: f32 = 40.0;
+/// ...and away from one, only the solar strip charges it, slower than the
+/// electrolyser spends, so the gauge runs down while it works.
+const SOLAR_KJ_PER_TICK: f32 = 2.0;
+/// The name the HUD and labels use for the suit's battery energy.
+pub const ENERGY: &str = "⚡";
 /// One water cast becomes a stream this many cells big...
 const WATER_CELLS_PER_MOL: u32 = 40;
 /// ...that cools everything within this radius of where it lands...
@@ -181,6 +190,15 @@ pub struct CastOutcome {
     pub imbalance: Vec<String>,
     /// Reagent molecules that did not react ("1 H2", "½ O2").
     pub unreacted: Vec<String>,
+    /// The reaction that actually ran, scaled from the book's balanced
+    /// equation: "H2 + 1/2 O2 -> H2O". Its ΔH is `dh_kj`. None for pours
+    /// and casts where nothing reacted.
+    pub reacted: Option<String>,
+    /// What the cast spent and made, from the reacted coefficients:
+    /// "-2 H2, -1 O2, +2 H2O". None when nothing happened.
+    pub ledger: Option<String>,
+    /// Where the products went: "2 H2O released as steam".
+    pub went: Option<String>,
     /// The spell in its simplest balanced form ("2H2 + O2 -> 2H2O" for
     /// "4H2 + 2O2 -> 4H2O"), or the substance for a pour. None when the
     /// cast is not balanced: only balanced spells are kept as hotkeys.
@@ -233,6 +251,12 @@ pub struct State {
     pub crystal_max_kj: f32,
     /// Whether the player stands close enough to draw on a crystal.
     pub near_crystal: bool,
+    /// What charges the battery now: "crystal" (fast) or "solar" (slow).
+    pub charge_source: &'static str,
+    /// Gauge changes the suit made by itself since the last state, per jar
+    /// (condenser, electrolyser, CO2 scrubber), so the HUD can tell them
+    /// apart from what the player's own casts spent and made.
+    pub background: BTreeMap<String, i32>,
     /// Bumps whenever anything on the HUD changes.
     pub state_version: u64,
     pub objectives: Vec<Objective>,
@@ -285,7 +309,8 @@ pub struct Game {
     /// Atoms handed back by unbalanced casts that don't yet make a whole
     /// molecule (one O waits here until a second joins it as O2).
     pub loose: Atoms,
-    /// Crystal battery energy, kJ. Electrolysis draws on it.
+    /// The suit's battery (⚡), kJ: every split draws on it; a crystal
+    /// (fast) or the solar strip (slow) charges it.
     pub crystal_kj: f32,
     pub crystal_max_kj: f32,
     /// Energy to split 2 H2O, kJ (the sourced +571.7 from the reaction table).
@@ -295,6 +320,9 @@ pub struct Game {
     condense_timer: u32,
     electro_timer: u32,
     gather_cells: u32,
+    /// Gauge changes the suit made by itself (condenser, electrolyser, CO2
+    /// scrubber) since the HUD last asked, per jar. Not the player's casts.
+    background: BTreeMap<String, i32>,
     pub objectives: Vec<Objective>,
     messages: Vec<String>,
     fx: Vec<Fx>,
@@ -382,6 +410,7 @@ impl Game {
             condense_timer: 0,
             electro_timer: 0,
             gather_cells: 0,
+            background: BTreeMap::new(),
             objectives: vec![],
             messages: vec![],
             fx: vec![],
@@ -899,9 +928,14 @@ impl Game {
         } else {
             self.condense_timer = 0;
         }
-        self.crystal_kj = (self.crystal_kj + CRYSTAL_RECHARGE_KJ_PER_TICK).min(self.crystal_max_kj);
-
         let crystal = self.nearest_crystal();
+        let charge = if crystal.is_some() {
+            CRYSTAL_CHARGE_KJ_PER_TICK
+        } else {
+            SOLAR_KJ_PER_TICK
+        };
+        self.crystal_kj = (self.crystal_kj + charge).min(self.crystal_max_kj);
+
         if crystal.is_some() && !self.met_crystal {
             self.met_crystal = true;
             let line = self.line(
@@ -911,14 +945,16 @@ impl Game {
             );
             self.say(line);
         }
+        // Splitting water costs energy: no split without a full split's worth.
         let room = self.jar("H2") + 2 <= Self::jar_cap("H2")
             && self.jar("O2") < Self::jar_cap("O2")
-            && self.jar("H2O") >= 2 + SPLIT_RESERVE;
+            && self.jar("H2O") >= 2 + SPLIT_RESERVE
+            && self.crystal_kj >= self.split_kj;
         if !room {
             self.electro_timer = 0;
             return;
         }
-        let powered = crystal.filter(|_| self.crystal_kj >= self.split_kj);
+        let powered = crystal;
         let period = if powered.is_some() {
             ELECTRO_TICKS_NEAR
         } else {
@@ -932,11 +968,13 @@ impl Game {
         // 2H2O -> 2H2 + O2: two water from the tank become exactly two
         // hydrogen and one oxygen.
         self.take("H2O", 2);
+        *self.background.entry("H2O".into()).or_insert(0) -= 2;
         let from = powered.map_or((hx, hy), |(x, y)| (x as f32, y as f32));
         self.gain("H2", 2, "split", from);
         self.gain("O2", 1, "split", from);
+        // The sourced +571.7 kJ per 2 H2O, from the battery, wherever it is.
+        self.crystal_kj -= self.split_kj;
         if let Some((x, y)) = powered {
-            self.crystal_kj -= self.split_kj;
             self.emit(Fx {
                 kind: "arc",
                 x: x as f32,
@@ -962,6 +1000,9 @@ impl Game {
         let got = self.jar(jar) - before;
         if got == 0 {
             return;
+        }
+        if cause != "gather" {
+            *self.background.entry(jar.to_string()).or_insert(0) += got as i32;
         }
         let (hx, hy) = self.hand();
         self.emit(Fx {
@@ -1065,6 +1106,20 @@ impl Game {
                 )
             }
         };
+        let mut res = res;
+        // Splitting water costs energy (+571.7 kJ per 2 H2O). Away from a
+        // crystal the battery must hold it, or nothing splits.
+        let short_of_energy = spell == "split"
+            && res.units > 0
+            && self.nearest_crystal().is_none()
+            && self.crystal_kj < self.split_kj * res.units as f32;
+        if short_of_energy {
+            res = spell::Resolution {
+                outcome: Some(Outcome::Fizzle),
+                missing: vec![ENERGY.to_string()],
+                ..Default::default()
+            };
+        }
         let outcome = res.outcome.unwrap_or(Outcome::Fizzle);
 
         // Commit the reagents: draw what was used, hand back the leftovers.
@@ -1078,14 +1133,13 @@ impl Game {
             *self.loose.entry(el.clone()).or_insert(0) += n;
         }
         self.recombine_loose();
-        // Splitting water costs energy: the crystal pays when it is in reach
-        // (charged where the spell lands; see `impact`).
-        let crystal_cost_kj =
-            if spell == "split" && res.units > 0 && self.nearest_crystal().is_some() {
-                self.split_kj * res.units as f32
-            } else {
-                0.0
-            };
+        // Splitting water costs energy: the battery pays where the spell
+        // lands (see `impact`), unless it lands on the crystal itself.
+        let crystal_cost_kj = if spell == "split" && res.units > 0 {
+            self.split_kj * res.units as f32
+        } else {
+            0.0
+        };
 
         // Unbalanced or empty casts count as misses; a fix is offered to
         // Seedlings at once and to Apprentices after three in a row.
@@ -1161,6 +1215,29 @@ impl Game {
             Plan::Release { formula, .. } => (vec![], Some(formula.clone()), 1),
             Plan::Unknown { .. } => (vec![], None, 1),
         };
+        // What reacted, what it spent and made, and where the products went,
+        // all from the book's own coefficients (so ΔH always matches).
+        let (reacted, ledger) = match &plan {
+            Plan::React {
+                reaction_id,
+                air_o2,
+                ..
+            } if res.units > 0 => self
+                .book
+                .by_id(reaction_id)
+                .map(|(_, known)| {
+                    (
+                        Some(spell::reacted_equation(known, res.units)),
+                        Some(spell::reacted_ledger(known, res.units, *air_o2)),
+                    )
+                })
+                .unwrap_or((None, None)),
+            Plan::Release { formula, .. } if res.units > 0 => {
+                (None, Some(format!("-{} {formula}", res.units)))
+            }
+            _ => (None, None),
+        };
+        let went = Self::where_products_went(spell, &res.products);
         let mut label = self.label(spell, outcome, &res, &unreacted);
         if let Plan::React { typed, .. } = &plan {
             if !balanced && outcome != Outcome::Fizzle {
@@ -1247,6 +1324,9 @@ impl Game {
             suggestion,
             imbalance,
             unreacted,
+            reacted,
+            ledger,
+            went,
             canonical,
             multiple,
             concept: entry.as_ref().map(|r| r.concept.clone()),
@@ -1379,6 +1459,9 @@ impl Game {
             suggestion,
             imbalance,
             unreacted: vec![],
+            reacted: None,
+            ledger: None,
+            went: None,
             canonical: None,
             multiple: 1,
             concept: None,
@@ -1400,19 +1483,24 @@ impl Game {
     ) -> String {
         let young = self.tier == Tier::Sprout;
         if outcome == Outcome::Fizzle {
+            // Always name what ran out, and how to get more.
             let what = res.missing.first().map(String::as_str).unwrap_or("");
-            let name = match what {
-                "H2O" => "water",
-                "H2" => "hydrogen",
-                "O2" => "oxygen",
-                "CO2" => "carbon dioxide",
-                "CH4" => "methane",
-                _ => what,
-            };
-            return if young {
-                format!("Out of {name}!")
-            } else {
-                format!("Not enough {what}")
+            return match (what, young) {
+                ("H2O", true) => "Out of water! Wait a moment.".into(),
+                ("H2" | "O2", true) => "Out of gas! Wait a moment.".into(),
+                (ENERGY, true) => "Out of power! Go to the crystal.".into(),
+                ("CH4", true) => "Out of marsh gas! Grab bubbles.".into(),
+                ("CO2", true) => "Out of cloud! Go near fire.".into(),
+                (_, true) => "Out of stuff! Wait a moment.".into(),
+                ("H2O", false) => "Out of H2O: hold G near water.".into(),
+                ("H2" | "O2", false) => {
+                    format!("Out of {what}: wait, or stand by the crystal.")
+                }
+                (ENERGY, false) => "Out of ⚡: stand by the crystal to charge.".into(),
+                ("CH4", false) => "Out of CH4: hold G in marsh bubbles.".into(),
+                ("CO2", false) => "Out of CO2: stand by a flame to catch it.".into(),
+                ("", false) => "Nothing to cast: your suit is empty.".into(),
+                (_, false) => format!("Out of {what}: none in your suit."),
             };
         }
         let main = match (spell, young) {
@@ -1440,6 +1528,42 @@ impl Game {
             text.push_str(&format!("  {} unreacted (excess)", unreacted.join(", ")));
         }
         text
+    }
+
+    /// Where a cast's products ended up, in words: "2 H2O released as steam".
+    fn where_products_went(spell: &str, products: &Stock) -> Option<String> {
+        let list = |only: &[&str]| -> Vec<String> {
+            products
+                .iter()
+                .filter(|(f, n)| **n > 0 && (only.is_empty() || only.contains(&f.as_str())))
+                .map(|(f, n)| format!("{n} {f}"))
+                .collect()
+        };
+        let parts: Vec<String> = match spell {
+            "water" | "cloud" => vec![format!("{} poured out", list(&[]).join(" + "))],
+            "split" => vec![format!(
+                "{} released as bubbles",
+                list(&["H2", "O2"]).join(" + ")
+            )],
+            "gas" => vec![format!("{} released", list(&[]).join(" + "))],
+            _ => {
+                let mut v = vec![];
+                let water = list(&["H2O"]);
+                if !water.is_empty() {
+                    v.push(format!("{} released as steam", water.join("")));
+                }
+                let co2 = list(&["CO2"]);
+                if !co2.is_empty() {
+                    v.push(format!("{} into the air", co2.join("")));
+                }
+                v
+            }
+        };
+        let parts: Vec<String> = parts
+            .into_iter()
+            .filter(|p| p.chars().next().is_some_and(|c| c.is_ascii_digit()))
+            .collect();
+        (!parts.is_empty()).then(|| parts.join(", "))
     }
 
     /// Joins loose leftover atoms back into whole molecules the suit stores.
@@ -2036,6 +2160,12 @@ impl Game {
             crystal_kj: self.crystal_kj,
             crystal_max_kj: self.crystal_max_kj,
             near_crystal: self.nearest_crystal().is_some(),
+            charge_source: if self.nearest_crystal().is_some() {
+                "crystal"
+            } else {
+                "solar"
+            },
+            background: std::mem::take(&mut self.background),
             state_version: self.state_version,
             objectives: self.objectives.clone(),
             messages: std::mem::take(&mut self.messages),
@@ -2323,17 +2453,30 @@ mod tests {
     }
 
     #[test]
-    fn electrolysis_works_away_from_a_crystal_and_drains_it_near_one() {
+    fn electrolysis_costs_battery_energy_away_from_a_crystal_and_near_one() {
         let mut g = game(Tier::Apprentice);
         assert!(g.nearest_crystal().is_none());
         let kj = g.crystal_kj;
         let out = g.cast("2H2O -> 2H2 + O2");
         assert_eq!(out.outcome, Outcome::Full, "{}", out.label);
-        assert_eq!(
-            g.crystal_kj, kj,
-            "the solar strip powers it away from crystals"
-        );
         assert_eq!(out.delta_h_kj, Some(571.7));
+        while g.bolts_in_flight() > 0 {
+            g.advance_bolts();
+        }
+        assert!(
+            (kj - g.crystal_kj - 571.7).abs() < 0.01,
+            "away from crystals the battery pays: drop {}",
+            kj - g.crystal_kj
+        );
+        // An empty battery splits nothing: no energy from nowhere.
+        g.crystal_kj = 100.0;
+        let jars = g.jars.clone();
+        let out = g.cast("2H2O -> 2H2 + O2");
+        assert_eq!(out.outcome, Outcome::Fizzle);
+        assert_eq!(out.missing, [ENERGY]);
+        assert!(out.label.contains('⚡'), "{}", out.label);
+        assert_eq!(g.jars, jars);
+        g.crystal_kj = g.crystal_max_kj;
         // Beside the crystal, the crystal pays the sourced +571.7 kJ per 2 H2O.
         g.player.x = 680.0;
         g.player.y = 136.0;
@@ -2575,13 +2718,13 @@ mod tests {
         g.jars.insert("H2O".into(), H2O_CAP);
         g.player.x = 680.0;
         g.player.y = 136.0;
-        g.crystal_kj = g.crystal_max_kj - 1000.0;
+        g.crystal_kj = g.crystal_max_kj - 3000.0;
         let kj = g.crystal_kj;
         settle(&mut g, 60);
         let (h, o) = (g.jar("H2"), g.jar("O2"));
         assert!(h >= 8 && h == 2 * o, "H2 {h}, O2 {o}");
         let splits = o as f32;
-        let expected = splits * 571.7 - 60.0 * CRYSTAL_RECHARGE_KJ_PER_TICK;
+        let expected = splits * 571.7 - 60.0 * CRYSTAL_CHARGE_KJ_PER_TICK;
         assert!(
             (kj - g.crystal_kj - expected).abs() < 1.0,
             "drop {}",
@@ -2593,6 +2736,111 @@ mod tests {
             let (h, o) = (out.products.get("H2"), out.products.get("O2"));
             assert_eq!(h.copied().unwrap_or(0), 2 * o.copied().unwrap_or(0));
         }
+    }
+
+    #[test]
+    fn auto_electrolysis_draws_571_7_kj_per_split_away_from_the_crystal() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            assert!(g.nearest_crystal().is_none());
+            g.jars.insert("H2".into(), 0);
+            g.jars.insert("O2".into(), 0);
+            g.jars.insert("H2O".into(), H2O_CAP);
+            // Below full, so the solar strip's charge is never capped.
+            g.crystal_kj = g.crystal_max_kj - 2000.0;
+            let kj = g.crystal_kj;
+            let ticks = 600;
+            let mut splits = 0;
+            for _ in 0..ticks {
+                let o2 = g.jar("O2");
+                g.suit_tick();
+                splits += g.jar("O2") - o2;
+            }
+            assert!(splits >= 3, "{tier:?}: {splits} splits");
+            // Each split of 2 H2O costs the sourced +571.7 kJ; only the
+            // solar strip puts energy back.
+            let expected = splits as f32 * 571.7 - ticks as f32 * SOLAR_KJ_PER_TICK;
+            let drop = kj - g.crystal_kj;
+            assert!(
+                (drop - expected).abs() < 0.5,
+                "{tier:?}: dropped {drop}, expected {expected}"
+            );
+            assert!(drop > 0.0, "the gauge runs down while it works");
+        }
+    }
+
+    #[test]
+    fn an_empty_battery_stops_the_electrolyser_until_the_sun_or_a_crystal_charges_it() {
+        let mut g = game(Tier::Seedling);
+        g.jars.insert("H2".into(), 0);
+        g.jars.insert("O2".into(), 0);
+        g.crystal_kj = 0.0;
+        for _ in 0..150 {
+            g.suit_tick();
+        }
+        assert_eq!(g.jar("O2"), 0, "no split with no energy");
+        assert!((g.crystal_kj - 150.0 * SOLAR_KJ_PER_TICK).abs() < 0.01);
+        // Beside the crystal it charges fast and the splitting starts.
+        g.player.x = 680.0;
+        g.player.y = 136.0;
+        settle(&mut g, 120);
+        assert!(g.jar("O2") > 0);
+        assert_eq!(g.state().charge_source, "crystal");
+    }
+
+    #[test]
+    fn background_gauge_changes_are_reported_apart_from_casts() {
+        let mut g = game(Tier::Apprentice);
+        g.state();
+        g.jars.insert("H2O".into(), 5);
+        g.jars.insert("H2".into(), 0);
+        g.jars.insert("O2".into(), 0);
+        let before = g.jars.clone();
+        settle(&mut g, 400);
+        let s = g.state();
+        // Every jar change in that time came from the suit itself.
+        for (jar, n) in &s.jars {
+            let d = *n as i32 - before[jar] as i32;
+            assert_eq!(
+                s.background.get(jar).copied().unwrap_or(0),
+                d,
+                "{jar}: {:?}",
+                s.background
+            );
+        }
+        assert!(s.background.get("H2").copied().unwrap_or(0) > 0);
+        // A cast's own changes are not background.
+        let out = g.cast("2H2 + O2 -> 2H2O");
+        assert_eq!(out.outcome, Outcome::Full);
+        let s = g.state();
+        assert!(s.background.values().all(|&v| v == 0), "{:?}", s.background);
+    }
+
+    #[test]
+    fn a_balanced_boom_card_says_what_it_spent_made_and_where_it_went() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            let text = if tier == Tier::Sprout {
+                "boom"
+            } else {
+                "2H2 + O2 -> 2H2O"
+            };
+            let out = g.cast(text);
+            assert_eq!(out.outcome, Outcome::Full);
+            assert_eq!(out.ledger.as_deref(), Some("-2 H2, -1 O2, +2 H2O"));
+            assert_eq!(out.reacted.as_deref(), Some("2H2 + O2 -> 2H2O"));
+            assert_eq!(out.went.as_deref(), Some("2 H2O released as steam"));
+            // The ledger matches what left the suit.
+            assert_eq!(g.jar("H2"), 2);
+            assert_eq!(g.jar("O2"), 1);
+        }
+        let mut g = game(Tier::Apprentice);
+        let out = g.cast("H2O");
+        assert_eq!(out.ledger.as_deref(), Some("-1 H2O"));
+        assert_eq!(out.went.as_deref(), Some("1 H2O poured out"));
+        let out = g.cast("2H2O -> 2H2 + O2");
+        assert_eq!(out.ledger.as_deref(), Some("-2 H2O, +2 H2, +1 O2"));
+        assert_eq!(out.went.as_deref(), Some("2 H2 + 1 O2 released as bubbles"));
     }
 
     #[test]

@@ -640,6 +640,64 @@ pub fn unreacted(returned: &Stock, loose: &Atoms, reactants: &[Term]) -> Vec<Str
     out
 }
 
+/// An amount as a reduced fraction `num/den` for labels: "2", "1", "1/2", "3/2".
+fn amount(num: u32, den: u32) -> String {
+    let g = gcd(num, den).max(1);
+    let (n, d) = (num / g, den / g);
+    if d == 1 {
+        n.to_string()
+    } else {
+        format!("{n}/{d}")
+    }
+}
+
+/// What actually reacted: the book's balanced equation scaled to `units`
+/// (sets of the smallest whole product amounts), as (formula, num, den)
+/// amounts for each side. 2H2 + O2 -> 2H2O at one unit is H2 + 1/2 O2 -> H2O.
+pub fn reacted_amounts(known: &Equation, units: u32) -> [Vec<(String, u32, u32)>; 2] {
+    let g = known.products.iter().fold(0, |g, t| gcd(g, t.coef)).max(1);
+    let side = |terms: &[Term]| {
+        terms
+            .iter()
+            .map(|t| (t.formula.clone(), t.coef * units, g))
+            .collect::<Vec<_>>()
+    };
+    [side(&known.reactants), side(&known.products)]
+}
+
+/// The reaction that actually ran, written out: "H2 + 1/2 O2 -> H2O".
+/// Whole coefficients sit on the formula (2H2), fractions get a space.
+pub fn reacted_equation(known: &Equation, units: u32) -> String {
+    let [l, r] = reacted_amounts(known, units);
+    let side = |terms: &[(String, u32, u32)]| {
+        terms
+            .iter()
+            .map(|(f, n, d)| match amount(*n, *d).as_str() {
+                "1" => f.clone(),
+                a if a.contains('/') => format!("{a} {f}"),
+                a => format!("{a}{f}"),
+            })
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    format!("{} -> {}", side(&l), side(&r))
+}
+
+/// What a reaction spent and made, from its own coefficients:
+/// "-2 H2, -1 O2, +2 H2O". Oxygen the air supplied is marked "(air)".
+pub fn reacted_ledger(known: &Equation, units: u32, air_o2: bool) -> String {
+    let [l, r] = reacted_amounts(known, units);
+    let mut parts: Vec<String> = l
+        .iter()
+        .map(|(f, n, d)| {
+            let air = if air_o2 && f == "O2" { " (air)" } else { "" };
+            format!("-{} {f}{air}", amount(*n, *d))
+        })
+        .collect();
+    parts.extend(r.iter().map(|(f, n, d)| format!("+{} {f}", amount(*n, *d))));
+    parts.join(", ")
+}
+
 /// Atoms of the typed reactants as a side total (used by tests and hints).
 pub fn reactant_atoms(eq: &Equation) -> Atoms {
     side_atoms(&eq.reactants)
