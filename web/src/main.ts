@@ -123,24 +123,41 @@ async function boot(): Promise<void> {
   showStartScreen((tier) => start(tier, wasm.memory));
 }
 
-/** Three picture buttons; with no choice in 8 s the game starts as Sprout. */
+/**
+ * Three picture buttons. With no choice and no activity for 8 s the game
+ * starts by itself (as the last level picked on this device, else Sprout);
+ * any pointer move, touch, focus or key press starts the wait over, so a
+ * player who is still deciding is never whisked away.
+ */
 function showStartScreen(onChoose: (tier: Tier) => void): void {
   const screen = byId("start");
   screen.hidden = false;
   let chosen = false;
+  const last = storageGet("lastTier");
+  const fallback: Tier = isTier(last) ? last : "sprout";
   const choose = (tier: Tier, remember: boolean) => {
     if (chosen) return;
     chosen = true;
     window.clearInterval(timer);
-    if (remember) storageSet("tier", tier);
+    for (const [type, fn] of listeners) window.removeEventListener(type, fn, true);
+    if (remember) {
+      storageSet("tier", tier);
+      storageSet("lastTier", tier);
+    }
     onChoose(tier);
   };
+  for (const pic of screen.querySelectorAll("[data-icon]")) setIcon(pic, pic.getAttribute("data-icon") as IconName);
   for (const b of document.querySelectorAll<HTMLButtonElement>("[data-tier]")) {
     const tier = b.dataset.tier;
     if (!isTier(tier)) continue;
-    const pic = b.querySelector(".age-pic");
-    if (pic) setIcon(pic, pic.getAttribute("data-icon") as IconName);
     const name = REALM_NAMES[tier];
+    if (isTier(last) && tier === last) {
+      b.classList.add("last");
+      const tag = document.createElement("span");
+      tag.className = "age-last";
+      tag.textContent = "Last time";
+      b.append(tag);
+    }
     b.addEventListener("focus", () => speakNow(name));
     b.addEventListener("pointerenter", () => speakNow(name));
     b.addEventListener("click", () => {
@@ -148,13 +165,22 @@ function showStartScreen(onChoose: (tier: Tier) => void): void {
       choose(tier, true);
     });
   }
-  const began = performance.now();
   const fill = byId("autostart-fill");
+  const text = byId("autostart-text");
+  let began = performance.now();
+  /** Activity puts the countdown back to the start. */
+  const wake = () => {
+    began = performance.now();
+  };
+  const listeners: [string, () => void][] = ["pointermove", "pointerdown", "touchstart", "keydown", "focusin", "wheel"].map((t) => [t, wake]);
+  for (const [type, fn] of listeners) window.addEventListener(type, fn, true);
   const timer = window.setInterval(() => {
     const t = (performance.now() - began) / AUTOSTART_MS;
     fill.style.width = `${Math.min(100, t * 100)}%`;
+    // Only a quiet screen counts down; while someone is choosing it just asks.
+    text.textContent = t < 0.5 ? "Take your time" : `Starting as ${REALM_NAMES[fallback]} soon`;
     // Not remembered: the next visit asks again.
-    if (t >= 1) choose("sprout", false);
+    if (t >= 1) choose(fallback, false);
   }, 100);
 }
 
@@ -360,7 +386,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
     if (k === "escape") {
-      if (!menu.hidden) closeMenu();
+      if (!menu.hidden && !trialConfirm.hidden) showTrialConfirm(false);
+      else if (!menu.hidden) closeMenu();
       else if (!grimPanel.hidden) toggleGrimoire(false);
       else ring.toggle(false);
       return;
@@ -1337,13 +1364,39 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const menu = byId("settings");
   const gear = byId<HTMLButtonElement>("settings-btn");
   setIcon(gear, "gear");
+  for (const pic of menu.querySelectorAll("[data-icon]")) setIcon(pic, pic.getAttribute("data-icon") as IconName);
+  const menuBody = byId("menu-body");
+  const menuMore = byId("menu-more");
+  const trialConfirm = byId("trial-confirm");
+  /** "More below" shows while the menu has rows scrolled out of sight. */
+  const updateMenuCue = () => {
+    menuMore.hidden = menuBody.scrollTop + menuBody.clientHeight >= menuBody.scrollHeight - 4;
+  };
+  menuBody.addEventListener("scroll", updateMenuCue, { passive: true });
+  window.addEventListener("resize", () => {
+    if (!menu.hidden) updateMenuCue();
+  });
+  menuMore.addEventListener("click", () => menuBody.scrollBy({ top: menuBody.clientHeight * 0.8, behavior: "smooth" }));
+  const showTrialConfirm = (open: boolean) => {
+    trialConfirm.hidden = !open;
+    menu.classList.toggle("confirming", open);
+    if (open) {
+      speech.say(tier === "sprout" ? "Start all over again?" : "Start the whole trial again?");
+      byId("trial-no").focus();
+    } else byId("menu-trial").focus();
+  };
   const openMenu = () => {
     menu.hidden = false;
+    trialConfirm.hidden = true;
+    menu.classList.remove("confirming");
     gear.setAttribute("aria-expanded", "true");
+    menuBody.scrollTop = 0;
+    updateMenuCue();
     byId("menu-age").focus();
   };
   const closeMenu = () => {
     menu.hidden = true;
+    trialConfirm.hidden = true;
     gear.setAttribute("aria-expanded", "false");
     gear.focus();
   };
@@ -1352,7 +1405,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   // Keep Tab inside the open menu.
   menu.addEventListener("keydown", (e) => {
     if (e.key !== "Tab") return;
-    const items = [...menu.querySelectorAll<HTMLElement>("button, input, select")].filter((el) => !el.hidden);
+    const scope = trialConfirm.hidden ? menu : trialConfirm;
+    const items = [...scope.querySelectorAll<HTMLElement>("button, input, select")].filter((el) => el.offsetParent !== null);
     const first = items[0];
     const last = items[items.length - 1];
     if (e.shiftKey && document.activeElement === first) {
@@ -1372,9 +1426,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     closeMenu();
     speech.say(tier === "sprout" ? "Let's try again!" : "Room restarted.");
   });
-  byId("menu-trial").addEventListener("click", () => {
+  // Restarting the whole trial throws away every room: ask first, with a picture.
+  byId("menu-trial").addEventListener("click", () => showTrialConfirm(true));
+  byId("trial-no").addEventListener("click", () => showTrialConfirm(false));
+  byId("trial-yes").addEventListener("click", () => {
+    trialConfirm.hidden = true;
     restartTrial();
     closeMenu();
+    speech.say(tier === "sprout" ? "All new! Let's go!" : "Trial restarted.");
   });
 
   const mute = byId<HTMLInputElement>("sound-mute");

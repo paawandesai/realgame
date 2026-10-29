@@ -184,7 +184,79 @@ const PENCIL: Shape[] = [
   ["path", { d: "M28 14 L34 20 M8 42 h32", stroke: "currentColor", "stroke-width": 3, "stroke-linecap": "round" }],
 ];
 
+const STROKE = { fill: "none", stroke: "currentColor", "stroke-width": 4, "stroke-linecap": "round", "stroke-linejoin": "round" } as const;
+
+/** Start this room again: a circular arrow. */
+const RESTART: Shape[] = [
+  ["path", { d: "M38 24 a14 14 0 1 1 -4.1 -9.9", ...STROKE }],
+  ["path", { d: "M36 6 v9 h-9", ...STROKE }],
+];
+
+/** Start the whole trial again: back to the very beginning. */
+const REWIND: Shape[] = [
+  ["path", { d: "M8 10 v28", ...STROKE }],
+  ["path", { d: "M24 12 L12 24 L24 36 Z M40 12 L28 24 L40 36 Z", fill: "currentColor" }],
+];
+
+/** Sound off: a speaker with a cross. */
+const MUTE: Shape[] = [
+  ["path", { d: "M6 18 h8 l10 -9 v30 l-10 -9 h-8 Z", fill: "currentColor" }],
+  ["path", { d: "M31 18 l12 12 M43 18 l-12 12", ...STROKE }],
+];
+
+/** Read aloud: a talking mouth in a speech bubble. */
+const TALK: Shape[] = [
+  ["path", { d: "M8 8 h32 a4 4 0 0 1 4 4 v18 a4 4 0 0 1 -4 4 h-18 l-10 8 v-8 h-4 a4 4 0 0 1 -4 -4 v-18 a4 4 0 0 1 4 -4 Z", ...STROKE }],
+  ["path", { d: "M16 21 q8 7 16 0", ...STROKE }],
+];
+
+/** Captions: a box of text lines. */
+const CAPTIONS: Shape[] = [
+  ["rect", { x: 4, y: 10, width: 40, height: 28, rx: 5, ...STROKE }],
+  ["path", { d: "M12 21 h14 M30 21 h6 M12 29 h8 M24 29 h12", ...STROKE, "stroke-width": 3 }],
+];
+
+/** Calm motion: a gentle wave. */
+const CALM: Shape[] = [["path", { d: "M4 24 q7 -8 14 0 t14 0 t14 0", ...STROKE }]];
+
+/** Game speed: a clock. */
+const CLOCK: Shape[] = [
+  ["circle", { cx: 24, cy: 24, r: 18, ...STROKE }],
+  ["path", { d: "M24 13 v11 l8 5", ...STROKE }],
+];
+
+/** Close: a cross. */
+const CLOSE: Shape[] = [["path", { d: "M12 12 L36 36 M36 12 L12 36", ...STROKE, "stroke-width": 5 }]];
+
+/** Yes: a tick. */
+const CHECK: Shape[] = [["path", { d: "M8 25 L19 36 L40 12", ...STROKE, "stroke-width": 6 }]];
+
+/** A phone turning sideways (the rotate prompt animates it). */
+const PHONE: Shape[] = [
+  ["rect", { x: 14, y: 4, width: 20, height: 40, rx: 4, ...STROKE }],
+  ["circle", { cx: 24, cy: 38, r: 2, fill: "currentColor" }],
+];
+
+/** Build a spell from atoms: balls joined like a molecule. */
+const ATOMS: Shape[] = [
+  ["path", { d: "M14 30 L24 18 L34 30", ...STROKE, "stroke-width": 3 }],
+  ["circle", { cx: 24, cy: 18, r: 9, fill: "#d55e00" }],
+  ["circle", { cx: 12, cy: 32, r: 7, fill: "#56b4e9" }],
+  ["circle", { cx: 36, cy: 32, r: 7, fill: "#56b4e9" }],
+];
+
 const ICONS = {
+  restart: RESTART,
+  rewind: REWIND,
+  mute: MUTE,
+  talk: TALK,
+  captions: CAPTIONS,
+  calm: CALM,
+  clock: CLOCK,
+  close: CLOSE,
+  check: CHECK,
+  phone: PHONE,
+  atoms: ATOMS,
   pencil: PENCIL,
   methane: METHANE,
   log: LOG,

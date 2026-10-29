@@ -2499,3 +2499,208 @@ body[data-tier="sprout"] .grim-card > .grim-words {
   color: var(--quiet);
   text-align: center;
 }
+
+/* ------------------------------------------------ F14: start screen and menu */
+
+.age-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.age-how {
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  color: var(--ink);
+}
+
+.ages .age-years {
+  font-size: 0.85rem;
+}
+
+.ages button {
+  position: relative;
+}
+
+.ages button.last {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(86, 180, 233, 0.35);
+}
+
+.ages .age-last {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+#settings {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 12px;
+}
+
+#settings[hidden] {
+  display: none;
+}
+
+.menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  margin-bottom: 6px;
+}
+
+.menu-head h2 {
+  margin: 0;
+}
+
+#settings-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 10px;
+}
+
+#menu-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+#settings .mi {
+  flex: none;
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  color: var(--ink);
+}
+
+.menu-actions button,
+.menu-danger button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+#settings .row {
+  min-height: 40px;
+}
+
+.menu-danger {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #3a4b5c;
+}
+
+#menu-trial {
+  min-height: 48px;
+  color: #ffc9a8;
+}
+
+#menu-more {
+  flex: none;
+  margin-top: 4px;
+  padding: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--accent);
+  border-top: 1px solid #3a4b5c;
+  cursor: pointer;
+}
+
+#menu-more::after {
+  content: " \25BE";
+}
+
+#menu-more[hidden] {
+  display: none;
+}
+
+#trial-confirm {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  background: var(--panel-solid);
+  border-radius: var(--radius);
+  z-index: 2;
+}
+
+#trial-confirm[hidden] {
+  display: none;
+}
+
+.confirm-pic {
+  width: 64px;
+  height: 64px;
+  color: #ffc9a8;
+}
+
+#trial-confirm p {
+  margin: 0;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-buttons button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 96px;
+  min-height: 72px;
+}
+
+.confirm-buttons .mi {
+  width: 32px;
+  height: 32px;
+}
+
+button.danger {
+  background: #5a2a1a;
+  border-color: #d55e00;
+}
+
+/* Sprout reads pictures: options that only make sense as words are hidden,
+   and the rest are big picture rows. */
+body[data-tier="sprout"] #settings .text-only {
+  display: none;
+}
+
+body[data-tier="sprout"] #settings .mi {
+  width: 32px;
+  height: 32px;
+}
+
+body[data-tier="sprout"] #menu-trial {
+  min-height: 64px;
+}
+
+/* The tutorial's Skip is a real touch target on every screen. */
+#tutorial-skip,
+#app-tutorial #tutorial-skip {
+  min-width: 44px;
+  min-height: 44px;
+}

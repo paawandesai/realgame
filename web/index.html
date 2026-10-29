@@ -11,21 +11,27 @@
     <main id="start" class="screen" hidden>
       <h1>Alchemist's Trial</h1>
       <p class="lead">Cast real chemistry. Watch the world react.</p>
-      <h2 id="age-question">Who is playing?</h2>
+      <h2 id="age-question">Pick your level</h2>
       <div class="ages" role="group" aria-labelledby="age-question">
-        <button type="button" data-tier="sprout" aria-label="Sprout, ages 4 to 7, pictures and read aloud">
-          <span class="age-pic" data-icon="sprout"></span><strong>Sprout</strong><span class="age-note">4 to 7 · pictures</span>
+        <button type="button" data-tier="sprout" aria-label="Sprout, ages 4 to 7: tap the pictures, read aloud">
+          <span class="age-pic" data-icon="sprout"></span><strong>Sprout</strong>
+          <span class="age-note"><span class="age-how" data-icon="hand"></span>Tap the pictures</span>
+          <span class="age-years">Ages 4 to 7</span>
         </button>
-        <button type="button" data-tier="seedling" aria-label="Seedling, ages 8 to 10, build spells with tiles">
-          <span class="age-pic" data-icon="sapling"></span><strong>Seedling</strong><span class="age-note">8 to 10 · tiles</span>
+        <button type="button" data-tier="seedling" aria-label="Seedling, ages 8 to 10: match the atoms with tiles">
+          <span class="age-pic" data-icon="sapling"></span><strong>Seedling</strong>
+          <span class="age-note"><span class="age-how" data-icon="atoms"></span>Match the atoms</span>
+          <span class="age-years">Ages 8 to 10</span>
         </button>
-        <button type="button" data-tier="apprentice" aria-label="Apprentice, ages 11 and up, real equations and numbers">
-          <span class="age-pic" data-icon="hat"></span><strong>Apprentice</strong><span class="age-note">11 and up · equations</span>
+        <button type="button" data-tier="apprentice" aria-label="Apprentice, ages 11 and up: write real equations">
+          <span class="age-pic" data-icon="hat"></span><strong>Apprentice</strong>
+          <span class="age-note"><span class="age-how" data-icon="pencil"></span>Write real equations</span>
+          <span class="age-years">Ages 11 and up</span>
         </button>
       </div>
       <div id="autostart" aria-live="polite">
         <div class="autostart-bar"><div id="autostart-fill"></div></div>
-        <span id="autostart-text">Starting as Sprout soon</span>
+        <span id="autostart-text">Take your time</span>
       </div>
       <p class="small">Nothing you do leaves this device.</p>
     </main>
@@ -108,27 +114,42 @@
 
         <button id="settings-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="settings"></button>
         <aside id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
-          <h2 id="settings-title">Menu</h2>
-          <div class="menu-actions">
-            <button id="menu-age" type="button">Change age</button>
-            <button id="menu-room" type="button">Restart room</button>
-            <button id="menu-trial" type="button">Restart trial</button>
+          <div class="menu-head">
+            <h2 id="settings-title">Menu</h2>
+            <button id="settings-close" type="button" aria-label="Close menu"><span class="mi" data-icon="close"></span><span class="menu-word">Close</span></button>
           </div>
-          <label class="row"><input id="sound-mute" type="checkbox" /> Mute sound</label>
-          <label class="row">Volume <input id="sound-master" type="range" min="0" max="100" step="5" /></label>
-          <label class="row">Effects <input id="sound-sfx" type="range" min="0" max="100" step="5" /></label>
-          <label class="row"><input id="voice" type="checkbox" /> Read aloud</label>
-          <label class="row"><input id="captions" type="checkbox" /> Mentor captions</label>
-          <label class="row"><input id="challenge-on" type="checkbox" /> Room scores</label>
-          <label class="row"><input id="motion" type="checkbox" /> Calm motion</label>
-          <label class="row">Speed
-            <select id="speed">
-              <option value="0.5">Slow</option>
-              <option value="0.75">Steady</option>
-              <option value="1">Normal</option>
-            </select>
-          </label>
-          <button id="settings-close" type="button">Close</button>
+          <div id="menu-body">
+            <div class="menu-actions">
+              <button id="menu-age" type="button"><span class="mi" data-icon="sprout"></span><span class="menu-word">Change age</span></button>
+              <button id="menu-room" type="button"><span class="mi" data-icon="restart"></span><span class="menu-word">Restart room</span></button>
+            </div>
+            <label class="row"><span class="mi" data-icon="mute"></span><input id="sound-mute" type="checkbox" /> <span class="menu-word">Mute sound</span></label>
+            <label class="row"><span class="mi" data-icon="speaker"></span><span class="menu-word">Volume</span> <input id="sound-master" type="range" min="0" max="100" step="5" /></label>
+            <label class="row text-only"><span class="mi" data-icon="boom"></span><span class="menu-word">Effects</span> <input id="sound-sfx" type="range" min="0" max="100" step="5" /></label>
+            <label class="row"><span class="mi" data-icon="talk"></span><input id="voice" type="checkbox" /> <span class="menu-word">Read aloud</span></label>
+            <label class="row text-only"><span class="mi" data-icon="captions"></span><input id="captions" type="checkbox" /> <span class="menu-word">Mentor captions</span></label>
+            <label class="row text-only"><span class="mi" data-icon="star"></span><input id="challenge-on" type="checkbox" /> <span class="menu-word">Room scores</span></label>
+            <label class="row"><span class="mi" data-icon="calm"></span><input id="motion" type="checkbox" /> <span class="menu-word">Calm motion</span></label>
+            <label class="row"><span class="mi" data-icon="clock"></span><span class="menu-word">Speed</span>
+              <select id="speed">
+                <option value="0.5">Slow</option>
+                <option value="0.75">Steady</option>
+                <option value="1">Normal</option>
+              </select>
+            </label>
+            <div class="menu-danger">
+              <button id="menu-trial" type="button"><span class="mi" data-icon="rewind"></span><span class="menu-word">Restart trial</span></button>
+            </div>
+          </div>
+          <div id="menu-more" aria-hidden="true">More below</div>
+          <div id="trial-confirm" role="alertdialog" aria-labelledby="trial-confirm-text" hidden>
+            <span class="confirm-pic" data-icon="rewind"></span>
+            <p id="trial-confirm-text">Start the whole trial again? Every room goes back to the start.</p>
+            <div class="confirm-buttons">
+              <button id="trial-yes" type="button" class="danger" aria-label="Yes, start the whole trial again"><span class="mi" data-icon="check"></span><span class="menu-word">Start over</span></button>
+              <button id="trial-no" type="button" class="primary" aria-label="No, keep playing"><span class="mi" data-icon="close"></span><span class="menu-word">Keep playing</span></button>
+            </div>
+          </div>
         </aside>
 
         <section id="end" hidden role="dialog" aria-labelledby="end-title">
