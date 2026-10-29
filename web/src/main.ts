@@ -3,7 +3,7 @@
 
 import init, { WebGame } from "./pkg/realgame_sim.js";
 import { FormulaRing, byId } from "./ring";
-import { prettyFormula, type CastResult, type GameState, type Tier } from "./types";
+import { prettyFormula, type CastResult, type Fx, type GameState, type Tier } from "./types";
 
 const INPUT = { left: 1, right: 2, jump: 4, gather: 8 } as const;
 const MAX_SLOTS = 5;
@@ -396,6 +396,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     return frameImage;
   }
 
+  /** Presentation events from the simulation. Particles and sound hook in here. */
+  function handleFx(events: Fx[]): void {
+    // "land" (landing dust) is drained here but drawn once the particle system lands.
+    void events;
+  }
+
   let accumulator = 0;
   let lastTime = performance.now();
   let lastHudTime = -Infinity;
@@ -412,6 +418,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       steps++;
     }
     if (accumulator >= STEP_MS) accumulator = 0;
+    if (steps > 0) handleFx(JSON.parse(game.take_fx()) as Fx[]);
     const alpha = accumulator / STEP_MS;
     ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
     if (pointer && steps > 0) game.set_aim(...toGrid(pointer[0], pointer[1]));

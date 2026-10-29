@@ -55,6 +55,11 @@ impl WebGame {
         serde_json::to_string(&self.game.cast(formula)).unwrap_or_default()
     }
 
+    /// Returns the presentation events (JSON array of `Fx`) since the last call.
+    pub fn take_fx(&mut self) -> String {
+        serde_json::to_string(&self.game.take_fx()).unwrap_or_default()
+    }
+
     /// Returns a JSON `State` for the HUD. Drains pending mentor messages.
     pub fn state(&mut self) -> String {
         serde_json::to_string(&self.game.state()).unwrap_or_default()
@@ -171,6 +176,31 @@ fn put(out: &mut [u8], x: i32, y: i32, c: [u8; 3]) {
     }
 }
 
+/// The cultivator, 6 x 12 cells, facing right. Rows 0-8 are the body; the
+/// legs (rows 9-11) change with the pose.
+const BODY: [&[u8; 6]; 9] = [
+    b".HHHH.", b"HHHHHH", b"HSSSES", b".SSSS.", b"TCCCCT", b"CCCCCC", b"CCGGCC", b"CCCCCC",
+    b"TTTTTT",
+];
+const LEGS_STAND: [&[u8; 6]; 3] = [b".L..L.", b".L..L.", b".F..F."];
+const LEGS_STRIDE: [&[u8; 6]; 3] = [b".L..L.", b"L....L", b"F....F"];
+const LEGS_PASS: [&[u8; 6]; 3] = [b"..LL..", b"..LL..", b"..FF.."];
+const LEGS_JUMP: [&[u8; 6]; 3] = [b".LLLL.", b"L....L", b"......"];
+
+fn sprite_color(c: u8) -> Option<[u8; 3]> {
+    Some(match c {
+        b'H' => [44, 40, 64],
+        b'S' => [240, 196, 160],
+        b'E' => [24, 28, 40],
+        b'T' => [250, 210, 80],
+        b'C' => [30, 150, 140],
+        b'G' => [150, 255, 236],
+        b'L' => [40, 52, 74],
+        b'F' => [22, 26, 34],
+        _ => return None,
+    })
+}
+
 fn draw_player(game: &Game, out: &mut [u8], alpha: f32, view_x: i32) {
     let p = &game.player;
     let lerp = |a: f32, b: f32| a + (b - a) * alpha;
@@ -178,25 +208,26 @@ fn draw_player(game: &Game, out: &mut [u8], alpha: f32, view_x: i32) {
         lerp(p.prev_x, p.x).round() as i32 - view_x,
         lerp(p.prev_y, p.y).round() as i32,
     );
-    let skin = [240, 196, 160];
-    let suit = [30, 150, 140];
-    let trim = [250, 210, 80];
-    let dark = [30, 40, 50];
-    // A small robed cultivator: head, suit with a glowing core, legs.
-    for dx in 0..3 {
-        put(out, px + dx, py, dark);
-        put(out, px + dx, py + 1, skin);
-        for dy in 2..6 {
-            put(out, px + dx, py + dy, suit);
+    let legs = if !p.grounded {
+        LEGS_JUMP
+    } else if p.vx.abs() > 0.3 {
+        // Two-frame walk cycle, one frame per 5 cells walked.
+        if ((p.stride / 5.0) as u32).is_multiple_of(2) {
+            LEGS_STRIDE
+        } else {
+            LEGS_PASS
+        }
+    } else {
+        LEGS_STAND
+    };
+    for (row, line) in BODY.iter().chain(legs.iter()).enumerate() {
+        for (col, &c) in line.iter().enumerate() {
+            if let Some(color) = sprite_color(c) {
+                let dx = if p.facing >= 0 { col } else { 5 - col } as i32;
+                put(out, px + dx, py + row as i32, color);
+            }
         }
     }
-    put(out, px + 1, py + 3, trim);
-    let eye = if game.player.facing > 0 { px + 2 } else { px };
-    put(out, eye, py + 1, dark);
-    put(out, px, py + 6, dark);
-    put(out, px, py + 7, dark);
-    put(out, px + 2, py + 6, dark);
-    put(out, px + 2, py + 7, dark);
 }
 
 fn draw_aim(game: &Game, out: &mut [u8], view_x: i32) {

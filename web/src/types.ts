@@ -26,6 +26,14 @@ export interface GameState {
   view_x: number;
 }
 
+/** A presentation-only event from the simulation (see `Fx` in game.rs). */
+export interface Fx {
+  kind: "land";
+  x: number;
+  y: number;
+  power: number;
+}
+
 export interface CastResult {
   ok: boolean;
   kind: "release" | "reaction" | "fizzle" | "error";

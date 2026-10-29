@@ -23,8 +23,25 @@ pub const INPUT_JUMP: u32 = 4;
 pub const INPUT_GATHER: u32 = 8;
 
 const JAR_CAPACITY: u32 = 200;
-const PLAYER_W: f32 = 3.0;
-const PLAYER_H: f32 = 8.0;
+pub const PLAYER_W: f32 = 6.0;
+pub const PLAYER_H: f32 = 12.0;
+/// Movement tuning, in cells and ticks (60 ticks a second).
+const RUN_MAX: f32 = 2.2;
+/// Reaches RUN_MAX in under 7 ticks from a standstill.
+const RUN_ACCEL: f32 = 0.34;
+const RUN_DECEL: f32 = 0.5;
+const SWIM_MAX: f32 = 1.1;
+const JUMP_V: f32 = -4.5;
+/// Letting go of jump while rising keeps only this share of the upward speed.
+const JUMP_CUT: f32 = 0.45;
+const GRAVITY: f32 = 0.3;
+const MAX_FALL: f32 = 5.0;
+/// A jump still works this many ticks after walking off an edge...
+const COYOTE_TICKS: u8 = 6;
+/// ...and a jump pressed this many ticks before landing fires on landing.
+const JUMP_BUFFER_TICKS: u8 = 6;
+/// Landings faster than this make a dust puff.
+const LAND_FX_SPEED: f32 = 2.0;
 const REACH: f32 = 140.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize)]
@@ -74,6 +91,17 @@ pub struct CastResult {
     pub first_discovery: bool,
 }
 
+/// A presentation-only event for the browser (particles, sound). Never feeds
+/// back into the simulation.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct Fx {
+    pub kind: &'static str,
+    pub x: f32,
+    pub y: f32,
+    /// Kind-specific strength, such as landing speed.
+    pub power: f32,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct State {
     pub tier: Tier,
@@ -99,9 +127,17 @@ pub struct Player {
     /// Position at the start of the last tick, so the renderer can interpolate.
     pub prev_x: f32,
     pub prev_y: f32,
-    vx: f32,
-    vy: f32,
+    pub vx: f32,
+    pub vy: f32,
     pub facing: i32,
+    /// Distance walked, for the walk-cycle animation.
+    pub stride: f32,
+    pub grounded: bool,
+    coyote: u8,
+    jump_buffer: u8,
+    jump_held: bool,
+    /// True while rising from a jump the player can still cut short.
+    jumping: bool,
 }
 
 pub struct Game {
@@ -112,6 +148,7 @@ pub struct Game {
     pub charge: u32,
     pub objectives: Vec<Objective>,
     messages: Vec<String>,
+    fx: Vec<Fx>,
     pub aim: (i32, i32),
     /// Camera left edge in world cells, and its value one tick ago (for
     /// interpolation). A pure function of the player's path, so deterministic.
@@ -148,6 +185,12 @@ impl Game {
                 vx: 0.0,
                 vy: 0.0,
                 facing: 1,
+                stride: 0.0,
+                grounded: false,
+                coyote: 0,
+                jump_buffer: 0,
+                jump_held: false,
+                jumping: false,
             },
             tier,
             jars: ["H2O", "H2", "O2", "CH4"]
@@ -157,6 +200,7 @@ impl Game {
             charge: 0,
             objectives: vec![],
             messages: vec![],
+            fx: vec![],
             aim: (40, 140),
             view_x: 0.0,
             prev_view_x: 0.0,
@@ -177,6 +221,18 @@ impl Game {
 
     fn say(&mut self, text: impl Into<String>) {
         self.messages.push(text.into());
+    }
+
+    fn emit(&mut self, kind: &'static str, x: f32, y: f32, power: f32) {
+        // Bounded so a page that stops draining can't grow memory forever.
+        if self.fx.len() < 256 {
+            self.fx.push(Fx { kind, x, y, power });
+        }
+    }
+
+    /// Drains the presentation events since the last call.
+    pub fn take_fx(&mut self) -> Vec<Fx> {
+        std::mem::take(&mut self.fx)
     }
 
     // -------------------------------------------------------------- the level
@@ -240,7 +296,7 @@ impl Game {
         self.objectives = vec![
             Objective {
                 id: "gather",
-                text: "Gather water from the stream (hold right-click on it)".into(),
+                text: "Gather water from the stream (point at it and hold G)".into(),
                 done: false,
             },
             Objective {
@@ -326,24 +382,17 @@ impl Game {
         s.is_solid() && s != Species::Wood
     }
 
+    /// Whether the player's box at (x, y) overlaps any blocking cell.
     fn box_blocked(&self, x: f32, y: f32) -> bool {
-        let (x0, x1) = (x, x + PLAYER_W - 0.01);
-        let (y0, y1) = (y, y + PLAYER_H - 0.01);
-        let mut yy = y0;
-        while yy <= y1 {
-            if self.solid_at(x0, yy) || self.solid_at(x1, yy) || self.solid_at((x0 + x1) / 2.0, yy)
-            {
-                return true;
-            }
-            yy += 1.0;
-        }
-        self.solid_at(x0, y1) || self.solid_at(x1, y1)
+        let (x0, x1) = (x.floor() as i32, (x + PLAYER_W - 0.01).floor() as i32);
+        let (y0, y1) = (y.floor() as i32, (y + PLAYER_H - 0.01).floor() as i32);
+        (y0..=y1).any(|cy| (x0..=x1).any(|cx| self.solid_at(cx as f32, cy as f32)))
     }
 
     fn in_water(&self) -> bool {
         let p = &self.player;
         self.grid
-            .get((p.x + 1.0) as i32, (p.y + PLAYER_H - 2.0) as i32)
+            .get((p.x + PLAYER_W / 2.0) as i32, (p.y + PLAYER_H - 2.0) as i32)
             == Species::Water
     }
 
@@ -353,64 +402,116 @@ impl Game {
 
     fn move_player(&mut self, input: u32) {
         let swimming = self.in_water();
-        let speed = if swimming { 0.6 } else { 1.1 };
+        let grounded = self.on_ground();
+        let held = input & INPUT_JUMP != 0;
+        let pressed = held && !self.player.jump_held;
+        self.player.jump_held = held;
+
+        // Run: accelerate toward the target speed, stop quickly when let go.
+        let max = if swimming { SWIM_MAX } else { RUN_MAX };
         let mut target_vx = 0.0;
         if input & INPUT_LEFT != 0 {
-            target_vx -= speed;
+            target_vx -= max;
             self.player.facing = -1;
         }
         if input & INPUT_RIGHT != 0 {
-            target_vx += speed;
+            target_vx += max;
             self.player.facing = 1;
         }
-        self.player.vx += (target_vx - self.player.vx) * 0.4;
-        if input & INPUT_JUMP != 0 {
-            if self.on_ground() {
-                self.player.vy = -3.2;
-            } else if swimming {
-                // At the surface a kick lifts you out; underwater you swim up.
-                let head = self
-                    .grid
-                    .get((self.player.x + 1.0) as i32, (self.player.y - 1.0) as i32);
-                self.player.vy = if head == Species::Water {
-                    (self.player.vy - 0.4).max(-1.2)
-                } else {
-                    -2.4
-                };
+        let rate = if target_vx == 0.0 {
+            RUN_DECEL
+        } else {
+            RUN_ACCEL
+        };
+        let dv = (target_vx - self.player.vx).clamp(-rate, rate);
+        self.player.vx += dv;
+
+        // Coyote time and jump buffering make jumps forgiving.
+        let p = &mut self.player;
+        p.coyote = if grounded {
+            COYOTE_TICKS
+        } else {
+            p.coyote.saturating_sub(1)
+        };
+        p.jump_buffer = if pressed {
+            JUMP_BUFFER_TICKS
+        } else {
+            p.jump_buffer.saturating_sub(1)
+        };
+        if p.jump_buffer > 0 && p.coyote > 0 {
+            p.vy = JUMP_V;
+            p.jump_buffer = 0;
+            p.coyote = 0;
+            p.jumping = true;
+        } else if held && swimming {
+            // At the surface a kick lifts you out; underwater you swim up.
+            let head = self.grid.get(
+                (self.player.x + PLAYER_W / 2.0) as i32,
+                (self.player.y - 1.0) as i32,
+            );
+            self.player.vy = if head == Species::Water {
+                (self.player.vy - 0.4).max(-1.2)
+            } else {
+                -3.6
+            };
+        }
+        let p = &mut self.player;
+        if p.jumping && (!held || p.vy >= 0.0) {
+            // Letting go early cuts the jump short: tap for a hop, hold to go high.
+            if p.vy < 0.0 {
+                p.vy *= JUMP_CUT;
+            }
+            p.jumping = false;
+        }
+        p.vy = if swimming {
+            (p.vy + 0.06).min(0.8)
+        } else {
+            (p.vy + GRAVITY).min(MAX_FALL)
+        };
+
+        // Horizontal, in steps of at most one cell, each with a one-cell
+        // step-up so bumpy ground doesn't stop you.
+        let steps = self.player.vx.abs().ceil().max(1.0) as i32;
+        let sx = self.player.vx / steps as f32;
+        for _ in 0..steps {
+            let (x, y) = (self.player.x + sx, self.player.y);
+            if !self.box_blocked(x, y) {
+                self.player.x = x;
+            } else if grounded && !self.box_blocked(x, y - 1.0) {
+                self.player.x = x;
+                self.player.y -= 1.0;
+            } else {
+                self.player.vx = 0.0;
+                break;
             }
         }
-        self.player.vy = (self.player.vy + if swimming { 0.06 } else { 0.22 }).min(if swimming {
-            0.8
-        } else {
-            4.0
-        });
-
-        // Horizontal, with a one-cell step-up so bumps don't stop you.
-        let nx = self.player.x + self.player.vx;
-        if !self.box_blocked(nx, self.player.y) {
-            self.player.x = nx;
-        } else if !self.box_blocked(nx, self.player.y - 1.0) && self.on_ground() {
-            self.player.x = nx;
-            self.player.y -= 1.0;
-        } else {
-            self.player.vx = 0.0;
-        }
+        self.player.stride += (self.player.x - self.player.prev_x).abs();
         // Vertical, in small steps so fast falls don't tunnel.
         let steps = (self.player.vy.abs() / 0.5).ceil().max(1.0) as i32;
         for _ in 0..steps {
             let ny = self.player.y + self.player.vy / steps as f32;
             if self.box_blocked(self.player.x, ny) {
+                if self.player.vy > LAND_FX_SPEED && !swimming {
+                    let (fx, fy) = (self.player.x + PLAYER_W / 2.0, self.player.y + PLAYER_H);
+                    let power = self.player.vy;
+                    self.emit("land", fx, fy, power);
+                }
                 self.player.vy = 0.0;
+                self.player.jumping = false;
                 break;
             }
             self.player.y = ny;
         }
         self.player.x = self.player.x.clamp(0.0, WORLD_W as f32 - PLAYER_W);
         self.player.y = self.player.y.clamp(0.0, HEIGHT as f32 - PLAYER_H);
+        self.player.grounded = self.on_ground();
     }
 
     fn aim_in_reach(&self) -> bool {
-        let (px, py) = (self.player.x + 1.5, self.player.y + 3.0);
+        let (px, py) = (
+            self.player.x + PLAYER_W / 2.0,
+            self.player.y + PLAYER_H / 3.0,
+        );
         let (dx, dy) = (self.aim.0 as f32 - px, self.aim.1 as f32 - py);
         (dx * dx + dy * dy).sqrt() <= REACH
     }
@@ -458,7 +559,10 @@ impl Game {
 
     fn touch_crystal(&mut self) {
         // The crystal charges anything within a few cells of it.
-        let (cx, cy) = (self.player.x as i32 + 1, self.player.y as i32 + 4);
+        let (cx, cy) = (
+            (self.player.x + PLAYER_W / 2.0) as i32,
+            (self.player.y + PLAYER_H / 2.0) as i32,
+        );
         let near = (-8..=8)
             .any(|dx| (-8..=8).any(|dy| self.grid.get(cx + dx, cy + dy) == Species::Crystal));
         if near && self.charge < 3 {
@@ -1125,6 +1229,138 @@ mod world {
             g.tick(0);
         }
         assert_eq!(g.grid.get(1200, 20), Species::Water, "room 4 is off screen");
+    }
+}
+
+#[cfg(test)]
+mod feel {
+    use super::*;
+
+    /// A flat, empty stretch of room 3 with the player standing on it.
+    fn arena() -> Game {
+        let mut g = Game::new(Tier::Seedling, 42);
+        g.grid.fill_rect(660, 0, 980, 150, Species::Air);
+        g.grid.fill_rect(660, 150, 980, 180, Species::Stone);
+        g.player.x = 700.0;
+        g.player.y = 150.0 - PLAYER_H;
+        g.snap_camera();
+        g.tick(0);
+        assert!(g.player.grounded);
+        g
+    }
+
+    #[test]
+    fn player_box_is_6_by_12() {
+        let g = arena();
+        let (x, y) = (g.player.x, g.player.y);
+        assert!(!g.box_blocked(x, y));
+        let mut g2 = arena();
+        g2.grid
+            .set(705, (y + 11.0) as i32, Species::Stone, AMBIENT_C);
+        assert!(g2.box_blocked(x, y), "bottom-right cell is inside");
+        let mut g3 = arena();
+        g3.grid.set(706, y as i32, Species::Stone, AMBIENT_C);
+        g3.grid
+            .set(700, (y - 1.0) as i32, Species::Stone, AMBIENT_C);
+        assert!(!g3.box_blocked(x, y), "cells just outside are not");
+    }
+
+    #[test]
+    fn walking_reaches_two_cells_per_tick_within_ten_ticks() {
+        let mut g = arena();
+        for _ in 0..10 {
+            g.tick(INPUT_RIGHT);
+        }
+        assert!(g.player.vx >= 2.0, "vx = {}", g.player.vx);
+        let x0 = g.player.x;
+        for _ in 0..60 {
+            g.tick(INPUT_RIGHT);
+        }
+        assert!(g.player.x - x0 >= 120.0, "{} cells/s", g.player.x - x0);
+    }
+
+    /// Walks off a ledge and presses jump `late` ticks after leaving it.
+    fn jump_after_ledge(late: u32) -> f32 {
+        let mut g = arena();
+        g.grid.fill_rect(680, 100, 720, 104, Species::Stone);
+        g.player.x = 712.0;
+        g.player.y = 100.0 - PLAYER_H;
+        g.tick(0);
+        assert!(g.player.grounded);
+        while g.player.grounded {
+            g.tick(INPUT_RIGHT);
+        }
+        for _ in 1..late {
+            g.tick(INPUT_RIGHT);
+        }
+        g.tick(INPUT_RIGHT | INPUT_JUMP);
+        g.player.vy
+    }
+
+    #[test]
+    fn coyote_time_allows_a_late_jump() {
+        assert!(jump_after_ledge(4) < -3.0, "jump 4 ticks late should work");
+        assert!(jump_after_ledge(10) > 0.0, "but not 10 ticks late");
+    }
+
+    /// Drops the player and presses (and holds) jump `early` ticks before landing.
+    fn jump_before_landing(early: u32) -> bool {
+        let fall = |press_at: Option<u32>| {
+            let mut g = arena();
+            g.player.y = 60.0;
+            let mut landed_at = None;
+            let mut jumped = false;
+            for t in 0..200u32 {
+                let held = press_at.is_some_and(|p| t >= p);
+                g.tick(if held { INPUT_JUMP } else { 0 });
+                if landed_at.is_none() && g.player.grounded {
+                    landed_at = Some(t);
+                }
+                if landed_at.is_some() && g.player.vy < -3.0 {
+                    jumped = true;
+                }
+                if landed_at.is_some_and(|l| t > l + 3) {
+                    break;
+                }
+            }
+            (landed_at.expect("never landed"), jumped)
+        };
+        let (land, jumped) = fall(None);
+        assert!(!jumped);
+        fall(Some(land - early)).1
+    }
+
+    #[test]
+    fn jump_buffer_fires_on_landing() {
+        assert!(jump_before_landing(4), "pressed 4 ticks early should jump");
+        assert!(!jump_before_landing(12), "12 ticks early is too early");
+    }
+
+    #[test]
+    fn releasing_jump_early_makes_a_lower_jump() {
+        let peak = |hold: u32| {
+            let mut g = arena();
+            let mut top = g.player.y;
+            for t in 0..120 {
+                g.tick(if t < hold { INPUT_JUMP } else { 0 });
+                top = top.min(g.player.y);
+            }
+            g.player.y - top
+        };
+        let (tap, full) = (peak(2), peak(60));
+        assert!(full > 25.0 && tap < full * 0.6, "tap {tap}, full {full}");
+    }
+
+    #[test]
+    fn hard_landings_emit_a_land_fx() {
+        let mut g = arena();
+        g.take_fx();
+        g.player.y = 60.0;
+        for _ in 0..120 {
+            g.tick(0);
+        }
+        let fx = g.take_fx();
+        assert_eq!(fx.iter().filter(|f| f.kind == "land").count(), 1, "{fx:?}");
     }
 }
 
