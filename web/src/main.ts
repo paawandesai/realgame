@@ -1173,6 +1173,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   /** The hotkey spell the hint ladder points at (Apprentice). */
   let slotHint = "";
+  /** The spell the room is ready for right now (room 3's trapped gas). */
+  let readySpell = "";
+  /** Room 3: once the trap is full, pulse the Boom card (tile, slot). */
+  function updateBoomReady(here: Goal | null): void {
+    const ready = here !== null && here.kind === "gas" && !here.done && (here.steps?.[1]?.done ?? false);
+    const spell = ready ? SPELLS[tier].boom : "";
+    if (spell === readySpell) return;
+    readySpell = spell;
+    cards?.setReady(ready ? "boom" : null);
+    if (hint.level < 2) tray?.setHint(ready ? spell : null);
+    renderSlots();
+  }
   /** Slot buttons, reused across renders (one per hotkey, never more). */
   const slotButtons: HTMLButtonElement[] = [];
   const slotsEl = byId("slots");
@@ -1238,7 +1250,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     slots.forEach((f, i) => {
       const def = spellDef(f);
       const b = slotButton(i);
-      b.classList.toggle("suggested", (i === 0 && castCount === 0) || (slotHint !== "" && f === slotHint));
+      b.classList.toggle("suggested", (i === 0 && castCount === 0) || (slotHint !== "" && f === slotHint) || (readySpell !== "" && f === readySpell));
       b.classList.toggle("armed", i === cycleAt);
       if (b.dataset.formula !== f) {
         b.dataset.formula = f;
@@ -1753,6 +1765,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
       fx.setGlow(lens ? new Float32Array(0) : game.emissive());
     }
+    fx.setGas(lens ? new Float32Array(0) : game.gas_bubbles());
     const tRender = performance.now();
     const viewX = game.view_x();
     fx.draw(now, viewX);
@@ -1767,6 +1780,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       trackProgress(list);
       const here = list[game.room()];
       objective.update(here && !here.done ? here : goals.next);
+      updateBoomReady(here ?? null);
       if (!room1Cleared && list[0]?.done) {
         room1Cleared = true;
         renderTutorial();

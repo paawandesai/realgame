@@ -43,7 +43,7 @@ export interface Goal {
   x: number;
   y: number;
   done: boolean;
-  /** "Fire left", 0..1, for the burning hedges. */
+  /** "Fire left" (hedges), "ice left" (ice wall), or how full the gas trap is (room 3), 0..1. */
   meter: number | null;
   /** The spell that moves this goal on right now. */
   need: "water" | "boom" | "split";
@@ -55,7 +55,7 @@ export interface Goal {
   area: [number, number, number, number] | null;
   /** Where to label the crystal battery (top centre), in room 3. */
   battery: [number, number] | null;
-  /** The goal in ordered steps, each ticked when done (room 4). */
+  /** The goal in ordered steps, each ticked when done (rooms 3 and 4). */
   steps: { text: string; done: boolean }[] | null;
 }
 

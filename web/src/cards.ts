@@ -153,6 +153,11 @@ export class SproutCards {
     for (const [s, b] of this.buttons) b.classList.toggle("hint", s === spell);
   }
 
+  /** The goal is ready for this card (the gas is trapped): pulse it. */
+  setReady(spell: CardSpell | null): void {
+    for (const [s, b] of this.buttons) b.classList.toggle("ready", s === spell);
+  }
+
   element(spell: CardSpell): HTMLButtonElement | null {
     const b = this.buttons.get(spell);
     return b && !b.hidden ? b : null;

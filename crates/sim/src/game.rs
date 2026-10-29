@@ -1756,6 +1756,9 @@ impl Game {
                 if !on_crystal {
                     self.crystal_kj = (self.crystal_kj - shot.crystal_cost_kj).max(0.0);
                 }
+                if at.0 as usize / ROOM_W == 2 && n("H2") > 0 {
+                    self.rooms.gas_made = true;
+                }
                 // Exactly two hydrogen cells for each oxygen cell, like the equation.
                 self.spawn_blob_at(at, Species::H2, n("H2") * GAS_CELLS_PER_MOL, 15.0);
                 self.spawn_blob_at(at, Species::O2, n("O2") * GAS_CELLS_PER_MOL, 15.0);

@@ -37,6 +37,10 @@ export class GoalMarkers {
   private readonly battery: HTMLElement;
   private readonly pointer: HTMLElement;
   private readonly stand: HTMLElement;
+  /** Room 3: how full the gas trap is, as a bar and "gas 3/4". */
+  private readonly trapMeter: HTMLElement;
+  private readonly trapFill: HTMLElement;
+  private readonly trapText: HTMLElement;
   /** Show a bouncing pointer on the next goal (casts are not moving it on). */
   pointAt = false;
   /** Whether the go arrow is showing (the player should walk first). */
@@ -79,7 +83,17 @@ export class GoalMarkers {
     standLabel.className = "stand-label";
     standLabel.textContent = "Stand here";
     this.stand.append(standLabel);
-    this.layer.append(this.area, this.battery, this.pointer, this.stand);
+    this.trapMeter = document.createElement("div");
+    this.trapMeter.id = "trap-meter";
+    this.trapMeter.hidden = true;
+    const bar = document.createElement("div");
+    bar.className = "trap-bar";
+    this.trapFill = document.createElement("div");
+    bar.append(this.trapFill);
+    this.trapText = document.createElement("span");
+    this.trapText.className = "trap-text";
+    this.trapMeter.append(icon("bubbles"), bar, this.trapText);
+    this.layer.append(this.area, this.battery, this.pointer, this.stand, this.trapMeter);
 
     this.go = document.createElement("button");
     this.go.type = "button";
@@ -114,7 +128,8 @@ export class GoalMarkers {
       }
       m.el.dataset.room = String(g.room);
       m.el.hidden = g.done;
-      const show = g.meter !== null && g.meter > 0;
+      // The gas trap has its own meter on the trap (see draw).
+      const show = g.kind !== "gas" && g.meter !== null && g.meter > 0;
       m.meter.hidden = !show;
       if (show) (m.meter.firstElementChild as HTMLElement).style.width = `${Math.round((g.meter ?? 0) * 100)}%`;
     });
@@ -207,6 +222,21 @@ export class GoalMarkers {
       a.top = `${(y0 * ky).toFixed(1)}px`;
       a.width = `${((x1 - x0) * kx).toFixed(1)}px`;
       a.height = `${((y1 - y0) * ky).toFixed(1)}px`;
+    }
+    // Room 3: the trap's fill meter, on the stone roof above the trap (the
+    // pointing hand sits in the trap), in quarters.
+    const gas = next?.kind === "gas" ? next : null;
+    this.trapMeter.hidden = gas === null || area === null;
+    if (gas && area) {
+      const fill = Math.max(0, Math.min(1, gas.meter ?? 0));
+      const quarters = Math.round(fill * 4);
+      this.trapFill.style.width = `${Math.round(fill * 100)}%`;
+      const text = fill >= 1 ? "Full! Boom it!" : `gas ${quarters}/4`;
+      if (this.trapText.textContent !== text) this.trapText.textContent = text;
+      this.trapMeter.classList.toggle("full", fill >= 1);
+      this.trapMeter.setAttribute("aria-label", fill >= 1 ? "Gas trap full" : `Gas trap ${quarters} of 4 full`);
+      const [x0, y0, x1] = area;
+      this.trapMeter.style.transform = `translate(${(((x0 + x1) / 2 - viewX) * kx).toFixed(1)}px, ${((y0 - 4) * ky - 6).toFixed(1)}px)`;
     }
     const bat = next?.battery ?? null;
     this.battery.hidden = bat === null;

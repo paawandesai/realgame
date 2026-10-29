@@ -3125,3 +3125,60 @@ body[data-tier="sprout"] #menu-trial {
 .goal-icon[data-kind="ice"] .goal-meter > div {
   background: #56b4e9;
 }
+
+/* Room 3: how full the gas trap is. */
+#trap-meter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 6px;
+  border-radius: 999px;
+  background: var(--panel-solid);
+  border: 2px solid #96d2ff;
+  color: #e6f4ff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#trap-meter .icon {
+  width: 22px;
+  height: 22px;
+}
+
+#trap-meter .trap-bar {
+  width: 64px;
+  height: 10px;
+  border-radius: 5px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+#trap-meter .trap-bar > div {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #96d2ff, #ffa046);
+  transition: width 0.3s;
+}
+
+#trap-meter.full {
+  border-color: #f0c75e;
+  animation: pulse-gold 1s ease-in-out infinite;
+}
+
+.card.ready {
+  border-color: #f0c75e;
+  animation: pulse-gold 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #trap-meter.full,
+  .card.ready {
+    animation: none;
+  }
+}

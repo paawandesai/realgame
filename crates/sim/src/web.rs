@@ -174,6 +174,12 @@ impl WebGame {
         self.glow.entries()
     }
 
+    /// Hydrogen and oxygen in view, for glowing bubbles: flat `[x, y, kind]`
+    /// groups in viewport cells (kind 1 H2, 2 O2), at most 240 groups.
+    pub fn gas_bubbles(&self) -> Vec<f32> {
+        self.game.gas_cells(self.drawn_view_x, 240)
+    }
+
     /// The heat lens's labels: up to three of the hottest spots in view
     /// (and the coldest, when something is freezing), as flat
     /// `[x, y, temp_c]` groups in viewport cells.

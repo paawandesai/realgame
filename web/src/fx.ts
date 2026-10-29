@@ -253,6 +253,35 @@ export class FxLayer {
     this.glow = entries;
   }
 
+  /** Hydrogen and oxygen in view from the sim: [x, y, kind] groups (1 H2, 2 O2). */
+  private gas: Float32Array = new Float32Array(0);
+  /** Prebaked glowing bubbles: index 1 hydrogen (light blue), 2 oxygen (orange). */
+  private readonly gasSprites: (HTMLCanvasElement | null)[] = [null, bakeBubble("150,210,255"), bakeBubble("255,160,70")];
+
+  setGas(entries: Float32Array): void {
+    this.gas = entries;
+  }
+
+  /** Each gas cell as a big glowing bubble in its jar's colour, wobbling as
+   * it rises, so trapped gas reads at a glance (a cell alone is a faint dot). */
+  private drawGas(now: number): void {
+    const g = this.gas;
+    if (g.length === 0) return;
+    const ctx = this.ctx;
+    const k = this.scale;
+    const calm = this.reducedMotion;
+    for (let i = 0; i + 2 < g.length; i += 3) {
+      const sprite = this.gasSprites[g[i + 2]!];
+      if (!sprite) continue;
+      const x = g[i]!;
+      const y = g[i + 1]!;
+      const seed = (x + this.viewX) * 12.9898 + y * 78.233;
+      const wob = calm ? 0 : Math.sin(now / 420 + seed) * 0.6;
+      const r = (3.6 + 0.7 * Math.sin(seed)) * k;
+      ctx.drawImage(sprite, (x + 0.5 + wob) * k - r, (y + 0.5) * k - r, r * 2, r * 2);
+    }
+  }
+
   /** Whether the 2D glow layer is drawn (off when WebGL draws bloom instead). */
   set glowLayer(on: boolean) {
     this.glowCanvas.hidden = !on;
@@ -719,6 +748,8 @@ export class FxLayer {
       for (const p of due) this.impact(p.e, p.out, now);
     }
 
+    this.drawGas(now);
+
     // Bloom: a soft warm wash over the whole stage for a big blast.
     const bt = (now - this.bloom.born) / 220;
     if (bt >= 0 && bt < 1) {
@@ -964,6 +995,7 @@ export class FxLayer {
       return true;
     }
     if (now - this.frostBorn < 700 || now - this.bloom.born < 220) return true;
+    if (this.gas.length) return true;
     for (const p of this.pool) if (p.alive) return true;
     return false;
   }
@@ -1064,5 +1096,33 @@ function bakeGlow(rgb: string, alpha: number): HTMLCanvasElement | null {
   grad.addColorStop(1, `rgba(${rgb},0)`);
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
+  return c;
+}
+
+/** A glowing gas bubble: soft halo, a bright rim and a white highlight. */
+function bakeBubble(rgb: string): HTMLCanvasElement | null {
+  const c = document.createElement("canvas");
+  c.width = c.height = 48;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  const halo = g.createRadialGradient(24, 24, 8, 24, 24, 24);
+  halo.addColorStop(0, `rgba(${rgb},0.45)`);
+  halo.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = halo;
+  g.fillRect(0, 0, 48, 48);
+  const body = g.createRadialGradient(20, 19, 2, 24, 24, 13);
+  body.addColorStop(0, `rgba(${rgb},0.35)`);
+  body.addColorStop(1, `rgba(${rgb},0.8)`);
+  g.fillStyle = body;
+  g.beginPath();
+  g.arc(24, 24, 13, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = `rgba(${rgb},1)`;
+  g.lineWidth = 2;
+  g.stroke();
+  g.fillStyle = "rgba(255,255,255,0.85)";
+  g.beginPath();
+  g.arc(19, 18, 3.5, 0, Math.PI * 2);
+  g.fill();
   return c;
 }

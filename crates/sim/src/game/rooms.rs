@@ -202,6 +202,10 @@ pub struct Rooms {
     pub torch: Torch,
     pub trap_h2: u32,
     pub trap_peak: u32,
+    /// The player split water in room 3 (step 1 of its goal).
+    pub gas_made: bool,
+    /// "Now boom the gas!" was said for the gas trapped now.
+    boom_prompted: bool,
     pub brazier_lit: bool,
     /// The last heat spell's landing point and tick (a player cause).
     pub last_heat: Option<(u64, i32, i32)>,
@@ -229,6 +233,8 @@ impl Rooms {
             },
             trap_h2: 0,
             trap_peak: 0,
+            gas_made: false,
+            boom_prompted: false,
             brazier_lit: false,
             last_heat: None,
             vent_lit: [false; 2],
@@ -259,6 +265,8 @@ impl Rooms {
             2 => {
                 self.trap_h2 = 0;
                 self.trap_peak = 0;
+                self.gas_made = false;
+                self.boom_prompted = false;
             }
             _ => {
                 self.hedges[1] = fresh.hedges[1].clone();
@@ -287,7 +295,8 @@ pub struct Goal {
     pub x: i32,
     pub y: i32,
     pub done: bool,
-    /// "Fire left" for the hedges, 0..=1.
+    /// "Fire left" for the hedges and "ice left" for the ice wall, or how
+    /// full the gas trap is in room 3, 0..=1.
     pub meter: Option<f32>,
     /// The spell that moves this goal on right now: "water", "boom",
     /// "split" (for hints; any other valid solution still counts).
@@ -300,7 +309,7 @@ pub struct Goal {
     pub area: Option<[i32; 4]>,
     /// Where to label the crystal battery (top centre), in room 3.
     pub battery: Option<[i32; 2]>,
-    /// The goal in ordered steps, each ticked when done (room 4).
+    /// The goal in ordered steps, each ticked when done (rooms 3 and 4).
     pub steps: Option<Vec<Step>>,
 }
 
@@ -946,6 +955,16 @@ impl Game {
         if self.rooms.trap_h2 == 0 && !self.rooms.gates_open[2] {
             // Gas that drifted away no longer counts as trapped.
             self.rooms.trap_peak = 0;
+            self.rooms.boom_prompted = false;
+        }
+        if self.trap_ready() && !self.rooms.boom_prompted && !self.rooms.gates_open[2] {
+            self.rooms.boom_prompted = true;
+            let line = self.line(
+                "Now Boom the gas!",
+                "Gas trapped! Now boom the gas!",
+                "The gas is trapped. Now light it: 2H2 + O2 -> 2H2O.",
+            );
+            self.say(line);
         }
 
         // Room 4: the hedge (for the meter) and the brazier.
@@ -1161,6 +1180,7 @@ impl Game {
             made += 1;
         }
         if made > 0 {
+            self.rooms.gas_made = true;
             self.crystal_kj = (self.crystal_kj - self.split_kj * made as f32).max(0.0);
             let (cx, cy) = CRYSTAL.centre();
             self.emit(Fx {
@@ -1178,6 +1198,43 @@ impl Game {
             });
         }
         made
+    }
+
+    /// Enough hydrogen is trapped under the overhang to light.
+    pub fn trap_ready(&self) -> bool {
+        self.rooms.trap_h2 >= TRAP_MIN_H2
+    }
+
+    /// How full the gas trap is, 0..=1, where 1 means ready to light (shown
+    /// as a "gas 3/4" meter on the trap).
+    pub fn trap_fill(&self) -> f32 {
+        if self.rooms.gates_open[2] {
+            return 1.0;
+        }
+        (self.rooms.trap_h2 as f32 / TRAP_MIN_H2 as f32).min(1.0)
+    }
+
+    /// The hydrogen and oxygen cells in view, for the renderer's glowing
+    /// bubbles: flat `[x, y, kind]` groups in viewport cells, kind 1 for H2
+    /// and 2 for O2, at most `max` groups. Presentation only.
+    pub fn gas_cells(&self, view_x: i32, max: usize) -> Vec<f32> {
+        let mut out = Vec::new();
+        let x0 = view_x.max(0);
+        let x1 = (view_x + VIEW_W as i32).min(WORLD_W as i32);
+        'rows: for y in 0..HEIGHT as i32 {
+            for x in x0..x1 {
+                let kind = match self.grid.get(x, y) {
+                    Species::H2 => 1.0,
+                    Species::O2 => 2.0,
+                    _ => continue,
+                };
+                if out.len() / 3 >= max {
+                    break 'rows;
+                }
+                out.extend([(x - view_x) as f32, y as f32, kind]);
+            }
+        }
+        out
     }
 
     /// The goals the HUD marks, with where to put each icon.
@@ -1229,7 +1286,8 @@ impl Game {
                 x: gx,
                 y: gy,
                 done: r.gates_open[2],
-                meter: None,
+                // How full the gas trap is (0..=1; 1 = ready to light).
+                meter: Some(self.trap_fill()),
                 // Make the gas first, then light it.
                 need: if r.trap_h2 >= TRAP_MIN_H2 {
                     "boom"
@@ -1240,7 +1298,32 @@ impl Game {
                 text: self.objective_line(2),
                 area: Some([TRAP.x0, TRAP.y0, TRAP.x1, TRAP.y1]),
                 battery: Some([CRYSTAL.centre().0, CRYSTAL.y0]),
-                steps: None,
+                steps: Some(vec![
+                    Step {
+                        text: self.line(
+                            "Bubbles!",
+                            "1. Split water.",
+                            "1. Split water: 2H2O -> 2H2 + O2.",
+                        ),
+                        done: r.gas_made || self.trap_ready() || r.gates_open[2],
+                    },
+                    Step {
+                        text: self.line(
+                            "Gas trapped!",
+                            "2. Trap the gas.",
+                            "2. Let H2 and O2 collect under the roof.",
+                        ),
+                        done: self.trap_ready() || r.gates_open[2],
+                    },
+                    Step {
+                        text: self.line(
+                            "Boom the gas!",
+                            "3. Light it with boom.",
+                            "3. Light it: 2H2 + O2 -> 2H2O.",
+                        ),
+                        done: r.gates_open[2],
+                    },
+                ]),
             },
             Goal {
                 room: 4,
@@ -1792,6 +1875,63 @@ mod tests {
                 g.rooms.gates_open[2],
                 "seed {seed}: auto-aim missed the gas"
             );
+        }
+    }
+
+    #[test]
+    fn room_3_goal_shows_trap_fill_and_three_ticked_steps() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for seed in SEEDS {
+                let mut g = Game::new(tier, seed);
+                teleport(&mut g, 686.0);
+                let goal = g.goals()[2].clone();
+                assert_eq!(goal.meter, Some(0.0));
+                let steps = goal.steps.expect("room 3 has steps");
+                assert_eq!(steps.len(), 3);
+                assert!(steps.iter().all(|s| !s.done));
+                g.state();
+                if tier == Tier::Apprentice {
+                    // No auto-aim at Apprentice: point at the goal marker.
+                    g.set_aim(goal.x, goal.y, true);
+                }
+                assert_eq!(g.cast("split").outcome, Outcome::Full);
+                land(&mut g);
+                let steps = g.goals()[2].steps.clone().unwrap();
+                assert!(steps[0].done, "{tier:?} seed {seed}: split not ticked");
+                settle(&mut g, 30);
+                let goal = g.goals()[2].clone();
+                let fill = goal.meter.unwrap();
+                assert!(fill > 0.0 && fill <= 1.0, "{tier:?} seed {seed}: {fill}");
+                assert!(g.trap_ready(), "{tier:?} seed {seed}: not ready");
+                assert_eq!(fill, 1.0);
+                let steps = goal.steps.unwrap();
+                assert!(steps[1].done && !steps[2].done);
+                assert_eq!(goal.need, "boom");
+                let said = g.state().messages;
+                assert!(
+                    said.iter()
+                        .any(|m| m.to_lowercase().contains("boom the gas")
+                            || m.contains("Now light it")),
+                    "{tier:?} seed {seed}: {said:?}"
+                );
+                if tier == Tier::Apprentice {
+                    // No auto-aim at Apprentice: point at the goal marker.
+                    g.set_aim(goal.x, goal.y, true);
+                }
+                assert_eq!(g.cast("boom").outcome, Outcome::Full);
+                land(&mut g);
+                settle(&mut g, 30);
+                let goal = g.goals()[2].clone();
+                assert!(
+                    goal.done,
+                    "{tier:?} seed {seed} aim {:?} h2 {} player {}",
+                    g.aim, g.rooms.trap_h2, g.player.x
+                );
+                assert!(goal.steps.unwrap().iter().all(|s| s.done));
+                // The prompt is said once, not every tick.
+                let again = g.state().messages;
+                assert!(!again.iter().any(|m| m.contains("Now Boom")));
+            }
         }
     }
 
