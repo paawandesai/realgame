@@ -296,11 +296,33 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   // Per-tier controls: picture cards, a tile tray, or the formula ring.
   let cards: SproutCards | null = null;
+  /** Sprout: the card tapped last, and in which room (a world tap casts it). */
+  let sproutPick: { spell: CardSpell; room: number } | null = null;
+  // Sprout sees exactly one aim marker: a bullseye where the spell will
+  // land. No crosshair in the picture and no gold hint ring beside it.
+  const bullseye = document.createElement("div");
+  bullseye.id = "bullseye";
+  bullseye.className = "reticle";
+  bullseye.hidden = tier !== "sprout";
+  if (tier === "sprout") {
+    game.set_crosshair(false);
+    goals.pulseOff = true;
+    goals.layer.append(bullseye);
+  }
+  function placeBullseye(viewX: number): void {
+    if (bullseye.hidden) return;
+    const [x, y] = Array.from(game.shown_aim());
+    const kx = stage.clientWidth / w;
+    const ky = stage.clientHeight / h;
+    bullseye.style.transform = `translate(${((x! - viewX + 0.5) * kx).toFixed(1)}px, ${((y! + 0.5) * ky).toFixed(1)}px)`;
+  }
   let tray: SpellTray | null = null;
   if (tier === "sprout") {
     const root = byId("cards");
     root.hidden = false;
     cards = new SproutCards(root, canvas, (spell, drop) => {
+      // The card tapped last is the one a tap on the world casts.
+      sproutPick = { spell, room: goals.next?.room ?? -1 };
       if (drop) game.set_aim(...toGrid(drop[0], drop[1]));
       requestCast(spell);
     });
@@ -351,9 +373,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     ];
   };
 
-  // Pointing at the world only ever aims; casting is a separate action.
-  // Apprentices aim by hovering; younger players aim with a deliberate tap,
-  // so a passing mouse never steals soft auto-aim from them.
+  // Apprentices aim by hovering; Seedlings aim with a deliberate tap (so a
+  // passing mouse never steals soft auto-aim from them) and cast separately.
+  // Sprouts tap the world to cast there: the card they tapped last in this
+  // room, or else the card the room asks for.
   let pointer: [number, number] | null = null;
   canvas.addEventListener("pointermove", (e) => {
     pointer = [e.clientX, e.clientY];
@@ -363,8 +386,32 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   });
   canvas.addEventListener("pointerdown", (e) => {
     pointer = [e.clientX, e.clientY];
-    game.set_aim(...toGrid(e.clientX, e.clientY));
+    const at = toGrid(e.clientX, e.clientY);
+    game.set_aim(...at);
+    if (tier === "sprout" && e.button === 0) {
+      tapPop(at);
+      requestCast(sproutTapSpell());
+    }
   });
+
+  /** Sprout: which card a tap on the world casts. */
+  function sproutTapSpell(): CardSpell {
+    const room = goals.next?.room ?? -1;
+    if (sproutPick && sproutPick.room === room && cards?.element(sproutPick.spell)) return sproutPick.spell;
+    const need = goals.next?.need;
+    return need && cards?.element(need) ? need : "water";
+  }
+
+  /** A quick ring where the world was tapped, so the tap itself answers. */
+  function tapPop(at: [number, number]): void {
+    const pop = document.createElement("div");
+    pop.className = "tap-pop";
+    const kx = stage.clientWidth / w;
+    const ky = stage.clientHeight / h;
+    pop.style.transform = `translate(${((at[0] - game.view_x()) * kx).toFixed(1)}px, ${(at[1] * ky).toFixed(1)}px)`;
+    goals.layer.append(pop);
+    window.setTimeout(() => pop.remove(), 500);
+  }
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
   // A HUD button clicked with a mouse or finger hands focus back to the game,
@@ -419,11 +466,15 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const [ax, ay] = Array.from(game.shown_aim());
       const [dx, dy] = AIM_NUDGE[k]!;
       game.set_aim(ax! + dx, ay! + dy);
+      // The keyboard owns the aim now: a resting pointer stops tracking
+      // until it really moves again.
+      pointer = null;
       return;
     }
     if (k === "t") {
       // T points at the room's goal (keyboard players have no pointer).
       if (!e.repeat && !game.aim_at_goal()) speech.say(words("Walk closer to the goal first."));
+      else pointer = null;
       remember(e, null);
       return;
     } else if (k === "l") {
@@ -495,6 +546,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       return;
     } else remember(e, null);
     if (["a", "d", "arrowleft", "arrowright", " ", "w", "arrowup"].includes(k)) autoWalk = null;
+    // Latch the press: a tap whose keyup lands before the next sim step
+    // would otherwise never be seen as held, and "jump does nothing".
+    if (!e.repeat && (k === " " || k === "w" || k === "arrowup")) game.press_jump();
     keys.add(k);
   });
   window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
@@ -551,6 +605,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       e.preventDefault();
       autoWalk = null;
       held.add(key);
+      // A quick tap released before the next sim step still jumps.
+      if (key === "jump") game.press_jump();
     });
     const release = () => held.delete(key);
     b.addEventListener("pointerup", release);
@@ -560,6 +616,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     b.addEventListener("click", (e) => {
       if (e.detail !== 0) return;
       held.add(key);
+      if (key === "jump") game.press_jump();
       window.setTimeout(() => held.delete(key), 250);
     });
   }
@@ -1935,6 +1992,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
     updateLift(now, viewX);
     jumpHintTick(now, viewX);
+    placeBullseye(viewX);
     hintTick(now);
     // JSON is only built when something on the HUD actually changed.
     const version = game.state_version();
@@ -1953,15 +2011,21 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     frameParts[3] = frameParts[3]! * 0.95 + (end - tFx) * 0.05;
   }
   // Every tier: pushing against a wall too tall to step up (more than 2
-  // cells) with no progress for 1.5 s brings up a bouncing jump arrow over
-  // the player and pulses the jump button.
-  const JUMP_HINT_MS = 1500;
+  // cells) with no progress for 1 s brings up a bouncing jump picture over
+  // the player and pulses the jump button. Readers also get the word.
+  const JUMP_HINT_MS = 1000;
   const blocked = { since: -1, x: 0 };
   const jumpHint = document.createElement("div");
   jumpHint.id = "jump-hint";
   jumpHint.setAttribute("aria-hidden", "true");
   jumpHint.hidden = true;
   jumpHint.append(icon("jump"));
+  if (tier !== "sprout") {
+    const word = document.createElement("span");
+    word.className = "jump-word";
+    word.textContent = "Jump!";
+    jumpHint.append(word);
+  }
   goals.layer.append(jumpHint);
   function jumpHintTick(now: number, viewX: number): void {
     const pushing =
@@ -2127,6 +2191,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       /** Opens every gate (as free play does), to reach later rooms quickly. */
       openGates: () => game.free_play(),
       aim: () => Array.from(game.aim()),
+      /** Where the reticle (or Sprout's bullseye) is, in world cells. */
+      shownAim: () => Array.from(game.shown_aim()),
+      /** Puts the player at a world column (to start in a later room). */
+      place: (x: number) => game.place_player(x),
       /** Fills the hotbar with typed spells, as a long session would. */
       setSlots: (list: string[]) => {
         slots.splice(STARTER_SLOTS.length, slots.length, ...list.slice(0, MAX_SLOTS - STARTER_SLOTS.length));

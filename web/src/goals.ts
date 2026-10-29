@@ -45,6 +45,8 @@ export class GoalMarkers {
   pointAt = false;
   /** Whether the go arrow is showing (the player should walk first). */
   goVisible = false;
+  /** No gold hint ring (Sprout: the one bullseye already sits on the goal). */
+  pulseOff = false;
 
   constructor(
     private readonly stage: HTMLElement,
@@ -267,7 +269,7 @@ export class GoalMarkers {
     }
 
     // Hint level 1+: a pulsing ring on the target (or on the go arrow).
-    const showPulse = this.hintLevel >= 1 && next !== null && !far;
+    const showPulse = !this.pulseOff && this.hintLevel >= 1 && next !== null && !far;
     this.pulse.hidden = !showPulse;
     if (showPulse && next) {
       const x = (next.x - viewX) * kx;

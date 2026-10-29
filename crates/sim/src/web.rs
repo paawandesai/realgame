@@ -20,6 +20,9 @@ pub struct WebGame {
     /// The camera position the last frame was drawn at, so pointer input maps
     /// to exactly the cells the player sees.
     drawn_view_x: i32,
+    /// Whether the frame includes the white crosshair (Sprout shows a single
+    /// bullseye in the page instead).
+    crosshair: bool,
 }
 
 #[wasm_bindgen]
@@ -33,6 +36,7 @@ impl WebGame {
             cell_data_on: false,
             glow: GlowMap::default(),
             drawn_view_x: 0,
+            crosshair: true,
         }
     }
 
@@ -72,6 +76,17 @@ impl WebGame {
     /// The player pointed somewhere on purpose.
     pub fn set_aim(&mut self, x: i32, y: i32) {
         self.game.set_aim(x, y, true);
+    }
+
+    /// Draws the crosshair into the frame (on by default). Sprout turns it
+    /// off and shows one bullseye at the same point instead.
+    pub fn set_crosshair(&mut self, on: bool) {
+        self.crosshair = on;
+    }
+
+    /// A jump key or button went down: latched until the next tick uses it.
+    pub fn press_jump(&mut self) {
+        self.game.press_jump();
     }
 
     /// Where the reticle is (the goal a spell will fly at before any aiming).
@@ -129,6 +144,20 @@ impl WebGame {
         self.game.restart();
     }
 
+    /// Puts the player at world column `x`, standing above the ground there
+    /// (browser tests start in a later room with it; the page only exposes
+    /// it under `?debug`).
+    pub fn place_player(&mut self, x: f32) {
+        let p = &mut self.game.player;
+        p.x = x;
+        p.y = crate::game::GROUND_Y as f32 - crate::game::PLAYER_H - 4.0;
+        p.prev_x = p.x;
+        p.prev_y = p.y;
+        p.vx = 0.0;
+        p.vy = 0.0;
+        self.game.snap_camera();
+    }
+
     /// Opens every gate and fills the suit (after the trial).
     pub fn free_play(&mut self) {
         self.game.free_play();
@@ -162,6 +191,7 @@ impl WebGame {
             lens,
             alpha,
             self.drawn_view_x,
+            self.crosshair,
         );
         self.pixels.as_ptr()
     }
@@ -217,7 +247,15 @@ fn sky(y: usize) -> [u8; 3] {
     palette::sky(y, HEIGHT)
 }
 
-fn render(game: &Game, out: &mut Frame, glow: &mut GlowMap, lens: bool, alpha: f32, view_x: i32) {
+fn render(
+    game: &Game,
+    out: &mut Frame,
+    glow: &mut GlowMap,
+    lens: bool,
+    alpha: f32,
+    view_x: i32,
+    crosshair: bool,
+) {
     let g = &game.grid;
     glow.reset(VIEW_W, g.h);
     for y in 0..g.h {
@@ -268,7 +306,9 @@ fn render(game: &Game, out: &mut Frame, glow: &mut GlowMap, lens: bool, alpha: f
     }
     draw_torch(game, out, view_x);
     draw_player(game, out, alpha, view_x);
-    draw_aim(game, out, view_x);
+    if crosshair {
+        draw_aim(game, out, view_x);
+    }
 }
 
 /// Which gate's overhead pylon a stone cell belongs to, if any.

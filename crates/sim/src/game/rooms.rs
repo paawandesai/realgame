@@ -509,6 +509,15 @@ impl Game {
         self.flatten(ALCOVE_ROOF.x0 - 2, GATE_X[3]);
         let g = &mut self.grid;
         g.fill_rect(MARSH.x0, MARSH.y0, MARSH.x1, MARSH.y1, Species::Water);
+        // Stone stairs down both banks, as in room 2's pit: a wader holding
+        // walk climbs out (2-cell risers, within the step-up), no jump needed.
+        let rises = (MARSH.y1 - MARSH.y0) / PIT_RISER;
+        for k in 1..rises {
+            let top = MARSH.y0 + k * PIT_RISER;
+            let w = k * PIT_TREAD;
+            g.fill_rect(MARSH.x0, top, MARSH.x0 + w, MARSH.y1, Species::Stone);
+            g.fill_rect(MARSH.x1 - w, top, MARSH.x1, MARSH.y1, Species::Stone);
+        }
         let c = MARSH_CAP;
         g.fill_rect(c.x0, c.y0, c.x1, c.y1, Species::Stone);
         g.fill_rect(c.x0, c.y1, MARSH_POCKET.x0, MARSH_POCKET.y1, Species::Stone);
@@ -1508,12 +1517,14 @@ impl Game {
     }
 }
 
-/// How hot wood must be before it blocks the player.
+/// What the player can't walk through: solids, and wood only while it burns
+/// hot. Crystal is the room-3 battery the player walks in front of (and
+/// touches to charge), never a wall: four playtesters stalled against it.
 pub(super) fn blocks_player(s: Species, t: f32) -> bool {
-    if s == Species::Wood {
-        t >= HOT_WOOD_BLOCKS_C
-    } else {
-        s.is_solid()
+    match s {
+        Species::Wood => t >= HOT_WOOD_BLOCKS_C,
+        Species::Crystal => false,
+        _ => s.is_solid(),
     }
 }
 
@@ -2005,24 +2016,24 @@ mod tests {
     }
 
     /// Walks into room 3 holding right with no jumps, the way a new player
-    /// arrives (stopped by the crystal column), then casts what the goal
-    /// asks for: cards with no aim for Sprout, the tray equation for
-    /// Seedling, a typed formula aimed at the goal marker for Apprentice.
-    /// Returns the ticks it took to open gate 3, if it opened.
+    /// arrives, past the crystal battery (it never blocks the way) and
+    /// stopping beside it, then casts what the goal asks for: cards with no
+    /// aim for Sprout, the tray equation for Seedling, a typed formula aimed
+    /// at the goal marker for Apprentice. Returns the ticks it took to open
+    /// gate 3, if it opened.
     fn room_3_from_arrival(tier: Tier, seed: u64) -> Option<u64> {
         let mut g = Game::new(tier, seed);
         for k in 0..2 {
             g.open_gate(k);
         }
         teleport(&mut g, (GATE_X[1] + GATE_W + 8) as f32);
-        for _ in 0..240 {
-            g.tick(INPUT_RIGHT);
-        }
+        let past = hold_right_to(&mut g, (CRYSTAL.x1 + 4) as f32, 300);
+        assert!(past.is_ok(), "seed {seed}: stuck at {past:?}");
         settle(&mut g, 10);
         let arrived = g.player.x + PLAYER_W / 2.0;
         assert!(
-            arrived < CRYSTAL.x0 as f32,
-            "seed {seed}: walked past the crystal to {arrived}"
+            arrived < POOL.x0 as f32,
+            "seed {seed}: slid into the pool to {arrived}"
         );
         let start = g.ticks;
         for _ in 0..12 {
@@ -2053,6 +2064,65 @@ mod tests {
             settle(&mut g, 40);
         }
         g.rooms.gates_open[2].then(|| g.ticks - start)
+    }
+
+    /// Holding right only from where room 3 starts walks past the crystal
+    /// battery within 5 s: it is not a wall (four playtesters stalled there).
+    #[test]
+    fn holding_right_walks_past_the_crystal_on_every_tier() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for seed in SEEDS {
+                let mut g = Game::new(tier, seed);
+                for k in 0..2 {
+                    g.open_gate(k);
+                }
+                teleport(&mut g, (GATE_X[1] + GATE_W + 8) as f32);
+                let past = hold_right_to(&mut g, (CRYSTAL.x1 + 4) as f32, 300);
+                assert!(past.is_ok(), "{tier:?} seed {seed}: stuck at {past:?}");
+                // It is still there, glowing, to touch for charge.
+                assert_eq!(g.grid.get(CRYSTAL.x0, CRYSTAL.y0), Species::Crystal);
+            }
+        }
+    }
+
+    /// From the room 4 arrival, holding right only (no jump) wades through
+    /// the marsh, climbs its far bank and reaches the burning hedge within
+    /// 10 s, on every tier.
+    #[test]
+    fn room_4_reaches_hedge_from_the_arrival_point_on_every_tier() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for seed in SEEDS {
+                let mut g = Game::new(tier, seed);
+                for k in 0..3 {
+                    g.open_gate(k);
+                }
+                teleport(&mut g, (GATE_X[2] + GATE_W + 8) as f32);
+                let reached = hold_right_to(&mut g, (HEDGE2.x0 - 10) as f32, 600);
+                assert!(
+                    reached.is_ok(),
+                    "{tier:?} seed {seed}: stuck at {reached:?}"
+                );
+            }
+        }
+    }
+
+    /// The marsh has stairs on both banks: walking left out of it works too.
+    #[test]
+    fn the_marsh_can_be_left_westward_by_walking() {
+        let mut g = Game::new(Tier::Sprout, 42);
+        for k in 0..3 {
+            g.open_gate(k);
+        }
+        teleport(&mut g, ((MARSH.x0 + MARSH.x1) / 2) as f32);
+        settle(&mut g, 60);
+        for _ in 0..600 {
+            if g.player.x + PLAYER_W / 2.0 < (MARSH.x0 - 6) as f32 {
+                break;
+            }
+            g.tick(INPUT_LEFT);
+        }
+        let x = g.player.x + PLAYER_W / 2.0;
+        assert!(x < (MARSH.x0 - 6) as f32, "stuck in the marsh at {x}");
     }
 
     #[test]

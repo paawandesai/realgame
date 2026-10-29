@@ -10,7 +10,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 mod rooms;
-pub use rooms::{Goal, Rect, TorchView, DOOR_TOP, GATE_W, GATE_X};
+pub use rooms::{Goal, Rect, TorchView, DOOR_TOP, GATE_W, GATE_X, GROUND_Y};
 
 /// The world is four 320-cell rooms side by side; the camera shows one room's width.
 pub const ROOM_W: usize = 320;
@@ -297,6 +297,9 @@ pub struct Player {
     coyote: u8,
     jump_buffer: u8,
     jump_held: bool,
+    /// A jump pressed since the last tick (latched by `press_jump`), so a tap
+    /// released before the next tick still jumps.
+    jump_tap: bool,
     /// True while rising from a jump the player can still cut short.
     jumping: bool,
     /// Ticks since the jump started, so even a tap rises `MIN_JUMP_TICKS`.
@@ -389,6 +392,7 @@ impl Game {
                 coyote: 0,
                 jump_buffer: 0,
                 jump_held: false,
+                jump_tap: false,
                 jumping: false,
                 jump_ticks: 0,
             },
@@ -556,7 +560,8 @@ impl Game {
         let swimming = self.in_water();
         let grounded = self.on_ground();
         let held = input & INPUT_JUMP != 0;
-        let pressed = held && !self.player.jump_held;
+        let tap = std::mem::take(&mut self.player.jump_tap);
+        let pressed = (held && !self.player.jump_held) || tap;
         self.player.jump_held = held;
 
         // Run: accelerate toward the target speed, stop quickly when let go.
@@ -677,6 +682,13 @@ impl Game {
         self.player.x = self.player.x.clamp(0.0, WORLD_W as f32 - PLAYER_W);
         self.player.y = self.player.y.clamp(0.0, HEIGHT as f32 - PLAYER_H);
         self.player.grounded = self.on_ground();
+    }
+
+    /// A jump key went down: the next tick jumps (when the player can) even
+    /// if the key is already up again by then, so a quick tap never gets lost
+    /// between two ticks.
+    pub fn press_jump(&mut self) {
+        self.player.jump_tap = true;
     }
 
     /// Where spells leave the gauntlet.
@@ -3358,6 +3370,44 @@ mod feel {
             top = top.min(g.player.y);
         }
         assert!(y0 - top > 16.0, "tap rose only {}", y0 - top);
+    }
+
+    #[test]
+    fn one_tick_with_jump_pressed_then_released_jumps() {
+        let mut g = arena();
+        g.tick(INPUT_JUMP);
+        assert!(g.player.vy < 0.0, "vy {}", g.player.vy);
+        assert!(g.player.vy <= JUMP_V + GRAVITY + 1e-4);
+        g.tick(0);
+        assert!(g.player.vy < 0.0, "released at once: vy {}", g.player.vy);
+    }
+
+    #[test]
+    fn a_jump_tapped_and_released_between_ticks_still_jumps() {
+        // Key down and up again before the sim stepped: the held bit never
+        // reaches a tick, but the latched press does.
+        let mut g = arena();
+        let y0 = g.player.y;
+        g.press_jump();
+        g.tick(INPUT_RIGHT);
+        assert!(g.player.vy < 0.0, "vy {}", g.player.vy);
+        let mut top = y0;
+        for _ in 0..40 {
+            g.tick(INPUT_RIGHT);
+            top = top.min(g.player.y);
+        }
+        assert!(y0 - top > 10.0, "rose only {}", y0 - top);
+        // The latch is used up: no second jump without a second press.
+        settle_ground(&mut g);
+        g.tick(INPUT_RIGHT);
+        assert!(g.player.vy >= 0.0, "jumped again: vy {}", g.player.vy);
+    }
+
+    fn settle_ground(g: &mut Game) {
+        for _ in 0..80 {
+            g.tick(0);
+        }
+        assert!(g.player.grounded);
     }
 
     #[test]
