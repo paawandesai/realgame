@@ -1,0 +1,19 @@
+# Cloudflare Pages project for Alchemist's Trial. Read by `wrangler pages
+# deploy`, `wrangler pages dev`, and by Cloudflare's own builds when the
+# GitHub repo is connected in the dashboard. See docs/DEPLOY.md.
+name = "realgame"
+pages_build_output_dir = "web/dist"
+compatibility_date = "2026-10-01"
+
+# Anonymous play events (docs/ANALYTICS.md). `scripts/deploy.sh` creates the
+# database on first run and writes its id here; the id is not a secret, so
+# commit it. The all-zero id below works for local dev (`npm run dev:pages`).
+[[d1_databases]]
+binding = "DB"
+database_name = "realgame-analytics"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# DASHBOARD_TOKEN is a secret: never put it in this file. Set it with
+#   npx wrangler pages secret put DASHBOARD_TOKEN --project-name realgame
+# and, for local dev, in .dev.vars (git-ignored).

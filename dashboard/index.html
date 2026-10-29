@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Play analytics</title>
+    <link rel="stylesheet" href="/dashboard/dashboard.css" />
+    <script type="module" src="/dashboard/dashboard.js"></script>
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>Play analytics</h1>
+        <p class="muted">Alchemist's Trial · anonymous counts · days are UTC</p>
+      </div>
+      <div class="actions" id="actions" hidden>
+        <button type="button" id="refresh">Refresh</button>
+        <button type="button" id="forget">Forget token</button>
+      </div>
+    </header>
+
+    <main>
+      <form id="login" class="card login" hidden>
+        <h2>Dashboard token</h2>
+        <p class="muted">
+          Paste the <code>DASHBOARD_TOKEN</code> set on the Cloudflare Pages project. It is kept only in this tab
+          (sessionStorage) and is forgotten when the tab closes.
+        </p>
+        <label for="token">Token</label>
+        <input id="token" name="token" type="password" autocomplete="off" spellcheck="false" required minlength="32" />
+        <button type="submit" class="primary">Open dashboard</button>
+      </form>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <div id="report" hidden>
+        <section class="kpis" aria-label="Headline numbers">
+          <div class="kpi"><span class="kpi-label">Players today</span><span class="kpi-value" id="kpi-today">0</span><span class="kpi-sub" id="kpi-today-sub"></span></div>
+          <div class="kpi"><span class="kpi-label">Sessions today</span><span class="kpi-value" id="kpi-sessions">0</span><span class="kpi-sub" id="kpi-sessions-sub"></span></div>
+          <div class="kpi"><span class="kpi-label">Player-days, 30 days</span><span class="kpi-value" id="kpi-playerdays">0</span><span class="kpi-sub">one device on one day</span></div>
+          <div class="kpi"><span class="kpi-label">Trials finished, 30 days</span><span class="kpi-value" id="kpi-trials">0</span><span class="kpi-sub" id="kpi-trials-sub"></span></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Daily unique players</h2>
+            <div class="legend" id="legend-daily"></div>
+          </div>
+          <div class="chart" id="chart-daily"></div>
+        </section>
+
+        <div class="grid2">
+          <section class="card">
+            <h2>Age bands <span class="muted">player-days, 30 days</span></h2>
+            <div class="chart" id="chart-bands"></div>
+          </section>
+          <section class="card">
+            <h2>Longest session <span class="muted">per player-day, 30 days</span></h2>
+            <div class="chart" id="chart-durations"></div>
+          </section>
+        </div>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Funnel <span class="muted">player-days, 30 days</span></h2>
+            <label class="filter">Band
+              <select id="funnel-band">
+                <option value="all">All bands</option>
+                <option value="sprout">Sprout (4-7)</option>
+                <option value="seedling">Seedling (8-10)</option>
+                <option value="apprentice">Apprentice (11+)</option>
+              </select>
+            </label>
+          </div>
+          <div class="chart" id="chart-funnel"></div>
+        </section>
+
+        <section class="card">
+          <details>
+            <summary>Table view</summary>
+            <div class="table-wrap">
+              <table id="table-daily">
+                <thead>
+                  <tr><th scope="col">Day (UTC)</th><th scope="col">Players</th><th scope="col">Sessions</th><th scope="col">Sprout</th><th scope="col">Seedling</th><th scope="col">Apprentice</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </details>
+        </section>
+
+        <p class="muted small" id="footnote"></p>
+      </div>
+    </main>
+    <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  </body>
+</html>

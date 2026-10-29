@@ -8,7 +8,7 @@ How this repo stays safe, capable and efficient, and which published standard ea
 | --- | --- | --- |
 | [NIST SP 800-218, Secure Software Development Framework (SSDF) v1.1](https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-218.pdf) | Four practice groups: prepare the organisation, protect the software, produce well-secured software, respond to vulnerabilities | The checklist below is organised by these groups |
 | [OWASP Application Security Verification Standard (ASVS) 5.0](https://softwaremill.com/whats-new-in-asvs-5-0/) | Testable security requirements for web apps, in three levels | Target Level 1 now; Level 2 before student accounts launch |
-| [Amended COPPA Rule](https://bbbprograms.org/media/insights/blog/coppa-amended) (compliance date April 22, 2026) | Children's data in the US: written security program, retention policy, named third parties | Collect nothing until accounts exist; then meet every requirement before launch |
+| [Amended COPPA Rule](https://bbbprograms.org/media/insights/blog/coppa-amended) (compliance date April 22, 2026) | Children's data in the US: written security program, retention policy, named third parties | Collect only anonymous play counts with no identifier that lasts beyond a day (`docs/ANALYTICS.md`), with a written 90-day retention policy; meet every remaining requirement before accounts launch |
 | [National Data Privacy Agreement (NDPA)](https://fpf.org/blog/the-first-national-model-student-data-privacy-agreement-launches/) | Model contract US districts sign with edtech vendors | Design so we can sign it without exceptions |
 
 ## Practices, by SSDF group
@@ -21,7 +21,7 @@ How this repo stays safe, capable and efficient, and which published standard ea
 ### Protect the software (PS)
 
 - All changes go through pull requests with CI; `main` should have branch protection with required checks and one review (a repository setting).
-- Dependencies are pinned by lockfiles (`Cargo.lock`, `web/package-lock.json`) and installed with `--locked` / `npm ci`.
+- Dependencies are pinned by lockfiles (`Cargo.lock`, `web/package-lock.json`, and the root `package-lock.json` for repo tooling, including the exact `wrangler` version used to deploy) and installed with `--locked` / `npm ci`.
 - Dependabot opens weekly update PRs for Cargo, npm and GitHub Actions.
 - CI runs with read-only permissions.
 
@@ -36,6 +36,8 @@ How this repo stays safe, capable and efficient, and which published standard ea
 - **Minimal attack surface:** no framework, no third-party runtime code, no `innerHTML` (all text goes through `textContent`), and no network calls after load.
 - **Browser hardening:** a strict Content Security Policy (`script-src 'self' 'wasm-unsafe-eval'`, no inline scripts, `frame-ancestors 'none'`) plus `nosniff`, `no-referrer`, HSTS and a locked-down Permissions-Policy, in `web/public/_headers`.
 - **Supply-chain checks:** `cargo-deny` (RustSec advisories, licence allow-list, no unknown registries or git sources) and `npm audit` in CI.
+- **Analytics data flow (`docs/ANALYTICS.md`):** the one exception to "no network calls after load" above. The game posts at most a few events per session to same-origin `/api/event` (fire-and-forget, and nothing at all under Do Not Track or Global Privacy Control), so the CSP keeps `connect-src 'self'`. A Cloudflare Pages Function accepts only four allow-listed event shapes (fixed event types, the three age bands, an integer room 0-15, fixed duration buckets, a 32-hex daily id), rejects cross-site posts and bodies over 512 bytes, caps each daily id at 120 events a day, and stores the UTC day, the daily id, the type, the band and the room or duration in D1, never an IP address, user agent, country or free text. The table repeats those rules as `CHECK` constraints. Rows older than 90 days are deleted on every write and every stats read. The dashboard reads only aggregates from `/api/stats`, which requires `DASHBOARD_TOKEN` (constant-time comparison, fails closed when unset).
+- **Analytics tests (`npm test`, root):** `node:test` with no extra dependencies runs the real handlers and the real migration against `node:sqlite`: every malformed payload is rejected and not stored, the daily cap and the 90-day purge hold, the token check fails closed, the aggregates match hand-computed numbers, and the client's daily id rotates at UTC midnight and survives blocked storage. CI's `analytics` job also applies the migration to a local D1 with wrangler.
 
 ### Respond to vulnerabilities (RV)
 
@@ -56,5 +58,5 @@ School networks and low-end Chromebooks set these limits. CI enforces the first 
 
 - No student emails, real names, photos, voice or location. Students join with a class code and a nickname.
 - No chat with strangers. Any future chat is preset phrases or class-only, with moderation.
-- No ads, no third-party analytics or trackers. Product analytics stay in our own database.
+- No ads, no third-party analytics or trackers. Product analytics stay in our own database, are anonymous, and follow `docs/ANALYTICS.md`.
 - Every new data field needs a written purpose and a deletion date before it ships.
