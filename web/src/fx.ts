@@ -217,6 +217,10 @@ export class FxLayer {
    * card, Mote's caption, the objective banner). Hidden ones are skipped. */
   avoid: () => (HTMLElement | null)[] = () => [];
 
+  /** Apprentice: whether a cast card may show the balanced fix yet (the
+   * hint ladder's last rung). Other tiers always may. */
+  fixAllowed: () => boolean = () => true;
+
   /** Another world-anchored layer (goal markers) that moves with the world. */
   follow(el: HTMLElement): void {
     this.shaken.push(el);
@@ -869,7 +873,7 @@ export class FxLayer {
       el.append(note);
     }
     let life = LABEL_MS;
-    if (out.suggestion) {
+    if (out.suggestion && (this.tier !== "apprentice" || this.fixAllowed())) {
       const fix = document.createElement("button");
       fix.type = "button";
       // An arrow pointing at nothing gets a spell to use, not a fix.

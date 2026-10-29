@@ -62,6 +62,8 @@ export interface Goal {
   battery: [number, number] | null;
   /** The goal in ordered steps, each ticked when done (rooms 3 and 4). */
   steps: { text: string; done: boolean; pic: "bubbles" | "trap" | "boom" | "fire" | "bowl" | "methane"; bonus: boolean }[] | null;
+  /** Room 3's gauge: [H2 trapped, H2 made, O2 made, H2 needed], in cells. */
+  gas?: [number, number, number, number] | null;
 }
 
 export interface TorchView {

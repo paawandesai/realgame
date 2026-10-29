@@ -77,6 +77,9 @@ const ROOF: Rect = Rect::new(722, 104, 794, 108);
 pub const TRAP: Rect = Rect::new(726, 108, 790, 120);
 /// A blast counts once this much hydrogen has been trapped...
 const TRAP_MIN_H2: u32 = 4;
+/// Apprentice fills the trap over 2-3 split casts (one split puts 6 H2
+/// cells in the pocket), so the 2:1 gauge visibly climbs before the boom.
+const TRAP_MIN_H2_APPRENTICE: u32 = 10;
 /// ...and burns hot enough to be hydrogen (it burns at 2000 C in air, 2800 C
 /// in oxygen; a boom on its own peaks near 1100 C).
 const H2_BLAST_C: f32 = 1500.0;
@@ -211,6 +214,13 @@ pub struct Rooms {
     pub ice_heated: bool,
     pub torch: Torch,
     pub trap_h2: u32,
+    /// Oxygen cells under the overhang.
+    pub trap_o2: u32,
+    /// Hydrogen and oxygen cells split from water in room 3 so far, for the
+    /// gauge: always two hydrogen for each oxygen. (Oxygen is denser than
+    /// air, so it does not stay under the roof the way hydrogen does.)
+    pub made_h2: u32,
+    pub made_o2: u32,
     pub trap_peak: u32,
     /// The player split water in room 3 (step 1 of its goal).
     pub gas_made: bool,
@@ -246,6 +256,9 @@ impl Rooms {
                 wet: 0,
             },
             trap_h2: 0,
+            trap_o2: 0,
+            made_h2: 0,
+            made_o2: 0,
             trap_peak: 0,
             gas_made: false,
             boom_prompted: false,
@@ -280,6 +293,9 @@ impl Rooms {
             }
             2 => {
                 self.trap_h2 = 0;
+                self.trap_o2 = 0;
+                self.made_h2 = 0;
+                self.made_o2 = 0;
                 self.trap_peak = 0;
                 self.gas_made = false;
                 self.boom_prompted = false;
@@ -328,6 +344,9 @@ pub struct Goal {
     pub battery: Option<[i32; 2]>,
     /// The goal in ordered steps, each ticked when done (rooms 3 and 4).
     pub steps: Option<Vec<Step>>,
+    /// Room 3's gauge: `[H2 cells trapped, H2 cells made, O2 cells made,
+    /// H2 cells needed]`, so the HUD can show both gases filling 2:1.
+    pub gas: Option<[u32; 4]>,
 }
 
 /// One step of a room's goal, as the objective banner lists it.
@@ -397,17 +416,17 @@ impl Game {
             1 => self.line(
                 "Melt the ice!",
                 "Melt the ice wall with heat.",
-                "Melt the ice wall: cast 2H2 + O2 -> 2H2O at it, or carry a lit torch.",
+                "Melt the ice: you need lots of heat. Your suit holds H2 and O2 (or carry a lit torch).",
             ),
             2 => self.line(
                 "Make bubbles, then boom!",
                 "Split water, trap the gas, light it.",
-                "Trap the gas under the stone roof, then light it.",
+                "Split pool water into its two gases with the crystal's power, trap them under the stone roof, then light them.",
             ),
             _ => self.line(
                 "Put out fire, light bowl!",
                 "Put out the hedge, light the brazier.",
-                "Put out the hedge with H2O or CO2, then light the brazier by the door.",
+                "Put out the hedge (your suit holds H2O and CO2), then light the brazier by the door: it needs heat.",
             ),
         }
     }
@@ -713,7 +732,7 @@ impl Game {
             1 => self.line(
                 "Boom makes heat! Ice melts!",
                 "Boom makes HEAT, so ice melts!",
-                "An ice wall. Heat melts ice: cast boom (2H2 + O2 -> 2H2O) at it, or light the torch and carry it there.",
+                "An ice wall. Heat melts ice: write a reaction that gives out lots of heat. Your suit holds H2 and O2. Or light the torch and carry it there.",
             ),
             2 => self.line(
                 "Splash the pool! Make bubbles!",
@@ -1032,8 +1051,9 @@ impl Game {
         // Room 3: hydrogen collected under the overhang, then burned.
         let h2 = self.count_in(TRAP, Species::H2);
         self.rooms.trap_h2 = h2;
+        self.rooms.trap_o2 = self.count_in(TRAP, Species::O2);
         self.rooms.trap_peak = self.rooms.trap_peak.max(h2);
-        if !self.rooms.gates_open[2] && self.rooms.trap_peak >= TRAP_MIN_H2 {
+        if !self.rooms.gates_open[2] && self.rooms.trap_peak >= self.trap_min_h2() {
             let blast = TRAP.grow(4).cells().any(|(x, y)| {
                 !self.grid.get(x, y).is_solid() && self.grid.temp_at(x, y) >= H2_BLAST_C
             });
@@ -1041,7 +1061,7 @@ impl Game {
                 let line = self.line(
                     "Bang! The door opened!",
                     "Bang! Trapped hydrogen burned. The door opened!",
-                    "Bang! The trapped hydrogen burned with the oxygen and blew the door open. 2H2 + O2 -> 2H2O.",
+                    "Bang! The trapped hydrogen burned with the oxygen back into water and blew the door open.",
                 );
                 self.say(line);
             }
@@ -1056,7 +1076,7 @@ impl Game {
             let line = self.line(
                 "Now Boom the gas!",
                 "Gas trapped! Now boom the gas!",
-                "The gas is trapped. Now light it: 2H2 + O2 -> 2H2O.",
+                "The gas is trapped. Now light it: hydrogen burns in oxygen.",
             );
             self.say(line);
         }
@@ -1095,7 +1115,7 @@ impl Game {
                     let line = self.line(
                         "",
                         "Bonus star! Methane lit the brazier.",
-                        "Bonus star: methane fuel lit it. CH4 + 2O2 -> CO2 + 2H2O, the same reaction as a gas stove.",
+                        "Bonus star: methane fuel lit it, the same reaction as a gas stove (see the Grimoire).",
                     );
                     self.say(line);
                 }
@@ -1286,6 +1306,8 @@ impl Game {
                 let s = if k % 3 == 2 { Species::O2 } else { Species::H2 };
                 self.grid.set(x, y, s, 18.0);
             }
+            self.rooms.made_h2 += 2 * GAS_CELLS_PER_MOL;
+            self.rooms.made_o2 += GAS_CELLS_PER_MOL;
             made += 1;
         }
         if made > 0 {
@@ -1311,7 +1333,17 @@ impl Game {
 
     /// Enough hydrogen is trapped under the overhang to light.
     pub fn trap_ready(&self) -> bool {
-        self.rooms.trap_h2 >= TRAP_MIN_H2
+        self.rooms.trap_h2 >= self.trap_min_h2()
+    }
+
+    /// Hydrogen cells the trap needs before it can be lit: one split cast
+    /// for Sprout and Seedling, two or three for Apprentice.
+    pub fn trap_min_h2(&self) -> u32 {
+        if self.tier == Tier::Apprentice {
+            TRAP_MIN_H2_APPRENTICE
+        } else {
+            TRAP_MIN_H2
+        }
     }
 
     /// How full the gas trap is, 0..=1, where 1 means ready to light (shown
@@ -1320,7 +1352,7 @@ impl Game {
         if self.rooms.gates_open[2] {
             return 1.0;
         }
-        (self.rooms.trap_h2 as f32 / TRAP_MIN_H2 as f32).min(1.0)
+        (self.rooms.trap_h2 as f32 / self.trap_min_h2() as f32).min(1.0)
     }
 
     /// The hydrogen and oxygen cells in view, for the renderer's glowing
@@ -1367,6 +1399,7 @@ impl Game {
                 area: None,
                 battery: None,
                 steps: None,
+                gas: None,
             },
             Goal {
                 room: 2,
@@ -1388,6 +1421,7 @@ impl Game {
                 area: None,
                 battery: None,
                 steps: None,
+                gas: None,
             },
             Goal {
                 room: 3,
@@ -1398,7 +1432,7 @@ impl Game {
                 // How full the gas trap is (0..=1; 1 = ready to light).
                 meter: Some(self.trap_fill()),
                 // Make the gas first, then light it.
-                need: if r.trap_h2 >= TRAP_MIN_H2 {
+                need: if r.trap_h2 >= self.trap_min_h2() {
                     "boom"
                 } else {
                     "split"
@@ -1412,7 +1446,7 @@ impl Game {
                         text: self.line(
                             "Bubbles!",
                             "1. Split water.",
-                            "1. Split water: 2H2O -> 2H2 + O2.",
+                            "1. Split water into H2 and O2.",
                         ),
                         done: r.gas_made || self.trap_ready() || r.gates_open[2],
                         pic: "bubbles",
@@ -1432,13 +1466,14 @@ impl Game {
                         text: self.line(
                             "Boom the gas!",
                             "3. Light it with boom.",
-                            "3. Light it: 2H2 + O2 -> 2H2O.",
+                            "3. Light the trapped gas.",
                         ),
                         done: r.gates_open[2],
                         pic: "boom",
                         bonus: false,
                     },
                 ]),
+                gas: Some([r.trap_h2, r.made_h2, r.made_o2, self.trap_min_h2()]),
             },
             Goal {
                 room: 4,
@@ -1455,6 +1490,7 @@ impl Game {
                 area: None,
                 battery: None,
                 steps: Some(self.room_4_steps()),
+                gas: None,
             },
         ]
     }
@@ -1478,7 +1514,7 @@ impl Game {
                 text: self.line(
                     "Light the bowl!",
                     "2. Light the brazier.",
-                    "2. Light the brazier: 2H2 + O2 -> 2H2O.",
+                    "2. Light the brazier with heat.",
                 ),
                 done: r.brazier_lit,
                 pic: "bowl",
@@ -1490,7 +1526,7 @@ impl Game {
                 text: self.line(
                     "",
                     "Bonus: light it with methane fireball.",
-                    "Bonus: light it with CH4 + 2O2 -> CO2 + 2H2O.",
+                    "Bonus: light it with methane (CH4) from the marsh.",
                 ),
                 done: r.fireball_bonus,
                 pic: "methane",
@@ -1980,16 +2016,29 @@ mod tests {
         for seed in SEEDS {
             let mut g = Game::new(Tier::Apprentice, seed);
             teleport(&mut g, 684.0);
-            let out = cast_at(&mut g, "split", TRAP.centre());
-            assert_eq!(out.outcome, Outcome::Full);
-            let (h, o) = (out.products["H2"], out.products["O2"]);
-            assert_eq!(h, 2 * o);
-            settle(&mut g, 30);
+            // Apprentice fills the trap over two or three split casts: not
+            // full after the first, full by the third.
+            let mut casts = 0;
+            while !g.trap_ready() && casts < 3 {
+                let out = cast_at(&mut g, "split", TRAP.centre());
+                assert_eq!(out.outcome, Outcome::Full);
+                let (h, o) = (out.products["H2"], out.products["O2"]);
+                assert_eq!(h, 2 * o);
+                settle(&mut g, 30);
+                casts += 1;
+                if casts == 1 {
+                    assert!(!g.trap_ready(), "seed {seed}: full after one split");
+                    assert!(g.trap_fill() < 1.0);
+                }
+            }
             assert!(
-                g.rooms.trap_h2 >= TRAP_MIN_H2,
-                "seed {seed}: {} trapped",
+                g.rooms.trap_h2 >= g.trap_min_h2(),
+                "seed {seed}: {} trapped after {casts} splits",
                 g.rooms.trap_h2
             );
+            // The gauge shows both gases made, exactly two hydrogen per oxygen.
+            let gas = g.goals()[2].gas.expect("room 3 gauge");
+            assert!(gas[2] > 0 && gas[1] == 2 * gas[2], "seed {seed}: {gas:?}");
             g.take_fx();
             assert_ne!(
                 cast_at(&mut g, "boom", TRAP.centre()).outcome,
@@ -2056,6 +2105,21 @@ mod tests {
                 let goal = g.goals()[2].clone();
                 let fill = goal.meter.unwrap();
                 assert!(fill > 0.0 && fill <= 1.0, "{tier:?} seed {seed}: {fill}");
+                if tier == Tier::Apprentice {
+                    // Apprentice needs two or three splits to fill the trap.
+                    assert!(fill < 1.0, "{tier:?} seed {seed}: full after one");
+                    for _ in 0..2 {
+                        if g.trap_ready() {
+                            break;
+                        }
+                        g.set_aim(goal.x, goal.y, true);
+                        assert_eq!(g.cast("split").outcome, Outcome::Full);
+                        land(&mut g);
+                        settle(&mut g, 30);
+                    }
+                }
+                let goal = g.goals()[2].clone();
+                let fill = goal.meter.unwrap();
                 assert!(g.trap_ready(), "{tier:?} seed {seed}: not ready");
                 assert_eq!(fill, 1.0);
                 let steps = goal.steps.unwrap();
@@ -2766,8 +2830,65 @@ mod restart_tests {
         let g = Game::new(Tier::Apprentice, 42);
         assert_eq!(
             g.goals()[2].text,
-            "Trap the gas under the stone roof, then light it."
+            "Split pool water into its two gases with the crystal's power, trap them under the stone roof, then light them."
         );
+    }
+
+    /// "2H2", "4 O2": a number written in front of a formula.
+    fn has_coefficient(text: &str) -> bool {
+        let b = text.as_bytes();
+        (0..b.len()).any(|i| {
+            let starts = i == 0 || !b[i - 1].is_ascii_alphanumeric();
+            let digits = b[i..].iter().take_while(|c| c.is_ascii_digit()).count();
+            let rest = &b[i + digits..];
+            let rest = rest.strip_prefix(b" ").unwrap_or(rest);
+            starts && digits > 0 && rest.first().is_some_and(|c| c.is_ascii_uppercase())
+        })
+    }
+
+    /// Apprentice goals in rooms 2-4 say what to do and what the suit holds,
+    /// never the equation: that comes only from the hint ladder.
+    #[test]
+    fn apprentice_goals_in_rooms_2_to_4_never_print_the_equation() {
+        assert!(has_coefficient("cast 2H2 + O2") && has_coefficient("4 O2"));
+        assert!(!has_coefficient("Room 2: H2 and O2"));
+        let mut g = Game::new(Tier::Apprentice, 42);
+        let mut texts: Vec<String> = vec![];
+        for _ in 0..2 {
+            for goal in &g.goals()[1..] {
+                texts.push(goal.text.into());
+                for st in goal.steps.iter().flatten() {
+                    texts.push(st.text.into());
+                }
+            }
+            // Walk into each room for its entry line, and fill the trap
+            // for the "now light it" line.
+            for k in 1..ROOMS {
+                g.open_gate(k - 1);
+                teleport(&mut g, (GATE_X[k - 1] + GATE_W + 12) as f32);
+                if k == 2 {
+                    g.grid
+                        .fill_rect(TRAP.x0 + 6, TRAP.y0, TRAP.x0 + 30, TRAP.y0 + 2, Species::H2);
+                    settle(&mut g, 2);
+                }
+            }
+        }
+        texts.extend(g.state().messages);
+        // The entry lines and the "light it" prompt were really said.
+        assert!(
+            texts.iter().any(|t| t.starts_with("An ice wall")),
+            "{texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t.contains("Now light it")),
+            "{texts:?}"
+        );
+        for t in &texts {
+            assert!(
+                !t.contains("->") && !t.contains('→') && !has_coefficient(t),
+                "equation in: {t}"
+            );
+        }
     }
 
     #[test]
@@ -2983,8 +3104,8 @@ mod full_run {
 
     /// A scripted play-through of all four rooms with real movement input,
     /// the way a player would: douse, melt, split and light, walk on.
-    fn play(seed: u64) -> Game {
-        let mut g = Game::new(Tier::Seedling, seed);
+    fn play(tier: Tier, seed: u64) -> Game {
+        let mut g = Game::new(tier, seed);
         settle(&mut g, 30);
         // Room 1: three water casts at the hedge.
         assert!(
@@ -3011,8 +3132,18 @@ mod full_run {
         let mut tries = 0;
         while !g.rooms.gates_open[2] && tries < 6 {
             tries += 1;
-            cast_at(&mut g, "split", TRAP.centre());
-            settle(&mut g, 30);
+            // Split until the trap is full (one cast, or two or three for
+            // Apprentice), then light it.
+            for _ in 0..3 {
+                while g.jars["H2O"] < 2 {
+                    settle(&mut g, 10);
+                }
+                cast_at(&mut g, "split", TRAP.centre());
+                settle(&mut g, 30);
+                if g.trap_ready() {
+                    break;
+                }
+            }
             while g.jars["H2"] < 2 || g.jars["O2"] < 1 {
                 settle(&mut g, 10);
             }
@@ -3046,7 +3177,18 @@ mod full_run {
     #[test]
     fn the_trial_can_be_finished() {
         for seed in SEEDS {
-            let g = play(seed);
+            let g = play(Tier::Seedling, seed);
+            assert!(g.trial_complete(), "seed {seed}: brazier not lit");
+            assert!(g.rooms.gates_open.iter().all(|&o| o));
+            assert!(g.ticks < 20_000, "seed {seed}: took {} ticks", g.ticks);
+        }
+    }
+
+    /// Apprentice too: the trap needs more splits, but all four rooms finish.
+    #[test]
+    fn the_trial_can_be_finished_at_apprentice() {
+        for seed in SEEDS {
+            let g = play(Tier::Apprentice, seed);
             assert!(g.trial_complete(), "seed {seed}: brazier not lit");
             assert!(g.rooms.gates_open.iter().all(|&o| o));
             assert!(g.ticks < 20_000, "seed {seed}: took {} ticks", g.ticks);

@@ -40,6 +40,8 @@ export class GoalMarkers {
   /** Room 3: how full the gas trap is, as a bar and "gas 3/4". */
   private readonly trapMeter: HTMLElement;
   private readonly trapFill: HTMLElement;
+  /** The oxygen row under the hydrogen fill: half as long, 2:1. */
+  private readonly trapO2: HTMLElement;
   private readonly trapText: HTMLElement;
   /** Show a bouncing pointer on the next goal (casts are not moving it on). */
   pointAt = false;
@@ -105,8 +107,13 @@ export class GoalMarkers {
     this.trapMeter.hidden = true;
     const bar = document.createElement("div");
     bar.className = "trap-bar";
+    // Two rows on one scale: hydrogen on top, oxygen below, so the 2:1
+    // the split makes shows as one bar twice the length of the other.
     this.trapFill = document.createElement("div");
-    bar.append(this.trapFill);
+    this.trapFill.className = "trap-h2";
+    this.trapO2 = document.createElement("div");
+    this.trapO2.className = "trap-o2";
+    bar.append(this.trapFill, this.trapO2);
     this.trapText = document.createElement("span");
     this.trapText.className = "trap-text";
     this.trapMeter.append(icon("bubbles"), bar, this.trapText);
@@ -251,8 +258,13 @@ export class GoalMarkers {
     if (gas && area) {
       const fill = Math.max(0, Math.min(1, gas.meter ?? 0));
       const quarters = Math.round(fill * 4);
+      // Hydrogen trapped fills the top row; oxygen sits under it in the
+      // ratio the splits made it (always 2:1), so the O₂ row is half.
+      const [, madeH2, madeO2, need] = gas.gas ?? [0, 0, 0, 0];
+      const ratio = madeH2 > 0 ? madeO2 / madeH2 : 0.5;
       this.trapFill.style.width = `${Math.round(fill * 100)}%`;
-      const text = fill >= 1 ? "Full! Boom it!" : `gas ${quarters}/4`;
+      this.trapO2.style.width = `${Math.round(fill * ratio * 100)}%`;
+      const text = fill >= 1 ? "Full! Boom it!" : need > 0 && madeH2 > 0 ? `H₂ ${madeH2} : O₂ ${madeO2}` : `gas ${quarters}/4`;
       const key = `${this.pictureOnly}:${text}`;
       if (key !== this.trapKey) {
         this.trapKey = key;

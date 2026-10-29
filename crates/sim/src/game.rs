@@ -2247,6 +2247,10 @@ impl Game {
                 // Exactly two hydrogen cells for each oxygen cell, like the equation.
                 self.spawn_blob_at(at, Species::H2, n("H2") * GAS_CELLS_PER_MOL, 15.0);
                 self.spawn_blob_at(at, Species::O2, n("O2") * GAS_CELLS_PER_MOL, 15.0);
+                if at.0 as usize / ROOM_W == 2 {
+                    self.rooms.made_h2 += n("H2") * GAS_CELLS_PER_MOL;
+                    self.rooms.made_o2 += n("O2") * GAS_CELLS_PER_MOL;
+                }
                 extra.push("bubble");
             }
             _ => {

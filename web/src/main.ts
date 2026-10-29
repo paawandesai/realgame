@@ -51,6 +51,32 @@ const SPELLS: Record<Tier, Record<Goal["need"], string>> = {
   apprentice: { water: "H2O", boom: "2H2 + O2 -> 2H2O", split: "2H2O -> 2H2 + O2" },
 };
 
+/** Apprentice hint rung 1: what goes in ("H₂ + O₂"), no numbers. */
+function reactantsOf(spell: string): string {
+  const left = spell.split("->")[0] ?? spell;
+  return prettyFormula(
+    left
+      .split("+")
+      .map((p) => p.trim().replace(/^\d+/, ""))
+      .join(" and "),
+  );
+}
+
+/** Apprentice hint rung 2: the skeleton with blanks for the numbers. */
+function skeletonOf(spell: string): string {
+  return prettyFormula(
+    spell
+      .split("->")
+      .map((side) =>
+        side
+          .split("+")
+          .map((p) => `_${p.trim().replace(/^\d+/, "")}`)
+          .join(" + "),
+      )
+      .join(" -> "),
+  );
+}
+
 /** Seedling: what the tile tray holds on entering each room. Room 2 starts
  * unbalanced on purpose (balancing it is the lesson), and room 3 the same
  * way for splitting water. */
@@ -899,44 +925,65 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   // ----------------------------------------------------- per-room challenge
 
   /** Apprentice: each room's casts, energy and wasted atoms (all from this run of the seed). */
-  const challenge = { room: 0, casts: 0, kj: 0, kjIn: 0, wasted: 0 };
+  const challenge = { room: 0, casts: 0, kj: 0, kjIn: 0, wasted: 0, hints: 0, unbalanced: false, firstTry: false };
+  /** Apprentice medals per room (0-3), for the end screen. */
+  const medals: string[] = [];
   const challengeEl = byId("challenge");
   /** Casts for a gold star in each room: hedge (water), ice (one boom),
-   * trap (split, then boom), marsh (put out the hedge, light the brazier). */
-  const GOLD_CASTS = [2, 1, 2, 3];
+   * trap (two splits, then boom), marsh (put out the hedge, light the brazier). */
+  const GOLD_CASTS = [2, 1, 3, 3];
   /** How long the room score stays up (it also goes on the next room). */
   const SCORE_MS = 4000;
   function scoreCast(r: CastOutcome): void {
     if (tier !== "apprentice" || r.outcome === "unknown") return;
+    // Gold needs the room's first cast to be a full, balanced one.
+    if (challenge.casts === 0) challenge.firstTry = r.outcome === "full" && r.imbalance.length === 0;
     challenge.casts++;
     // Heat given out and energy taken in are kept apart: they are different things.
     if (r.dh_kj < 0) challenge.kj -= r.dh_kj;
     else challenge.kjIn += r.dh_kj;
     for (const n of Object.values(r.leftovers)) challenge.wasted += n;
   }
+  /**
+   * The room's medal: gold at par with a balanced first cast, no unbalanced
+   * cast and no full-equation hint (rung 3); silver within two casts of par
+   * or with help short of the full equation; bronze otherwise.
+   */
+  function medalFor(room: number): { name: "gold" | "silver" | "bronze"; text: string } {
+    const n = challenge.casts;
+    const par = GOLD_CASTS[room] ?? 1;
+    const clean = challenge.firstTry && !challenge.unbalanced && challenge.hints < 3;
+    if (n <= par && clean) return { name: "gold", text: "★ gold" };
+    if (n <= par + 2 && challenge.hints < 3) return { name: "silver", text: "☆ silver" };
+    return { name: "bronze", text: "◇ bronze" };
+  }
+  function resetChallenge(): void {
+    challenge.casts = challenge.kj = challenge.kjIn = challenge.wasted = challenge.hints = 0;
+    challenge.unbalanced = false;
+    challenge.firstTry = false;
+  }
   function roomCleared(room: number): void {
-    if (tier !== "apprentice" || !prefs.challenge) {
-      challenge.casts = challenge.kj = challenge.kjIn = challenge.wasted = 0;
-      return;
-    }
+    if (tier !== "apprentice") return resetChallenge();
+    const medal = medalFor(room);
+    medals[room] = medal.text;
+    if (!prefs.challenge) return resetChallenge();
     const key = `best-room-${room}`;
     const best = Number(storageGet(key) ?? "0");
     const first = !(best > 0);
     if (first || challenge.casts < best) storageSet(key, String(challenge.casts));
     const n = challenge.casts;
     const gold = GOLD_CASTS[room] ?? 1;
+    const h = challenge.hints;
     // Only numbers that mean something: no "0.0 kJ", no "0 atoms wasted".
-    const parts = [`Room ${room + 1} clear`, `${n} cast${n === 1 ? "" : "s"}`];
+    const parts = [`Room ${room + 1} clear`, `${n} cast${n === 1 ? "" : "s"}`, `${h} hint${h === 1 ? "" : "s"}`];
     if (challenge.kj >= 0.05) parts.push(`${challenge.kj.toFixed(1)} kJ heat released`);
     if (challenge.kjIn >= 0.05) parts.push(`${challenge.kjIn.toFixed(1)} kJ energy in`);
     if (challenge.wasted > 0) parts.push(`${challenge.wasted} atom${challenge.wasted === 1 ? "" : "s"} wasted`);
-    // A simple star target: gold at the room's par, silver within two more.
-    const par = `${gold} cast${gold === 1 ? "" : "s"} = gold`;
-    parts.push(n <= gold ? `★ gold (${par})` : n <= gold + 2 ? `☆ silver (${par})` : par);
+    parts.push(`${medal.text} (gold: ${gold} cast${gold === 1 ? "" : "s"}, balanced first try, no full-equation hint)`);
     parts.push(first ? "first clear" : n < best ? `new record (was ${best})` : `record ${best}`);
     challengeEl.textContent = parts.join(" · ");
     popups.push({ kind: "score", el: challengeEl, ms: SCORE_MS, dismissOnInput: true });
-    challenge.casts = challenge.kj = challenge.kjIn = challenge.wasted = 0;
+    resetChallenge();
   }
 
   // ----------------------------------------------------------- Grimoire
@@ -1119,6 +1166,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     return !grimPanel.hidden || !menu.hidden || !endScreen.hidden;
   }
   const hint = { floor: 0, misses: 0, since: performance.now(), key: "", level: 0, nudged: false, ghostKey: "" };
+  // Apprentice: a cast card's balanced fix waits for the ladder's last rung.
+  fx.fixAllowed = () => Math.max(hint.level, hint.floor) >= 3;
   /** Boom is the answer right now (after the first bubbles in room 3, or
    * water thrown at the ice): its card glows at once, not after a wait.
    * Holds the kind of goal it's for, and ends when that goal does. */
@@ -1143,6 +1192,25 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   });
 
   function hintOnCast(r: CastOutcome): void {
+    if (tier === "apprentice") {
+      // Apprentice climbs the ladder one rung per miss: reactants, then the
+      // skeleton, then the whole equation. A miss is anything but a balanced
+      // cast that can move the goal shown.
+      const goal = goalNow;
+      const moves = goal === null || r.spell === goal.need || (goal.kind === "fire" && r.spell === "cloud");
+      const good = r.outcome === "full" && r.imbalance.length === 0 && moves;
+      if (good) {
+        hint.floor = 0;
+        hint.misses = 0;
+        lastWorked = { spell: r.spell, room: game.room() };
+      } else if (r.outcome === "full" || r.outcome === "partial" || r.outcome === "fizzle" || r.outcome === "unknown") {
+        hint.misses++;
+        hint.floor = Math.max(hint.floor, Math.min(3, hint.misses));
+      }
+      if (r.imbalance.length > 0) challenge.unbalanced = true;
+      hint.since = performance.now();
+      return;
+    }
     if (r.outcome === "full" || r.outcome === "partial") {
       hint.floor = 0;
       hint.misses = 0;
@@ -1167,7 +1235,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
           ? "Now tap boom!"
           : tier === "seedling"
             ? "Now light the bubbles with boom!"
-            : "Now light the trapped gas: 2H2 + O2 -> 2H2O",
+            : "Now light the trapped gas: hydrogen burns in oxygen.",
       );
     } else if (r.spell === "boom" && worked) nudgeFor = null;
     castsNoProgress++;
@@ -1237,10 +1305,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     // Bubbles made: go straight to the glowing Boom card.
     if (nudgeFor !== null && next?.kind !== nudgeFor) nudgeFor = null;
     const nudged = nudgeFor !== null;
-    if (nudged && next) level = Math.max(level, 2);
+    // Apprentice climbs its own ladder: a nudge shows the reactants only.
+    if (nudged && next) level = Math.max(level, tier === "apprentice" ? 1 : 2);
     if (goalChanged || level !== hint.level || nudged !== hint.nudged) applyHint(level, next);
     // Never next to a cast card: one thing to read at a time.
-    const ghostWanted = hint.level >= 3 && next !== null && !dialogOpen();
+    const ghostWanted = hint.level >= (tier === "apprentice" ? 1 : 3) && next !== null && !dialogOpen();
     if (hintGhost.hidden !== (!ghostWanted || fx.labelUp)) hintGhost.hidden = !ghostWanted || fx.labelUp;
     placeGhostHand(now);
   }
@@ -1257,7 +1326,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (repeat && level >= 1) goals.pointAt = true;
     const spell = need && !repeat ? SPELLS[tier][need] : "";
     hintSpell = spell;
-    const glow = level >= 2 && !goals.goVisible && need !== null && !repeat;
+    // Apprentice: the equation itself only on the last rung.
+    const glow = level >= (tier === "apprentice" ? 3 : 2) && !goals.goVisible && need !== null && !repeat;
+    if (tier === "apprentice" && !goals.goVisible && next !== null) challenge.hints = Math.max(challenge.hints, level);
     cards?.setHint(glow ? (need as CardSpell) : null);
     tray?.setHint(glow ? spell : null);
     const slot = glow ? spell : "";
@@ -1265,11 +1336,13 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       slotHint = slot;
       renderSlots();
     }
-    const showGhost = level >= 3 && next !== null;
+    // Apprentice sees the ladder from the first rung (reactants, skeleton,
+    // equation); the other tiers get the chip at the top rung only.
+    const showGhost = (tier === "apprentice" ? level >= 1 : level >= 3) && next !== null;
     // What the chip would say now: it is rewritten whenever that changes
     // (a new goal, or walking vs casting), so it never goes stale.
     // Mote reads the chip aloud but shows no caption: the chip is the words.
-    const ghostKey = `${next?.room}:${need}:${goals.goVisible}:${repeat}`;
+    const ghostKey = `${next?.room}:${need}:${goals.goVisible}:${repeat}:${tier === "apprentice" ? level : 0}`;
     if (showGhost && (hintGhost.hidden || ghostKey !== hint.ghostKey)) {
       hint.ghostKey = ghostKey;
       if (goals.goVisible) {
@@ -1291,6 +1364,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         hintText.replaceChildren(icon(card?.picture ?? "drop"));
         hintUse.hidden = true;
         speech.sayOnly(`Try the ${card?.name ?? "water drop"}!`);
+      } else if (tier === "apprentice" && level < 3) {
+        const line = level === 1 ? `You need: ${reactantsOf(spell)}` : `Fill in the numbers: ${skeletonOf(spell)}`;
+        hintText.textContent = line;
+        hintUse.hidden = true;
+        speech.sayOnly(line, speakable(line));
       } else {
         hintText.textContent = `Try: ${prettyFormula(spell)}`;
         hintUse.hidden = false;
@@ -1534,8 +1612,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     // A gate opening ends that room's challenge.
     s.gates_open.forEach((open, i) => {
-      if (open && gatesSeen[i] === false && !freePlay) showRoomClear(i);
       if (open && !gatesSeen[i] && !freePlay) roomCleared(i);
+      if (open && gatesSeen[i] === false && !freePlay) showRoomClear(i);
       gatesSeen[i] = open;
     });
     if (s.trial_complete && !ended && !freePlay && endTimer === 0) {
@@ -1755,7 +1833,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
           ? "⚙ Your suit fills itself slowly."
           : tier === "seedling"
             ? "⚙ Your suit refills itself: water from air, split by ⚡."
-            : "⚙ Grey chips are your suit working by itself: the collar condenses water from the air, and the electrolyser splits it (2H₂O → 2H₂ + O₂) using ⚡ battery energy. Your casts show in colour.";
+            : "⚙ Grey chips are your suit working by itself: the collar condenses water from the air, and the electrolyser splits it into H₂ and O₂ using ⚡ battery energy. Your casts show in colour.";
       jars.append(note);
       window.setTimeout(() => note.remove(), 7000);
     }
@@ -1776,7 +1854,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   function showRoomClear(room: number): void {
     if (room >= 3) return; // The last door has its own end screen.
     objective.holdFor(ROOM_CLEAR_MS);
-    roomClearText.textContent = tier === "sprout" ? "Yay! Gate open!" : `Room ${room + 1} clear! Gate open`;
+    roomClearText.textContent =
+      tier === "sprout"
+        ? "Yay! Gate open!"
+        : `Room ${room + 1} clear! Gate open${tier === "apprentice" && medals[room] ? ` · ${medals[room]}` : ""}`;
     popups.push({ kind: "room-clear", el: roomClearEl, ms: ROOM_CLEAR_MS, dismissOnInput: true });
   }
 
@@ -1798,6 +1879,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         ? "You did it!"
         : `You passed the Alchemist's Trial and earned ${earned} Grimoire ${earned === 1 ? "page" : "pages"}!` +
           (more > 0 ? ` ${more} bonus ${more === 1 ? "page waits" : "pages wait"} in free play.` : "");
+    const stars = byId("end-stars");
+    stars.hidden = tier !== "apprentice" || medals.length === 0;
+    stars.textContent = medals.map((m, i) => `Room ${i + 1} ${m ?? "–"}`).join("   ");
     const end = byId("end");
     end.hidden = false;
     // Always opens at the top, title in view and read first.
@@ -1960,6 +2044,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     castCount = 0;
     lastCast = "";
     outcomes.clear();
+    medals.length = 0;
+    resetChallenge();
     slots.splice(0, slots.length, ...STARTER_SLOTS);
     typedKeys.clear();
     renderSlots();
