@@ -1,80 +1,166 @@
-//! Spike: Alchemist's Trial's current 2D simulation, rendered in 3D by Bevy.
+//! Alchemist's Trial: first-person 3D prototype. Real chemistry is magic.
 //!
-//! The simulation (`realgame-sim`) is unchanged and steps at its fixed 60 Hz
-//! in `FixedUpdate`. Every rendered frame, the cells around the camera become
-//! a thin voxel slab (see `slab.rs`): lit solids, glowing flames with bloom,
-//! translucent gases. A perspective camera follows the player.
+//! One small courtyard. Walk with WASD, look with the mouse, and cast four
+//! spells from a gauntlet: fire (combustion), water (cooling), frost (liquid
+//! nitrogen) and foam (CO2). Objective: "Save the Greenhouse", put out three
+//! fires before they spread to it.
 //!
-//! Keys: A/D or arrows walk, Space jumps, 1 water, 2 boom, 3 split, 4 fire
-//! (each aims at the room's goal first). On the web, `?auto` walks and casts
-//! by itself so a headless browser can measure a busy scene.
+//! Modules: `chem` is the deterministic rules engine (no Bevy), `world`
+//! builds the courtyard and its colliders, `player` is the kinematic
+//! character, `fx` the particle pool, `bridge` the link to the page's HUD.
 
-mod slab;
+mod bridge;
+mod chem;
+mod fx;
+mod player;
+mod world;
 
-use bevy::asset::{AssetMetaCheck, RenderAssetUsages};
+use bevy::asset::AssetMetaCheck;
 #[cfg(feature = "bloom")]
 use bevy::camera::Hdr;
 #[cfg(not(feature = "bloom"))]
 use bevy::core_pipeline::tonemapping::Tonemapping;
-use bevy::light::GlobalAmbientLight;
-use bevy::mesh::{Indices, PrimitiveTopology};
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
+use bevy::light::{
+    CascadeShadowConfigBuilder, GlobalAmbientLight, NotShadowCaster, NotShadowReceiver,
+};
+use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::platform::time::Instant;
 #[cfg(feature = "bloom")]
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
-use realgame_sim::game::{
-    Game, Tier, HEIGHT, INPUT_JUMP, INPUT_LEFT, INPUT_RIGHT, PLAYER_H, PLAYER_W, VIEW_W, WORLD_W,
-};
-use slab::Slab;
+use bevy::render::view::Msaa;
+use bevy::window::PrimaryWindow;
+use bridge::WebIn;
+use chem::{EventKind, Kind, Outcome, Spell};
+use fx::{Fx, P};
+use player::Player;
+use world::{Chem, Colliders, Kit};
 
-/// Cells drawn either side of the 320-cell view, so the perspective camera
-/// never sees the slab end.
-const MARGIN: usize = 48;
-/// Point lights placed at the hottest spots on screen.
-const FIRE_LIGHTS: usize = 4;
+/// Counts live heap bytes and the largest single allocation, so STATS can
+/// tell a leak (live bytes keep rising) from a one-off peak.
+mod heap {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+    pub static LIVE: AtomicUsize = AtomicUsize::new(0);
+    pub static PEAK: AtomicUsize = AtomicUsize::new(0);
+    pub static BIGGEST: AtomicUsize = AtomicUsize::new(0);
+    pub struct Counting;
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+            let n = LIVE.fetch_add(l.size(), Relaxed) + l.size();
+            PEAK.fetch_max(n, Relaxed);
+            BIGGEST.fetch_max(l.size(), Relaxed);
+            unsafe { System.alloc(l) }
+        }
+        unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+            LIVE.fetch_sub(l.size(), Relaxed);
+            unsafe { System.dealloc(p, l) }
+        }
+        unsafe fn realloc(&self, p: *mut u8, l: Layout, new: usize) -> *mut u8 {
+            if new > l.size() {
+                let n = LIVE.fetch_add(new - l.size(), Relaxed) + new - l.size();
+                PEAK.fetch_max(n, Relaxed);
+                BIGGEST.fetch_max(new, Relaxed);
+            } else {
+                LIVE.fetch_sub(l.size() - new, Relaxed);
+            }
+            unsafe { System.realloc(p, l, new) }
+        }
+    }
+    #[global_allocator]
+    static A: Counting = Counting;
+    pub fn mb(a: &AtomicUsize) -> f32 {
+        a.load(Relaxed) as f32 / 1_048_576.0
+    }
+}
 
-#[derive(Resource)]
-struct Sim {
-    game: Game,
-    input: u32,
-    jump: bool,
-    auto: bool,
-    /// `?frozen`: the sim does not step (measures rendering cost alone).
-    frozen: bool,
-    /// Slowest single tick, total tick time and tick count since the last report.
-    sim_ms: f32,
-    sim_total_ms: f32,
-    ticks_run: u32,
+/// Settings from the URL (`?sens=1.5&assist=0&low`) or the command line.
+#[derive(Resource, Debug, Clone)]
+struct Settings {
+    sens: f32,
+    /// Aim-assist cone, radians (0 = off).
+    assist: f32,
+    low: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct Aim {
+    point: Vec3,
+    obj: Option<usize>,
+    assisted: bool,
+}
+
+#[derive(Resource, Default)]
+struct Game {
+    spell: usize,
+    cooldown: f32,
+    caption: String,
+    caption_id: u32,
+    caption_age: f32,
+    aim: Aim,
+    hover: Option<usize>,
+    recoil: f32,
+    casts: u32,
+    impacts: u32,
+    paused: bool,
+    locked: bool,
+    events: Vec<chem::Event>,
+    /// Holds the movement keys down from a test command: (right, fwd, secs).
+    scripted_move: Option<(Vec2, f32)>,
+}
+
+impl Game {
+    fn say(&mut self, s: &str) {
+        self.caption = s.to_string();
+        self.caption_id += 1;
+        self.caption_age = 0.0;
+    }
+}
+
+#[derive(Component)]
+struct FpsCam;
+#[derive(Component)]
+struct Viewmodel;
+#[derive(Component)]
+struct SpellGlow;
+#[derive(Component)]
+struct FireLight;
+
+#[derive(Component)]
+struct Projectile {
+    spell: Spell,
+    from: Vec3,
+    to: Vec3,
+    t: f32,
+    dur: f32,
+    obj: Option<usize>,
+}
+
+#[derive(Component)]
+struct Beam {
+    life: f32,
 }
 
 #[derive(Resource)]
-struct SlabMeshes {
-    slab: Slab,
-    solid: Handle<Mesh>,
-    glow: Handle<Mesh>,
-    gas: Handle<Mesh>,
+struct SpellMats {
+    glow: [Handle<StandardMaterial>; 4],
 }
 
 #[derive(Resource, Default)]
 struct Stats {
     frames: u64,
     window_start: Option<Instant>,
-    window_frames: u32,
-    worst_ms: f32,
     last: Option<Instant>,
-    build_ms: f32,
-    upload_ms: f32,
+    dts: Vec<f32>,
+    cpu: Vec<f32>,
+    frame_start: Option<Instant>,
 }
 
-#[derive(Component)]
-struct PlayerBody;
-
-#[derive(Component)]
-struct FireLight(usize);
-
 fn main() {
+    let settings = read_settings();
     let window = Window {
-        title: "Alchemist's Trial 3D spike".into(),
+        title: "Alchemist's Trial: first-person prototype".into(),
         canvas: Some("#game".into()),
         fit_canvas_to_parent: true,
         prevent_default_event_handling: true,
@@ -93,54 +179,72 @@ fn main() {
                     ..default()
                 }),
         )
-        .insert_resource(ClearColor(Color::srgb_u8(52, 78, 128)))
+        .insert_resource(ClearColor(Color::srgb(0.55, 0.78, 0.98)))
         .insert_resource(GlobalAmbientLight {
-            color: Color::WHITE,
-            brightness: 400.0,
+            color: Color::srgb(0.85, 0.9, 1.0),
+            brightness: 700.0,
             affects_lightmapped_meshes: true,
         })
-        .insert_resource(Time::<Fixed>::from_hz(60.0))
-        .insert_resource(Sim {
-            game: Game::new(Tier::parse("apprentice"), 1),
-            input: 0,
-            jump: false,
-            auto: auto_mode(),
-            frozen: has_flag("frozen"),
-            sim_ms: 0.0,
-            sim_total_ms: 0.0,
-            ticks_run: 0,
-        })
+        .insert_resource(Time::<Fixed>::from_seconds(chem::DT as f64))
+        .insert_resource(settings)
         .init_resource::<Stats>()
+        .init_resource::<Game>()
+        .init_resource::<WebIn>()
+        .init_resource::<Player>()
         .add_systems(Startup, setup)
-        .add_systems(Update, read_input)
-        .add_systems(FixedUpdate, step_sim)
+        .add_systems(First, frame_start)
+        .add_systems(FixedUpdate, chem_tick)
         .add_systems(
             Update,
-            (rebuild_slab, follow_player, place_lights, report)
-                .chain()
-                .after(read_input),
+            (
+                control,
+                aim_and_cast,
+                projectiles,
+                react,
+                sync_visuals,
+                viewmodel,
+                fx::update_fx,
+                publish,
+            )
+                .chain(),
         )
+        .add_systems(Last, report)
         .run();
 }
 
-/// Whether the page URL (web) or the command line (native) has `flag`.
-#[cfg(target_arch = "wasm32")]
-fn has_flag(flag: &str) -> bool {
-    web_sys::window()
+/// Query parameters on the web; `--key=value` arguments natively.
+fn param(key: &str) -> Option<String> {
+    #[cfg(target_arch = "wasm32")]
+    let q: String = web_sys::window()
         .and_then(|w| w.location().search().ok())
-        .is_some_and(|s| s.contains(flag))
+        .unwrap_or_default();
+    #[cfg(not(target_arch = "wasm32"))]
+    let q: String = std::env::args()
+        .skip(1)
+        .map(|a| a.trim_start_matches("--").to_string())
+        .collect::<Vec<_>>()
+        .join("&");
+    q.trim_start_matches('?').split('&').find_map(|kv| {
+        let mut it = kv.splitn(2, '=');
+        (it.next()? == key).then(|| it.next().unwrap_or("").to_string())
+    })
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn has_flag(flag: &str) -> bool {
-    std::env::args().any(|a| a == format!("--{flag}"))
+fn read_settings() -> Settings {
+    let sens = param("sens")
+        .and_then(|s| s.parse::<f32>().ok())
+        .filter(|s| s.is_finite() && *s > 0.0)
+        .unwrap_or(1.0)
+        .clamp(0.05, 10.0);
+    // Aim assist is on unless `?assist=0` (or `off`/`false`).
+    let assist_on = !matches!(param("assist").as_deref(), Some("0" | "off" | "false"));
+    Settings {
+        sens,
+        assist: if assist_on { 4f32.to_radians() } else { 0.0 },
+        low: param("low").is_some_and(|v| !matches!(v.as_str(), "0" | "false")),
+    }
 }
 
-fn auto_mode() -> bool {
-    has_flag("auto")
-}
-
-/// Milliseconds since the page started loading (web) or since start (native).
 fn now_ms() -> f64 {
     #[cfg(target_arch = "wasm32")]
     {
@@ -161,7 +265,6 @@ fn now_ms() -> f64 {
     }
 }
 
-/// The WebAssembly linear memory in MB (0 on native).
 fn wasm_memory_mb() -> f32 {
     #[cfg(target_arch = "wasm32")]
     {
@@ -173,327 +276,964 @@ fn wasm_memory_mb() -> f32 {
     }
 }
 
-fn empty_mesh() -> Mesh {
-    let mut m = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::default(),
-    );
-    m.insert_attribute(Mesh::ATTRIBUTE_POSITION, Vec::<[f32; 3]>::new());
-    m.insert_attribute(Mesh::ATTRIBUTE_NORMAL, Vec::<[f32; 3]>::new());
-    m.insert_attribute(Mesh::ATTRIBUTE_COLOR, Vec::<[f32; 4]>::new());
-    m.insert_indices(Indices::U32(Vec::new()));
-    m
+fn spell_color(s: Spell) -> Color {
+    match s {
+        Spell::Fire => Color::srgb(1.0, 0.45, 0.1),
+        Spell::Water => Color::srgb(0.2, 0.55, 1.0),
+        Spell::Frost => Color::srgb(0.6, 0.95, 1.0),
+        Spell::Foam => Color::srgb(0.92, 0.95, 1.0),
+    }
 }
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    settings: Res<Settings>,
+    mut game: ResMut<Game>,
 ) {
     info!("STARTUP t={:.0}ms", now_ms());
-    let solid = meshes.add(empty_mesh());
-    let glow = meshes.add(empty_mesh());
-    let gas = meshes.add(empty_mesh());
+    let (kit, colliders, chem) = world::build(&mut commands, &mut meshes, &mut materials);
+    commands.insert_resource(colliders);
+    commands.insert_resource(chem);
+    fx::setup_fx(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        if settings.low { 160 } else { 320 },
+    );
 
-    // Vertex colours multiply the white base colour.
-    let solid_mat = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        perceptual_roughness: 0.85,
-        ..default()
-    });
-    let glow_mat = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        emissive: LinearRgba::rgb(6.0, 2.4, 0.4),
-        unlit: true,
-        ..default()
-    });
-    let gas_mat = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        alpha_mode: AlphaMode::Blend,
-        unlit: true,
-        ..default()
-    });
-    commands.spawn((
-        Mesh3d(solid.clone()),
-        MeshMaterial3d(solid_mat),
-        Transform::default(),
-    ));
-    commands.spawn((
-        Mesh3d(glow.clone()),
-        MeshMaterial3d(glow_mat),
-        Transform::default(),
-    ));
-    commands.spawn((
-        Mesh3d(gas.clone()),
-        MeshMaterial3d(gas_mat),
-        Transform::default(),
-    ));
-    commands.insert_resource(SlabMeshes {
-        slab: Slab::default(),
-        solid,
-        glow,
-        gas,
-    });
-
-    // Back wall: a dim stone panel behind the slab so the depth reads.
-    let wall = meshes.add(Cuboid::new(
-        WORLD_W as f32 + 400.0,
-        HEIGHT as f32 + 200.0,
-        1.0,
-    ));
-    let wall_mat = materials.add(StandardMaterial {
-        base_color: Color::srgb_u8(40, 48, 72),
-        perceptual_roughness: 1.0,
-        ..default()
-    });
-    commands.spawn((
-        Mesh3d(wall),
-        MeshMaterial3d(wall_mat),
-        Transform::from_xyz(
-            WORLD_W as f32 / 2.0,
-            HEIGHT as f32 / 2.0,
-            -slab::SOLID_DEPTH - 6.0,
-        ),
-    ));
-
-    // The player: a box the size of the collision box.
-    let body = meshes.add(Cuboid::new(PLAYER_W, PLAYER_H, 4.0));
-    let body_mat = materials.add(StandardMaterial {
-        base_color: Color::srgb_u8(240, 228, 66),
-        emissive: LinearRgba::rgb(0.3, 0.28, 0.05),
-        ..default()
-    });
-    commands.spawn((
-        Mesh3d(body),
-        MeshMaterial3d(body_mat),
-        Transform::default(),
-        PlayerBody,
-    ));
-
-    // Sun from the upper left and in front, no shadow maps (cheap on Chromebooks).
+    // Sun: warm, from the south-west, with one shadow cascade (full tier).
     commands.spawn((
         DirectionalLight {
-            illuminance: 6_000.0,
-            shadow_maps_enabled: false,
+            illuminance: 9_000.0,
+            color: Color::srgb(1.0, 0.95, 0.85),
+            shadow_maps_enabled: !settings.low,
             ..default()
         },
-        Transform::from_xyz(-1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(-0.6, 1.0, 0.45).looking_at(Vec3::ZERO, Vec3::Y),
+        CascadeShadowConfigBuilder {
+            num_cascades: 1,
+            minimum_distance: 0.1,
+            maximum_distance: 50.0,
+            first_cascade_far_bound: 50.0,
+            overlap_proportion: 0.2,
+        }
+        .build(),
     ));
-    // `?lite`: the "Low" tier. No HDR, bloom or fire point lights.
-    let lite = has_flag("lite");
-    let lights = if lite { 0 } else { FIRE_LIGHTS };
-    for k in 0..lights {
-        commands.spawn((
-            PointLight {
-                color: Color::srgb(1.0, 0.6, 0.2),
-                intensity: 0.0,
-                range: 90.0,
-                shadow_maps_enabled: false,
-                ..default()
-            },
-            Transform::from_xyz(0.0, 0.0, 10.0),
-            FireLight(k),
-        ));
+    if !settings.low {
+        for _ in 0..3 {
+            commands.spawn((
+                PointLight {
+                    color: Color::srgb(1.0, 0.55, 0.2),
+                    intensity: 0.0,
+                    range: 12.0,
+                    shadow_maps_enabled: false,
+                    ..default()
+                },
+                Transform::default(),
+                FireLight,
+            ));
+        }
     }
+
+    let glow: [Handle<StandardMaterial>; 4] = Spell::ALL.map(|s| {
+        let l = spell_color(s).to_linear();
+        materials.add(StandardMaterial {
+            base_color: spell_color(s),
+            emissive: LinearRgba::rgb(l.red * 5.0, l.green * 5.0, l.blue * 5.0),
+            ..default()
+        })
+    });
+    commands.insert_resource(SpellMats { glow: glow.clone() });
 
     let mut camera = commands.spawn((
         Camera3d::default(),
         Projection::Perspective(PerspectiveProjection {
-            fov: 40f32.to_radians(),
-            far: 2000.0,
+            fov: 70f32.to_radians(),
+            near: 0.05,
+            far: 250.0,
             ..default()
         }),
-        Transform::from_xyz(0.0, 100.0, 230.0),
+        Transform::from_xyz(0.0, player::EYE, 18.0),
+        DistanceFog {
+            color: Color::srgb(0.7, 0.85, 1.0),
+            directional_light_color: Color::NONE,
+            directional_light_exponent: 8.0,
+            falloff: FogFalloff::Linear {
+                start: 35.0,
+                end: 110.0,
+            },
+        },
+        FpsCam,
     ));
     #[cfg(feature = "bloom")]
-    if !lite {
+    if !settings.low {
         camera.insert((Hdr, Bloom::NATURAL));
     }
     #[cfg(not(feature = "bloom"))]
     camera.insert(Tonemapping::Reinhard);
-    info!("tier={}", if lite { "lite" } else { "full" });
+    if settings.low {
+        camera.insert(Msaa::Off);
+    }
+
+    // The gauntlet viewmodel: bronze forearm, cuff, hand and fingers, with a
+    // glowing gem and rune bands in the selected spell's colour.
+    let bronze = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.78, 0.52, 0.28),
+        metallic: 0.6,
+        perceptual_roughness: 0.35,
+        ..default()
+    });
+    let gold = materials.add(StandardMaterial {
+        base_color: Color::srgb(1.0, 0.8, 0.35),
+        metallic: 0.8,
+        perceptual_roughness: 0.3,
+        ..default()
+    });
+    let cube = kit.cube.clone();
+    let ball = kit.ball.clone();
+    let vm = |t: Transform, m: &Handle<StandardMaterial>, mesh: &Handle<Mesh>| {
+        (
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(m.clone()),
+            t,
+            NotShadowCaster,
+            NotShadowReceiver,
+        )
+    };
+    let cam_id = camera.id();
+    let root = commands
+        .spawn((
+            Transform::from_xyz(0.2, -0.19, -0.4).with_scale(Vec3::splat(0.7)),
+            Visibility::Inherited,
+            Viewmodel,
+        ))
+        .with_children(|c| {
+            let s = |x, y, z| Vec3::new(x, y, z);
+            c.spawn(vm(
+                Transform::from_xyz(0.0, 0.0, 0.14).with_scale(s(0.1, 0.1, 0.32)),
+                &bronze,
+                &cube,
+            ));
+            c.spawn(vm(
+                Transform::from_xyz(0.0, 0.0, -0.03).with_scale(s(0.13, 0.13, 0.06)),
+                &gold,
+                &cube,
+            ));
+            c.spawn(vm(
+                Transform::from_xyz(0.0, 0.01, -0.12).with_scale(s(0.11, 0.06, 0.12)),
+                &bronze,
+                &cube,
+            ));
+            for k in 0..4 {
+                let x = -0.039 + k as f32 * 0.026;
+                c.spawn(vm(
+                    Transform::from_xyz(x, 0.005, -0.21)
+                        .with_rotation(Quat::from_rotation_x(-0.35))
+                        .with_scale(s(0.02, 0.025, 0.08)),
+                    &gold,
+                    &cube,
+                ));
+            }
+            c.spawn((
+                vm(
+                    Transform::from_xyz(0.0, 0.05, -0.11).with_scale(Vec3::splat(0.05)),
+                    &glow[0],
+                    &ball,
+                ),
+                SpellGlow,
+            ));
+            for z in [0.06, 0.2] {
+                c.spawn((
+                    vm(
+                        Transform::from_xyz(0.0, 0.052, z).with_scale(s(0.104, 0.01, 0.02)),
+                        &glow[0],
+                        &cube,
+                    ),
+                    SpellGlow,
+                ));
+            }
+        })
+        .id();
+    commands.entity(cam_id).add_child(root);
+    game.say("Save the Greenhouse! Put out 3 fires before they spread. Press 2 for Water.");
+    info!(
+        "tier={} sens={} assist={}",
+        if settings.low { "low" } else { "full" },
+        settings.sens,
+        settings.assist > 0.0
+    );
 }
 
-fn read_input(keys: Res<ButtonInput<KeyCode>>, mut sim: ResMut<Sim>) {
-    let mut input = 0;
-    if keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) {
-        input |= INPUT_LEFT;
+fn frame_start(mut stats: ResMut<Stats>) {
+    stats.frame_start = Some(Instant::now());
+}
+
+fn chem_tick(mut chem: ResMut<Chem>, mut game: ResMut<Game>) {
+    if game.paused || chem.world.outcome() != Outcome::Playing {
+        return;
+    }
+    let mut ev = Vec::new();
+    chem.world.step(&mut ev);
+    game.events.extend(ev);
+}
+
+/// Reads the HUD bridge, keys and mouse, runs test commands, moves the player
+/// and places the camera.
+#[allow(clippy::too_many_arguments)]
+fn control(
+    time: Res<Time>,
+    keys: Res<ButtonInput<KeyCode>>,
+    motion: Res<AccumulatedMouseMotion>,
+    scroll: Res<AccumulatedMouseScroll>,
+    settings: Res<Settings>,
+    mut web: ResMut<WebIn>,
+    mut game: ResMut<Game>,
+    mut player: ResMut<Player>,
+    mut chem: ResMut<Chem>,
+    colliders: Res<Colliders>,
+    mut cam: Query<&mut Transform, With<FpsCam>>,
+    #[cfg(not(target_arch = "wasm32"))] mut cursor: Single<
+        &mut bevy::window::CursorOptions,
+        With<PrimaryWindow>,
+    >,
+    mouse: Res<ButtonInput<MouseButton>>,
+) {
+    let dt = time.delta_secs().min(0.05);
+    bridge::poll(&mut web);
+    #[cfg(target_arch = "wasm32")]
+    {
+        game.locked = web.locked;
+        game.paused = web.paused;
+        let _ = (&motion, &mouse);
+        player.look(web.dx, web.dy, settings.sens);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use bevy::window::CursorGrabMode;
+        if mouse.just_pressed(MouseButton::Left) && !game.locked {
+            cursor.grab_mode = CursorGrabMode::Locked;
+            cursor.visible = false;
+            game.locked = true;
+        }
+        if keys.just_pressed(KeyCode::Escape) {
+            cursor.grab_mode = CursorGrabMode::None;
+            cursor.visible = true;
+            game.locked = false;
+        }
+        if game.locked {
+            player.look(motion.delta.x, motion.delta.y, settings.sens);
+        }
+    }
+
+    // Spell selection: 1-4 or the wheel.
+    for (k, key) in [
+        KeyCode::Digit1,
+        KeyCode::Digit2,
+        KeyCode::Digit3,
+        KeyCode::Digit4,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if keys.just_pressed(key) {
+            game.spell = k;
+        }
+    }
+    if game.locked && scroll.delta.y != 0.0 {
+        let step = if scroll.delta.y < 0.0 { 1 } else { 3 };
+        game.spell = (game.spell + step) % 4;
+    }
+    if keys.just_pressed(KeyCode::KeyR) {
+        reset(&mut chem, &mut game, &mut player);
+    }
+
+    let mut cmd_move = None;
+    let cmds = std::mem::take(&mut web.cmds);
+    for c in &cmds {
+        let a: Vec<&str> = c.split_whitespace().collect();
+        let f = |i: usize| a.get(i).and_then(|s| s.parse::<f32>().ok()).unwrap_or(0.0);
+        match a.first().copied() {
+            Some("select") => game.spell = (f(1) as usize).clamp(1, 4) - 1,
+            Some("look") => {
+                player.yaw = f(1).to_radians();
+                player.pitch = f(2).to_radians();
+            }
+            Some("turn") => player.look(f(1), f(2), settings.sens),
+            Some("face") => {
+                let i = f(1) as usize;
+                if i < chem.targets.len() {
+                    let c = chem.bounds(i).center();
+                    player.face(c);
+                }
+            }
+            Some("tp") => {
+                player.pos = Vec3::new(f(1), 0.0, f(2));
+                player.vel = Vec3::ZERO;
+            }
+            Some("move") => cmd_move = Some((Vec2::new(f(1), f(2)), f(3))),
+            Some("tick") => {
+                let mut ev = Vec::new();
+                for _ in 0..f(1) as usize {
+                    if chem.world.outcome() == Outcome::Playing {
+                        chem.world.step(&mut ev);
+                    }
+                }
+                game.events.extend(ev);
+            }
+            Some("reset") => reset(&mut chem, &mut game, &mut player),
+            _ => {}
+        }
+    }
+    web.cmds = cmds
+        .into_iter()
+        .filter(|c| c.starts_with("tap") || c == "cast")
+        .collect();
+    if let Some(m) = cmd_move {
+        game.scripted_move = Some(m);
+    }
+
+    // Movement.
+    let mut wish = Vec2::ZERO;
+    if keys.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]) {
+        wish.y += 1.0;
+    }
+    if keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
+        wish.y -= 1.0;
     }
     if keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) {
-        input |= INPUT_RIGHT;
+        wish.x += 1.0;
     }
-    if keys.pressed(KeyCode::Space) {
-        input |= INPUT_JUMP;
+    if keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) {
+        wish.x -= 1.0;
     }
-    if keys.just_pressed(KeyCode::Space) {
-        sim.jump = true;
+    if let Some((w, secs)) = game.scripted_move {
+        wish += w;
+        game.scripted_move = (secs > dt).then_some((w, secs - dt));
     }
-    sim.input = input;
-    for (key, spell) in [
-        (KeyCode::Digit1, "water"),
-        (KeyCode::Digit2, "boom"),
-        (KeyCode::Digit3, "split"),
-        (KeyCode::Digit4, "fire"),
-    ] {
-        if keys.just_pressed(key) {
-            sim.game.aim_at_goal();
-            let out = sim.game.cast(spell);
-            info!("cast {spell}: {:?}", out.outcome);
-        }
-    }
-}
-
-/// Fixed 60 Hz, like the browser build. `?auto` walks right in bursts and
-/// casts the four spells in turn at the goal, to keep the scene busy.
-fn step_sim(mut sim: ResMut<Sim>) {
-    if sim.frozen {
-        return;
-    }
-    let t0 = Instant::now();
-    let mut input = sim.input;
-    if sim.jump {
-        sim.game.press_jump();
-        sim.jump = false;
-    }
-    if sim.auto {
-        let tick = sim.game.ticks;
-        if tick % 240 < 90 {
-            input |= INPUT_RIGHT;
-        }
-        if tick % 50 == 25 {
-            let spell = ["fire", "boom", "water", "split"][(tick / 50 % 4) as usize];
-            sim.game.aim_at_goal();
-            sim.game.cast(spell);
-        }
-    }
-    sim.game.tick(input);
-    let ms = t0.elapsed().as_secs_f32() * 1000.0;
-    sim.sim_ms = sim.sim_ms.max(ms);
-    sim.sim_total_ms += ms;
-    sim.ticks_run += 1;
-}
-
-fn rebuild_slab(
-    sim: Res<Sim>,
-    mut slab: ResMut<SlabMeshes>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut stats: ResMut<Stats>,
-) {
-    // Frozen: the grid never changes, so after the first frames the meshes
-    // stay as they are (this measures Bevy's own per-frame floor).
-    if sim.frozen && stats.frames > 5 {
-        return;
-    }
-    let t0 = Instant::now();
-    let left = sim.game.view_x.round() as usize;
-    let x0 = left.saturating_sub(MARGIN);
-    let x1 = (left + VIEW_W + MARGIN).min(WORLD_W);
-    let SlabMeshes {
-        slab: s,
-        solid,
-        glow,
-        gas,
-    } = &mut *slab;
-    s.build(&sim.game.grid, x0, x1);
-    let t1 = Instant::now();
-    for (h, data) in [(&*solid, &s.solid), (&*glow, &s.glow), (&*gas, &s.gas)] {
-        if let Some(mut m) = meshes.get_mut(h) {
-            m.insert_attribute(Mesh::ATTRIBUTE_POSITION, data.positions.clone());
-            m.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals.clone());
-            m.insert_attribute(Mesh::ATTRIBUTE_COLOR, data.colors.clone());
-            m.insert_indices(Indices::U32(data.indices.clone()));
-        }
-    }
-    let build = (t1 - t0).as_secs_f32() * 1000.0;
-    let upload = t1.elapsed().as_secs_f32() * 1000.0;
-    stats.build_ms = stats.build_ms.max(build);
-    stats.upload_ms = stats.upload_ms.max(upload);
-}
-
-fn follow_player(
-    sim: Res<Sim>,
-    time: Res<Time>,
-    fixed: Res<Time<Fixed>>,
-    mut body: Query<&mut Transform, (With<PlayerBody>, Without<Camera3d>)>,
-    mut cam: Query<&mut Transform, With<Camera3d>>,
-) {
-    let p = &sim.game.player;
-    let a = fixed.overstep_fraction();
-    let px = p.prev_x + (p.x - p.prev_x) * a + PLAYER_W / 2.0;
-    let py = p.prev_y + (p.y - p.prev_y) * a + PLAYER_H / 2.0;
-    let world = Vec3::new(px, HEIGHT as f32 - py, 0.0);
-    if let Ok(mut t) = body.single_mut() {
-        t.translation = world;
+    if !game.paused {
+        let ice: Vec<world::Aabb> = (0..chem.targets.len())
+            .filter(|&i| {
+                let o = &chem.world.objs[i];
+                o.kind == Kind::Puddle && o.frozen()
+            })
+            .map(|i| chem.bounds(i))
+            .collect();
+        player.step(
+            wish,
+            keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
+            keys.pressed(KeyCode::Space),
+            dt,
+            &colliders,
+            &chem.world,
+            &ice,
+        );
     }
     if let Ok(mut t) = cam.single_mut() {
-        // In front and above, looking down about 15 degrees: the floor's top
-        // faces and the slab's depth both show, with no sideways skew.
-        let want = Vec3::new(world.x + 30.0, world.y + 70.0, 260.0);
-        let k = 1.0 - (-6.0 * time.delta_secs()).exp();
-        t.translation = t.translation.lerp(want, k);
-        let look = Vec3::new(t.translation.x, t.translation.y - 60.0, 0.0);
-        t.look_at(look, Vec3::Y);
+        t.translation = player.eye();
+        t.rotation = player.rotation();
     }
 }
 
-fn place_lights(sim: Res<Sim>, mut lights: Query<(&mut PointLight, &mut Transform, &FireLight)>) {
-    let spots = sim
-        .game
-        .hotspots(sim.game.view_x.round() as i32, FIRE_LIGHTS);
-    for (mut light, mut t, FireLight(k)) in &mut lights {
-        if let Some(&(x, y, temp)) = spots.get(*k) {
-            light.intensity = (temp / 1000.0).clamp(0.3, 3.0) * 2.0e7;
-            t.translation = Vec3::new(x as f32, (HEIGHT as i32 - y) as f32, 14.0);
-        } else {
-            light.intensity = 0.0;
+fn reset(chem: &mut Chem, game: &mut Game, player: &mut Player) {
+    chem.world = chem.initial.clone();
+    for t in &mut chem.targets {
+        t.last = None;
+    }
+    *player = Player::default();
+    let spell = game.spell;
+    *game = Game {
+        spell,
+        locked: game.locked,
+        ..default()
+    };
+    game.say("Save the Greenhouse! Put out 3 fires before they spread.");
+}
+
+/// Best target along a ray: what it hits, or (with assist) the target
+/// whose edge is within `assist` radians of the ray and in plain view.
+fn pick(chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32) -> Aim {
+    let (t, hit) = world::raycast(chem, colliders, origin, dir, 120.0);
+    let point = origin + dir * t;
+    if hit.is_some() || assist <= 0.0 {
+        return Aim {
+            point,
+            obj: hit,
+            assisted: false,
+        };
+    }
+    let mut best: Option<(f32, usize, Vec3)> = None;
+    for i in 0..chem.targets.len() {
+        if chem.world.objs[i].kind == Kind::Greenhouse {
+            continue;
+        }
+        let b = chem.bounds(i);
+        let c = b.center();
+        let v = c - origin;
+        let dist = v.length();
+        if dist < 0.5 || dist > 60.0 {
+            continue;
+        }
+        let half = (b.max - b.min) * 0.5;
+        let radius = half.x.min(half.z).max(half.y.min(half.x.max(half.z))) * 0.7;
+        let ang = dir.angle_between(v / dist) - (radius / dist).min(1.0).asin();
+        if ang > assist || best.is_some_and(|(a, _, _)| a <= ang) {
+            continue;
+        }
+        let (t2, h2) = world::raycast(chem, colliders, origin, v / dist, dist + 1.0);
+        if h2 == Some(i) || t2 >= dist - radius {
+            best = Some((ang, i, c));
+        }
+    }
+    match best {
+        Some((_, i, c)) => Aim {
+            point: c,
+            obj: Some(i),
+            assisted: true,
+        },
+        None => Aim {
+            point,
+            obj: None,
+            assisted: false,
+        },
+    }
+}
+
+/// Aims, and casts on click (pointer locked) or tap (pointer free).
+#[allow(clippy::too_many_arguments)]
+fn aim_and_cast(
+    mut commands: Commands,
+    time: Res<Time>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    settings: Res<Settings>,
+    mut web: ResMut<WebIn>,
+    mut game: ResMut<Game>,
+    player: Res<Player>,
+    chem: Res<Chem>,
+    colliders: Res<Colliders>,
+    kit: Res<Kit>,
+    mats: Res<SpellMats>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
+) {
+    let dt = time.delta_secs().min(0.05);
+    game.cooldown -= dt;
+    game.caption_age += dt;
+    game.recoil = (game.recoil - dt * 6.0).max(0.0);
+    let eye = player.eye();
+    game.aim = pick(&chem, &colliders, eye, player.forward(), settings.assist);
+
+    // Pointer free: what is under the cursor (kids can just click things).
+    let _ = &window;
+    let ray_at = |p: Vec2| -> Option<Vec3> {
+        let (c, gt) = cam.single().ok()?;
+        c.viewport_to_world(gt, p).ok().map(|r| *r.direction)
+    };
+    let tap_assist = settings.assist.max(3f32.to_radians()) * 1.5;
+    game.hover = None;
+    if !game.locked {
+        #[cfg(target_arch = "wasm32")]
+        let cursor = web.pointer.map(|(x, y)| Vec2::new(x, y));
+        #[cfg(not(target_arch = "wasm32"))]
+        let cursor = window.cursor_position();
+        if let Some(dir) = cursor.and_then(ray_at) {
+            game.hover = pick(&chem, &colliders, eye, dir, tap_assist).obj;
+        }
+    }
+
+    let mut casts: Vec<Aim> = Vec::new();
+    let cmds = std::mem::take(&mut web.cmds);
+    for c in cmds {
+        let a: Vec<&str> = c.split_whitespace().collect();
+        if a.first() == Some(&"cast") {
+            casts.push(game.aim);
+        } else if a.first() == Some(&"tap") && a.len() == 3 {
+            let p = Vec2::new(a[1].parse().unwrap_or(0.0), a[2].parse().unwrap_or(0.0));
+            if let Some(dir) = ray_at(p) {
+                casts.push(pick(&chem, &colliders, eye, dir, tap_assist));
+            }
+        }
+    }
+    if game.locked && !game.paused && mouse.pressed(MouseButton::Left) && game.cooldown <= 0.0 {
+        casts.push(game.aim);
+    }
+    let ended = chem.world.outcome() != Outcome::Playing;
+    for aim in casts {
+        if ended {
+            break;
+        }
+        let spell = Spell::ALL[game.spell];
+        game.cooldown = 0.3;
+        game.recoil = 1.0;
+        game.casts += 1;
+        game.say(spell.cast_caption());
+        let hand = eye + player.rotation() * Vec3::new(0.2, -0.15, -0.5);
+        let dist = hand.distance(aim.point);
+        if spell == Spell::Frost {
+            // A beam of liquid nitrogen: lands almost at once.
+            let mid = (hand + aim.point) * 0.5;
+            commands.spawn((
+                Mesh3d(kit.cube.clone()),
+                MeshMaterial3d(mats.glow[2].clone()),
+                Transform::from_translation(mid)
+                    .looking_at(aim.point, Vec3::Y)
+                    .with_scale(Vec3::new(0.07, 0.07, dist)),
+                NotShadowCaster,
+                Beam { life: 0.25 },
+            ));
+        }
+        let (speed, size) = match spell {
+            Spell::Fire => (32.0, 0.32),
+            Spell::Water => (30.0, 0.26),
+            Spell::Frost => (120.0, 0.12),
+            Spell::Foam => (20.0, 0.4),
+        };
+        commands.spawn((
+            Mesh3d(kit.ball.clone()),
+            MeshMaterial3d(mats.glow[game.spell].clone()),
+            Transform::from_translation(hand).with_scale(Vec3::splat(size)),
+            NotShadowCaster,
+            Projectile {
+                spell,
+                from: hand,
+                to: aim.point,
+                t: 0.0,
+                dur: (dist / speed).max(0.03),
+                obj: aim.obj,
+            },
+        ));
+    }
+}
+
+/// Moves projectiles and beams; applies spells on arrival.
+#[allow(clippy::too_many_arguments)]
+fn projectiles(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut game: ResMut<Game>,
+    mut chem: ResMut<Chem>,
+    mut fx: ResMut<Fx>,
+    mut q: Query<(Entity, &mut Projectile, &mut Transform), Without<Beam>>,
+    mut beams: Query<(Entity, &mut Beam, &mut Transform), Without<Projectile>>,
+) {
+    let dt = time.delta_secs().min(0.05);
+    for (e, mut b, mut t) in &mut beams {
+        b.life -= dt;
+        t.scale.x *= 0.85;
+        t.scale.y *= 0.85;
+        if b.life <= 0.0 {
+            commands.entity(e).despawn();
+        }
+    }
+    if game.paused {
+        return;
+    }
+    for (e, mut p, mut t) in &mut q {
+        p.t += dt;
+        let a = (p.t / p.dur).min(1.0);
+        let pos =
+            p.from.lerp(p.to, a) + Vec3::Y * (a * (1.0 - a) * 0.6 * p.from.distance(p.to) * 0.05);
+        t.translation = pos;
+        // A short trail.
+        let trail = match p.spell {
+            Spell::Fire => P::Fire,
+            Spell::Water => P::Water,
+            Spell::Frost => P::Frost,
+            Spell::Foam => P::Foam,
+        };
+        if fx.rand() < 0.7 {
+            let v = fx.rand3() * 0.4;
+            fx.emit(trail, pos, v, 0.12, 0.35);
+        }
+        if a < 1.0 {
+            continue;
+        }
+        commands.entity(e).despawn();
+        game.impacts += 1;
+        let burst = match p.spell {
+            Spell::Fire => P::Fire,
+            Spell::Water => P::Water,
+            Spell::Frost => P::Frost,
+            Spell::Foam => P::Foam,
+        };
+        fx.burst(burst, p.to, 14, 3.0, 0.22);
+        if p.spell == Spell::Fire {
+            fx.burst(P::Spark, p.to, 6, 5.0, 0.07);
+        }
+        if let Some(i) = p.obj {
+            let mut ev = Vec::new();
+            chem.world.apply(i, p.spell, &mut ev);
+            // Spell results always get a caption.
+            if let Some(last) = ev.last() {
+                game.say(last.kind.caption());
+            }
+            for e in &ev {
+                info!("IMPACT obj={} {:?} -> {:?}", e.obj, p.spell, e.kind);
+            }
+            game.events.extend(ev.into_iter().map(|mut e| {
+                // Mark as already captioned.
+                e.obj |= 1 << 30;
+                e
+            }));
         }
     }
 }
 
-/// Logs a line every 2 seconds for the measurement script to parse.
-fn report(mut stats: ResMut<Stats>, mut sim: ResMut<Sim>, slab: Res<SlabMeshes>) {
+/// Turns chemistry events into particles and captions.
+fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>) {
+    let events = std::mem::take(&mut game.events);
+    for e in events {
+        let captioned = e.obj & (1 << 30) != 0;
+        let i = e.obj & !(1 << 30);
+        let c = chem.bounds(i).center();
+        let top = Vec3::new(c.x, chem.bounds(i).max.y, c.z);
+        match e.kind {
+            EventKind::Extinguished(_) => {
+                fx.burst(P::Steam, top, 18, 2.0, 0.5);
+                fx.burst(P::Smoke, top, 8, 1.5, 0.4);
+            }
+            EventKind::Melted => {
+                fx.burst(P::Water, top, 16, 3.0, 0.2);
+                fx.burst(P::Steam, top, 10, 1.5, 0.5);
+            }
+            EventKind::Froze | EventKind::Chilled => fx.burst(P::Frost, top, 20, 2.0, 0.4),
+            EventKind::Steam | EventKind::Fizzle(chem::Fizzle::Wet) => {
+                fx.burst(P::Steam, top, 14, 1.5, 0.5)
+            }
+            EventKind::Ignited => fx.burst(P::Fire, top, 16, 2.5, 0.35),
+            EventKind::BurntOut => fx.burst(P::Smoke, top, 14, 1.2, 0.5),
+            _ => {}
+        }
+        if !captioned
+            && matches!(
+                e.kind,
+                EventKind::Ignited | EventKind::Melted | EventKind::BurntOut
+            )
+            && game.caption_age > 1.5
+        {
+            let who = chem.targets[i].name;
+            let line = match e.kind {
+                EventKind::Ignited if who == "greenhouse" => {
+                    "Oh no! Heat from the fire reached the greenhouse. Press R to try again.".to_string()
+                }
+                EventKind::Ignited => format!(
+                    "Heat from a neighbour raised the {who} to its ignition temperature: it caught fire!"
+                ),
+                k => k.caption().to_string(),
+            };
+            game.say(&line);
+        }
+    }
+    match chem.world.outcome() {
+        Outcome::Won if !game.caption.starts_with("You saved") => {
+            game.say("You saved the greenhouse! Water, frost and CO2 foam each stop fire in their own way.");
+        }
+        _ => {}
+    }
+}
+
+/// Shows each object's state: materials, flames, foam, ice, emitters, lights.
+#[allow(clippy::too_many_arguments)]
+fn sync_visuals(
+    time: Res<Time>,
+    settings: Res<Settings>,
+    player: Res<Player>,
+    game: Res<Game>,
+    kit: Res<Kit>,
+    mut chem: ResMut<Chem>,
+    mut fx: ResMut<Fx>,
+    mut q: Query<
+        (
+            &mut Transform,
+            &mut Visibility,
+            Option<&mut MeshMaterial3d<StandardMaterial>>,
+        ),
+        (Without<FireLight>, Without<fx::Particle>),
+    >,
+    mut lights: Query<(&mut PointLight, &mut Transform), With<FireLight>>,
+) {
+    let dt = time.delta_secs().min(0.05);
+    let now = time.elapsed_secs();
+    let rate = if settings.low { 0.45 } else { 1.0 } * if game.paused { 0.0 } else { 1.0 };
+    let Chem { world, targets, .. } = &mut *chem;
+    let mut fires: Vec<(f32, Vec3)> = Vec::new();
+    for (i, tgt) in targets.iter_mut().enumerate() {
+        let o = &world.objs[i];
+        let look = world::look_of(o);
+        if tgt.last != Some(look) {
+            tgt.last = Some(look);
+            for &e in &tgt.bodies {
+                if let Ok((_, _, Some(mut m))) = q.get_mut(e) {
+                    m.0 = tgt.mats.get(look);
+                }
+            }
+        }
+        for (k, &e) in tgt.flames.iter().enumerate() {
+            if let Ok((mut t, mut v, _)) = q.get_mut(e) {
+                *v = if o.burning {
+                    Visibility::Visible
+                } else {
+                    Visibility::Hidden
+                };
+                if o.burning {
+                    let f = now * 11.0 + i as f32 * 1.7 + k as f32 * 2.3;
+                    let base = if k == 0 { 1.0 } else { 0.7 };
+                    let w = base * (1.0 + 0.12 * f.sin());
+                    let h = base * 1.6 * (1.0 + 0.2 * (f * 1.3).cos());
+                    let sz = match o.kind {
+                        Kind::Greenhouse => 1.3,
+                        Kind::DryHedge => 1.1,
+                        _ => 1.25,
+                    };
+                    t.scale = Vec3::new(w * sz, h * sz, w * sz);
+                }
+            }
+        }
+        if let Some(e) = tgt.foam {
+            if let Ok((mut t, mut v, _)) = q.get_mut(e) {
+                *v = if o.smothered > 0.0 {
+                    Visibility::Visible
+                } else {
+                    Visibility::Hidden
+                };
+                let k = (o.smothered / 4.0).clamp(0.2, 1.0);
+                let base = if o.kind == Kind::DryHedge {
+                    Vec3::new(1.8, 1.6, 12.4)
+                } else {
+                    Vec3::new(2.1, 1.5, 2.1)
+                };
+                t.scale = base * Vec3::new(k.sqrt(), k, k.sqrt());
+            }
+        }
+        if let Some(e) = tgt.wall {
+            if let Ok((mut t, mut v, _)) = q.get_mut(e) {
+                *v = if o.wall {
+                    Visibility::Visible
+                } else {
+                    Visibility::Hidden
+                };
+                let h = 3.2 * (0.2 + 0.8 * o.ice);
+                t.scale.y = h;
+                t.translation.y = h / 2.0;
+            }
+        }
+        if let Some(e) = tgt.puddle {
+            if let Ok((_, mut v, Some(mut m))) = q.get_mut(e) {
+                *v = if o.wall {
+                    Visibility::Hidden
+                } else {
+                    Visibility::Visible
+                };
+                let want = if o.frozen() { &kit.ice } else { &kit.water };
+                if m.0 != *want {
+                    m.0 = want.clone();
+                }
+            }
+        }
+
+        // Emitters.
+        let bb = if tgt.melted_aabb.is_some() && !o.wall {
+            tgt.melted_aabb.unwrap_or(tgt.aabb)
+        } else {
+            tgt.aabb
+        };
+        let c = bb.center();
+        let half = (bb.max - bb.min) * 0.5;
+        let spot = |fx: &mut Fx| {
+            Vec3::new(
+                c.x + (fx.rand() - 0.5) * 1.6 * half.x,
+                bb.max.y - 0.2,
+                c.z + (fx.rand() - 0.5) * 1.6 * half.z,
+            )
+        };
+        let area = (half.x * half.z).sqrt().clamp(1.0, 3.0);
+        if o.burning {
+            fires.push((player.pos.distance(c), Vec3::new(c.x, bb.max.y + 0.8, c.z)));
+            if fx.rand() < 30.0 * area * rate * dt {
+                let p = spot(&mut fx);
+                let v = Vec3::new(0.0, 1.5 + fx.rand() * 1.5, 0.0) + fx.rand3() * 0.3;
+                fx.emit(P::Fire, p, v, 0.35, 0.8);
+            }
+            if fx.rand() < 5.0 * rate * dt {
+                let p = spot(&mut fx) + Vec3::Y * 1.2;
+                fx.emit(P::Smoke, p, Vec3::Y * 1.5, 0.5, 2.0);
+            }
+        }
+        let steaming = (o.kind == Kind::SteamVent && o.temp > 60.0)
+            || (o.wet > 0.0 && o.temp >= 99.0 && !o.burning);
+        if steaming && fx.rand() < 14.0 * rate * dt {
+            let p = spot(&mut fx);
+            let v = Vec3::new(0.0, 2.5, 0.0) + fx.rand3() * 0.4;
+            fx.emit(P::Steam, p, v, 0.5, 1.6);
+        }
+        if (o.temp < -60.0 || (o.frozen() && o.temp < -100.0)) && fx.rand() < 8.0 * rate * dt {
+            let p = spot(&mut fx);
+            let v = fx.rand3() * 0.3 + Vec3::Y * 0.2;
+            fx.emit(P::Frost, p, v, 0.35, 1.4);
+        }
+        if o.smothered > 0.0 && fx.rand() < 3.0 * rate * dt {
+            let p = spot(&mut fx) + Vec3::Y * 0.3;
+            fx.emit(P::Foam, p, Vec3::Y * 0.6, 0.15, 0.8);
+        }
+    }
+    fires.sort_by(|a, b| a.0.total_cmp(&b.0));
+    for (k, (mut l, mut t)) in lights.iter_mut().enumerate() {
+        if let Some(&(_, p)) = fires.get(k) {
+            l.intensity = 120_000.0 * (1.0 + 0.15 * (now * 13.0 + k as f32).sin());
+            t.translation = p;
+        } else {
+            l.intensity = 0.0;
+        }
+    }
+}
+
+/// The gauntlet: spell colour, recoil kick and a little walk bob.
+fn viewmodel(
+    game: Res<Game>,
+    player: Res<Player>,
+    mats: Res<SpellMats>,
+    mut root: Query<&mut Transform, With<Viewmodel>>,
+    mut glows: Query<&mut MeshMaterial3d<StandardMaterial>, With<SpellGlow>>,
+) {
+    for mut m in &mut glows {
+        if m.0 != mats.glow[game.spell] {
+            m.0 = mats.glow[game.spell].clone();
+        }
+    }
+    if let Ok(mut t) = root.single_mut() {
+        let r = game.recoil * game.recoil;
+        let speed = player.vel.xz().length().min(9.0) / 9.0;
+        let bob = player.stride * 1.6;
+        t.translation = Vec3::new(
+            0.2 + bob.sin() * 0.01 * speed,
+            -0.19 + (bob * 2.0).cos().abs() * -0.008 * speed + r * 0.015,
+            -0.4 + r * 0.06,
+        );
+        t.rotation = Quat::from_rotation_x(r * 0.35) * Quat::from_rotation_y(0.1);
+    }
+}
+
+fn esc(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Writes the state the HUD and tests read.
+fn publish(
+    mut frame: Local<u64>,
+    game: Res<Game>,
+    chem: Res<Chem>,
+    player: Res<Player>,
+    settings: Res<Settings>,
+) {
+    *frame += 1;
+    let w = &chem.world;
+    let outcome = match w.outcome() {
+        Outcome::Playing => "playing",
+        Outcome::Won => "won",
+        Outcome::Lost => "lost",
+    };
+    let objs: Vec<String> = w
+        .objs
+        .iter()
+        .enumerate()
+        .map(|(i, o)| {
+            format!(
+                "{{\"i\":{i},\"n\":\"{}\",\"burning\":{},\"temp\":{:.0},\"wet\":{:.2},\"ice\":{:.2},\"wall\":{},\"frozen\":{},\"smothered\":{:.1},\"fuel\":{:.1}}}",
+                chem.targets[i].name, o.burning, o.temp, o.wet, o.ice, o.wall, o.frozen(), o.smothered, o.fuel
+            )
+        })
+        .collect();
+    let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
+    let json = format!(
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.2},{:.2},{:.2}],\"yaw\":{:.1},\"pitch\":{:.1},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"objs\":[{}]}}",
+        *frame,
+        w.ticks,
+        game.locked,
+        game.paused,
+        game.spell,
+        Spell::ALL[game.spell].name(),
+        Spell::ALL[game.spell].formula(),
+        opt(game.aim.obj),
+        game.aim.assisted,
+        opt(game.hover),
+        w.extinguished,
+        chem::GOAL_FIRES,
+        w.burning(),
+        esc(&game.caption),
+        game.caption_id,
+        game.casts,
+        game.impacts,
+        player.pos.x,
+        player.pos.y,
+        player.pos.z,
+        player.yaw.to_degrees(),
+        player.pitch.to_degrees(),
+        player.on_ice,
+        settings.low,
+        settings.sens,
+        settings.assist > 0.0,
+        objs.join(",")
+    );
+    bridge::publish(&json);
+}
+
+fn pct(v: &mut [f32], p: f32) -> f32 {
+    if v.is_empty() {
+        return 0.0;
+    }
+    v.sort_by(f32::total_cmp);
+    v[((v.len() - 1) as f32 * p).round() as usize]
+}
+
+/// Logs a STATS line every 2 seconds.
+fn report(mut stats: ResMut<Stats>, entities: Query<Entity>, chem: Res<Chem>, game: Res<Game>) {
     let now = Instant::now();
     stats.frames += 1;
     if stats.frames == 3 {
-        info!(
-            "FIRST_FRAME t={:.0}ms quads={}",
-            now_ms(),
-            slab.slab.quads()
-        );
+        info!("FIRST_FRAME t={:.0}ms", now_ms());
+    }
+    if let Some(s) = stats.frame_start {
+        let cpu = (now - s).as_secs_f32() * 1000.0;
+        stats.cpu.push(cpu);
     }
     if let Some(last) = stats.last {
         let dt = (now - last).as_secs_f32() * 1000.0;
-        stats.worst_ms = stats.worst_ms.max(dt);
+        stats.dts.push(dt);
     }
     stats.last = Some(now);
     let start = *stats.window_start.get_or_insert(now);
-    stats.window_frames += 1;
     let span = (now - start).as_secs_f32();
-    if span >= 2.0 {
+    if span >= 2.0 && !stats.dts.is_empty() {
+        let n = stats.dts.len();
+        let mut dts = std::mem::take(&mut stats.dts);
+        let mut cpu = std::mem::take(&mut stats.cpu);
+        let avg = dts.iter().sum::<f32>() / n as f32;
+        let p50 = pct(&mut dts, 0.5);
+        let p95 = pct(&mut dts, 0.95);
+        let worst = pct(&mut dts, 1.0);
+        let cpu50 = pct(&mut cpu, 0.5);
+        let cpu95 = pct(&mut cpu, 0.95);
         info!(
-            "STATS fps={:.1} avg_ms={:.2} worst_ms={:.1} sim_ms_per_frame={:.2} ticks_per_frame={:.2} sim_max_ms={:.2} build_max_ms={:.2} upload_max_ms={:.2} quads={} solid={} glow={} gas={} player_x={:.0} wasm_mem_mb={:.1}",
-            stats.window_frames as f32 / span,
-            span * 1000.0 / stats.window_frames as f32,
-            stats.worst_ms,
-            sim.sim_total_ms / stats.window_frames as f32,
-            sim.ticks_run as f32 / stats.window_frames as f32,
-            sim.sim_ms,
-            stats.build_ms,
-            stats.upload_ms,
-            slab.slab.quads(),
-            slab.slab.solid.quads(),
-            slab.slab.glow.quads(),
-            slab.slab.gas.quads(),
-            sim.game.player.x,
+            "STATS fps={:.1} fps_p50={:.1} fps_p5={:.1} avg_ms={:.2} p50_ms={:.2} p95_ms={:.2} worst_ms={:.1} update_ms_p50={:.2} update_ms_p95={:.2} entities={} burning={} extinguished={} wasm_mem_mb={:.1} heap_live_mb={:.1} heap_peak_mb={:.1} biggest_alloc_mb={:.1}",
+            n as f32 / span,
+            1000.0 / p50.max(0.01),
+            1000.0 / p95.max(0.01),
+            avg,
+            p50,
+            p95,
+            worst,
+            cpu50,
+            cpu95,
+            entities.iter().count(),
+            chem.world.burning(),
+            chem.world.extinguished,
             wasm_memory_mb(),
+            heap::mb(&heap::LIVE),
+            heap::mb(&heap::PEAK),
+            heap::mb(&heap::BIGGEST),
         );
+        let _ = &game;
         stats.window_start = Some(now);
-        stats.window_frames = 0;
-        stats.worst_ms = 0.0;
-        stats.build_ms = 0.0;
-        stats.upload_ms = 0.0;
-        sim.sim_ms = 0.0;
-        sim.sim_total_ms = 0.0;
-        sim.ticks_run = 0;
     }
 }

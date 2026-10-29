@@ -2,7 +2,7 @@
 name = "realgame-bevy-client"
 version = "0.1.0"
 edition = "2021"
-description = "Spike: the current 2D simulation rendered as a 3D voxel slab with Bevy"
+description = "First-person 3D prototype: real chemistry is magic, in a small courtyard"
 publish = false
 
 # Its own workspace, so Bevy's large dependency tree stays out of the main
@@ -14,7 +14,6 @@ name = "bevy-client"
 path = "src/main.rs"
 
 [dependencies]
-realgame-sim = { path = "../sim" }
 bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "bevy_winit",
@@ -29,6 +28,7 @@ bevy = { version = "0.20.1", default-features = false, features = [
     "bevy_camera",
     "bevy_color",
     "keyboard",
+    "mouse",
 ] }
 
 [features]
@@ -45,6 +45,8 @@ bloom = ["bevy/bevy_post_process", "bevy/tonemapping_luts", "bevy/ktx2", "bevy/z
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["web"] }
 web-sys = { version = "0.3", features = ["Window", "Location", "Performance"] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
