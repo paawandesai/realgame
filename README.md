@@ -2,7 +2,7 @@
 
 A chemistry spell sandbox, and the first playable slice of a larger game where real skills are the magic system. You gather matter, write real chemical equations, and the simulation decides what happens: water douses fire, electricity splits water into hydrogen and oxygen, and a balanced `2H2 + O2 -> 2H2O` makes a sharp pop that lights a torch.
 
-It runs in the browser (school Chromebooks first), downloads about 115 KB gzipped, and collects no personal data.
+It runs in the browser (school Chromebooks first), downloads about 115 KB gzipped, and collects no personal data: only anonymous play counts, described in `docs/ANALYTICS.md`.
 
 ## Run it locally
 
@@ -22,6 +22,10 @@ Run the simulation's tests from the repository root:
 cargo test
 cargo clippy --all-targets -- -D warnings
 ```
+
+## Deploy
+
+`npx wrangler login`, then `npm run deploy` publishes the game to Cloudflare Pages with its analytics. Step-by-step instructions, including building from GitHub instead, are in `docs/DEPLOY.md`.
 
 ## How to play
 
@@ -50,6 +54,9 @@ The first screen asks for an age band, which sets the tier:
 | `content/reactions.json` | Every reaction and phase change, with sourced values. Data, not code, so it can be reviewed |
 | `web` | The browser shell in TypeScript: input, HUD, formula ring. No framework, no third-party runtime code |
 | `docs/ENGINEERING.md` | The engineering and safety practices this repo follows, and why |
+| `functions/`, `migrations/` | Cloudflare Pages Functions for anonymous play counts (`/api/event`, `/api/stats`) and their D1 schema |
+| `dashboard/` | The static analytics dashboard served at `/dashboard/` |
+| `docs/DEPLOY.md`, `docs/ANALYTICS.md` | How to deploy to Cloudflare, and exactly what the analytics collect |
 
 ## Science and accuracy
 
@@ -59,7 +66,7 @@ All enthalpies come from standard enthalpies of formation in the NIST Chemistry 
 
 Running `npm install` once at the repository root sets up git hooks (husky):
 
-- **pre-commit** (about 1 s): `rustfmt --check` on staged Rust files, and `tsc` when web TypeScript is staged.
-- **pre-push** (about 10 s warm, under a minute from cold): rustfmt, clippy for native and wasm32, `cargo test`, the WebAssembly build, `tsc` and the Vite build.
+- **pre-commit** (about 1 s): `rustfmt --check` on staged Rust files, and `tsc` when web TypeScript, or the Functions, tests or dashboard script, are staged.
+- **pre-push** (about 10 s warm, under a minute from cold): rustfmt, clippy for native and wasm32, `cargo test`, the analytics typecheck and tests (`npm test`), the WebAssembly build, `tsc` and the Vite build.
 
 If a hook fails, fix the problem rather than bypassing it; CI runs the same checks plus the dependency audits.

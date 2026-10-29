@@ -42,6 +42,7 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       web: ${{ steps.filter.outputs.web }}
       deps: ${{ steps.filter.outputs.deps }}
+      analytics: ${{ steps.filter.outputs.analytics }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -68,6 +69,17 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'web/**'
+            analytics:
+              - *ci
+              - 'functions/**'
+              - 'migrations/**'
+              - 'dashboard/**'
+              - 'test/**'
+              - 'web/src/analytics.ts'
+              - 'wrangler.toml'
+              - 'tsconfig.json'
+              - 'package.json'
+              - 'package-lock.json'
             deps:
               - *ci
               - 'Cargo.toml'
@@ -241,6 +253,41 @@ jobs:
           # Peak RSS of the whole job (runner included), as an annotation.
           awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
+  # Pages Functions (event intake, stats), their tests, the dashboard script
+  # and the D1 migration. Node only: no Rust or wasm needed.
+  analytics:
+    name: Analytics (typecheck + tests + migration)
+    needs: changes
+    if: needs.changes.outputs.analytics == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install exact dependencies from the lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck (functions, tests, dashboard)
+        run: npm run typecheck
+      - name: Unit tests (validation, aggregation, retention, daily id)
+        run: npm test
+      - name: Apply the D1 migrations to a local database (wrangler, offline)
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: npx --no-install wrangler d1 migrations apply realgame-analytics --local
+      - name: Peak memory (cgroup)
+        if: always()
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
+          # Peak RSS of the whole job (runner included), as an annotation.
+          awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+
   supply-chain:
     name: Dependency audit
     needs: changes
@@ -272,7 +319,7 @@ jobs:
   # failed or was cancelled.
   ci-ok:
     name: CI result
-    needs: [changes, lint-rust, lint-wasm, test-rust, build-wasm, web, supply-chain]
+    needs: [changes, lint-rust, lint-wasm, test-rust, build-wasm, web, analytics, supply-chain]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -13,6 +13,10 @@ echo "pre-push: clippy (wasm32)"
 cargo clippy --target wasm32-unknown-unknown --locked --quiet -- -D warnings
 echo "pre-push: cargo test"
 cargo test --locked --quiet
+echo "pre-push: analytics typecheck and tests (functions, dashboard, daily id)"
+[ -x node_modules/.bin/tsc ] || npm ci --no-audit --no-fund --silent
+npm run --silent typecheck
+npm test --silent
 echo "pre-push: wasm-pack build, tsc, vite build"
 cd web
 [ -d node_modules ] || npm ci --no-audit --no-fund --silent
