@@ -37,7 +37,10 @@
     </main>
 
     <main id="game" class="screen" hidden>
-      <p id="rotate">Turn your device sideways to play.</p>
+      <div id="rotate" role="status">
+        <span class="rotate-pic" aria-hidden="true"><span class="rotate-phone" data-icon="phone"></span><span class="rotate-arrow" data-icon="restart"></span></span>
+        <p>Turn your device sideways to play.</p>
+      </div>
       <div id="stage">
         <canvas id="world" width="320" height="180" aria-label="Game world"></canvas>
 

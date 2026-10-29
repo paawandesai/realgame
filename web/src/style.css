@@ -2704,3 +2704,196 @@ body[data-tier="sprout"] #menu-trial {
   min-width: 44px;
   min-height: 44px;
 }
+
+/* ------------------------------------------------ F15: portrait phones */
+
+#rotate {
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+#rotate p {
+  margin: 0;
+}
+
+.rotate-pic {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  color: var(--ink);
+}
+
+.rotate-phone,
+.rotate-arrow {
+  position: absolute;
+  display: block;
+}
+
+.rotate-phone {
+  inset: 15px;
+  animation: rotate-phone 2.4s ease-in-out infinite;
+}
+
+.rotate-arrow {
+  top: -6px;
+  left: -10px;
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+  transform: scaleX(-1);
+}
+
+@keyframes rotate-phone {
+  0%, 20% { transform: rotate(0deg); }
+  55%, 85% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  #rotate {
+    display: flex;
+  }
+
+  /* Sprout plays upright too (phones are the main device for ages 4 to 7):
+     the world letterboxed full-width at the top, big cards and move buttons
+     along the bottom where thumbs are. */
+  body[data-tier="sprout"] #rotate {
+    display: none;
+  }
+
+  body[data-tier="sprout"] #game {
+    padding: 0;
+  }
+
+  /* The world is zoomed (1.6x) and slides sideways to keep the player in
+     view (see the portrait framing in main.ts); the HUD stays put. */
+  body[data-tier="sprout"] #game {
+    overflow: hidden;
+    min-height: 100vh;
+  }
+
+  body[data-tier="sprout"] #stage {
+    --zoom-w: 160vw;
+    display: block;
+    width: var(--zoom-w);
+    margin-top: 72px;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  body[data-tier="sprout"] #help,
+  body[data-tier="sprout"] #readout {
+    display: none !important;
+  }
+
+  body[data-tier="sprout"] #replay,
+  body[data-tier="sprout"] #settings-btn,
+  body[data-tier="sprout"] #book-btn {
+    position: fixed;
+    top: 8px;
+    width: 56px;
+    height: 56px;
+    padding: 8px;
+  }
+
+  body[data-tier="sprout"] #replay {
+    left: 8px;
+  }
+
+  body[data-tier="sprout"] #settings-btn {
+    right: 8px;
+  }
+
+  body[data-tier="sprout"] #book-btn {
+    right: 72px;
+  }
+
+  body[data-tier="sprout"] #progress {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+
+  /* Mote's words and the goal sit just under the world, not over it. */
+  body[data-tier="sprout"] #mote {
+    position: fixed;
+    top: calc(72px + 90vw + 8px);
+    left: 8px;
+    right: 8px;
+    max-width: none;
+  }
+
+  body[data-tier="sprout"] #goal-chip {
+    position: fixed;
+    top: calc(72px + 90vw + 64px);
+  }
+
+  body[data-tier="sprout"] #objective-banner {
+    position: fixed;
+    top: calc(72px + 90vw + 150px);
+    width: max-content;
+    max-width: calc(100vw - 32px);
+  }
+
+  body[data-tier="sprout"] #objective-banner.shrink {
+    top: calc(72px + 90vw + 64px);
+  }
+
+  body[data-tier="sprout"] #go-arrow {
+    right: calc(var(--off-right, 0px) + 12px);
+  }
+
+  body[data-tier="sprout"] #go-arrow.left {
+    left: calc(var(--off-left, 0px) + 12px);
+    right: auto;
+  }
+
+  body[data-tier="sprout"] #room-clear,
+  body[data-tier="sprout"] #discover,
+  body[data-tier="sprout"] #end {
+    position: fixed;
+  }
+
+  body[data-tier="sprout"] #cards {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  body[data-tier="sprout"] .card {
+    min-width: 72px;
+    min-height: 72px;
+  }
+
+  body[data-tier="sprout"] #moves {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 120px;
+    justify-content: flex-start;
+  }
+
+  body[data-tier="sprout"] #moves [data-key="jump"] {
+    margin-left: auto;
+  }
+
+  body[data-tier="sprout"] #moves button {
+    width: 72px;
+    height: 72px;
+  }
+
+  body[data-tier="sprout"] #settings {
+    position: fixed;
+    top: 72px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: calc(100vh - 84px);
+  }
+}

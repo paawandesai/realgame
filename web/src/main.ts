@@ -188,6 +188,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   byId("start").hidden = true;
   byId("game").hidden = false;
   document.body.dataset.tier = tier;
+  for (const pic of byId("rotate").querySelectorAll("[data-icon]")) setIcon(pic, pic.getAttribute("data-icon") as IconName);
   initDevice(() => renderTutorial());
 
   const prefs = loadPrefs(tier);
@@ -1623,6 +1624,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       } else if (room1Cleared && objective.line !== shownGoalLine) renderTutorial();
       shownGoalLine = objective.line;
     }
+    framePortrait(viewX);
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
     updateLift(now, viewX);
     if (jumpHint) jumpHintTick(now, viewX);
@@ -1677,6 +1679,32 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const ky = stage.clientHeight / h;
       jumpHint.style.transform = `translate(${((x + 3 - viewX) * kx).toFixed(1)}px, ${((game.player_y() - 4) * ky).toFixed(1)}px)`;
     }
+  }
+
+  // Sprout on an upright phone: the stage is wider than the screen (zoomed
+  // in), so it slides sideways to keep the player near the middle.
+  const portrait = window.matchMedia("(orientation: portrait) and (max-width: 700px)");
+  let portraitLeft = 0;
+  function framePortrait(viewX: number): void {
+    if (tier !== "sprout" || !portrait.matches) {
+      if (portraitLeft !== 0 || stage.style.left) {
+        portraitLeft = 0;
+        stage.style.left = "";
+        stage.style.removeProperty("--off-left");
+        stage.style.removeProperty("--off-right");
+      }
+      return;
+    }
+    const sw = stage.clientWidth;
+    const vw = window.innerWidth;
+    const px = (game.player_x() + 3 - viewX) * (sw / w);
+    const target = Math.min(0, Math.max(vw - sw, vw / 2 - px));
+    portraitLeft += (target - portraitLeft) * (fx.reducedMotion ? 1 : 0.15);
+    if (Math.abs(target - portraitLeft) < 0.5) portraitLeft = target;
+    stage.style.left = `${portraitLeft.toFixed(1)}px`;
+    // How much of the stage is off each side of the screen, for edge arrows.
+    stage.style.setProperty("--off-left", `${(-portraitLeft).toFixed(1)}px`);
+    stage.style.setProperty("--off-right", `${(sw - vw + portraitLeft).toFixed(1)}px`);
   }
 
   // Camera framing: the world is exactly as tall as the stage, so when the
