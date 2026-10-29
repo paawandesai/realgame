@@ -1193,6 +1193,11 @@ impl Game {
         if split && in_reach(trap) {
             found = Some(trap);
         }
+        // Trapped hydrogen hugs the roof; aim into the middle of the pocket so
+        // the bolt clears the overhang's lip and the fireball reaches the gas.
+        if found.is_some_and(|(x, y)| rooms::TRAP.contains(x, y)) {
+            found = Some(trap);
+        }
         if let Some(p) = found {
             self.aim = p;
         }

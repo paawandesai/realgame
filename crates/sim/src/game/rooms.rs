@@ -66,7 +66,7 @@ pub const CRYSTAL: Rect = Rect::new(668, 134, 674, GROUND_Y);
 pub const POOL: Rect = Rect::new(732, GROUND_Y, 784, 160);
 const ROOF: Rect = Rect::new(722, 104, 794, 108);
 /// The gas pocket under the overhang, where rising hydrogen collects.
-pub const TRAP: Rect = Rect::new(726, 108, 790, 124);
+pub const TRAP: Rect = Rect::new(726, 108, 790, 120);
 /// A blast counts once this much hydrogen has been trapped...
 const TRAP_MIN_H2: u32 = 4;
 /// ...and burns hot enough to be hydrogen (it burns at 2000 C in air, 2800 C
@@ -1279,6 +1279,24 @@ mod tests {
             settle(&mut g, 30);
             assert!(g.rooms.gates_open[2], "seed {seed}: gate 3 shut");
             assert!(g.take_fx().iter().any(|f| f.kind == "door"));
+        }
+    }
+
+    #[test]
+    fn sprout_cards_with_no_aiming_split_and_light_the_gas() {
+        for seed in SEEDS {
+            let mut g = Game::new(Tier::Sprout, seed);
+            teleport(&mut g, 686.0);
+            assert_eq!(g.cast("split").outcome, Outcome::Full);
+            land(&mut g);
+            settle(&mut g, 30);
+            assert_eq!(g.cast("boom").outcome, Outcome::Full);
+            land(&mut g);
+            settle(&mut g, 30);
+            assert!(
+                g.rooms.gates_open[2],
+                "seed {seed}: auto-aim missed the gas"
+            );
         }
     }
 
