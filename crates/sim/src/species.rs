@@ -94,6 +94,22 @@ impl Species {
         matches!(self.phase(), Phase::Solid)
     }
 
+    /// Species with a per-cell rule in the chemistry pass (phase changes,
+    /// burning); everything else only reacts when one of these touches it.
+    #[inline]
+    pub fn reacts_alone(self) -> bool {
+        matches!(
+            self,
+            Species::Water
+                | Species::Ice
+                | Species::Steam
+                | Species::Wood
+                | Species::H2
+                | Species::CH4
+                | Species::Flame
+        )
+    }
+
     #[inline]
     pub fn conductivity(self) -> f32 {
         CONDUCT[self as usize]

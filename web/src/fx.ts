@@ -101,9 +101,22 @@ interface Label {
   life: number;
 }
 
+/** The overlay never needs more than this many backing pixels per world cell:
+ * sharp enough for icons and text, and it keeps per-frame raster cost flat on
+ * big screens. */
+const MAX_PX_PER_CELL = 4;
+/** Glow is soft, so it is drawn at a low resolution and scaled up smoothly. */
+const GLOW_PX_PER_CELL = 2;
+
 export class FxLayer {
   readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
+  /** Soft light around hot things, under the overlay (hidden when the WebGL
+   * renderer draws its own bloom). */
+  readonly glowCanvas: HTMLCanvasElement;
+  private readonly glowCtx: CanvasRenderingContext2D;
+  private glowDrawn = false;
+  private overlayDrawn = true;
   private readonly pool: Particle[] = [];
   private bolts: Bolt[] = [];
   private charges: Timed[] = [];
@@ -130,10 +143,21 @@ export class FxLayer {
     private readonly tier: Tier,
     private readonly onFix: (formula: string) => void,
   ) {
+    this.glowCanvas = document.createElement("canvas");
+    this.glowCanvas.id = "glow";
+    this.glowCanvas.setAttribute("aria-hidden", "true");
+    this.glowCanvas.width = viewW * GLOW_PX_PER_CELL;
+    this.glowCanvas.height = viewH * GLOW_PX_PER_CELL;
+    const after = shaken[shaken.length - 1]?.nextSibling ?? null;
+    stage.insertBefore(this.glowCanvas, after);
+    shaken.push(this.glowCanvas);
+    const gctx = this.glowCanvas.getContext("2d");
+    if (!gctx) throw new Error("Canvas 2D is not available");
+    this.glowCtx = gctx;
     this.canvas = document.createElement("canvas");
     this.canvas.id = "fx";
     this.canvas.setAttribute("aria-hidden", "true");
-    stage.insertBefore(this.canvas, shaken[0]?.nextSibling ?? null);
+    stage.insertBefore(this.canvas, this.glowCanvas.nextSibling);
     shaken.push(this.canvas);
     const ctx = this.canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D is not available");
@@ -163,11 +187,25 @@ export class FxLayer {
     this.glow = entries;
   }
 
-  /** Additive light around flames, crystals and anything above 400 °C. */
-  private drawGlow(now: number, sx: (x: number) => number, sy: (y: number) => number, k: number): void {
-    const ctx = this.ctx;
+  /** Whether the 2D glow layer is drawn (off when WebGL draws bloom instead). */
+  set glowLayer(on: boolean) {
+    this.glowCanvas.hidden = !on;
+    if (!on) this.glow = new Float32Array(0);
+  }
+
+  /** Additive light around flames, crystals and anything above 400 °C, on
+   * its own small canvas. */
+  private drawGlow(now: number): void {
     const g = this.glow;
-    if (g.length === 0) return;
+    const ctx = this.glowCtx;
+    if (g.length === 0) {
+      if (this.glowDrawn) ctx.clearRect(0, 0, this.glowCanvas.width, this.glowCanvas.height);
+      this.glowDrawn = false;
+      return;
+    }
+    ctx.clearRect(0, 0, this.glowCanvas.width, this.glowCanvas.height);
+    this.glowDrawn = true;
+    const k = GLOW_PX_PER_CELL;
     ctx.globalCompositeOperation = "lighter";
     const calm = this.reducedMotion;
     for (let i = 0; i + 3 < g.length; i += 4) {
@@ -175,14 +213,14 @@ export class FxLayer {
       const sprite = this.glowSprites[kind];
       if (!sprite) continue;
       const strength = g[i + 3]!;
-      const x = g[i]! + this.viewX;
+      const x = g[i]!;
       const y = g[i + 1]!;
       const base = kind === 3 ? 12 : kind === 2 ? 7 : 6;
       // Flames breathe a little; never faster than a few times a second.
-      const flicker = kind === 3 && !calm ? 0.85 + 0.15 * Math.sin(now / 160 + x * 0.7) : 1;
+      const flicker = kind === 3 && !calm ? 0.85 + 0.15 * Math.sin(now / 160 + (x + this.viewX) * 0.7) : 1;
       const r = base * (0.8 + 0.4 * strength) * flicker * k;
       ctx.globalAlpha = Math.min(1, 0.7 + 0.3 * strength);
-      ctx.drawImage(sprite, sx(x) - r, sy(y) - r, r * 2, r * 2);
+      ctx.drawImage(sprite, x * k - r, y * k - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
@@ -198,8 +236,9 @@ export class FxLayer {
   private resize(): void {
     const r = this.stage.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.max(1, Math.round(r.width * dpr));
-    this.canvas.height = Math.max(1, Math.round(r.height * dpr));
+    const k = Math.min((r.width * dpr) / this.viewW, MAX_PX_PER_CELL);
+    this.canvas.width = Math.max(1, Math.round(this.viewW * k));
+    this.canvas.height = Math.max(1, Math.round(this.viewH * k));
     this.scale = this.canvas.width / this.viewW;
   }
 
@@ -437,8 +476,17 @@ export class FxLayer {
     const k = this.scale;
     const sx = (x: number) => (x - viewX) * k;
     const sy = (y: number) => y * k;
+    this.drawGlow(now);
+    // An idle overlay (nothing in flight, nothing fading) is left alone
+    // instead of being cleared and redrawn every frame.
+    const busy = this.busy(now);
+    if (!busy && !this.overlayDrawn) {
+      this.placeLabels(now);
+      this.applyShake(now);
+      return;
+    }
+    this.overlayDrawn = busy;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.drawGlow(now, sx, sy, k);
 
     // Charge rings at the gauntlet.
     this.charges = this.charges.filter((c) => now - c.born < c.life);
@@ -578,7 +626,22 @@ export class FxLayer {
     }
     ctx.globalAlpha = 1;
 
-    // Floating labels follow the world as the camera moves.
+    this.placeLabels(now);
+    this.applyShake(now);
+  }
+
+  /** Whether anything is drawn on the overlay canvas this frame. */
+  private busy(now: number): boolean {
+    if (this.charges.length || this.bolts.length || this.flashes.length || this.orbs.length || this.ghosts.length) {
+      return true;
+    }
+    if (now - this.frostBorn < 700) return true;
+    for (const p of this.pool) if (p.alive) return true;
+    return false;
+  }
+
+  /** Floating labels follow the world as the camera moves. */
+  private placeLabels(now: number): void {
     this.labels = this.labels.filter((l) => {
       const age = now - l.born;
       if (age > l.life) {
@@ -589,8 +652,6 @@ export class FxLayer {
       l.el.style.opacity = age > l.life - 400 ? String((l.life - age) / 400) : "1";
       return true;
     });
-
-    this.applyShake(now);
   }
 
   private arrow(x0: number, y0: number, x1: number, y1: number, k: number): void {

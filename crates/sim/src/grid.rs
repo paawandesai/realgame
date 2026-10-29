@@ -43,6 +43,12 @@ const STILL_AIR_BELOW_C: f32 = 60.0;
 /// transfer would be far below anything visible or gameplay-relevant.
 const HEAT_EPSILON_C: f32 = 0.01;
 
+/// Heat-pass sleeping works on row segments this many cells wide, aligned to
+/// absolute x, so a segment means the same cells wherever the camera is.
+const HEAT_CHUNK: usize = 64;
+/// "Never": a frame number no real step reaches before wrapping.
+const NEVER: u32 = u32::MAX;
+
 const NEIGHBORS: [(i32, i32); 8] = [
     (0, 1),
     (0, -1),
@@ -71,6 +77,42 @@ pub struct Grid {
     /// Chance per tick that hot wood with pure oxygen beside it puts out a
     /// flame (scaled down for air). Rooms tune this to keep fires bounded.
     pub wood_flame_chance: f32,
+    /// Skip heat-pass segments that provably cannot change (see `heat_pass`).
+    /// Results are bit-for-bit the same either way; off only for tests.
+    pub heat_sleep: bool,
+    heat: HeatSleep,
+}
+
+/// Bookkeeping for heat-pass sleeping. Heat conduction has no randomness, so
+/// a row segment whose inputs are bit-for-bit what they were last step, and
+/// which changed nothing last step, changes nothing again. Inputs are checked
+/// against a snapshot rather than tracked at every write, so writes from
+/// anywhere (chemistry, spells, level resets) are always noticed.
+struct HeatSleep {
+    /// Temperatures and species of every cell at the start of the last
+    /// heat pass that covered it.
+    snap_temp: Vec<f32>,
+    snap_cells: Vec<Species>,
+    /// Per segment, this step: the covered cells match the snapshot.
+    same: Vec<bool>,
+    /// Per segment: the last frame its processing changed any temperature.
+    touched: Vec<u32>,
+    /// Per segment: the last frame it was fully inside the stepped range and
+    /// changed nothing (whether it ran or was skipped).
+    quiet: Vec<u32>,
+}
+
+impl HeatSleep {
+    fn new(w: usize, h: usize) -> HeatSleep {
+        let chunks = w.div_ceil(HEAT_CHUNK) * h;
+        HeatSleep {
+            snap_temp: vec![f32::NAN; w * h],
+            snap_cells: vec![Species::Air; w * h],
+            same: vec![false; chunks],
+            touched: vec![0; chunks],
+            quiet: vec![NEVER; chunks],
+        }
+    }
 }
 
 impl Grid {
@@ -89,6 +131,8 @@ impl Grid {
             boil_buffer: boil_kj * 1000.0 / WATER_CP_J_PER_MOL_K,
             melt_buffer: melt_kj * 1000.0 / WATER_CP_J_PER_MOL_K,
             wood_flame_chance: 0.25,
+            heat_sleep: true,
+            heat: HeatSleep::new(w, h),
         }
     }
 
@@ -194,16 +238,19 @@ impl Grid {
     fn move_pass(&mut self, x0: usize, x1: usize) {
         let left_to_right = self.frame.is_multiple_of(2);
         for y in (0..self.h).rev() {
+            let row = y * self.w;
             for k in x0..x1 {
                 let x = if left_to_right { k } else { x1 - 1 - (k - x0) };
-                let i = self.idx(x, y);
+                let i = row + x;
                 let s = self.cells[i];
                 // Cool air is the still background (see `move_gas`) and solids
                 // never move: most cells end here without touching the RNG.
-                if (s == Species::Air && self.temp[i] < STILL_AIR_BELOW_C)
-                    || s.is_solid()
-                    || self.moved[i] == self.frame
-                {
+                let still = if s == Species::Air {
+                    self.temp[i] < STILL_AIR_BELOW_C
+                } else {
+                    s.is_solid()
+                };
+                if still || self.moved[i] == self.frame {
                     continue;
                 }
                 match s.phase() {
@@ -386,10 +433,13 @@ impl Grid {
         for y in 0..self.h as i32 {
             for x in x0 as i32..x1 as i32 {
                 let i = self.idx(x as usize, y as usize);
-                if self.reacted[i] == self.frame {
+                let s = self.cells[i];
+                // Most cells (air, stone, crystal, settled gases) never react
+                // on their own; test the species before touching `reacted`.
+                if !s.reacts_alone() || self.reacted[i] == self.frame {
                     continue;
                 }
-                match self.cells[i] {
+                match s {
                     Species::Water => self.water(x, y, i),
                     Species::Ice => self.ice(i),
                     Species::Steam => self.steam(i),
@@ -603,44 +653,125 @@ impl Grid {
     // -------------------------------------------------------------------- heat
 
     fn heat_pass(&mut self, x0: usize, x1: usize) {
-        let (w, h) = (self.w, self.h);
+        if !self.heat_sleep {
+            for y in 0..self.h {
+                self.heat_segment(y, x0, x1, x1);
+            }
+            return;
+        }
+        let (w, h, f) = (self.w, self.h, self.frame);
+        let per_row = w.div_ceil(HEAT_CHUNK);
+        let (c0, c1) = (x0 / HEAT_CHUNK, x1.div_ceil(HEAT_CHUNK));
+        // Compare the covered cells with the snapshot, then refresh it.
         for y in 0..h {
-            let row = y * w;
-            let has_below = y + 1 < h;
-            for x in x0..x1 {
-                let i = row + x;
-                let si = self.cells[i];
-                // Right neighbour, then the one below (the same order as
-                // always, so results are bit-for-bit what they were).
-                if x + 1 < x1 {
-                    self.exchange(i, i + 1, si);
-                }
-                if has_below {
-                    self.exchange(i, i + w, si);
-                }
-                // Open air loses heat to the wider world. Air exactly at
-                // ambient (most of the sky) would add zero, so it is skipped.
-                if si == Species::Air {
-                    let d = AMBIENT_C - self.temp[i];
-                    if d != 0.0 {
-                        self.temp[i] += d * 0.01;
-                    }
+            for c in c0..c1 {
+                let a = y * w + (c * HEAT_CHUNK).max(x0);
+                let b = y * w + ((c + 1) * HEAT_CHUNK).min(x1);
+                let hs = &mut self.heat;
+                // Branch-free folds over bits, so they vectorise.
+                let diff = self.temp[a..b]
+                    .iter()
+                    .zip(&hs.snap_temp[a..b])
+                    .fold(0u32, |acc, (t, s)| acc | (t.to_bits() ^ s.to_bits()));
+                let diff_cells = self.cells[a..b]
+                    .iter()
+                    .zip(&hs.snap_cells[a..b])
+                    .fold(0u8, |acc, (c, s)| acc | (*c as u8 ^ *s as u8));
+                hs.same[y * per_row + c] = diff == 0 && diff_cells == 0;
+                hs.snap_temp[a..b].copy_from_slice(&self.temp[a..b]);
+                hs.snap_cells[a..b].copy_from_slice(&self.cells[a..b]);
+            }
+        }
+        let prev = f.wrapping_sub(1);
+        let calm = |hs: &HeatSleep, k: usize| hs.touched[k] != f && hs.touched[k] != prev;
+        for y in 0..h {
+            for c in c0..c1 {
+                let k = y * per_row + c;
+                let (sx0, sx1) = (c * HEAT_CHUNK, ((c + 1) * HEAT_CHUNK).min(w));
+                // Fully inside, with the right-hand neighbour cell inside too,
+                // so the segment does exactly the same work every step.
+                let interior = sx0 >= x0 && sx1 < x1;
+                let hs = &self.heat;
+                // The segment reads its own cells, the row below and the cell
+                // to its right; it is written by the segment to its left
+                // (right exchange) and the two above it (down exchanges).
+                // Those writers must have been calm this step and last step
+                // (last step's writes would make last step's inputs differ
+                // from the snapshot even when this step's match it).
+                let skip = interior
+                    && hs.quiet[k] == prev
+                    && hs.same[k]
+                    && hs.same[k + 1]
+                    && (y + 1 == h || hs.same[k + per_row])
+                    && (c == 0 || calm(hs, k - 1))
+                    && (y == 0 || (calm(hs, k - per_row) && calm(hs, k - per_row + 1)));
+                let changed = !skip && self.heat_segment(y, sx0.max(x0), sx1.min(x1), x1);
+                if changed {
+                    self.heat.touched[k] = f;
+                } else if interior {
+                    self.heat.quiet[k] = f;
                 }
             }
         }
     }
 
-    #[inline(always)]
-    fn exchange(&mut self, i: usize, j: usize, si: Species) {
-        let dt = self.temp[j] - self.temp[i];
-        if dt.abs() < HEAT_EPSILON_C {
-            return;
+    /// Conducts heat for cells `xa..xb` of row `y` (each to its right and
+    /// downward neighbour, right only while inside `x_end`), and relaxes open
+    /// air toward ambient. Returns whether any temperature may have changed.
+    #[inline]
+    fn heat_segment(&mut self, y: usize, xa: usize, xb: usize, x_end: usize) -> bool {
+        let w = self.w;
+        let row = y * w;
+        let rows = if y + 1 < self.h { 2 } else { 1 };
+        // Row slices (this row, and the one below when there is one) so the
+        // loop indexes short slices it can prove are in range.
+        let temp = &mut self.temp[row..row + rows * w];
+        let cells = &self.cells[row..row + rows * w];
+        let (t_row, t_below) = temp.split_at_mut(w);
+        let (c_row, c_below) = cells.split_at(w);
+        let x_end = x_end.min(w);
+        let xb = xb.min(x_end);
+        let mut changed = false;
+        for x in xa..xb {
+            let si = c_row[x];
+            // This cell's temperature stays in a register; the arithmetic
+            // and its order are exactly those of `exchange`, so results are
+            // bit-for-bit what they were.
+            let mut ti = t_row[x];
+            // Right neighbour, then the one below.
+            if x + 1 < x_end {
+                let tj = t_row[x + 1];
+                let dt = tj - ti;
+                if dt.abs() >= HEAT_EPSILON_C {
+                    let sj = c_row[x + 1];
+                    let q = si.conductivity().min(sj.conductivity()) * dt;
+                    ti += q / si.heat_capacity();
+                    t_row[x + 1] = tj - q / sj.heat_capacity();
+                    changed = true;
+                }
+            }
+            if let (Some(&tj), Some(&sj)) = (t_below.get(x), c_below.get(x)) {
+                let dt = tj - ti;
+                if dt.abs() >= HEAT_EPSILON_C {
+                    let q = si.conductivity().min(sj.conductivity()) * dt;
+                    ti += q / si.heat_capacity();
+                    t_below[x] = tj - q / sj.heat_capacity();
+                    changed = true;
+                }
+            }
+            // Open air loses heat to the wider world. Air exactly at
+            // ambient (most of the sky) would add zero, so it is skipped.
+            if si == Species::Air {
+                let d = AMBIENT_C - ti;
+                if d != 0.0 {
+                    let t = ti + d * 0.01;
+                    changed |= t.to_bits() != ti.to_bits();
+                    ti = t;
+                }
+            }
+            t_row[x] = ti;
         }
-        let sj = self.cells[j];
-        let k = si.conductivity().min(sj.conductivity());
-        let q = k * dt;
-        self.temp[i] += q / si.heat_capacity();
-        self.temp[j] -= q / sj.heat_capacity();
+        changed
     }
 }
 
@@ -650,6 +781,104 @@ mod tests {
 
     fn grid() -> Grid {
         Grid::new(32, 32, 7, 40.65, 6.01)
+    }
+
+    /// Heat-pass sleeping against the plain pass on random scenes: sparse hot
+    /// spots poked in from outside, species swapped, and a stepped column
+    /// range that slides and resizes. Temperatures must match bit for bit.
+    #[test]
+    fn heat_sleep_is_exact_under_random_writes_and_ranges() {
+        let (w, h) = (300, 24);
+        let mut a = Grid::new(w, h, 1, 40.65, 6.01);
+        a.fill_rect(0, 18, w as i32, h as i32, Species::Stone);
+        a.fill_rect(70, 10, 140, 14, Species::Wood);
+        a.fill_rect(150, 12, 200, 18, Species::Water);
+        let mut b = Grid::new(w, h, 1, 40.65, 6.01);
+        b.cells.clone_from(&a.cells);
+        b.heat_sleep = false;
+        let mut rng = 12345u64;
+        let mut next = |n: usize| {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            (rng % n as u64) as usize
+        };
+        let (mut x0, mut x1) = (0, w);
+        let mut slept = 0;
+        for step in 0..6000 {
+            if step % 300 == 0 {
+                x0 = next(120);
+                x1 = (x0 + 64 + next(w)).min(w);
+            }
+            // A few writes from outside the heat pass, most steps none.
+            // Rare, so most segments settle and sleep; half land on the
+            // columns either side of a segment edge, where mistakes would hide.
+            if next(20) == 0 {
+                let x = if next(2) == 0 {
+                    (HEAT_CHUNK * (1 + next(4)) + next(3))
+                        .saturating_sub(1)
+                        .min(w - 1)
+                } else {
+                    next(w)
+                };
+                let y = next(h);
+                let t = [AMBIENT_C, AMBIENT_C, 20.005, 20.5, 35.0][next(5)];
+                let sp = [Species::Air, Species::Stone, Species::Water][next(3)];
+                for g in [&mut a, &mut b] {
+                    g.set(x as i32, y as i32, sp, t);
+                }
+            }
+            for g in [&mut a, &mut b] {
+                g.frame = g.frame.wrapping_add(1);
+                g.heat_pass(x0, x1);
+            }
+            let f = a.frame;
+            slept += a.heat.quiet.iter().filter(|&&q| q == f).count();
+            for i in 0..w * h {
+                assert_eq!(
+                    a.temp[i].to_bits(),
+                    b.temp[i].to_bits(),
+                    "step {step}, cell ({}, {}), range {x0}..{x1}",
+                    i % w,
+                    i / w
+                );
+            }
+        }
+        // The test only means something if segments really did sleep.
+        assert!(slept > 20_000, "only {slept} quiet segment-steps");
+    }
+
+    /// The cases a sleeping segment is most likely to get wrong: a quiet
+    /// segment whose only changed input is a neighbour's cell (the one to
+    /// its right, or the row below), poked from outside between steps.
+    #[test]
+    fn heat_sleep_wakes_for_writes_just_outside_a_segment() {
+        let (w, h) = (256, 8);
+        for (px, py) in [(64, 3), (128, 0), (100, 5), (63, 0), (64, 0), (191, 7)] {
+            let mut a = Grid::new(w, h, 1, 40.65, 6.01);
+            a.fill_rect(0, 0, w as i32, h as i32, Species::Stone);
+            let mut b = Grid::new(w, h, 1, 40.65, 6.01);
+            b.cells.clone_from(&a.cells);
+            b.heat_sleep = false;
+            for step in 0..12 {
+                if step == 6 {
+                    for g in [&mut a, &mut b] {
+                        g.set(px, py, Species::Stone, 500.0);
+                    }
+                }
+                for g in [&mut a, &mut b] {
+                    g.frame = g.frame.wrapping_add(1);
+                    g.heat_pass(0, w);
+                }
+                for i in 0..w * h {
+                    assert_eq!(
+                        a.temp[i].to_bits(),
+                        b.temp[i].to_bits(),
+                        "poke ({px}, {py}), step {step}, cell {i}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

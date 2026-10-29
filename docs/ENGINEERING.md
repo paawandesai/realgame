@@ -46,11 +46,14 @@ How this repo stays safe, capable and efficient, and which published standard ea
 
 School networks and low-end Chromebooks set these limits. CI enforces the first one.
 
-| Budget | Limit | Today |
+| Budget | Limit | Today (measured 2026-10-29) |
 | --- | --- | --- |
-| Total download | under 2 MB | about 300 KB raw, 115 KB gzipped |
-| Simulation step | under 4 ms on a 4 GB Chromebook | 57,600 cells, three passes per step; to be measured on real devices |
-| Memory | under 64 MB | grid state is about 1 MB |
+| Total download | under 2 MB | `web/dist` 539,504 bytes raw (`du -b`), about 175 KB gzipped; the wasm module is 432 KB raw / 149 KB gzipped. `wasm-opt` stays off because `binaryen` is not installed on build machines and is never downloaded at build time |
+| Simulation step (native, release) | under 2 ms | `cargo test --release bench_ -- --nocapture`: active region as played (`bench_600_ticks`) about 0.5 ms/step; worst case with all four rooms stepped every tick while the hedge burns and spells land (`bench_full_level_600_ticks`) 1.5-2.0 ms/step, depending on machine load |
+| Frame work at 6x CPU throttle | under 16 ms average | Playwright + CDP `Emulation.setCPUThrottlingRate(6)`, 10 s with the hedge fire burning, 1280 x 800 headless Chromium: 13.4-14.1 ms of script work per frame on all three tiers (sim about 8-9 ms, world render about 2.4 ms, overlay under 0.5 ms, HUD about 1.8 ms). Headless Chromium rasterises canvases in software, so rAF intervals there are 23-26 ms; on GPU-composited devices that cost moves off the main thread |
+| Memory | under 64 MB | grid state about 4 MB (1280 x 180 cells, plus the heat-sleep snapshot) |
+
+How the step budget is met: fixed 60 Hz steps over an active region of 640 columns around the camera; static species property tables; heat-pass sleeping (64-cell row segments whose inputs are bit-for-bit unchanged since a step in which they changed nothing are skipped; checked against a snapshot so no write can be missed, and tested to give bit-identical results); and the overlay draws glow on its own quarter-resolution canvas, caps its backing store at 4 px per cell, and is not cleared or redrawn while idle.
 
 ## Child safety and privacy rules for future features
 

@@ -277,6 +277,9 @@ pub struct Game {
     state_sig: u64,
     /// The seed the level was built from (restarting a room rebuilds it).
     seed: u64,
+    /// Step every column each tick instead of only the active region around
+    /// the camera (the worst case, for benchmarks and tooling).
+    pub step_all_columns: bool,
 }
 
 impl Game {
@@ -338,6 +341,7 @@ impl Game {
             ticks: 0,
             view_x: 0.0,
             prev_view_x: 0.0,
+            step_all_columns: false,
             book,
             discovered: vec![],
             misses_in_a_row: 0,
@@ -428,8 +432,12 @@ impl Game {
         self.advance_bolts();
         // Only the area around the camera is simulated; distant rooms wait.
         let vx = self.view_x.round() as usize;
-        self.grid
-            .step_columns(vx.saturating_sub(ACTIVE_BEHIND), vx + ACTIVE_AHEAD);
+        if self.step_all_columns {
+            self.grid.step();
+        } else {
+            self.grid
+                .step_columns(vx.saturating_sub(ACTIVE_BEHIND), vx + ACTIVE_AHEAD);
+        }
         self.suit_tick();
         self.update_rooms(input & INPUT_GATHER != 0);
         self.refresh_version();
@@ -2361,6 +2369,49 @@ mod perf {
         );
     }
 
+    /// Heat-pass sleeping is an optimisation only: with fire, spells, steam,
+    /// a moving camera (so the stepped range slides) and a room restart (an
+    /// external rewrite of cells), every step must match the plain pass bit
+    /// for bit.
+    #[test]
+    fn heat_sleep_matches_the_plain_heat_pass_bit_for_bit() {
+        for seed in [3, 42] {
+            let mut a = Game::new(Tier::Apprentice, seed);
+            let mut b = Game::new(Tier::Apprentice, seed);
+            b.grid.heat_sleep = false;
+            for t in 0..900u32 {
+                for g in [&mut a, &mut b] {
+                    match t {
+                        10 => {
+                            g.set_aim(200, 120, true);
+                            g.cast("2H2 + O2 -> 2H2O");
+                        }
+                        30 => {
+                            g.cast("water");
+                        }
+                        200 => {
+                            g.cast("2H2O -> 2H2 + O2");
+                        }
+                        500 => {
+                            g.restart_room();
+                        }
+                        _ => {}
+                    }
+                    let walk = match t {
+                        60..=350 => INPUT_RIGHT,
+                        600..=700 => INPUT_LEFT,
+                        _ => 0,
+                    };
+                    g.tick(walk);
+                }
+                if t % 25 == 0 {
+                    assert_eq!(grid_hash(&a), grid_hash(&b), "seed {seed}, tick {t}");
+                }
+            }
+            assert_eq!(grid_hash(&a), grid_hash(&b));
+        }
+    }
+
     /// Reports ms/step; run with `cargo test --release bench_600_ticks -- --nocapture`.
     /// It only asserts a very generous ceiling so it never flakes on slow CI machines.
     #[test]
@@ -2372,6 +2423,42 @@ mod perf {
         }
         let ms = start.elapsed().as_secs_f64() * 1000.0 / 600.0;
         println!("bench_600_ticks: {ms:.3} ms/step");
+        assert!(ms < 250.0, "{ms} ms/step");
+    }
+
+    /// Worst case for the W21 budget (< 2 ms/step native, release): all four
+    /// rooms stepped every tick, not just the active region around the
+    /// camera, while the hedge fire burns and spells land. Run with
+    /// `cargo test --release bench_full_level -- --nocapture`.
+    #[test]
+    fn bench_full_level_600_ticks() {
+        let mut g = Game::new(Tier::Apprentice, 42);
+        g.step_all_columns = true;
+        let start = std::time::Instant::now();
+        for t in 0..600u32 {
+            match t {
+                10 => {
+                    g.set_aim(200, 120, true);
+                    g.cast("boom");
+                }
+                60 => {
+                    g.cast("2H2O -> 2H2 + O2");
+                }
+                _ => {}
+            }
+            g.tick(if (100..400).contains(&t) {
+                INPUT_RIGHT
+            } else {
+                0
+            });
+            // tick() stepped the active region; step the rest of the world too.
+            let vx = g.view_x.round() as usize;
+            let (a0, a1) = (vx.saturating_sub(ACTIVE_BEHIND), vx + ACTIVE_AHEAD);
+            g.grid.step_columns(0, a0);
+            g.grid.step_columns(a1, WORLD_W);
+        }
+        let ms = start.elapsed().as_secs_f64() * 1000.0 / 600.0;
+        println!("bench_full_level_600_ticks: {ms:.3} ms/step");
         assert!(ms < 250.0, "{ms} ms/step");
     }
 }
