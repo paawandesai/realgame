@@ -55,6 +55,8 @@ const DOOR_TOP: i32 = 112;
 
 // Room 1: Splash Garden.
 pub const HEDGE1: Rect = Rect::new(236, 132, 260, GROUND_Y);
+/// Where to stand to douse it: past the low wall, where the trial starts.
+pub const HEDGE1_STAND_X: i32 = 214;
 // Room 2: Frozen Gate.
 pub const TORCH_X: i32 = 344;
 const TORCH_H: i32 = 12;
@@ -935,7 +937,7 @@ impl Game {
                 done: r.gates_open[0],
                 meter: Some(r.hedges[0].meter()),
                 need: "water",
-                stand_x: 200,
+                stand_x: HEDGE1_STAND_X,
             },
             Goal {
                 room: 2,
@@ -1203,7 +1205,7 @@ mod tests {
             let mut g = Game::new(Tier::Seedling, seed);
             settle(&mut g, 60);
             assert!(
-                walk_to(&mut g, 200.0, 2000),
+                walk_to(&mut g, HEDGE1_STAND_X as f32, 2000),
                 "seed {seed}: stuck at {}",
                 g.player.x
             );
@@ -1243,7 +1245,7 @@ mod tests {
         assert!(said.contains("burned out by itself"), "{said}");
         assert!(!said.contains("your water"), "{said}");
         // Water on the embers is the player's cause: now the gate opens.
-        assert!(walk_to(&mut g, 200.0, 2000));
+        assert!(walk_to(&mut g, HEDGE1_STAND_X as f32, 2000));
         cast_at(&mut g, "water", HEDGE1.centre());
         settle(&mut g, 10);
         assert!(g.rooms.gates_open[0]);
@@ -1629,7 +1631,7 @@ mod restart_tests {
     fn restarting_room_2_rebuilds_its_ice_and_keeps_room_1_solved() {
         let mut g = Game::new(Tier::Seedling, 7);
         settle(&mut g, 30);
-        assert!(walk_to(&mut g, 200.0, 2000));
+        assert!(walk_to(&mut g, HEDGE1_STAND_X as f32, 2000));
         assert!(douse(&mut g, 0, 4).is_some());
         settle(&mut g, 20);
         assert!(g.rooms.gates_open[0]);
@@ -1659,7 +1661,7 @@ mod restart_tests {
     fn restarting_room_1_lights_the_hedge_again_and_still_needs_the_player() {
         let mut g = Game::new(Tier::Sprout, 42);
         settle(&mut g, 30);
-        assert!(walk_to(&mut g, 200.0, 2000));
+        assert!(walk_to(&mut g, HEDGE1_STAND_X as f32, 2000));
         assert!(douse(&mut g, 0, 4).is_some());
         settle(&mut g, 20);
         assert!(g.rooms.gates_open[0]);
@@ -1757,7 +1759,10 @@ mod full_run {
         let mut g = Game::new(Tier::Seedling, seed);
         settle(&mut g, 30);
         // Room 1: three water casts at the hedge.
-        assert!(walk_to(&mut g, 200.0, 2000), "seed {seed}: stuck in room 1");
+        assert!(
+            walk_to(&mut g, HEDGE1_STAND_X as f32, 2000),
+            "seed {seed}: stuck in room 1"
+        );
         assert!(douse(&mut g, 0, 4).is_some(), "seed {seed}: fire 1");
         settle(&mut g, 20);
         assert!(g.rooms.gates_open[0], "seed {seed}: gate 1");

@@ -64,7 +64,7 @@ pub const PLAYER_W: f32 = 6.0;
 pub const PLAYER_H: f32 = 12.0;
 /// Where a new trial starts: beside the burning hedge, already within soft
 /// auto-aim reach of it, so the very first spell lands on the fire.
-pub const SPAWN_X: f32 = 176.0;
+pub const SPAWN_X: f32 = 210.0;
 /// Movement tuning, in cells and ticks (60 ticks a second).
 const RUN_MAX: f32 = 2.2;
 /// Reaches RUN_MAX in under 7 ticks from a standstill.
@@ -2228,18 +2228,28 @@ mod bolts {
     }
 
     #[test]
-    fn the_first_water_card_from_the_spawn_lands_on_the_fire() {
+    fn water_cards_from_the_spawn_put_the_fire_out_in_a_few_taps() {
+        // No walking and no aiming: the first taps land on the fire.
         for tier in [Tier::Sprout, Tier::Seedling] {
-            let mut g = Game::new(tier, 42);
-            for _ in 0..30 {
-                g.tick(0);
+            for seed in [1, 7, 42] {
+                let mut g = Game::new(tier, seed);
+                for _ in 0..30 {
+                    g.tick(0);
+                }
+                let mut casts = 0;
+                while !g.rooms.gates_open[0] && casts < 4 {
+                    assert_eq!(g.cast("water").outcome, Outcome::Full);
+                    casts += 1;
+                    for _ in 0..60 {
+                        g.tick(0);
+                    }
+                }
+                assert!(g.rooms.hedges[0].hits > 0, "{tier:?} {seed}: missed");
+                assert!(
+                    g.rooms.gates_open[0],
+                    "{tier:?} {seed}: still burning after {casts} taps"
+                );
             }
-            let hits = g.rooms.hedges[0].hits;
-            assert_eq!(g.cast("water").outcome, Outcome::Full);
-            for _ in 0..60 {
-                g.tick(0);
-            }
-            assert!(g.rooms.hedges[0].hits > hits, "{tier:?}: missed the hedge");
         }
     }
 
