@@ -36,14 +36,23 @@ export function startHud() {
   }
 
   const cmd = (c) => input.cmds.push(c);
+  // requestPointerLock returns a promise in current browsers (and nothing in
+  // older ones). Every rejection is caught: a failed lock (no user gesture,
+  // or the page lost focus) just leaves the game in click-to-target mode.
+  const tryLock = (opts) => {
+    try {
+      const p = opts ? canvas.requestPointerLock(opts) : canvas.requestPointerLock();
+      return p && typeof p.then === 'function' ? p : Promise.resolve();
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  };
   const lock = () => {
     canvas.focus();
-    try {
-      const p = canvas.requestPointerLock({ unadjustedMovement: true });
-      if (p && p.catch) p.catch(() => { try { canvas.requestPointerLock(); } catch (_) { /* ignore */ } });
-    } catch (_) {
-      try { canvas.requestPointerLock(); } catch (_) { /* ignore */ }
-    }
+    // Raw, unaccelerated deltas where supported; plain lock otherwise.
+    tryLock({ unadjustedMovement: true })
+      .catch(() => tryLock())
+      .catch(() => { /* stay unlocked */ });
   };
   const showPause = (on) => {
     input.paused = on;
@@ -141,6 +150,15 @@ export function startHud() {
         caption.classList.add('show');
         clearTimeout(capTimer);
         capTimer = setTimeout(() => caption.classList.remove('show'), 4500);
+      }
+      // Warn while a fire burns next to the greenhouse: how close it is to
+      // its ignition temperature (300 °C).
+      const warn = $('warning');
+      const danger = state.outcome === 'playing' && (state.ghDanger || state.ghTemp > 60);
+      warn.classList.toggle('hidden', !danger);
+      if (danger) {
+        warn.querySelector('.text').textContent = `The greenhouse is heating up: ${state.ghTemp} °C. Wood catches fire at 300 °C!`;
+        warn.querySelector('.fill').style.width = `${Math.min(100, Math.max(0, (state.ghTemp - 20) / 2.8)).toFixed(0)}%`;
       }
       const banner = $('banner');
       banner.classList.toggle('hidden', state.outcome === 'playing');

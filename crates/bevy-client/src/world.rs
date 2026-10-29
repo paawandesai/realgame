@@ -12,8 +12,12 @@
 //! water-splitting station). A loose puddle lies near the start.
 
 use crate::chem::{self, Kind, Obj};
+use bevy::asset::RenderAssetUsages;
+use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::light::{NotShadowCaster, NotShadowReceiver};
+use bevy::math::Affine2;
 use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 pub const HALF: f32 = 24.0;
 const WALL_H: f32 = 3.6;
@@ -202,6 +206,83 @@ fn flat(mut m: Mesh) -> Mesh {
     m
 }
 
+/// Tiny deterministic hash for procedural textures.
+fn hash(x: u32, y: u32) -> f32 {
+    let mut h = x.wrapping_mul(0x27d4_eb2d) ^ y.wrapping_mul(0x1656_67b1) ^ 0x9e37_79b9;
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x85eb_ca6b);
+    h ^= h >> 13;
+    (h & 0xffff) as f32 / 65535.0
+}
+
+/// A small repeating greyscale texture (the material's colour tints it).
+fn texture(images: &mut Assets<Image>, size: u32, f: impl Fn(u32, u32) -> f32) -> Handle<Image> {
+    let mut data = Vec::with_capacity((size * size * 4) as usize);
+    for y in 0..size {
+        for x in 0..size {
+            let v = (f(x, y).clamp(0.0, 1.0) * 255.0) as u8;
+            data.extend_from_slice(&[v, v, v, 255]);
+        }
+    }
+    let mut img = Image::new(
+        Extent3d {
+            width: size,
+            height: size,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+        address_mode_u: ImageAddressMode::Repeat,
+        address_mode_v: ImageAddressMode::Repeat,
+        ..ImageSamplerDescriptor::linear()
+    });
+    images.add(img)
+}
+
+/// Stone blocks: two courses per tile, offset every other course, with soft
+/// mortar lines and a little per-block brightness variation.
+fn stone_texture(images: &mut Assets<Image>) -> Handle<Image> {
+    texture(images, 64, |x, y| {
+        let row = y / 32;
+        let shift = if row % 2 == 1 { 16 } else { 0 };
+        let col = ((x + shift) % 64) / 32;
+        let (bx, by) = ((x + shift) % 32, y % 32);
+        if bx < 2 || by < 2 {
+            0.62
+        } else {
+            0.84 + 0.16 * hash(col + row * 7, 3) + 0.03 * hash(x, y)
+        }
+    })
+}
+
+/// Grass: soft blotches and speckles so the ground is never one flat colour.
+fn grass_texture(images: &mut Assets<Image>) -> Handle<Image> {
+    texture(images, 64, |x, y| {
+        let blotch = hash(x / 16, y / 16) * 0.5 + hash(x / 8, y / 8) * 0.5;
+        0.84 + 0.12 * blotch + 0.05 * hash(x, y)
+    })
+}
+
+fn textured(
+    materials: &mut Assets<StandardMaterial>,
+    c: Color,
+    tex: &Handle<Image>,
+    repeat: Vec2,
+) -> Handle<StandardMaterial> {
+    materials.add(StandardMaterial {
+        base_color: c,
+        base_color_texture: Some(tex.clone()),
+        uv_transform: Affine2::from_scale(repeat),
+        perceptual_roughness: 0.9,
+        reflectance: 0.2,
+        ..default()
+    })
+}
+
 fn toon(materials: &mut Assets<StandardMaterial>, c: Color) -> Handle<StandardMaterial> {
     materials.add(StandardMaterial {
         base_color: c,
@@ -386,10 +467,24 @@ pub fn build(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    images: &mut Assets<Image>,
 ) -> (Kit, Colliders, Chem) {
     let kit = make_kit(meshes, materials);
     commands.insert_resource(kit.clone());
-    let grass = toon(materials, Color::srgb(0.42, 0.78, 0.36));
+    let stone_tex = stone_texture(images);
+    let grass_tex = grass_texture(images);
+    let grass = textured(
+        materials,
+        Color::srgb(0.46, 0.84, 0.38),
+        &grass_tex,
+        Vec2::splat(25.0),
+    );
+    // Stone tiles are 2 m wide with two 0.9 m courses each.
+    let wall_tint = Color::srgb(0.84, 0.8, 0.92);
+    let wall_long = textured(materials, wall_tint, &stone_tex, Vec2::new(25.0, 2.0));
+    let wall_short = textured(materials, wall_tint, &stone_tex, Vec2::new(3.25, 2.0));
+    let trim = toon(materials, Color::srgb(0.6, 0.55, 0.72));
+    let cap = toon(materials, Color::srgb(0.95, 0.92, 1.0));
     let path = toon(materials, Color::srgb(0.93, 0.84, 0.66));
     let stone = toon(materials, Color::srgb(0.78, 0.74, 0.86));
     let stone_dark = toon(materials, Color::srgb(0.56, 0.52, 0.68));
@@ -447,27 +542,53 @@ pub fn build(
         Transform::from_xyz(0.0, 0.012, 8.0).with_scale(Vec3::new(40.0, 0.02, 3.0)),
     );
 
-    // Perimeter walls with pillars and lanterns.
+    // Perimeter walls with pillars and lanterns. Each wall is the same box
+    // (long side along x), turned for east and west so the stone texture runs
+    // the same way on all four; a darker plinth and a light cap break up the
+    // face.
     let wl = 2.0 * HALF + 2.0;
-    for (c, s) in [
-        (
-            Vec3::new(0.0, WALL_H / 2.0, -HALF - 0.5),
-            Vec3::new(wl, WALL_H, 1.0),
-        ),
-        (
-            Vec3::new(0.0, WALL_H / 2.0, HALF + 0.5),
-            Vec3::new(wl, WALL_H, 1.0),
-        ),
-        (
-            Vec3::new(-HALF - 0.5, WALL_H / 2.0, 0.0),
-            Vec3::new(1.0, WALL_H, wl),
-        ),
-        (
-            Vec3::new(HALF + 0.5, WALL_H / 2.0, 0.0),
-            Vec3::new(1.0, WALL_H, wl),
-        ),
+    for (c, turn) in [
+        (Vec3::new(0.0, WALL_H / 2.0, -HALF - 0.5), false),
+        (Vec3::new(0.0, WALL_H / 2.0, HALF + 0.5), false),
+        (Vec3::new(-HALF - 0.5, WALL_H / 2.0, 0.0), true),
+        (Vec3::new(HALF + 0.5, WALL_H / 2.0, 0.0), true),
     ] {
-        b.block(c, s, &stone);
+        let size = Vec3::new(wl, WALL_H, 1.0);
+        let rot = Quat::from_rotation_y(if turn {
+            std::f32::consts::FRAC_PI_2
+        } else {
+            0.0
+        });
+        let half = if turn {
+            Vec3::new(0.5, WALL_H / 2.0, wl / 2.0)
+        } else {
+            size * 0.5
+        };
+        b.colliders.push(Collider {
+            aabb: Aabb::new(c, half),
+            obj: None,
+        });
+        b.piece(
+            &cube,
+            &wall_long,
+            Transform::from_translation(c)
+                .with_rotation(rot)
+                .with_scale(size),
+        );
+        b.piece(
+            &cube,
+            &trim,
+            Transform::from_translation(Vec3::new(c.x, 0.25, c.z))
+                .with_rotation(rot)
+                .with_scale(Vec3::new(wl, 0.5, 1.16)),
+        );
+        b.piece(
+            &cube,
+            &cap,
+            Transform::from_translation(Vec3::new(c.x, WALL_H + 0.08, c.z))
+                .with_rotation(rot)
+                .with_scale(Vec3::new(wl, 0.16, 1.3)),
+        );
     }
     for k in 0..7 {
         let a = -HALF + k as f32 * 8.0;
@@ -649,12 +770,12 @@ pub fn build(
     b.block(
         Vec3::new(20.75, WALL_H / 2.0, 2.7),
         Vec3::new(6.5, WALL_H, 0.6),
-        &stone,
+        &wall_short,
     );
     b.block(
         Vec3::new(20.75, WALL_H / 2.0, 9.3),
         Vec3::new(6.5, WALL_H, 0.6),
-        &stone,
+        &wall_short,
     );
     b.piece(
         &cube,

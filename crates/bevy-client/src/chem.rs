@@ -22,10 +22,13 @@ pub const LN2_C: f32 = -196.0;
 pub const NEIGHBOUR_GAP: f32 = 2.5;
 
 /// Heating rate from one burning neighbour, °C per second, before the
-/// object's own cooling toward ambient.
-const SPREAD_HEAT: f32 = 30.0;
+/// object's own cooling toward ambient. Tuned with [`COOLING`] for 6 to
+/// 9-year-olds: the first neighbour catches fire after about a minute, and
+/// unattended fires reach the greenhouse after about 2.5 minutes, with the
+/// HUD warning for the last 30 s (see the `courtyard_pacing` test).
+const SPREAD_HEAT: f32 = 12.0;
 /// Newton cooling toward ambient, per second.
-const COOLING: f32 = 0.05;
+const COOLING: f32 = 0.02;
 /// A burning object sits at roughly flame temperature.
 const FLAME_C: f32 = 800.0;
 /// How long a CO2 blanket keeps oxygen away, seconds.
@@ -71,24 +74,24 @@ impl Spell {
 
     pub fn formula(self) -> &'static str {
         match self {
-            Spell::Fire => "CH4 + 2O2 → CO2 + 2H2O",
-            Spell::Water => "H2O absorbs heat",
-            Spell::Frost => "N2(l) boils at −196 °C",
-            Spell::Foam => "CO2 blanket, no O2",
+            Spell::Fire => "CH₄ + 2O₂ → CO₂ + 2H₂O",
+            Spell::Water => "H₂O absorbs heat",
+            Spell::Frost => "N₂(l) boils at −196 °C",
+            Spell::Foam => "CO₂ blanket, no O₂",
         }
     }
 
     /// The caption shown when the spell is cast.
     pub fn cast_caption(self) -> &'static str {
         match self {
-            Spell::Fire => "Combustion: CH4 + 2O2 → CO2 + 2H2O, and lots of heat.",
+            Spell::Fire => "Combustion: CH₄ + 2O₂ → CO₂ + 2H₂O, and lots of heat.",
             Spell::Water => {
                 "Water soaks up heat and cools things below their ignition temperature."
             }
             Spell::Frost => {
                 "Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches."
             }
-            Spell::Foam => "CO2 is heavier than air: it smothers fire by pushing the oxygen away.",
+            Spell::Foam => "CO₂ is heavier than air: it smothers fire by pushing the oxygen away.",
         }
     }
 }
@@ -150,20 +153,20 @@ impl EventKind {
                 "Fire out! Liquid nitrogen at −196 °C cooled it far below ignition."
             }
             EventKind::Extinguished(Spell::Foam) => {
-                "Fire out! The CO2 foam smothered it: no oxygen, no fire."
+                "Fire out! The CO₂ foam smothered it: no oxygen, no fire."
             }
             EventKind::Extinguished(Spell::Fire) => "Fire out!",
             EventKind::BurntOut => "It burnt out: the fuel is used up.",
-            EventKind::Melted => "The ice melted at 0 °C: H2O(s) → H2O(l). Now it is a puddle.",
+            EventKind::Melted => "The ice melted at 0 °C: H₂O(s) → H₂O(l). Now it is a puddle.",
             EventKind::Melting => {
                 "Melting... ice needs a lot of heat to turn into water (latent heat)."
             }
             EventKind::Froze => {
-                "Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H2O(l) → H2O(s)."
+                "Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s)."
             }
-            EventKind::Steam => "Hot water boils at 100 °C and turns into steam: H2O(l) → H2O(g).",
+            EventKind::Steam => "Hot water boils at 100 °C and turns into steam: H₂O(l) → H₂O(g).",
             EventKind::Smothered => {
-                "CO2 foam covers it: no oxygen can reach it, so it cannot burn."
+                "CO₂ foam covers it: no oxygen can reach it, so it cannot burn."
             }
             EventKind::Soaked => "Soaked: it must dry out (boil off at 100 °C) before it can burn.",
             EventKind::Chilled => {
@@ -173,7 +176,7 @@ impl EventKind {
                 "Sizzle! The water must boil away at 100 °C before it can burn."
             }
             EventKind::Fizzle(Fizzle::NoOxygen) => {
-                "No oxygen under the CO2 blanket, so the fire cannot start."
+                "No oxygen under the CO₂ blanket, so the fire cannot start."
             }
             EventKind::Fizzle(Fizzle::NotFlammable) => "That does not burn.",
             EventKind::Fizzle(Fizzle::Charred) => "Already burnt: no fuel left.",
@@ -181,7 +184,7 @@ impl EventKind {
                 "Heating up... a little more heat and it will catch fire."
             }
             EventKind::Station => {
-                "Water-splitting station (coming soon): 2H2O → 2H2 + O2 with electricity."
+                "Water-splitting station (coming soon): 2H₂O → 2H₂ + O₂ with electricity."
             }
         }
     }
@@ -210,8 +213,8 @@ pub struct Obj {
 impl Obj {
     pub fn new(kind: Kind, pos: [f32; 2], half: [f32; 2]) -> Self {
         let (fuel, ice, wall, temp) = match kind {
-            Kind::Bush => (60.0, 0.0, false, AMBIENT_C),
-            Kind::DryHedge => (45.0, 0.0, false, AMBIENT_C),
+            Kind::Bush => (150.0, 0.0, false, AMBIENT_C),
+            Kind::DryHedge => (90.0, 0.0, false, AMBIENT_C),
             Kind::Greenhouse => (300.0, 0.0, false, AMBIENT_C),
             Kind::IceWall => (0.0, 1.0, true, -5.0),
             Kind::Puddle => (0.0, 0.0, false, AMBIENT_C),
@@ -305,6 +308,14 @@ impl World {
         let o = &mut self.objs[i];
         o.burning = true;
         o.temp = FLAME_C;
+    }
+
+    /// The greenhouse's temperature, and whether anything next to it is on
+    /// fire (the HUD warns while it is).
+    pub fn greenhouse_risk(&self) -> Option<(f32, bool)> {
+        let i = self.objs.iter().position(|o| o.kind == Kind::Greenhouse)?;
+        let near = self.neighbours[i].iter().any(|&j| self.objs[j].burning);
+        Some((self.objs[i].temp, near))
     }
 
     pub fn burning(&self) -> usize {
@@ -551,15 +562,15 @@ mod tests {
     fn fire_spreads_slowly_then_burns_out() {
         let mut w = row();
         w.ignite(0);
-        run(&mut w, 5.0);
+        run(&mut w, 20.0);
         assert!(!w.objs[1].burning, "spread must be slow");
-        let ev = run(&mut w, 40.0);
+        let ev = run(&mut w, 60.0);
         assert!(w.objs[1].burning);
         assert!(ev.contains(&Event {
             obj: 1,
             kind: EventKind::Ignited
         }));
-        run(&mut w, 120.0);
+        run(&mut w, 400.0);
         assert!(w.objs.iter().all(|o| !o.burning));
         assert!(w.objs[0].charred());
     }
@@ -618,6 +629,54 @@ mod tests {
         assert_eq!(w.outcome(), Outcome::Won);
         w.ignite(3);
         assert_eq!(w.outcome(), Outcome::Lost);
+    }
+
+    /// The courtyard's bush chains (positions as in world.rs): unattended,
+    /// the greenhouse must survive the first two minutes and fall later.
+    #[test]
+    fn courtyard_pacing() {
+        let bush = |x, z| Obj::new(Kind::Bush, [x, z], [0.9, 0.9]);
+        let mut w = World::new(vec![
+            bush(-13.5, -3.0),
+            bush(-12.0, -6.5),
+            bush(-9.6, -10.2),
+            bush(13.5, -3.0),
+            bush(12.0, -6.5),
+            bush(9.6, -10.2),
+            bush(0.0, -5.0),
+            bush(0.0, -9.2),
+            Obj::new(Kind::Greenhouse, [0.0, -12.0], [8.0, 0.15]),
+        ]);
+        for i in [0, 3, 6] {
+            w.ignite(i);
+        }
+        let mut first_spread = None;
+        let mut warned = None;
+        let mut lost = None;
+        for t in 0..(600.0 / DT) as usize {
+            let mut ev = Vec::new();
+            w.step(&mut ev);
+            let secs = t as f32 * DT;
+            if first_spread.is_none() && w.burning() > 3 {
+                first_spread = Some(secs);
+            }
+            if warned.is_none() && w.greenhouse_risk().unwrap().1 {
+                warned = Some(secs);
+            }
+            if w.outcome() == Outcome::Lost {
+                lost = Some(secs);
+                break;
+            }
+        }
+        let (s, wn, l) = (first_spread.unwrap(), warned.unwrap(), lost.unwrap());
+        eprintln!("pacing: first spread {s:.0} s, warning {wn:.0} s, lost {l:.0} s");
+        assert!(s > 30.0, "first spread after {s} s");
+        assert!(l > 120.0, "greenhouse lost after {l} s");
+        assert!(
+            l - wn > 25.0,
+            "warning {wn} s only {} s before the loss",
+            l - wn
+        );
     }
 
     #[test]

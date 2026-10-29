@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Alchemist's Trial: first person</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
 <script type="module" src="./boot.js"></script>
 </head>
@@ -15,6 +16,7 @@
     <div class="title">Save the Greenhouse</div>
     <div id="obj-line">Fires put out: 0 / 3</div>
   </div>
+  <div id="warning" class="hidden"><div class="text">The greenhouse is heating up!</div><div class="meter"><div class="fill"></div></div></div>
   <div id="crosshair"><span></span></div>
   <div id="hint">Click to look around, or click a target to cast at it</div>
   <div id="caption"></div>

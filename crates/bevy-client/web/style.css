@@ -17,6 +17,11 @@ canvas.hover { cursor: pointer; }
 #objective { position: absolute; top: 14px; left: 14px; background: var(--panel); padding: 10px 14px; border-radius: 12px; }
 #objective .title { font-weight: 700; font-size: 18px; color: var(--on); }
 #obj-line { font-size: 15px; margin-top: 2px; }
+#warning { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(170, 30, 20, 0.88); padding: 8px 16px; border-radius: 12px; text-align: center; font-weight: 700; font-size: 18px; animation: pulse 1s ease-in-out infinite alternate; }
+#warning .meter { margin-top: 6px; height: 8px; width: 260px; background: rgba(255,255,255,0.25); border-radius: 4px; overflow: hidden; }
+#warning .fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffd34a, #ff5a1a); }
+@keyframes pulse { from { box-shadow: 0 0 0 rgba(255, 80, 40, 0.0); } to { box-shadow: 0 0 22px rgba(255, 80, 40, 0.9); } }
+@media (prefers-reduced-motion: reduce) { #warning { animation: none; } }
 #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; }
 #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 2px #000; }
 #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }

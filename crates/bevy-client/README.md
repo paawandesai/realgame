@@ -1,13 +1,40 @@
-# bevy-client: 3D rendering spike
+# bevy-client: first-person 3D prototype
 
-Spike only (branch `claude/bevy-spike`). It renders the **current, unchanged** 2D simulation
-(`crates/sim`) in 3D with Bevy 0.20.1: cells become a thin voxel slab (run-merged quads, about
-1,000 per frame instead of about 12,000 cubes), with a perspective camera following the player,
-a sun light, up to 4 point lights on fires, and emissive fire with HDR bloom. The sim steps at
-its fixed 60 Hz in `FixedUpdate`.
+The first playable first-person build of Alchemist's Trial, where real chemistry is magic.
+You walk around one small courtyard (about 48 × 48 m) and cast four spells from a glowing
+gauntlet. Each spell does what the real chemistry does.
 
-It is its own Cargo workspace (see `[workspace]` in `Cargo.toml`), so Bevy stays out of the
-main workspace, its lockfile, `cargo clippy --all-targets` and CI.
+| Key | Spell | The real chemistry |
+| --- | --- | --- |
+| 1 | Fire | Combustion: CH₄ + 2O₂ → CO₂ + 2H₂O, and heat |
+| 2 | Water | Water soaks up heat and cools things below their ignition temperature |
+| 3 | Frost | Liquid nitrogen (N₂) boils at −196 °C (77 K) and freezes water |
+| 4 | Foam | CO₂ is heavier than air and smothers fire by pushing the oxygen away |
+
+**Objective, "Save the Greenhouse":** three bushes are on fire, and heat spreads slowly from bush
+to bush toward the greenhouse (the first neighbour catches after about a minute; left alone,
+the greenhouse goes after about 2.5 minutes, and a red heat meter warns for the last 30 s).
+Put out three fires before any reach it. A banner shows when you win. You also find a dry hedge you can set alight, an ice wall that fire melts into a puddle
+(frost refreezes the puddle into an ice sheet you slide on), a hot steam vent, and, behind
+the ice wall, the lab bench, a placeholder for the water-splitting station.
+
+Built with Bevy 0.20.1 from primitives only (no external assets): flat-shaded low-poly
+meshes, bright toon colours, two tiny procedural textures (stone blocks, grass), emissive
+flames with HDR bloom, 4x MSAA plus FXAA. Download: about 3.5 MB of WebAssembly with Brotli
+(5.0 MB gzip). Its own Cargo workspace (see
+`[workspace]` in `Cargo.toml`), so Bevy stays out of the main workspace and its lockfile.
+
+## Code map
+
+| File | What it is |
+| --- | --- |
+| `src/chem.rs` | The chemistry rules engine: a deterministic per-object state machine (temperature, burning, fuel, wet, ice, CO2 blanket) driven by spells and a fixed 30 Hz step. No Bevy dependency, so it can become the shared rules engine. Unit tests: `rustc --edition 2021 --test src/chem.rs -o /tmp/chem && /tmp/chem` |
+| `src/world.rs` | The courtyard: shared meshes and materials, colliders, targets, ray casts |
+| `src/player.rs` | Kinematic first-person character: AABB move-and-slide, no physics crate |
+| `src/fx.rs` | A fixed pool of particles (fire, smoke, steam, frost mist, foam, water) |
+| `src/bridge.rs` | Link to the page's JavaScript HUD (`web/hud.js`) |
+| `src/main.rs` | App setup, input, aiming and aim assist, spells, projectiles, visuals, STATS |
+| `web/` | Page, HUD (HTML/CSS), strict CSP (`script-src 'self' 'wasm-unsafe-eval'`, no inline script or style) |
 
 ## Build and run on macOS (web, WebGL2)
 
@@ -15,50 +42,74 @@ main workspace, its lockfile, `cargo clippy --all-targets` and CI.
 # One-time setup
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129 --locked   # must match wasm-bindgen in Cargo.lock
-# optional: brew install binaryen   (wasm-opt; only used with WASM_OPT=1)
 
-# Build (first build takes about 5 to 10 minutes)
+# Build (the first build takes about 5 to 10 minutes)
 cd crates/bevy-client
 ./build-web.sh                # WebGL2 build into web/pkg-out/
-# WEBGPU=1 ./build-web.sh     # WebGPU-only build (separate .wasm; no WebGL2 fallback)
-# LEAN=1 ./build-web.sh       # no bloom: smaller download
+# LEAN=1 ./build-web.sh       # no bloom or LUT tonemapping: smaller download
+# WEBGPU=1 ./build-web.sh     # WebGPU-only build (no WebGL2 fallback)
 
 # Serve (any static server that sends application/wasm for .wasm works)
 python3 -m http.server 8080 --directory web/pkg-out
 ```
 
-Then open, in Chrome:
+Then open `http://localhost:8080/` in Chrome and click the courtyard.
 
-| URL | What it does |
+Native (for development): `cargo run --release` (add `-- --low`, `--sens=1.5` and so on). The
+HUD is web-only; natively, captions go to the log.
+
+## Controls
+
+| Action | Mouse and keyboard |
 | --- | --- |
-| `http://localhost:8080/` | Play: A/D or arrows walk, Space jumps, 1 water, 2 boom, 3 split, 4 fire (click the canvas first so it has focus) |
-| `http://localhost:8080/?auto` | Walks right and casts a spell every 50 ticks by itself: the busy benchmark scene |
-| `http://localhost:8080/?auto&lite` | Same, "Low" tier: no HDR, bloom or fire point lights |
-| `http://localhost:8080/?frozen` | Sim paused, meshes built once: Bevy's own per-frame cost (combine with `&lite`) |
+| Look around | Click the courtyard to lock the mouse, then move it |
+| Move | W A S D or the arrow keys |
+| Jump / sprint | Space / hold Shift |
+| Cast | Left click (hold to keep casting) |
+| Change spell | 1 to 4, the mouse wheel, or click the hotbar |
+| Free the mouse and pause | Esc (shows the controls) |
+| Restart | R |
+
+**One scheme for every age.** Aim assist gently pulls a cast onto a target within about 4°
+of the crosshair (the crosshair turns yellow when a cast will land on something). Without
+locking the mouse, a young child can simply click (or tap) a target to cast at it; the
+cursor becomes a hand over anything that can be cast at. There is no on-screen touch
+joystick yet: on a touch screen you can tap targets to cast, but you cannot walk.
+
+## URL flags
+
+| Flag | Effect |
+| --- | --- |
+| `?sens=1.5` | Mouse sensitivity (default 1; 0.0022 radians per pixel at 1). Raw deltas, applied every frame, no smoothing |
+| `?assist=0` | Turn aim assist off (it is on by default) |
+| `?low` | Low tier: no bloom, no shadows, no fire lights, no MSAA, fewer particles, rendered at 0.75 scale |
+| `?scale=0.5` | Render scale from 0.25 to 1 (the drawing buffer really shrinks; CSS scales it back up) |
+| `?aa=msaa` | Anti-aliasing: `msaa` (4x), `fxaa`, `both` or `off`. Default: `both`, or `fxaa` with `?low` |
 
 ## Reading the numbers
 
-Open DevTools > Console. Every 2 seconds the app logs one line like:
+DevTools > Console. Every 2 seconds the game logs a line like:
 
 ```
-STATS fps=59.8 avg_ms=16.72 worst_ms=21.3 sim_ms_per_frame=2.41 ticks_per_frame=1.00 sim_max_ms=3.10 build_max_ms=0.60 upload_max_ms=0.10 quads=1056 solid=1030 glow=6 gas=20 player_x=400 wasm_mem_mb=42.9
+STATS fps=119.8 fps_p50=120.0 fps_p5=109.1 avg_ms=8.35 p50_ms=8.33 p95_ms=9.17 worst_ms=12.4 update_ms_p50=0.90 update_ms_p95=1.30 entities=770 burning=3 extinguished=0 wasm_mem_mb=34.9 heap_live_mb=24.3 heap_peak_mb=26.6 biggest_alloc_mb=4.0
+CPUFRAME n=240 p50_ms=2.40 p95_ms=3.10 max_ms=4.20
 ```
 
-- `fps`, `avg_ms`, `worst_ms`: frames per second, mean and worst frame time over the 2 s window.
-- `sim_ms_per_frame`, `ticks_per_frame`, `sim_max_ms`: time in the simulation per rendered frame, sim ticks run per frame (1.0 at 60 fps; above 1 means the sim is catching up), slowest single tick.
-- `build_max_ms`, `upload_max_ms`: slowest voxel-slab mesh rebuild, and handing the meshes to Bevy.
-- `quads` (`solid`, `glow`, `gas`): mesh size this frame. `wasm_mem_mb`: WebAssembly memory.
-- `FIRST_FRAME t=...ms`: time from navigation start to the third rendered frame (logged once).
+- `fps_p50`, `fps_p5`: median and 5th-percentile frame rate over the window (from frame times).
+- `update_ms_*`: time in Bevy's main schedule (game logic) per frame.
+- `CPUFRAME`: main-thread CPU per frame, measured around each `requestAnimationFrame`
+  callback (Bevy's update and render both run inside it). Use this for CPU cost.
+- `entities`: all ECS entities (about 320 are the pooled particles).
+- `wasm_mem_mb`, `heap_*`: WebAssembly memory, live heap bytes, peak, biggest single allocation.
+- `FIRST_FRAME t=...ms`: navigation start to the third frame (logged once).
 
-For main-thread CPU per frame, use DevTools > Performance, or CPU throttling (4x, 6x) there to
-approximate a low-end Chromebook.
+## Test hook
 
-## Native run (macOS)
-
-```sh
-cd crates/bevy-client
-cargo run --release              # add -- --auto, --lite or --frozen like the URL flags
-```
+`window.__game` (from `web/hud.js`): `state()` returns the game state (spell, aim, every
+object's chemistry, objective, outcome, caption); `cmd(text)` queues a command: `select N`,
+`cast`, `tap X Y`, `look YAW PITCH`, `turn DX DY`, `face I`, `tp X Z`, `move RIGHT FWD SECS`,
+`tick N` (step the chemistry N times), `reset`. The golden-path test,
+`tests/e2e/golden.mjs`, drives a headless Chromium through all of it.
 
 ## 3D chemistry chunk benchmark
 

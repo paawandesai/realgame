@@ -15,6 +15,15 @@ const GRAVITY: f32 = 18.0;
 /// Radians per CSS pixel of mouse movement at `?sens=1`.
 pub const LOOK_PER_PX: f32 = 0.0022;
 
+/// What the player asks for this frame.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MoveInput {
+    /// (right, forward), each in -1..1.
+    pub wish: Vec2,
+    pub sprint: bool,
+    pub jump: bool,
+}
+
 #[derive(Resource, Debug, Clone)]
 pub struct Player {
     /// Feet position.
@@ -76,17 +85,16 @@ impl Player {
         }
     }
 
-    /// One movement step. `wish` is (right, forward) in -1..1.
+    /// One movement step against the world's solid boxes.
     pub fn step(
         &mut self,
-        wish: Vec2,
-        sprint: bool,
-        jump: bool,
+        input: MoveInput,
         dt: f32,
         colliders: &Colliders,
         chem: &chem::World,
         ice_sheets: &[Aabb],
     ) {
+        let MoveInput { wish, sprint, jump } = input;
         let fwd = Vec3::new(-self.yaw.sin(), 0.0, -self.yaw.cos());
         let right = Vec3::new(self.yaw.cos(), 0.0, -self.yaw.sin());
         let wish = wish.clamp_length_max(1.0);

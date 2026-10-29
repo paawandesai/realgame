@@ -15,6 +15,7 @@ mod fx;
 mod player;
 mod world;
 
+use bevy::anti_alias::fxaa::Fxaa;
 use bevy::asset::AssetMetaCheck;
 #[cfg(feature = "bloom")]
 use bevy::camera::Hdr;
@@ -24,6 +25,7 @@ use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::light::{
     CascadeShadowConfigBuilder, GlobalAmbientLight, NotShadowCaster, NotShadowReceiver,
 };
+use bevy::log::LogPlugin;
 use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::platform::time::Instant;
 #[cfg(feature = "bloom")]
@@ -82,6 +84,9 @@ struct Settings {
     /// Aim-assist cone, radians (0 = off).
     assist: f32,
     low: bool,
+    /// Anti-aliasing: 4x MSAA and/or FXAA (`?aa=msaa|fxaa|both|off`).
+    msaa: bool,
+    fxaa: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -177,6 +182,17 @@ fn main() {
                 .set(AssetPlugin {
                     meta_check: AssetMetaCheck::Never,
                     ..default()
+                })
+                // Bevy 0.20 always adds the SSAO, OIT, atmosphere and
+                // background motion-vector plugins, and each warns at startup
+                // that WebGL2 cannot run it. The game uses none of them, so
+                // their logs are kept to errors only.
+                .set(LogPlugin {
+                    filter: format!(
+                        "{},bevy_pbr::ssao=error,bevy_pbr::atmosphere=error,bevy_core_pipeline::oit=error,bevy_core_pipeline::prepass=error",
+                        bevy::log::DEFAULT_FILTER
+                    ),
+                    ..default()
                 }),
         )
         .insert_resource(ClearColor(Color::srgb(0.55, 0.78, 0.98)))
@@ -238,10 +254,22 @@ fn read_settings() -> Settings {
         .clamp(0.05, 10.0);
     // Aim assist is on unless `?assist=0` (or `off`/`false`).
     let assist_on = !matches!(param("assist").as_deref(), Some("0" | "off" | "false"));
+    let low = param("low").is_some_and(|v| !matches!(v.as_str(), "0" | "false"));
+    // Full tier: 4x MSAA plus FXAA (FXAA also catches what MSAA misses, such
+    // as edges inside the HDR and bloom path). Low tier: FXAA only.
+    let (msaa, fxaa) = match param("aa").as_deref() {
+        Some("msaa") => (true, false),
+        Some("fxaa") => (false, true),
+        Some("both") => (true, true),
+        Some("off" | "0") => (false, false),
+        _ => (!low, true),
+    };
     Settings {
         sens,
         assist: if assist_on { 4f32.to_radians() } else { 0.0 },
-        low: param("low").is_some_and(|v| !matches!(v.as_str(), "0" | "false")),
+        low,
+        msaa,
+        fxaa,
     }
 }
 
@@ -289,11 +317,13 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     settings: Res<Settings>,
     mut game: ResMut<Game>,
 ) {
     info!("STARTUP t={:.0}ms", now_ms());
-    let (kit, colliders, chem) = world::build(&mut commands, &mut meshes, &mut materials);
+    let (kit, colliders, chem) =
+        world::build(&mut commands, &mut meshes, &mut materials, &mut images);
     commands.insert_resource(colliders);
     commands.insert_resource(chem);
     fx::setup_fx(
@@ -373,8 +403,13 @@ fn setup(
     }
     #[cfg(not(feature = "bloom"))]
     camera.insert(Tonemapping::Reinhard);
-    if settings.low {
-        camera.insert(Msaa::Off);
+    camera.insert(if settings.msaa {
+        Msaa::Sample4
+    } else {
+        Msaa::Off
+    });
+    if settings.fxaa {
+        camera.insert(Fxaa::default());
     }
 
     // The gauntlet viewmodel: bronze forearm, cuff, hand and fingers, with a
@@ -405,7 +440,7 @@ fn setup(
     let cam_id = camera.id();
     let root = commands
         .spawn((
-            Transform::from_xyz(0.2, -0.19, -0.4).with_scale(Vec3::splat(0.7)),
+            Transform::from_xyz(0.21, -0.18, -0.42).with_scale(Vec3::splat(0.55)),
             Visibility::Inherited,
             Viewmodel,
         ))
@@ -459,10 +494,12 @@ fn setup(
     commands.entity(cam_id).add_child(root);
     game.say("Save the Greenhouse! Put out 3 fires before they spread. Press 2 for Water.");
     info!(
-        "tier={} sens={} assist={}",
+        "tier={} sens={} assist={} msaa={} fxaa={}",
         if settings.low { "low" } else { "full" },
         settings.sens,
-        settings.assist > 0.0
+        settings.assist > 0.0,
+        settings.msaa,
+        settings.fxaa
     );
 }
 
@@ -622,9 +659,11 @@ fn control(
             .map(|i| chem.bounds(i))
             .collect();
         player.step(
-            wish,
-            keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
-            keys.pressed(KeyCode::Space),
+            player::MoveInput {
+                wish,
+                sprint: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
+                jump: keys.pressed(KeyCode::Space),
+            },
             dt,
             &colliders,
             &chem.world,
@@ -935,11 +974,18 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>) {
     }
     match chem.world.outcome() {
         Outcome::Won if !game.caption.starts_with("You saved") => {
-            game.say("You saved the greenhouse! Water, frost and CO2 foam each stop fire in their own way.");
+            game.say("You saved the greenhouse! Water, frost and CO₂ foam each stop fire in their own way.");
         }
         _ => {}
     }
 }
+
+/// Parts of a target's look: placement, visibility and (if any) material.
+type SceneParts = (
+    &'static mut Transform,
+    &'static mut Visibility,
+    Option<&'static mut MeshMaterial3d<StandardMaterial>>,
+);
 
 /// Shows each object's state: materials, flames, foam, ice, emitters, lights.
 #[allow(clippy::too_many_arguments)]
@@ -951,14 +997,7 @@ fn sync_visuals(
     kit: Res<Kit>,
     mut chem: ResMut<Chem>,
     mut fx: ResMut<Fx>,
-    mut q: Query<
-        (
-            &mut Transform,
-            &mut Visibility,
-            Option<&mut MeshMaterial3d<StandardMaterial>>,
-        ),
-        (Without<FireLight>, Without<fx::Particle>),
-    >,
+    mut q: Query<SceneParts, (Without<FireLight>, Without<fx::Particle>)>,
     mut lights: Query<(&mut PointLight, &mut Transform), With<FireLight>>,
 ) {
     let dt = time.delta_secs().min(0.05);
@@ -1114,9 +1153,9 @@ fn viewmodel(
         let speed = player.vel.xz().length().min(9.0) / 9.0;
         let bob = player.stride * 1.6;
         t.translation = Vec3::new(
-            0.2 + bob.sin() * 0.01 * speed,
-            -0.19 + (bob * 2.0).cos().abs() * -0.008 * speed + r * 0.015,
-            -0.4 + r * 0.06,
+            0.21 + bob.sin() * 0.01 * speed,
+            -0.18 + (bob * 2.0).cos().abs() * -0.008 * speed + r * 0.015,
+            -0.42 + r * 0.05,
         );
         t.rotation = Quat::from_rotation_x(r * 0.35) * Quat::from_rotation_y(0.1);
     }
@@ -1153,8 +1192,9 @@ fn publish(
         })
         .collect();
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
+    let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.2},{:.2},{:.2}],\"yaw\":{:.1},\"pitch\":{:.1},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"objs\":[{}]}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.2},{:.2},{:.2}],\"yaw\":{:.1},\"pitch\":{:.1},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"objs\":[{}]}}",
         *frame,
         w.ticks,
         game.locked,
@@ -1168,6 +1208,8 @@ fn publish(
         w.extinguished,
         chem::GOAL_FIRES,
         w.burning(),
+        risk.0,
+        risk.1,
         esc(&game.caption),
         game.caption_id,
         game.casts,

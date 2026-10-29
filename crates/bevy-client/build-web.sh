@@ -15,10 +15,10 @@ if [[ "${WEBGPU:-0}" == 1 ]]; then
 elif [[ "${LEAN:-0}" == 1 ]]; then
   FEATURES=(--no-default-features --features webgl2)
 fi
-cargo build --release --target wasm32-unknown-unknown ${FEATURES[@]+"${FEATURES[@]}"}
+cargo build --release --locked --target wasm32-unknown-unknown ${FEATURES[@]+"${FEATURES[@]}"}
 OUT=web/pkg-out
 rm -rf "$OUT" && mkdir -p "$OUT"
-cp web/index.html web/style.css web/boot.js web/hud.js "$OUT/"
+cp web/index.html web/style.css web/boot.js web/hud.js web/favicon.svg "$OUT/"
 wasm-bindgen --target web --no-typescript --out-dir "$OUT" --out-name bevy-client \
   "$TARGET_DIR/wasm32-unknown-unknown/release/bevy-client.wasm"
 if [[ "${WASM_OPT:-0}" == 1 ]]; then
