@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A chemistry spell sandbox: cast real formulas, watch the world react." />
+    <title>Alchemist's Trial</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main id="start" class="screen">
+      <h1>Alchemist's Trial</h1>
+      <p class="lead">Cast real chemistry. Watch the world react.</p>
+      <h2 id="age-question">How old are you?</h2>
+      <div class="ages" role="group" aria-labelledby="age-question">
+        <button data-tier="sprout"><strong>4 to 7</strong><span>Pictures, read aloud</span></button>
+        <button data-tier="seedling"><strong>8 to 10</strong><span>Symbols, with hints</span></button>
+        <button data-tier="apprentice"><strong>11 and up</strong><span>Real equations and numbers</span></button>
+      </div>
+      <p class="small">Nothing you type leaves this device.</p>
+    </main>
+
+    <main id="game" class="screen" hidden>
+      <p id="rotate">Turn your device sideways to play.</p>
+      <div id="stage">
+        <canvas id="world" width="320" height="180" aria-label="Game world"></canvas>
+
+        <section id="status" aria-label="Your cultivation">
+          <div id="realm"></div>
+          <div class="bar"><div id="realm-fill"></div></div>
+        </section>
+
+        <section id="objectives" aria-label="Trial goals"><ol id="objective-list"></ol></section>
+
+        <div id="mote" role="status" aria-live="polite"><span class="mote-orb" aria-hidden="true"></span><span id="mote-text"></span></div>
+
+        <div id="readout" aria-live="off"></div>
+
+        <section id="ring" hidden aria-label="Formula ring">
+          <div id="tiles" role="group" aria-label="Substances"></div>
+          <div id="builder">
+            <div id="equation" aria-live="polite"></div>
+            <input id="formula" type="text" maxlength="64" autocomplete="off" spellcheck="false" aria-label="Type a formula, for example 2H2 + O2 -> 2H2O" placeholder="2H2 + O2 -> 2H2O" />
+            <div class="builder-buttons">
+              <button id="arrow-btn" type="button">Add arrow</button>
+              <button id="clear-btn" type="button">Clear</button>
+              <button id="cast-btn" type="button" class="primary">Cast</button>
+            </div>
+          </div>
+        </section>
+
+        <div id="toast" hidden role="alert"></div>
+
+        <section id="hud-bottom">
+          <div id="jars" aria-label="Reagent jars"></div>
+          <div id="slots" aria-label="Quick-cast spells"></div>
+          <div class="hud-buttons">
+            <button id="lens-btn" type="button" aria-pressed="false">Insight lens <kbd>Tab</kbd></button>
+            <button id="notebook-btn" type="button">Notebook <kbd>N</kbd></button>
+          </div>
+        </section>
+
+        <aside id="notebook" hidden aria-label="Lab notebook">
+          <h2>Lab notebook</h2>
+          <p class="small" id="notebook-empty">Reactions you discover are written here.</p>
+          <ul id="notebook-list"></ul>
+          <button id="notebook-close" type="button">Close</button>
+        </aside>
+
+        <div id="touch" aria-hidden="true">
+          <button data-key="left">&#9664;</button>
+          <button data-key="right">&#9654;</button>
+          <button data-key="jump">Jump</button>
+          <button data-key="gather">Gather</button>
+          <button data-key="ring">Ring</button>
+        </div>
+      </div>
+      <p id="help" class="small">
+        Move <kbd>A</kbd><kbd>D</kbd> · Jump <kbd>Space</kbd> · Aim with the mouse · Gather: hold right-click or <kbd>G</kbd> ·
+        Formula ring <kbd>Q</kbd> · Cast: left-click or <kbd>Enter</kbd> · Saved spells <kbd>1</kbd>–<kbd>5</kbd>
+      </p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

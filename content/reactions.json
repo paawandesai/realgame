@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "notes": "Every reaction the game can cast. Enthalpies are standard values at 25 C and 1 atm, computed from standard enthalpies of formation in the NIST Chemistry WebBook (H2O(g) -241.826, H2O(l) -285.830, CO2(g) -393.51, CH4(g) -74.87 kJ/mol). Each entry needs a reviewer before it ships to classrooms.",
+  "reactions": [
+    {
+      "id": "water_synthesis",
+      "name": "Conjure Water (hydrogen burns)",
+      "equation": "2H2 + O2 -> 2H2O",
+      "delta_h_kj": -483.6,
+      "product_state": "gas",
+      "needs": "spark",
+      "tier_min": "sprout",
+      "concept": "Synthesis: two gases join into water and release a lot of heat.",
+      "real_world": "Hydrogen fuel cells and the main engines of the Space Shuttle used this reaction.",
+      "source": "NIST Chemistry WebBook, standard enthalpy of formation of H2O(g)",
+      "reviewed_by": null
+    },
+    {
+      "id": "electrolysis_water",
+      "name": "Split Water (electrolysis)",
+      "equation": "2H2O -> 2H2 + O2",
+      "delta_h_kj": 571.7,
+      "product_state": "gas",
+      "needs": "electricity",
+      "tier_min": "sprout",
+      "concept": "Electricity can pull water apart into hydrogen and oxygen. It costs energy instead of releasing it.",
+      "real_world": "Green hydrogen plants split water with electricity from solar and wind.",
+      "source": "NIST Chemistry WebBook, standard enthalpy of formation of H2O(l)",
+      "reviewed_by": null
+    },
+    {
+      "id": "methane_combustion",
+      "name": "Fireball (methane burns)",
+      "equation": "CH4 + 2O2 -> CO2 + 2H2O",
+      "delta_h_kj": -802.3,
+      "product_state": "gas",
+      "needs": "spark",
+      "tier_min": "seedling",
+      "concept": "Combustion: a fuel joins with oxygen and makes carbon dioxide, water and heat.",
+      "real_world": "This is the flame on a gas stove.",
+      "source": "NIST Chemistry WebBook, standard enthalpies of formation of CH4, CO2 and H2O(g)",
+      "reviewed_by": null
+    },
+    {
+      "id": "carbon_combustion",
+      "name": "Burning wood (carbon burns)",
+      "equation": "C + O2 -> CO2",
+      "delta_h_kj": -393.5,
+      "product_state": "gas",
+      "needs": "spark",
+      "tier_min": "seedling",
+      "concept": "Fire needs fuel, oxygen and heat. Take any one away and it goes out.",
+      "real_world": "Wood is mostly carbon compounds; in the game it is simplified to pure carbon.",
+      "source": "NIST Chemistry WebBook, standard enthalpy of formation of CO2(g)",
+      "reviewed_by": null
+    }
+  ],
+  "phase_changes": [
+    {
+      "id": "water_melting",
+      "substance": "H2O",
+      "temperature_c": 0.0,
+      "latent_heat_kj_per_mol": 6.01,
+      "source": "CRC Handbook of Chemistry and Physics, enthalpy of fusion of water",
+      "reviewed_by": null
+    },
+    {
+      "id": "water_boiling",
+      "substance": "H2O",
+      "temperature_c": 100.0,
+      "latent_heat_kj_per_mol": 40.65,
+      "source": "CRC Handbook of Chemistry and Physics, enthalpy of vaporization of water at 100 C",
+      "reviewed_by": null
+    }
+  ]
+}
