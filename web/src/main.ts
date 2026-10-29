@@ -971,6 +971,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   });
   renderGrimoire();
 
+  /** The goal the objective shows now (this room's, else the next one). */
+  let goalNow: Goal | null = null;
+
   /** Walking to the next goal by itself (the go arrow), hopping when blocked. */
   let autoWalk: { target: number; stuck: number; lastX: number } | null = null;
 
@@ -1051,6 +1054,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const unbalanced = result.imbalance.length > 0;
       if (!unbalanced) setTrayOpen(false);
       if (result.suggestion) tray.offerFix(result.suggestion);
+      // A spell that cannot move the goal while the goal's spell waits on
+      // the label: the label becomes a big button with the hand on it.
+      const goal = goalNow;
+      const moves = goal && (result.spell === goal.need || (goal.kind === "fire" && result.spell === "cloud"));
+      if (goal && !moves && tray.offer) tray.nudgeOffer();
       document.body.classList.toggle("cast-full", result.outcome === "full");
       window.setTimeout(() => document.body.classList.remove("cast-full"), 1200);
     }
@@ -2109,8 +2117,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       trackProgress(list);
       const here = list[game.room()];
       const shownGoal = showObjective(here && !here.done ? here : goals.next, viewX);
-      // One suggested spell per goal, swapped in once (never while the
-      // player is editing it).
+      goalNow = shownGoal;
+      // One suggested spell per goal, loaded once when the goal changes
+      // (an edited bar gets an Undo chip; never overwritten within a goal).
       if (tray && shownGoal && tray.suggest(shownGoal.room, TRAY_STARTERS[shownGoal.room - 1] ?? "H2O")) {
         actTray.classList.remove("new-spell");
         void actTray.offsetWidth;

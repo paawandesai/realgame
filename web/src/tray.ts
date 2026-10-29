@@ -4,9 +4,11 @@
 // control for how many: tap its number to count 1, 2, 3, 4 and round again.
 //
 // The game suggests one spell per room goal. The suggestion goes in once,
-// when the goal changes, with a "New spell" pulse; once the player taps any
-// tile or number the bar is theirs and is never overwritten (a later
-// suggestion waits on the label, to use with a tap).
+// when the goal changes, with a "New spell" pulse. Within one goal, once the
+// player taps any tile or number the bar is theirs and is never overwritten.
+// A new goal loads its spell (balanced, if the player had edited the bar)
+// with an "Undo" chip that brings their own bar back; after Undo the
+// suggestion waits on the label, to use with a tap.
 
 import { words } from "./device";
 import { ATOM_COLOR, atomsOf, icon, molecule } from "./icons";
@@ -142,6 +144,12 @@ export class SpellTray {
   private suggestKey = -1;
   /** A suggestion waiting on the label while the player's own spell stays. */
   private offered = "";
+  /** "Undo": puts back the player's own bar that a new goal's spell replaced. */
+  private readonly undoChip: HTMLButtonElement;
+  /** The bar the last suggestion replaced ("" when there is nothing to undo). */
+  private undoText = "";
+  /** The suggestion that replaced it (offered again on the label after Undo). */
+  private undoOffer = "";
   private readonly barRow: HTMLElement;
   /** The one-time ghost hand on the number to change (null once shown). */
   private coefHint: HTMLElement | null = null;
@@ -174,9 +182,12 @@ export class SpellTray {
       this.hideNew();
     });
     this.newLabel.hidden = true;
+    this.undoChip = button("Undo", "Undo: bring back my spell", "tray-undo", () => this.undo());
+    this.undoChip.id = "tray-undo";
+    this.undoChip.hidden = true;
     const cast = button("Cast", "Cast the spell", "tray-cast primary", () => this.cast());
     cast.id = "tray-cast";
-    barRow.append(this.newLabel, this.bar, back, clear, cast);
+    barRow.append(this.newLabel, this.undoChip, this.bar, back, clear, cast);
 
     // The balance scale: a beam with a pan of atoms at each end.
     this.scale = document.createElement("div");
@@ -231,31 +242,82 @@ export class SpellTray {
   set(text: string): void {
     this.touched = true;
     this.offered = "";
+    this.hideUndo();
     this.tokens = parseSpell(text);
     this.fixes.clear();
     this.render();
   }
 
   /**
-   * The suggested spell for goal `key`. Applied once per goal, in one go,
-   * and only while the player hasn't edited the bar; otherwise it waits on
-   * the "New spell" label. Returns true if the bar changed.
+   * The suggested spell for goal `key`, loaded into the bar once when the
+   * goal changes. If the player had edited the bar, it goes in balanced
+   * (so one Cast works) with an "Undo" chip that restores their bar. Within
+   * one goal an edited bar is never overwritten. Returns true if the bar
+   * changed.
    */
   suggest(key: number, text: string): boolean {
     if (key === this.suggestKey) return false;
     this.suggestKey = key;
-    if (this.touched) {
-      // Offered in its balanced form, so one tap gives a spell that works.
-      const offer = balancedText(text);
-      if (parseSpellText(offer) === this.text()) return false;
-      this.offered = offer;
-      this.showNew(`New spell: ${prettyFormula(offer)}`, true);
+    const mine = this.touched ? this.text() : "";
+    const next = this.touched ? balancedText(text) : text;
+    this.touched = false;
+    this.offered = "";
+    this.hideUndo();
+    if (mine && parseSpellText(next) === mine) {
+      this.hideNew();
       return false;
     }
-    this.tokens = parseSpell(text);
+    this.tokens = parseSpell(next);
     this.fixes.clear();
     this.render();
     this.showNew("New spell", false);
+    if (mine) {
+      this.undoText = mine;
+      this.undoOffer = next;
+      this.undoChip.hidden = false;
+    }
+    return true;
+  }
+
+  /** Undo: the player's own bar comes back; the suggestion waits on the label. */
+  private undo(): void {
+    const offer = this.undoOffer;
+    this.tokens = parseSpell(this.undoText);
+    this.touched = true;
+    this.fixes.clear();
+    this.hideUndo();
+    this.render();
+    if (offer) {
+      this.offered = offer;
+      this.showNew(`New spell: ${prettyFormula(offer)}`, true);
+    }
+  }
+
+  private hideUndo(): void {
+    this.undoChip.hidden = true;
+    this.undoText = "";
+    this.undoOffer = "";
+  }
+
+  /**
+   * The player cast something that cannot move the goal while a suggestion
+   * waits: the label flashes as a big button with the ghost hand on it.
+   * Returns true if there was an offer to show.
+   */
+  nudgeOffer(): boolean {
+    if (!this.offered) return false;
+    const label = this.newLabel;
+    label.classList.add("big");
+    if (!label.querySelector(".tray-new-hand")) {
+      const hand = document.createElement("span");
+      hand.className = "tray-new-hand ghost-tap";
+      hand.setAttribute("aria-hidden", "true");
+      hand.append(icon("hand"));
+      label.append(hand);
+    }
+    label.classList.remove("pulse");
+    void label.offsetWidth;
+    label.classList.add("pulse");
     return true;
   }
 
@@ -264,11 +326,13 @@ export class SpellTray {
     this.touched = false;
     this.suggestKey = -1;
     this.offered = "";
+    this.hideUndo();
     this.hideNew();
   }
 
   private showNew(text: string, offer: boolean): void {
     this.newLabel.textContent = text;
+    this.newLabel.classList.remove("big");
     this.newLabel.setAttribute("aria-label", offer ? `${text}. Tap to use it.` : text);
     this.newLabel.classList.toggle("offer", offer);
     this.newLabel.hidden = false;
@@ -295,6 +359,7 @@ export class SpellTray {
   /** The player edited the bar by hand. */
   private touch(): void {
     this.touched = true;
+    this.hideUndo();
     if (!this.offered) this.hideNew();
     else if (parseSpellText(this.offered) === this.text()) this.hideNew();
   }
