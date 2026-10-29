@@ -55,6 +55,20 @@ impl WebGame {
         self.game.player.x
     }
 
+    /// The player sprite for the browser to draw above the glow layers:
+    /// `[x, y, dx, dy, rgb, dx, dy, rgb, ...]`, with `x`/`y` the top-left
+    /// world cell for this frame and `rgb` packed as `0xRRGGBB`. Drawing
+    /// only; the collision box is unchanged.
+    pub fn player_sprite(&self, alpha: f32) -> Vec<i32> {
+        let (px, py, cells) = player_cells(&self.game, alpha);
+        let mut v = Vec::with_capacity(2 + cells.len() * 3);
+        v.extend([px, py]);
+        for (dx, dy, c) in cells {
+            v.extend([dx, dy, i32::from_be_bytes([0, c[0], c[1], c[2]])]);
+        }
+        v
+    }
+
     /// The player's top edge, in world cells (camera lift and browser tests).
     pub fn player_y(&self) -> f32 {
         self.game.player.y
@@ -415,11 +429,17 @@ fn sprite_color(c: u8) -> Option<[u8; 3]> {
     })
 }
 
-fn draw_player(game: &Game, out: &mut Frame, alpha: f32, view_x: i32) {
+/// The player's pose for this frame: the top-left cell in world columns and
+/// rows (interpolated by `alpha`), and each lit sprite cell as
+/// `(dx, dy, colour)`. One source for the frame and the browser overlay.
+/// One lit sprite cell: offset from the sprite's top-left and its colour.
+type SpriteCell = (i32, i32, [u8; 3]);
+
+fn player_cells(game: &Game, alpha: f32) -> (i32, i32, Vec<SpriteCell>) {
     let p = &game.player;
     let lerp = |a: f32, b: f32| a + (b - a) * alpha;
     let (px, py) = (
-        lerp(p.prev_x, p.x).round() as i32 - view_x,
+        lerp(p.prev_x, p.x).round() as i32,
         lerp(p.prev_y, p.y).round() as i32,
     );
     let legs = if !p.grounded {
@@ -434,13 +454,22 @@ fn draw_player(game: &Game, out: &mut Frame, alpha: f32, view_x: i32) {
     } else {
         LEGS_STAND
     };
+    let mut cells = Vec::with_capacity(72);
     for (row, line) in BODY.iter().chain(legs.iter()).enumerate() {
         for (col, &c) in line.iter().enumerate() {
             if let Some(color) = sprite_color(c) {
                 let dx = if p.facing >= 0 { col } else { 5 - col } as i32;
-                put(out, px + dx, py + row as i32, color);
+                cells.push((dx, row as i32, color));
             }
         }
+    }
+    (px, py, cells)
+}
+
+fn draw_player(game: &Game, out: &mut Frame, alpha: f32, view_x: i32) {
+    let (px, py, cells) = player_cells(game, alpha);
+    for (dx, dy, color) in cells {
+        put(out, px - view_x + dx, py + dy, color);
     }
 }
 
@@ -517,5 +546,25 @@ mod tests {
         assert!(checked > VIEW_W * HEIGHT * 9 / 10);
         assert_eq!(w.cell_data[(py * VIEW_W + px) * 2 + 1], SPRITE);
         assert_eq!(heat_lut().len(), 1024);
+    }
+
+    /// The overlay sprite is the same pose the frame draws: every sprite
+    /// cell it lists is a sprite pixel in the frame.
+    #[test]
+    fn player_sprite_matches_the_frame() {
+        let mut w = WebGame::new("seedling", 3);
+        for _ in 0..10 {
+            w.tick(0);
+        }
+        w.set_cell_data(true);
+        w.render(false, 1.0);
+        let s = w.player_sprite(1.0);
+        let vx = w.view_x();
+        assert!(s.len() > 2 + 3 * 40, "a 6 x 12 sprite, mostly filled");
+        for c in s[2..].chunks(3) {
+            let (x, y) = ((s[0] + c[0] - vx) as usize, (s[1] + c[1]) as usize);
+            let o = y * VIEW_W + x;
+            assert_eq!(w.cell_data[o * 2 + 1], SPRITE);
+        }
     }
 }

@@ -1962,6 +1962,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const tRender = performance.now();
     const viewX = game.view_x();
     fx.draw(now, viewX);
+    fx.drawPlayer(game.player_sprite(alpha), viewX);
     const tFx = performance.now();
     if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1]));
     // Goals change every tick; a few polls a second is plenty.
@@ -2166,6 +2167,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       viewX: () => game.view_x(),
       playerX: () => game.player_x(),
       playerY: () => game.player_y(),
+      /** The drawn player (sprite, outline, halo) in CSS px relative to the stage. */
+      playerBox: () => fx.playerScreenBox,
       goals: () => JSON.parse(game.goals()) as Goal[],
       shake: () => ({ max: fx.maxShakePx, last: fx.lastShakePx }),
       cast: (f: string) => requestCast(f),

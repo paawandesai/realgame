@@ -436,7 +436,8 @@ kbd {
   pointer-events: none;
 }
 
-#fx {
+#fx,
+#player-layer {
   position: absolute;
   inset: 0;
   width: 100%;

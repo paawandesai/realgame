@@ -149,6 +149,15 @@ interface Label {
  * sharp enough for icons and text, and it keeps per-frame raster cost flat on
  * big screens. */
 const MAX_PX_PER_CELL = 4;
+/** The player sprite (6 x 12 cells) plus a one-cell outline on every side. */
+const SPRITE_BOX_W = 8;
+const SPRITE_BOX_H = 14;
+/** Drawn size of the player for Sprout (the collision box stays the same). */
+const SPROUT_PLAYER_SCALE = 1.5;
+/** Dark outline and a light halo around it: one reads on fire, one on night sky. */
+export const PLAYER_OUTLINE_RGB: [number, number, number] = [14, 16, 26];
+const OUTLINE = `rgb(${PLAYER_OUTLINE_RGB.join(",")})`;
+const HALO = "rgba(255, 246, 214, 0.9)";
 /** Glow is soft, so it is drawn at a low resolution and scaled up smoothly. */
 const GLOW_PX_PER_CELL = 2;
 
@@ -230,6 +239,20 @@ export class FxLayer {
     const ctx = this.canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D is not available");
     this.ctx = ctx;
+    // The player on its own layer above glow, bloom and effects, so fire
+    // light never swallows them.
+    this.playerCanvas = document.createElement("canvas");
+    this.playerCanvas.id = "player-layer";
+    this.playerCanvas.setAttribute("aria-hidden", "true");
+    stage.insertBefore(this.playerCanvas, this.canvas.nextSibling);
+    shaken.push(this.playerCanvas);
+    const pctx = this.playerCanvas.getContext("2d");
+    if (!pctx) throw new Error("Canvas 2D is not available");
+    this.playerCtx = pctx;
+    this.spriteCanvas = document.createElement("canvas");
+    this.spriteCanvas.width = SPRITE_BOX_W;
+    this.spriteCanvas.height = SPRITE_BOX_H;
+    this.spriteCtx = this.spriteCanvas.getContext("2d");
     for (let i = 0; i < POOL_SIZE; i++) {
       this.pool.push({ alive: false, x: 0, y: 0, vx: 0, vy: 0, g: 0, born: 0, life: 0, size: 1, color: "", ring: false });
     }
@@ -330,6 +353,72 @@ export class FxLayer {
     return this.reducedOverride ?? this.reduced.matches;
   }
 
+  // ---------------------------------------------------------------- player
+
+  readonly playerCanvas: HTMLCanvasElement;
+  private readonly playerCtx: CanvasRenderingContext2D;
+  /** The sprite and its outline at one pixel per cell, scaled up when drawn. */
+  private readonly spriteCanvas: HTMLCanvasElement;
+  private readonly spriteCtx: CanvasRenderingContext2D | null;
+  private spriteKey = "";
+  /** Last drawn player box on the player layer, in canvas px (to clear). */
+  private playerBox: [number, number, number, number] | null = null;
+  /** For automated checks: the player's drawn box in CSS px relative to the stage. */
+  playerScreenBox: { x: number; y: number; w: number; h: number } | null = null;
+
+  /** Draws the player from `WebGame.player_sprite` above every glow layer,
+   * with a dark outline and a soft light halo so it reads on fire and on
+   * night sky. Sprout sees it 1.5 times bigger, anchored at the feet. The
+   * sim's collision box is not touched. */
+  drawPlayer(sprite: Int32Array, viewX: number): void {
+    const ctx = this.playerCtx;
+    const k = this.scale;
+    if (this.playerBox) {
+      const [x, y, w, h] = this.playerBox;
+      ctx.clearRect(x, y, w, h);
+      this.playerBox = null;
+    }
+    const sc = this.spriteCtx;
+    if (!sc || sprite.length < 5) return;
+    let key = "";
+    for (let i = 2; i < sprite.length; i++) key += sprite[i]!.toString(36) + ",";
+    if (key !== this.spriteKey) {
+      this.spriteKey = key;
+      sc.clearRect(0, 0, SPRITE_BOX_W, SPRITE_BOX_H);
+      // Outline first: every empty neighbour (8-way) of a sprite cell.
+      sc.fillStyle = OUTLINE;
+      for (let i = 2; i + 2 < sprite.length; i += 3) {
+        const dx = sprite[i]! + 1;
+        const dy = sprite[i + 1]! + 1;
+        sc.fillRect(dx - 1, dy - 1, 3, 3);
+      }
+      for (let i = 2; i + 2 < sprite.length; i += 3) {
+        const rgb = sprite[i + 2]!;
+        sc.fillStyle = `rgb(${(rgb >> 16) & 255},${(rgb >> 8) & 255},${rgb & 255})`;
+        sc.fillRect(sprite[i]! + 1, sprite[i + 1]! + 1, 1, 1);
+      }
+    }
+    const big = this.tier === "sprout" ? SPROUT_PLAYER_SCALE : 1;
+    const cell = k * big;
+    const w = SPRITE_BOX_W * cell;
+    const h = SPRITE_BOX_H * cell;
+    // Anchor at the feet, centred on the collision box.
+    const footX = (sprite[0]! - viewX + 3) * k;
+    const footY = (sprite[1]! + 12) * k;
+    const x = Math.round(footX - w / 2);
+    const y = Math.round(footY + cell - h);
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.shadowColor = HALO;
+    ctx.shadowBlur = Math.max(2, k * 1.5);
+    ctx.drawImage(this.spriteCanvas, x, y, w, h);
+    ctx.restore();
+    const pad = Math.ceil(k * 3);
+    this.playerBox = [x - pad, y - pad, w + pad * 2, h + pad * 2];
+    const css = this.stage.clientWidth / this.playerCanvas.width;
+    this.playerScreenBox = { x: x * css, y: y * css, w: w * css, h: h * css };
+  }
+
   private resize(): void {
     const r = this.stage.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -337,6 +426,9 @@ export class FxLayer {
     this.canvas.width = Math.max(1, Math.round(this.viewW * k));
     this.canvas.height = Math.max(1, Math.round(this.viewH * k));
     this.scale = this.canvas.width / this.viewW;
+    this.playerCanvas.width = this.canvas.width;
+    this.playerCanvas.height = this.canvas.height;
+    this.playerBox = null;
   }
 
   /** Frames the simulation should pause for (hit-stop after a big blast). */
