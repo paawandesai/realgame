@@ -146,6 +146,8 @@ interface Label {
  * sharp enough for icons and text, and it keeps per-frame raster cost flat on
  * big screens. */
 const MAX_PX_PER_CELL = 4;
+/** On a device too slow for full-size overlays: half the pixels each way. */
+const LOW_PX_PER_CELL = 2;
 /** Sprout's cast card shows the spell's picture instead of an equation. */
 const SPROUT_PICTURE: Partial<Record<CastOutcome["spell"], IconName>> = {
   water: "drop",
@@ -430,7 +432,7 @@ export class FxLayer {
   private resize(): void {
     const r = this.stage.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const k = Math.min((r.width * dpr) / this.viewW, MAX_PX_PER_CELL);
+    const k = Math.min((r.width * dpr) / this.viewW, this.pxCap);
     this.canvas.width = Math.max(1, Math.round(this.viewW * k));
     this.canvas.height = Math.max(1, Math.round(this.viewH * k));
     this.scale = this.canvas.width / this.viewW;
@@ -685,11 +687,29 @@ export class FxLayer {
   private quality = 1;
   /** Live particles at most, scaled with `quality`. */
   private liveCap = POOL_SIZE;
-  setLoad(frameMs: number): void {
+  setLoad(frameMs: number, now = performance.now()): void {
     const want = frameMs > 12 ? Math.max(0.3, this.quality - 0.05) : frameMs < 8 ? Math.min(1, this.quality + 0.02) : this.quality;
     this.quality = want;
     this.liveCap = Math.round(POOL_SIZE * want);
+    // Still slow with the fewest particles: the overlay and player layers
+    // drop to half resolution (a quarter of the pixels to clear, draw and
+    // composite every frame). Back to full only after 10 s of fast frames.
+    if (this.pxCap === MAX_PX_PER_CELL && want <= 0.3 && frameMs > 12) {
+      this.pxCap = LOW_PX_PER_CELL;
+      this.fastSince = -1;
+      this.resize();
+    } else if (this.pxCap === LOW_PX_PER_CELL) {
+      if (frameMs >= 4) this.fastSince = -1;
+      else if (this.fastSince < 0) this.fastSince = now;
+      else if (now - this.fastSince > 10000) {
+        this.pxCap = MAX_PX_PER_CELL;
+        this.resize();
+      }
+    }
   }
+  /** Overlay pixels per cell at most (lowered on slow devices). */
+  private pxCap = MAX_PX_PER_CELL;
+  private fastSince = -1;
 
   /** Where the last impact landed, in world cells (for automated checks). */
   lastImpact: [number, number] | null = null;
@@ -1249,12 +1269,13 @@ export class FxLayer {
   }
 
   /** Counts of what is on screen right now (for automated checks). */
-  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number; waves: number; quality: number; knocks: number } {
+  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number; waves: number; quality: number; pxPerCell: number; knocks: number } {
     let particles = 0;
     for (const p of this.pool) if (p.alive) particles++;
     return {
       particles,
       quality: this.quality,
+      pxPerCell: this.scale,
       knocks: this.knocks,
       waves: this.waves.length,
       bolts: this.bolts.filter((b) => b.id !== -1 && performance.now() - b.born < b.dur).length,

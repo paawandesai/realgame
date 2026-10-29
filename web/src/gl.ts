@@ -351,3 +351,24 @@ function target(gl: WebGLRenderingContext): Target | null {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   return ok ? { tex, fbo } : null;
 }
+
+/**
+ * True when WebGL here runs on a software rasterizer (SwiftShader, llvmpipe):
+ * no GPU, so the bloom passes cost CPU and every frame is read back for the
+ * page. Probed on a canvas that is never shown, so the probe itself presents
+ * nothing. False when the browser won't say.
+ */
+export function softwareWebGl(): boolean {
+  try {
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 1;
+    const gl = probe.getContext("webgl");
+    if (!gl) return false;
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "");
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+  } catch {
+    return false;
+  }
+}

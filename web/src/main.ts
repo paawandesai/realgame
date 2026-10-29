@@ -7,7 +7,7 @@ import { Sfx } from "./audio";
 import { BAR_SPELLS, HoverCard, parseBook, spellCardLines, type SpellDef } from "./book";
 import { CARDS, SproutCards, type CardSpell } from "./cards";
 import { FxLayer } from "./fx";
-import { GlRenderer } from "./gl";
+import { GlRenderer, softwareWebGl } from "./gl";
 import { initDevice, isTouch, words } from "./device";
 import { GoalMarkers } from "./goals";
 import { Grimoire } from "./grimoire";
@@ -127,9 +127,19 @@ function setChildren(el: HTMLElement, nodes: readonly Element[]): void {
   el.replaceChildren(...nodes);
 }
 
-/** The WebGL renderer is opt-in with ?gl=1 (and ?gl=0 always keeps Canvas2D). */
+/** The WebGL renderer is opt-in with ?gl=1 (and ?gl=0 always keeps Canvas2D).
+ * A software-rendered WebGL (no GPU) keeps Canvas2D too: there every WebGL
+ * frame is read back to the page ("GPU stall due to ReadPixels") and runs
+ * slower than Canvas2D. ?gl=force skips that check. */
 function wantWebGl(): boolean {
-  return new URLSearchParams(window.location.search).get("gl") === "1";
+  const gl = new URLSearchParams(window.location.search).get("gl");
+  if (gl === "force") return true;
+  if (gl !== "1") return false;
+  if (softwareWebGl()) {
+    console.info("WebGL is software-rendered on this device; drawing with Canvas2D.");
+    return false;
+  }
+  return true;
 }
 
 async function boot(): Promise<void> {
