@@ -102,7 +102,20 @@ export interface Fx {
     /** A gauge went up; reaction_id is "cause:jar" (condense, split, capture, gather). */
     | "gain"
     /** A blast threw the player back (x, y: the player; tx, ty: the blast). */
-    | "knock";
+    | "knock"
+    // v3 (crates/sim/src/events.rs `fx_kind`; payloads documented there).
+    /** H2O2 made foam; power = foam cells. */
+    | "foam"
+    /** Burning Mg met water; power = 0..1. Flash capped at 3 Hz. */
+    | "mg_flare"
+    /** An indicator pool's pH moved; power = the new pH (0..14). */
+    | "ph_shift"
+    /** A salt recoloured a flame; reaction_id = "flame_test_<el>", power = emitter id. */
+    | "salt"
+    /** Sand smothered flames; power = cells. */
+    | "smother"
+    /** The catalyst flies back to the suit (x, y -> tx, ty). */
+    | "catalyst_return";
   x: number;
   y: number;
   tx: number;
@@ -120,7 +133,21 @@ export interface Fx {
 export interface CastOutcome {
   id: number;
   outcome: Outcome;
-  spell: "water" | "boom" | "split" | "cloud" | "gas" | "fireball" | "burn" | "unknown";
+  spell:
+    | "water"
+    | "boom"
+    | "split"
+    | "cloud"
+    | "gas"
+    | "fireball"
+    | "burn"
+    | "unknown"
+    // v3 spells (crates/sim/src/chem.rs V3_SPELLS).
+    | "catalyst"
+    | "acid"
+    | "base"
+    | "sand"
+    | "salt";
   input: string;
   equation: string;
   reaction_id: string | null;
@@ -185,3 +212,58 @@ export function prettyFormula(text: string): string {
 /** Seedling's real-world safety note: short, plain, shown with a warning
  * picture (the full sourced note is the Apprentice's). */
 export const SEEDLING_SAFETY = "Real hydrogen booms. Only grown-up chemists do this!";
+
+// ---------------------------------------------------------------- v3 contract
+
+/** Species ids (`Species as u8` in crates/sim/src/species.rs), for Lab painting. */
+export const SPECIES = {
+  air: 0,
+  stone: 1,
+  wood: 2,
+  water: 3,
+  ice: 4,
+  steam: 5,
+  h2: 6,
+  o2: 7,
+  ch4: 8,
+  co2: 9,
+  cl2: 10,
+  flame: 11,
+  door: 12,
+  crystal: 13,
+  mg: 14,
+  mgo: 15,
+  sand: 16,
+  h2o2: 17,
+  foam: 18,
+  indicator: 19,
+  limewater: 20,
+  chalk: 21,
+} as const;
+export type SpeciesName = keyof typeof SPECIES;
+
+/** A Trial or the Lab (see `LevelSpec` in game/levels.rs); from `WebGame.trial_list(tier)`. */
+export interface LevelSpec {
+  id: string;
+  kind: "trial" | "lab";
+  title: string;
+  goal: string;
+  tiers: Tier[];
+  /** Casts of the best scripted solution (Apprentice star 2); 0 until set. */
+  par_casts: number;
+}
+
+/** How a Trial run went (see `TrialResult` in game/levels.rs); from `WebGame.trial_result()`. */
+export interface TrialResult {
+  id: string;
+  solved: boolean;
+  casts: number;
+  hints_used: number;
+  balanced_all: boolean;
+  atoms_wasted: number;
+  kj_net: number;
+  /** Solution signature: a different sig is a different solution (star 3). */
+  sig: number;
+  /** Stars this run earned on its own (0-2); star 3 comes from progress.recordSig. */
+  stars: number;
+}

@@ -20,7 +20,11 @@ import { trackRoomComplete, trackSessionStart, trackTrialComplete } from "./anal
 import { FormulaRing, byId } from "./ring";
 import { Speech, speakable } from "./speech";
 import { SpellTray } from "./tray";
-import { prettyFormula, type CastOutcome, type Fx, type GameState, type Goal, type Tier } from "./types";
+import { prettyFormula, type CastOutcome, type Fx, type GameState, type Goal, type Tier, type TrialResult } from "./types";
+import { emit } from "./bus";
+import { initRoute } from "./route";
+import { mountScreens, showScreen, currentScreen } from "./screens";
+import { installTestHooks } from "./testhooks";
 
 const INPUT = { left: 1, right: 2, jump: 4, gather: 8 } as const;
 /** Hotkeys 1-9: the five Grimoire spells, then spells the player typed. */
@@ -174,6 +178,8 @@ function wantWebGl(): boolean {
 }
 
 async function boot(): Promise<void> {
+  initRoute();
+  installTestHooks({ screen: () => currentScreen() });
   const wasm = await init();
   const saved = savedTier();
   if (saved) {
@@ -191,6 +197,7 @@ async function boot(): Promise<void> {
 function showStartScreen(onChoose: (tier: Tier) => void): void {
   const screen = byId("start");
   screen.hidden = false;
+  showScreen("start");
   let chosen = false;
   const last = storageGet("lastTier");
   const choose = (tier: Tier) => {
@@ -232,6 +239,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const prefs = loadPrefs(tier);
   const seed = (Math.random() * 1e9) >>> 0;
   const game = new WebGame(tier, seed);
+  mountScreens({ tier, game });
+  showScreen("story");
   const w = game.width();
   const h = game.height();
   const canvas = byId<HTMLCanvasElement>("world");
@@ -1192,6 +1201,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     speech.clear();
     fx.dismissCard(true);
     const result = JSON.parse(game.cast(formula)) as CastOutcome;
+    emit("cast:result", { outcome: result });
     cardDueUntil = performance.now() + CARD_DUE_MS;
     if (result.imbalance.length > 0) {
       const room = goalNow?.room ?? -1;
@@ -1286,6 +1296,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   /** A reaction happened: a new Grimoire page flips face up the first time. */
   function foundPage(id: string): void {
+    // Every sighting goes on the bus (v3 cards are not v2 Grimoire pages);
+    // it can repeat, so listeners dedupe (progress.markFound does).
+    emit("discover", { id });
     if (!grimoire.discover(id)) return;
     const host = byId("discover");
     grimoire.celebrate(host, id, fx.reducedMotion);
@@ -1791,6 +1804,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       // stepping to and fro over a room edge never rewrites it.)
       if (hudRoom >= 0) popups.drop("score", "room-clear");
       hudRoom = s.room;
+      emit("room:enter", { room: s.room + 1 });
     }
     // A gate opening ends that room's challenge.
     s.gates_open.forEach((open, i) => {
@@ -2087,6 +2101,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     endTimer = 0;
     if (freePlay) return;
     ended = true;
+    showScreen("end");
     trackTrialComplete();
     // Nothing from the last room shows through the end screen.
     popups.drop();
@@ -2789,6 +2804,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       },
     };
   }
+
+  installTestHooks({
+    screen: () => currentScreen(),
+    tier: () => tier,
+    room: () => (game.is_story() ? game.room() + 1 : 0),
+    goals: () => JSON.parse(game.goals()) as Goal[],
+    lastCast: () => lastResult,
+    trialResult: () => JSON.parse(game.trial_result()) as TrialResult | null,
+    cards: () => [...grimoire.found],
+    cast: (text) => requestCast(text),
+    aim: (x, y) => game.set_aim(x, y),
+  });
 
   renderSlots();
   requestAnimationFrame(loop);
