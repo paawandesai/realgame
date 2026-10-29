@@ -729,7 +729,12 @@ impl Game {
         let crystal = self.nearest_crystal();
         if crystal.is_some() && !self.met_crystal {
             self.met_crystal = true;
-            self.say("The crystal stores electricity. Your suit uses it to split water into hydrogen and oxygen, fast.");
+            let line = self.line(
+                "A crystal battery! It helps your suit make bubbles.",
+                "The crystal powers splitting water. Stand close.",
+                "The crystal stores electricity. Your suit uses it to split water into hydrogen and oxygen, fast.",
+            );
+            self.say(line);
         }
         let room =
             self.jar("H2") + 2 <= Self::jar_cap("H2") && self.jar("O2") < Self::jar_cap("O2");

@@ -290,6 +290,21 @@ impl Game {
         g.fill_rect(x, DOOR_TOP, x + GATE_W, GROUND_Y, Species::Door);
     }
 
+    /// One line per tier: Sprout (simple, read aloud), Seedling (eight words
+    /// or fewer) and Apprentice (the full explanation).
+    pub(super) fn line(
+        &self,
+        sprout: &'static str,
+        seedling: &'static str,
+        apprentice: &'static str,
+    ) -> &'static str {
+        match self.tier {
+            Tier::Sprout => sprout,
+            Tier::Seedling => seedling,
+            Tier::Apprentice => apprentice,
+        }
+    }
+
     /// Opens gate `k` (0-based) with a rumble. Returns false if already open.
     pub(super) fn open_gate(&mut self, k: usize) -> bool {
         if self.rooms.gates_open[k] {
@@ -438,13 +453,11 @@ impl Game {
                 done: false,
             },
         ];
-        let intro = match self.tier {
-            Tier::Sprout => "Fire! Tap the water drop to put it out!",
-            Tier::Seedling => "Fire! Your suit is full of water. Cast H2O at the flames.",
-            Tier::Apprentice => {
-                "Fire in the garden. Your suit is full of water: cast H2O at the flames."
-            }
-        };
+        let intro = self.line(
+            "Fire! Tap the water drop to put it out!",
+            "Fire! Cast H2O at the flames.",
+            "Fire in the garden. Your suit is full of water: cast H2O at the flames.",
+        );
         self.say(intro);
         self.rooms.entered[0] = true;
     }
@@ -488,7 +501,12 @@ impl Game {
         h.peak = h.peak.max(burning);
         if !h.out && out && h.hits == 0 && !h.said_self_out {
             h.said_self_out = true;
-            self.say("It burned out by itself. Cast water on the embers to cool them, and the gate will open.");
+            let line = self.line(
+                "It burned out by itself. Splash the hot bits!",
+                "It burned out by itself. Cool the embers.",
+                "It burned out by itself. Cast water on the embers to cool them, and the gate will open.",
+            );
+            self.say(line);
         }
         let h = &mut self.rooms.hedges[k];
         h.out = out;
@@ -500,14 +518,22 @@ impl Game {
             return;
         }
         self.rooms.entered[room] = true;
-        let young = self.tier == Tier::Sprout;
-        let line = match (room, young) {
-            (1, true) => "Ice! Hot things melt ice. Try the boom card!",
-            (1, false) => "An ice wall. Heat melts ice: cast boom (2H2 + O2 -> 2H2O) at it, or light the torch and carry it there.",
-            (2, true) => "A crystal pool! Splash it with water and watch the bubbles.",
-            (2, false) => "The crystal pool. Electricity splits water into two hydrogen for every oxygen. Trap the gas under the stone roof, then light it.",
-            (3, true) => "Another fire! Put it out, then light the bowl by the door.",
-            (3, false) => "The marsh bubbles methane. Put out the hedge with water or carbon dioxide, then light the brazier.",
+        let line = match room {
+            1 => self.line(
+                "Ice! Hot things melt ice. Try the boom card!",
+                "Ice wall! Heat melts ice. Balance the boom.",
+                "An ice wall. Heat melts ice: cast boom (2H2 + O2 -> 2H2O) at it, or light the torch and carry it there.",
+            ),
+            2 => self.line(
+                "A crystal pool! Splash it with water and watch the bubbles.",
+                "Split water, trap the gas, then light it.",
+                "The crystal pool. Electricity splits water into two hydrogen for every oxygen. Trap the gas under the stone roof, then light it.",
+            ),
+            3 => self.line(
+                "Another fire! Put it out, then light the bowl by the door.",
+                "Put out the hedge, then light the brazier.",
+                "The marsh bubbles methane. Put out the hedge with water or carbon dioxide, then light the brazier.",
+            ),
             _ => return,
         };
         self.say(line);
@@ -551,7 +577,12 @@ impl Game {
                 });
                 if hot {
                     self.rooms.vent_lit[k] = true;
-                    self.say("The methane vent caught fire! Burning methane makes carbon dioxide: stand close and your suit will catch it.");
+                    let line = self.line(
+                        "The bubbles caught fire! Stand close to catch the gas.",
+                        "Methane burns into CO2. Stand close to catch it.",
+                        "The methane vent caught fire! Burning methane makes carbon dioxide: stand close and your suit will catch it.",
+                    );
+                    self.say(line);
                 }
             }
             let lit = self.rooms.vent_lit[k];
@@ -641,11 +672,16 @@ impl Game {
             self.rooms.torch.lit = true;
             self.torch_lit = true;
             self.emit_at("discover", tx as f32, ty as f32, 1.0);
-            self.say(if self.rooms.torch.carried {
+            let line = if self.rooms.torch.carried {
                 "Your torch caught fire."
             } else {
-                "The torch is lit! Walk into it to pick it up."
-            });
+                self.line(
+                    "The torch is lit! Walk into it.",
+                    "Torch lit! Walk into it to carry it.",
+                    "The torch is lit! Walk into it to pick it up.",
+                )
+            };
+            self.say(line);
         }
         let p = &self.player;
         let touching = (p.x + PLAYER_W / 2.0 - self.rooms.torch.x).abs() < 5.0
@@ -653,7 +689,12 @@ impl Game {
             && p.y + PLAYER_H > self.rooms.torch.y - TORCH_H as f32;
         if !self.rooms.torch.carried && touching && (self.rooms.torch.lit || gather) {
             self.rooms.torch.carried = true;
-            self.say("You picked up the torch. Hold it against something to heat it.");
+            let line = self.line(
+                "You have the torch! Take it to the ice.",
+                "Got the torch. Hold it to the ice.",
+                "You picked up the torch. Hold it against something to heat it.",
+            );
+            self.say(line);
         }
         if !self.rooms.torch.carried {
             return;
@@ -676,7 +717,12 @@ impl Game {
             self.rooms.torch.lit = false;
             self.torch_lit = false;
             self.emit_at("hiss", tx as f32, ty as f32, 1.0);
-            self.say("Your torch went out in the water. Light it again with fire.");
+            let line = self.line(
+                "Oh no, the water put the torch out!",
+                "Water put the torch out. Relight it.",
+                "Your torch went out in the water. Light it again with fire.",
+            );
+            self.say(line);
             return;
         }
         if !self.rooms.torch.lit {
@@ -734,10 +780,12 @@ impl Game {
         self.update_hedge(0);
         let h = &self.rooms.hedges[0];
         if h.out && h.hits > 0 && self.open_gate(0) {
-            self.say(match self.tier {
-                Tier::Sprout => "You put out the fire! The gate is open.",
-                _ => "The fire is out. Fire needs fuel, oxygen and heat: your water took away the heat. The gate is open.",
-            });
+            let line = self.line(
+                "You put out the fire! The gate is open.",
+                "Fire out! Cooling it stopped it. Gate open.",
+                "The fire is out. Fire needs fuel, oxygen and heat: you took away the heat. The gate is open.",
+            );
+            self.say(line);
         }
 
         // Room 2: at least 90% of the ice is gone, melted by the player's heat.
@@ -746,7 +794,20 @@ impl Game {
             && self.rooms.ice_left * 10 <= self.rooms.ice_start
             && self.open_gate(1)
         {
-            self.say("The ice melted into water. Heat changes ice to water, and water to steam. The gate is open.");
+            // The last loose chunks (already near 0 C) melt too, so a stray
+            // block of ice can never wall the player in under the rock.
+            for (x, y) in ICE.cells() {
+                if self.grid.get(x, y) == Species::Ice {
+                    self.grid.set(x, y, Species::Water, 1.0);
+                }
+            }
+            self.rooms.ice_left = 0;
+            let line = self.line(
+                "The ice melted! The gate is open.",
+                "Heat melted the ice into water. Gate open!",
+                "The ice melted into water. Heat changes ice to water, and water to steam. The gate is open.",
+            );
+            self.say(line);
         }
 
         // Room 3: hydrogen collected under the overhang, then burned.
@@ -758,7 +819,12 @@ impl Game {
                 !self.grid.get(x, y).is_solid() && self.grid.temp_at(x, y) >= H2_BLAST_C
             });
             if blast && self.open_gate(2) {
-                self.say("Bang! The trapped hydrogen burned with the oxygen and blew the door open. 2H2 + O2 -> 2H2O.");
+                let line = self.line(
+                    "Bang! The bubbles went boom and the door opened!",
+                    "Bang! Trapped hydrogen burned. The door opened!",
+                    "Bang! The trapped hydrogen burned with the oxygen and blew the door open. 2H2 + O2 -> 2H2O.",
+                );
+                self.say(line);
             }
         }
         if self.rooms.trap_h2 == 0 && !self.rooms.gates_open[2] {
@@ -786,7 +852,12 @@ impl Game {
             if hot && (cast_here || torch_here) {
                 self.rooms.brazier_lit = true;
                 self.open_gate(3);
-                self.say("The brazier is lit and the last door is open. Trial complete: you broke through to the next realm!");
+                let line = self.line(
+                    "The bowl is lit! You did it!",
+                    "Brazier lit! You broke through!",
+                    "The brazier is lit and the last door is open. Trial complete: you broke through to the next realm!",
+                );
+                self.say(line);
             }
         }
         if self.rooms.brazier_lit && self.ticks.is_multiple_of(3) {
@@ -1285,6 +1356,13 @@ mod tests {
                 g.take_fx().iter().any(|f| f.kind == "door"),
                 "the gate rumbles"
             );
+            // No stray chunk of ice is left to wall the player in.
+            assert_eq!(g.count_in(ICE, Species::Ice), 0, "seed {seed}");
+            assert!(
+                walk_to(&mut g, 600.0, 3000),
+                "seed {seed}: stuck at {}",
+                g.player.x
+            );
             // The meltwater runs off into the pit.
             settle(&mut g, 300);
             assert!(g.count_in(PIT, Species::Water) > 20, "seed {seed}: pit dry");
@@ -1709,11 +1787,12 @@ mod restart_tests {
         assert_eq!(g.goals()[3].stand_x, 1218);
     }
 
-    #[test]
-    fn standing_where_each_goal_says_and_casting_its_spell_moves_it_on() {
-        // What a hint ladder or auto-walk relies on: stand at `stand_x`,
-        // cast `need` with soft auto-aim (Sprout cards, no aiming).
-        let mut g = Game::new(Tier::Sprout, 7);
+    /// Plays the trial the way the hint ladder and go arrow suggest: stand at
+    /// each goal's `stand_x` and cast its `need` with soft auto-aim (no
+    /// aiming). Returns the game and every line said along the way.
+    fn play_by_goals(tier: Tier, seed: u64) -> (Game, Vec<String>) {
+        let mut g = Game::new(tier, seed);
+        let mut said = vec![];
         settle(&mut g, 30);
         let mut casts = 0;
         for k in 0..ROOMS {
@@ -1737,12 +1816,43 @@ mod restart_tests {
                     }
                     settle(&mut g, 15);
                 }
-                g.cast(spell);
+                let text = match (tier, spell) {
+                    (Tier::Sprout, s) => s,
+                    (_, "water") => "H2O",
+                    (_, "split") => "2H2O -> 2H2 + O2",
+                    _ => "2H2 + O2 -> 2H2O",
+                };
+                g.cast(text);
                 land(&mut g);
                 settle(&mut g, 40);
+                said.extend(g.state().messages);
                 casts += 1;
                 assert!(casts < 40, "room {k}: no progress with {spell}");
             }
+        }
+        (g, said)
+    }
+
+    #[test]
+    fn standing_where_each_goal_says_and_casting_its_spell_moves_it_on() {
+        for tier in [Tier::Sprout, Tier::Seedling] {
+            let (g, _) = play_by_goals(tier, 7);
+            assert!(g.trial_complete(), "{tier:?}");
+        }
+    }
+
+    #[test]
+    fn seedling_prompts_are_eight_words_or_fewer() {
+        let (g, said) = play_by_goals(Tier::Seedling, 42);
+        assert!(said.len() >= 6, "{said:?}");
+        // Grimoire discoveries quote the sourced concept text; prompts are short.
+        let book = ReactionBook::load();
+        for line in said {
+            if book.reactions.iter().any(|(r, _)| r.concept == line) {
+                continue;
+            }
+            let words = line.split_whitespace().count();
+            assert!(words <= 8, "{words} words: {line}");
         }
         assert!(g.trial_complete());
     }
