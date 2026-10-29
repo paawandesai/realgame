@@ -2405,3 +2405,97 @@ body[data-tier="sprout"] .grim-card > .grim-words {
   font-size: 0.95rem;
   color: var(--ink);
 }
+
+/* ------------------------------------------------ F13: locked spells, live gauges */
+
+.slot.locked {
+  opacity: 0.6;
+  border-style: dashed;
+  filter: grayscale(0.7);
+  position: relative;
+}
+
+.slot.locked .slot-pic::after {
+  content: "🔒";
+  position: absolute;
+  font-size: 0.7rem;
+  transform: translate(-6px, -4px);
+}
+
+.slot-need {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1px;
+  font-size: 0.62rem;
+  line-height: 1;
+  text-align: center;
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+.slot.shake {
+  animation: slot-shake 0.3s;
+}
+
+@keyframes slot-shake {
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+#jars-mini {
+  pointer-events: auto;
+}
+
+#jars-mini .jar {
+  position: relative;
+  cursor: help;
+  border-radius: 6px;
+}
+
+#jars-mini .jar:focus-visible {
+  outline: 2px solid var(--accent, #56b4e9);
+}
+
+#jars-mini .jar.empty {
+  opacity: 0.6;
+}
+
+#jars-mini .jar.pulse .glass {
+  animation: jar-pulse 0.5s ease-out;
+}
+
+@keyframes jar-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(240, 199, 94, 0.9); }
+  100% { box-shadow: 0 0 0 8px rgba(240, 199, 94, 0); }
+}
+
+.gauge-tick {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  transform: translateX(-50%);
+  font-weight: 800;
+  font-size: 0.95rem;
+  pointer-events: none;
+  text-shadow: 0 1px 2px #000;
+  animation: gauge-tick 1.4s ease-out forwards;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.gauge-tick.up { color: #7ee08a; }
+.gauge-tick.down { color: #ffb38a; }
+
+@keyframes gauge-tick {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -22px); }
+}
+
+.grim-where {
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: var(--quiet);
+  text-align: center;
+}

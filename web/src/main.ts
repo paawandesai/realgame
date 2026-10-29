@@ -89,7 +89,7 @@ const TYPE_GAP_MS = 700;
 /** How long a number key waits to see whether a formula follows ("2H2"). */
 const HOTKEY_WAIT_MS = 250;
 /** Words the spell box understands (see ALIASES in crates/sim/src/spell.rs). */
-const SPELL_WORDS = ["water", "h20", "fire", "boom", "pop", "split", "bubbles", "hydrogen", "oxygen", "cloud", "smother", "co2"];
+const SPELL_WORDS = ["water", "h20", "fire", "fireball", "methane", "boom", "pop", "split", "bubbles", "hydrogen", "oxygen", "cloud", "smother", "co2"];
 
 /** Whether `text` (at least two keys) is how a spell word or formula begins. */
 function startsSpell(text: string): boolean {
@@ -414,12 +414,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
           pendingHotkey = 0;
           // Cast for real now: these keys can no longer start a formula.
           typed.keys = [];
-          requestCast(spell);
+          castSlot(spell);
         }, HOTKEY_WAIT_MS);
         remember(e, cancelHotkey);
         return;
       }
-      requestCast(spell);
+      castSlot(spell);
     } else if (k === " ") {
       e.preventDefault();
       remember(e, null);
@@ -735,6 +735,16 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     ring.toggle(false);
   }
 
+  /** A hotkey: a locked spell says where its reagent comes from instead. */
+  function castSlot(f: string): void {
+    const lock = tier === "apprentice" ? lockFor(f) : null;
+    if (lock) {
+      speech.say(lock.hint(), speakable(lock.hint()), true);
+      return;
+    }
+    requestCast(f);
+  }
+
   function doCast(formula: string): void {
     const result = JSON.parse(game.cast(formula)) as CastOutcome;
     lastResult = result;
@@ -986,6 +996,20 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const spellDef = (f: string): SpellDef =>
     BAR_SPELLS.find((b) => b.formula === f) ?? { formula: f, name: "Your spell", picture: "wand", reaction: null, note: "A spell you typed." };
 
+  /** Where the reagent a spell needs comes from, while the suit has none. */
+  const METHANE_HINT = () => `Gather methane from the marsh bubbles in room 4: ${isTouch() ? "hold the scoop" : "hold G"}.`;
+  const LOCKS: Record<string, { jar: string; hint: () => string }> = {
+    methane_combustion: { jar: "CH4", hint: METHANE_HINT },
+    CO2: { jar: "CO2", hint: () => "Catch CO₂ first: stand near a flame and your suit pulls it in." },
+  };
+  /** The lock on a hotkey spell, or null when it can be cast now. */
+  function lockFor(f: string): { jar: string; hint: () => string } | null {
+    const def = spellDef(f);
+    const lock = LOCKS[def.reaction ?? def.formula];
+    if (!lock || freePlay) return null;
+    return (state?.jars[lock.jar] ?? 0) > 0 ? null : lock;
+  }
+
   /** The hotkey spell the hint ladder points at (Apprentice). */
   let slotHint = "";
   /** Slot buttons, reused across renders (one per hotkey, never more). */
@@ -1014,18 +1038,33 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     pic.className = "slot-pic";
     const label = document.createElement("span");
     label.className = "slot-name";
-    b.append(n, pic, label);
+    const need = document.createElement("span");
+    need.className = "slot-need";
+    need.hidden = true;
+    b.append(n, pic, label, need);
     const btn = b;
     b.addEventListener("click", () => {
       const f = btn.dataset.formula;
       setMoreOpen(false);
-      if (f) requestCast(f);
+      if (!f) return;
+      const lock = lockFor(f);
+      if (lock) {
+        // Locked: say where the reagent comes from instead of fizzling.
+        speech.say(lock.hint(), speakable(lock.hint()), true);
+        btn.classList.remove("shake");
+        void btn.offsetWidth;
+        btn.classList.add("shake");
+        return;
+      }
+      requestCast(f);
     });
     hover.attach(b, () => {
       const f = btn.dataset.formula ?? "";
       const def = spellDef(f);
       const c = spellCardLines(def, book);
       if (def.name === "Your spell") c.title = prettyFormula(f);
+      const lock = lockFor(f);
+      if (lock) c.lines.unshift(`Locked: ${lock.hint()}`);
       return c;
     });
     slotButtons[i] = b;
@@ -1048,6 +1087,15 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         pic.replaceChildren(icon(def.picture));
         label.textContent = def.reaction === null && def.name === "Your spell" ? prettyFormula(f) : def.name;
       }
+      const lock = lockFor(f);
+      const need = b.children[3] as HTMLElement;
+      b.classList.toggle("locked", lock !== null);
+      b.setAttribute("aria-disabled", String(lock !== null));
+      need.hidden = lock === null;
+      if (lock) {
+        need.textContent = `needs ${prettyFormula(lock.jar)}`;
+        b.title = lock.hint();
+      } else b.removeAttribute("title");
     });
     // Spells dropped from the list (a restart) lose their buttons.
     for (const b of slotButtons.splice(slots.length)) b.remove();
@@ -1123,31 +1171,120 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const key = JSON.stringify([s.jars, Math.round((s.crystal_kj / s.crystal_max_kj) * 20)]);
     if (key === lastHudKey) return;
     lastHudKey = key;
+    renderJars(s);
+    renderSlots();
+  }
+
+  // ---------------------------------------------------------- suit gauges
+
+  /** Where each gauge's contents come from, for its tooltip. */
+  const JAR_INFO: Record<string, { name: string; from: () => string }> = {
+    H2O: {
+      name: "Water",
+      from: () =>
+        `Your condenser collar pulls water out of the air: +1 every 1.5 s. ${isTouch() ? "Hold the scoop" : "Hold G"} by a pool to fill up at once.`,
+    },
+    H2: {
+      name: "Hydrogen",
+      from: () => "Your wrist electrolyser splits water from the tank: 2 H₂O → 2 H₂ + O₂. Slow on solar power, fast beside a crystal.",
+    },
+    O2: {
+      name: "Oxygen",
+      from: () => "Made with the hydrogen: every 2 H₂O split gives 2 H₂ and 1 O₂.",
+    },
+    CH4: { name: "Methane", from: () => METHANE_HINT() },
+    CO2: {
+      name: "Carbon dioxide",
+      from: () => "Caught from flames near your hand: burning wood or methane makes CO₂, and your suit's scrubber pulls it in.",
+    },
+  };
+  /** The last thing that filled each gauge ("caught from the flame"). */
+  const CAUSE_WORDS: Record<string, string> = {
+    condense: "from the air",
+    split: "from the electrolyser",
+    capture: "caught from the flame",
+    gather: "gathered",
+  };
+  const lastCause = new Map<string, string>();
+  const jarEls = new Map<string, { root: HTMLElement; fill: HTMLElement; label: HTMLElement }>();
+  let chargeEl: HTMLElement | null = null;
+  let shownJars: Record<string, number> | null = null;
+  fx.onGain = (jar, _n, cause) => lastCause.set(jar, cause);
+
+  function jarEl(formula: string): { root: HTMLElement; fill: HTMLElement; label: HTMLElement } {
+    let el = jarEls.get(formula);
+    if (el) return el;
+    const root = document.createElement("div");
+    root.className = "jar";
+    root.dataset.jar = formula;
+    root.tabIndex = 0;
+    const glass = document.createElement("div");
+    glass.className = "glass";
+    const fill = document.createElement("div");
+    fill.className = `fill f-${formula.toLowerCase()}`;
+    glass.append(fill);
+    const label = document.createElement("span");
+    root.append(glass, label);
+    hover.attach(root, () => {
+      const info = JAR_INFO[formula];
+      const n = state?.jars[formula] ?? 0;
+      const cause = lastCause.get(formula);
+      return {
+        title: `${info?.name ?? formula} (${prettyFormula(formula)}): ${n}`,
+        lines: [info?.from() ?? "", cause ? `Last refill: ${CAUSE_WORDS[cause] ?? cause}.` : ""],
+        source: "",
+      };
+    });
+    el = { root, fill, label };
+    jarEls.set(formula, el);
+    return el;
+  }
+
+  /** A "+n" (or "−n") that floats up from a gauge whenever it changes. */
+  function gaugeTick(formula: string, delta: number): void {
+    const el = jarEls.get(formula);
+    if (!el || !el.root.isConnected) return;
+    const t = document.createElement("span");
+    t.className = `gauge-tick ${delta > 0 ? "up" : "down"}`;
+    t.textContent = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
+    const cause = delta > 0 ? lastCause.get(formula) : undefined;
+    if (cause) t.dataset.cause = cause;
+    el.root.append(t);
+    el.root.classList.remove("pulse");
+    void el.root.offsetWidth;
+    el.root.classList.add("pulse");
+    window.setTimeout(() => t.remove(), 1400);
+  }
+
+  function renderJars(s: GameState): void {
     const jars = byId("jars-mini");
-    jars.replaceChildren();
+    const shown: HTMLElement[] = [];
     for (const [formula, n] of Object.entries(s.jars)) {
       if (tier !== "apprentice" && n === 0 && (formula === "CH4" || formula === "CO2")) continue;
-      const jar = document.createElement("div");
-      jar.className = "jar";
-      jar.title = `${formula}: ${n}`;
-      const fill = document.createElement("div");
-      fill.className = `fill f-${formula.toLowerCase()}`;
-      fill.style.height = `${Math.min(100, (n / (s.jar_caps[formula] ?? 10)) * 100)}%`;
-      const glass = document.createElement("div");
-      glass.className = "glass";
-      glass.append(fill);
-      const label = document.createElement("span");
-      label.textContent = `${prettyFormula(formula)} ${n}`;
-      jar.append(glass, label);
-      jars.append(jar);
+      const el = jarEl(formula);
+      el.root.classList.toggle("empty", n === 0);
+      el.fill.style.height = `${Math.min(100, (n / (s.jar_caps[formula] ?? 10)) * 100)}%`;
+      el.label.textContent = `${prettyFormula(formula)} ${n}`;
+      el.root.setAttribute("aria-label", `${JAR_INFO[formula]?.name ?? formula}: ${n}`);
+      shown.push(el.root);
     }
     if (tier === "apprentice") {
-      const charge = document.createElement("div");
-      charge.className = "jar charge";
-      charge.textContent = `⚡ ${Math.round((s.crystal_kj / s.crystal_max_kj) * 100)}%`;
-      charge.title = "Crystal battery charge";
-      jars.append(charge);
+      if (!chargeEl) {
+        chargeEl = document.createElement("div");
+        chargeEl.className = "jar charge";
+        chargeEl.title = "Crystal battery charge";
+      }
+      chargeEl.textContent = `⚡ ${Math.round((s.crystal_kj / s.crystal_max_kj) * 100)}%`;
+      shown.push(chargeEl);
     }
+    setChildren(jars, shown);
+    if (shownJars) {
+      for (const [formula, n] of Object.entries(s.jars)) {
+        const d = n - (shownJars[formula] ?? 0);
+        if (d !== 0) gaugeTick(formula, d);
+      }
+    }
+    shownJars = { ...s.jars };
   }
 
   /** A gate opened: a big star stamp so it reads as done. One element,

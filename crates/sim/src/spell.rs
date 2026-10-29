@@ -33,7 +33,11 @@ pub enum Outcome {
 const ALIASES: &[(&str, &str)] = &[
     ("water", "H2O"),
     ("h20", "H2O"),
-    ("fire", "2H2 + O2 -> 2H2O"),
+    // "fire" is the methane fireball, never hydrogen combustion: the boom
+    // spell has its own words, and a fireball is a flame you can keep lit.
+    ("fire", "CH4 + 2O2 -> CO2 + 2H2O"),
+    ("fireball", "CH4 + 2O2 -> CO2 + 2H2O"),
+    ("methane", "CH4"),
     ("boom", "2H2 + O2 -> 2H2O"),
     ("pop", "2H2 + O2 -> 2H2O"),
     ("split", "2H2O -> 2H2 + O2"),
@@ -571,6 +575,16 @@ pub fn resolve_reaction(
         power *= 0.5;
     }
     r.power = power.clamp(0.0, 1.0);
+    if units == 0 {
+        // A fizzle draws nothing: a missing reactant leaves the suit exactly
+        // as it was, and no atoms are counted as wasted.
+        r.drawn.clear();
+        r.returned.clear();
+        r.loose.clear();
+        r.leftovers.clear();
+        r.from_air.clear();
+        r.dh_kj = 0.0;
+    }
     let clean = r.leftovers.is_empty() && r.missing.is_empty();
     r.outcome = Some(if units == 0 {
         Outcome::Fizzle
@@ -646,6 +660,11 @@ mod tests {
         assert_eq!(alias("h20"), Some("H2O"));
         assert_eq!(alias("split"), Some("2H2O -> 2H2 + O2"));
         assert_eq!(alias("cloud"), Some("CO2"));
+        // Redesigned in playtest round 1: "fire" means the methane fireball,
+        // not hydrogen combustion (that is "boom").
+        assert_eq!(alias("fire"), Some("CH4 + 2O2 -> CO2 + 2H2O"));
+        assert_eq!(alias("Fireball"), Some("CH4 + 2O2 -> CO2 + 2H2O"));
+        assert_ne!(alias("fire"), alias("boom"));
         assert_eq!(alias("xyz"), None);
         let book = ReactionBook::load();
         // Every alias resolves to something the game can actually cast.
@@ -738,6 +757,34 @@ mod tests {
         );
         assert_eq!(r.outcome, Some(Outcome::Full));
         assert!((r.dh_kj + 483.6).abs() < 0.01);
+    }
+
+    #[test]
+    fn a_fizzle_for_a_missing_reactant_draws_nothing() {
+        let book = ReactionBook::load();
+        let Plan::React {
+            reaction_id,
+            typed,
+            balanced,
+            air_o2,
+        } = plan(&book, "CH4 + 2O2 -> CO2 + 2H2O", false)
+        else {
+            panic!("should be a reaction");
+        };
+        let (reaction, known) = book.by_id(&reaction_id).unwrap();
+        let r = resolve_reaction(
+            reaction,
+            known,
+            &typed,
+            balanced,
+            air_o2,
+            &stock(&[("O2", 4), ("H2", 4)]),
+        );
+        assert_eq!(r.outcome, Some(Outcome::Fizzle));
+        assert!(r.drawn.is_empty(), "{:?}", r.drawn);
+        assert!(r.leftovers.is_empty(), "no atoms wasted: {:?}", r.leftovers);
+        assert!(r.returned.is_empty() && r.loose.is_empty());
+        assert_eq!(r.missing, vec!["CH4".to_string()]);
     }
 
     #[test]

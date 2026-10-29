@@ -664,7 +664,7 @@ impl Game {
             self.rooms.capture_cells += 1;
             if self.rooms.capture_cells >= GAS_CELLS_PER_MOL {
                 self.rooms.capture_cells = 0;
-                self.add("CO2", 1);
+                self.gain("CO2", 1, "capture", (x as f32, y as f32));
             }
         }
     }

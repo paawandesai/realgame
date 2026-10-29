@@ -91,11 +91,35 @@ export const BAR_SPELLS: SpellDef[] = [
 ];
 
 /** The Grimoire's pages: one per reaction in the book that this level can make. */
-export const GRIMOIRE_PAGES: { id: string; name: string; picture: IconName }[] = [
-  { id: "water_synthesis", name: "Boom", picture: "boom" },
-  { id: "electrolysis_water", name: "Bubbles", picture: "bubbles" },
-  { id: "methane_combustion", name: "Fireball", picture: "methane" },
-  { id: "carbon_combustion", name: "Burning wood", picture: "log" },
+export const GRIMOIRE_PAGES: { id: string; name: string; picture: IconName; where: string; whereSprout: string }[] = [
+  {
+    id: "water_synthesis",
+    name: "Boom",
+    picture: "boom",
+    where: "Room 2, the Frozen Gate: melt the ice wall with boom (2H2 + O2 -> 2H2O).",
+    whereSprout: "Room 2: the ice wall.",
+  },
+  {
+    id: "electrolysis_water",
+    name: "Bubbles",
+    picture: "bubbles",
+    where: "Room 3, the Crystal Lab: split water beside the crystal.",
+    whereSprout: "Room 3: the crystal.",
+  },
+  {
+    id: "methane_combustion",
+    name: "Fireball",
+    picture: "methane",
+    where: "Room 4, the Marsh Door: gather methane from the marsh bubbles (hold G), then cast fireball.",
+    whereSprout: "Room 4: the marsh bubbles.",
+  },
+  {
+    id: "carbon_combustion",
+    name: "Burning wood",
+    picture: "log",
+    where: "Seen in room 1: the burning hedge is carbon + oxygen. Carrying carbon to cast it comes in a later trial.",
+    whereSprout: "Room 1: the burning hedge. More soon!",
+  },
 ];
 
 /** "−483.6 kJ" with a real minus sign. */

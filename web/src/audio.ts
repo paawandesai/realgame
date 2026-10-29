@@ -23,6 +23,7 @@ const MIN_GAP_MS: Partial<Record<Fx["kind"], number>> = {
   land: 120,
   hiss: 120,
   splash: 60,
+  gain: 400,
 };
 
 type Win = Window & { __audioDebug?: number; webkitAudioContext?: typeof AudioContext };
@@ -175,6 +176,9 @@ export class Sfx {
           break;
         case "land":
           this.thud(e.power);
+          break;
+        case "gain":
+          this.plinks(1);
           break;
         default:
           break;

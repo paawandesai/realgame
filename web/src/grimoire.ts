@@ -97,7 +97,15 @@ export class Grimoire {
     li.append(pic, name);
     if (!has || !r || !page) {
       name.textContent = "?";
-      li.setAttribute("aria-label", "Page not found yet");
+      // Never a dead end: every face-down page names where it is taught.
+      const where = page ? (this.tier === "sprout" ? page.whereSprout : page.where) : "";
+      if (where) {
+        const hint = document.createElement("span");
+        hint.className = "grim-where";
+        hint.textContent = where;
+        li.append(hint);
+      }
+      li.setAttribute("aria-label", where ? `Page not found yet. ${where}` : "Page not found yet");
       return li;
     }
     name.textContent = page.name;

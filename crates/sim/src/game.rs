@@ -41,6 +41,8 @@ pub const CONDENSE_TICKS: u32 = 90;
 /// crystal, a slow trickle from the solar strip elsewhere.
 const ELECTRO_TICKS_NEAR: u32 = 12;
 const ELECTRO_TICKS_SOLAR: u32 = 150;
+/// The electrolyser leaves at least this many water casts in the tank.
+const SPLIT_RESERVE: u32 = 2;
 /// How close (in cells) the player must be to a crystal to draw on it.
 const CRYSTAL_RANGE: i32 = 16;
 /// The crystal holds enough energy for this many splits, and refills slowly.
@@ -732,12 +734,29 @@ impl Game {
         } else {
             GAS_CELLS_PER_MOL
         };
+        if let Some(&(x, y)) = picked.first() {
+            // The suction beam: from the cells being pulled to the hand.
+            let (hx, hy) = self.hand();
+            self.emit(Fx {
+                kind: "gather",
+                x: x as f32,
+                y: y as f32,
+                tx: hx,
+                ty: hy,
+                dh_kj: 0.0,
+                outcome: None,
+                leftovers: Atoms::new(),
+                reaction_id: Some(jar.to_string()),
+                id: 0,
+                power: picked.len() as f32,
+            });
+        }
         for (x, y) in picked {
             self.grid.set(x, y, Species::Air, AMBIENT_C);
             self.gather_cells += 1;
             if self.gather_cells >= per_mol {
                 self.gather_cells = 0;
-                self.add(jar, 1);
+                self.gain(jar, 1, "gather", (x as f32, y as f32));
             }
         }
     }
@@ -773,16 +792,19 @@ impl Game {
     }
 
     /// The suit's real devices: a condenser collar that pulls water out of the
-    /// air, and a wrist electrolyser that splits condensed water 2:1 into
-    /// hydrogen and oxygen, powered by a crystal (fast) or a solar strip (slow).
-    /// The electrolyser draws on the condenser directly, so it never empties
-    /// the water tank the player casts from.
+    /// air (humidity is the one outside source, like a real atmospheric water
+    /// generator), and a wrist electrolyser that splits water from the tank
+    /// 2:1 into hydrogen and oxygen, powered by a crystal (fast) or a solar
+    /// strip (slow). Every split takes exactly 2 H2O for 2 H2 + O2, so atoms
+    /// are conserved; it keeps `SPLIT_RESERVE` casts of water in the tank.
     fn suit_tick(&mut self) {
+        let (hx, hy) = self.hand();
         if self.jar("H2O") < H2O_CAP {
             self.condense_timer += 1;
             if self.condense_timer >= CONDENSE_TICKS {
                 self.condense_timer = 0;
-                self.add("H2O", 1);
+                // Mist streams in from the air just above the hand.
+                self.gain("H2O", 1, "condense", (hx, hy - 10.0));
             }
         } else {
             self.condense_timer = 0;
@@ -799,8 +821,9 @@ impl Game {
             );
             self.say(line);
         }
-        let room =
-            self.jar("H2") + 2 <= Self::jar_cap("H2") && self.jar("O2") < Self::jar_cap("O2");
+        let room = self.jar("H2") + 2 <= Self::jar_cap("H2")
+            && self.jar("O2") < Self::jar_cap("O2")
+            && self.jar("H2O") >= 2 + SPLIT_RESERVE;
         if !room {
             self.electro_timer = 0;
             return;
@@ -816,12 +839,14 @@ impl Game {
             return;
         }
         self.electro_timer = 0;
-        // 2H2O -> 2H2 + O2: always exactly two hydrogen for each oxygen.
-        self.add("H2", 2);
-        self.add("O2", 1);
+        // 2H2O -> 2H2 + O2: two water from the tank become exactly two
+        // hydrogen and one oxygen.
+        self.take("H2O", 2);
+        let from = powered.map_or((hx, hy), |(x, y)| (x as f32, y as f32));
+        self.gain("H2", 2, "split", from);
+        self.gain("O2", 1, "split", from);
         if let Some((x, y)) = powered {
             self.crystal_kj -= self.split_kj;
-            let (hx, hy) = self.hand();
             self.emit(Fx {
                 kind: "arc",
                 x: x as f32,
@@ -836,6 +861,32 @@ impl Game {
                 power: 1.0,
             });
         }
+    }
+
+    /// Adds to a gauge and tells the browser where it came from, so every
+    /// gauge change can show a "+n" and a stream from its source.
+    /// `cause` is "condense", "split", "capture" or "gather".
+    pub(crate) fn gain(&mut self, jar: &str, n: u32, cause: &'static str, from: (f32, f32)) {
+        let before = self.jar(jar);
+        self.add(jar, n);
+        let got = self.jar(jar) - before;
+        if got == 0 {
+            return;
+        }
+        let (hx, hy) = self.hand();
+        self.emit(Fx {
+            kind: "gain",
+            x: from.0,
+            y: from.1,
+            tx: hx,
+            ty: hy,
+            dh_kj: 0.0,
+            outcome: None,
+            leftovers: Atoms::new(),
+            reaction_id: Some(format!("{cause}:{jar}")),
+            id: 0,
+            power: got as f32,
+        });
     }
 
     // ----------------------------------------------------------------- casting
@@ -2320,6 +2371,8 @@ mod tests {
         // Beside it: fast, still 2:1, and the crystal pays for each split.
         g.jars.insert("H2".into(), 0);
         g.jars.insert("O2".into(), 0);
+        // The electrolyser now splits water from the tank: start it full.
+        g.jars.insert("H2O".into(), H2O_CAP);
         g.player.x = 680.0;
         g.player.y = 136.0;
         g.crystal_kj = g.crystal_max_kj - 1000.0;
@@ -2340,6 +2393,79 @@ mod tests {
             let (h, o) = (out.products.get("H2"), out.products.get("O2"));
             assert_eq!(h.copied().unwrap_or(0), 2 * o.copied().unwrap_or(0));
         }
+    }
+
+    #[test]
+    fn a_cast_that_fizzles_for_a_missing_reactant_leaves_stocks_unchanged() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            assert_eq!(g.jar("CH4"), 0);
+            let jars = g.jars.clone();
+            let loose = g.loose.clone();
+            for text in ["CH4 + 2O2 -> CO2 + 2H2O", "fireball", "cloud"] {
+                let out = g.cast(text);
+                assert_eq!(out.outcome, Outcome::Fizzle, "{tier:?} {text}");
+                assert!(out.leftovers.is_empty(), "{text}: no atoms wasted");
+                assert!(out.consumed.is_empty(), "{text}: nothing drawn");
+                assert_eq!(g.jars, jars, "{tier:?} {text} touched the suit");
+                assert_eq!(g.loose, loose);
+            }
+        }
+    }
+
+    #[test]
+    fn electrolyser_refills_from_the_water_tank_and_conserves_atoms() {
+        let mut g = game(Tier::Seedling);
+        g.jars.insert("H2".into(), 0);
+        g.jars.insert("O2".into(), 0);
+        g.player.x = 680.0;
+        g.player.y = 136.0;
+        let mut splits = 0;
+        for _ in 0..200 {
+            let mut before = suit_atoms(&g);
+            before.retain(|_, n| *n > 0);
+            let (h2o, o2) = (g.jar("H2O"), g.jar("O2"));
+            g.suit_tick();
+            let condensed = g
+                .take_fx()
+                .iter()
+                .any(|f| f.kind == "gain" && f.reaction_id.as_deref() == Some("condense:H2O"));
+            if g.jar("O2") > o2 {
+                splits += 1;
+                // Two water for one O2 (and two H2), less any condensed water.
+                assert_eq!(h2o + u32::from(condensed) - g.jar("H2O"), 2);
+            }
+            let mut after = suit_atoms(&g);
+            if condensed {
+                // The collar's one outside source: water vapour from the air.
+                *after.get_mut("H").unwrap() -= 2;
+                *after.get_mut("O").unwrap() -= 1;
+            }
+            after.retain(|_, n| *n > 0);
+            assert_eq!(before, after, "suit_tick created or lost atoms");
+        }
+        assert!(splits >= 3, "only {splits} splits");
+        assert!(g.jar("H2O") >= SPLIT_RESERVE, "kept a reserve to cast");
+    }
+
+    #[test]
+    fn every_gauge_gain_names_its_source() {
+        let mut g = game(Tier::Seedling);
+        g.jars.insert("H2O".into(), 5);
+        g.jars.insert("H2".into(), 0);
+        g.jars.insert("O2".into(), 0);
+        let mut causes = std::collections::BTreeSet::new();
+        for _ in 0..400 {
+            g.tick(0);
+            for f in g.take_fx() {
+                if f.kind == "gain" {
+                    assert!(f.power >= 1.0);
+                    causes.insert(f.reaction_id.unwrap());
+                }
+            }
+        }
+        assert!(causes.contains("condense:H2O"), "{causes:?}");
+        assert!(causes.contains("split:H2") && causes.contains("split:O2"));
     }
 
     #[test]

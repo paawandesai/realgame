@@ -85,7 +85,11 @@ export interface Fx {
     | "bubble"
     | "door"
     | "discover"
-    | "land";
+    | "land"
+    /** The suction beam while gathering (reaction_id is the jar). */
+    | "gather"
+    /** A gauge went up; reaction_id is "cause:jar" (condense, split, capture, gather). */
+    | "gain";
   x: number;
   y: number;
   tx: number;

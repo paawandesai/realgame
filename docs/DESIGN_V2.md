@@ -63,7 +63,7 @@ See an obstacle (with a bobbing goal icon over it) -> cast with what you already
 
 ### 5.1 One pipeline, nothing can fail silently
 Every cast, on every tier, goes through `Game::cast(text) -> CastOutcome`:
-1. **Resolve text.** Trim, alias lookup, then the formula parser. Aliases (case-insensitive): `water` -> H2O, `fire`/`boom`/`pop` -> 2H2 + O2 -> 2H2O, `split`/`bubbles` -> 2H2O -> 2H2 + O2, `hydrogen` -> H2, `oxygen` -> O2, `cloud`/`smother`/`co2` -> CO2, `h20` (digit zero) -> H2O. Unknown text -> outcome `Unknown` (shimmer puff + "not in your Grimoire yet" icon), never an error string alone.
+1. **Resolve text.** Trim, alias lookup, then the formula parser. Aliases (case-insensitive): `water` -> H2O, `boom`/`pop` -> 2H2 + O2 -> 2H2O, `fire`/`fireball` -> CH4 + 2O2 -> CO2 + 2H2O (playtest round 1: "fire" no longer means hydrogen), `methane` -> CH4, `split`/`bubbles` -> 2H2O -> 2H2 + O2, `hydrogen` -> H2, `oxygen` -> O2, `cloud`/`smother`/`co2` -> CO2, `h20` (digit zero) -> H2O. Unknown text -> outcome `Unknown` (shimmer puff + "not in your Grimoire yet" icon), never an error string alone.
 2. **Launch a bolt.** A deterministic projectile entity in the sim (Proposal 2): starts at the player's hand, flies ~6 cells/tick toward the aim, stops at the first solid/liquid cell or the aim point. The reaction happens at impact, not at the player.
 3. **Resolve at impact** with whatever reagents the suit holds, using the limiting reagent:
    - `Full` - balanced and enough reagents: full-power effect, gold rim.
@@ -75,7 +75,7 @@ Atoms are conserved in every branch: atoms consumed = atoms placed in products +
 
 ### 5.2 Why the suit always has material (all real technology)
 - **Condenser collar (H2O).** An atmospheric water generator: cooled coils condense humid air. H2O starts full (10 casts) and refills 1 cast per 1.5 s; a faint mist streams into the gauntlet while it refills. Gathering from the stream is an instant top-up, not a gate.
-- **Wrist electrolyser (H2 + O2).** Splits condensed water using the crystal's charge, always producing H2 and O2 in 2:1 (shown as 2 blue + 1 red bubbles filling the gauge). The "split" spell is this device. Away from a crystal it trickles from a solar strip (slow); touching or standing near a crystal fills it fast with an arc FX. Electrolysis drains crystal charge in proportion to +571.7 kJ per 2 mol (Proposal 3).
+- **Wrist electrolyser (H2 + O2).** Splits water from the tank (2 H2O -> 2 H2 + O2, atoms conserved; it keeps 2 casts of water in reserve) using the crystal's charge, always producing H2 and O2 in 2:1 (shown as 2 blue + 1 red bubbles filling the gauge). The "split" spell is this device. Away from a crystal it trickles from a solar strip (slow); touching or standing near a crystal fills it fast with an arc FX. Electrolysis drains crystal charge in proportion to +571.7 kJ per 2 mol (Proposal 3).
 - **Starter charge.** Gas jars start with 4 H2 + 2 O2 ("left from your last trial"), so the first three boom casts always work.
 - **Air is ~21% O2.** Casting `H2` or `2H2` alone still burns with oxygen from the air: a smaller flame (Partial).
 - **CO2** comes from burning methane at the marsh vent in room 4 (product capture), and is the second firefighting spell.

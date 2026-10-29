@@ -34,6 +34,15 @@ const COLOR = {
   gold: "#f0c75e",
 } as const;
 
+/** Each gauge's colour, for gather beams and refill streams. */
+const JAR_COLOR: Record<string, string> = {
+  H2O: COLOR.water,
+  H2: COLOR.hydrogen,
+  O2: COLOR.oxygen,
+  CO2: COLOR.co2,
+  CH4: "#7fd18b",
+};
+
 const ICONS: Record<string, string> = {
   H2O: "💧",
   H2: "🎈",
@@ -149,6 +158,12 @@ export class FxLayer {
   /** For automated checks: the largest shockwave radius drawn, in CSS px. */
   maxWavePx = 0;
   private orbs: Orb[] = [];
+  /** Suction beams while gathering (refreshed every sim tick it pulls). */
+  private beams: { x0: number; y0: number; x1: number; y1: number; born: number; color: string }[] = [];
+  /** For automated checks: when a gather beam was last drawn. */
+  lastBeamAt = -Infinity;
+  /** Called for every gauge gain with its jar, amount and cause. */
+  onGain: (jar: string, n: number, cause: string) => void = () => {};
   private ghosts: Ghost[] = [];
   private labels: Label[] = [];
   private frostBorn = -Infinity;
@@ -438,10 +453,43 @@ export class FxLayer {
         case "land":
           this.burst(e.x, e.y, Math.min(10, Math.round(e.power * 2)), "#c9b48a", 0.03, now, 0.0001);
           break;
+        case "gather": {
+          // A suction beam from what is being pulled to the gauntlet.
+          const color = JAR_COLOR[e.reaction_id ?? ""] ?? COLOR.water;
+          this.beams = this.beams.filter((b) => now - b.born < 40);
+          this.beams.push({ x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, born: now, color });
+          this.stream(e.x, e.y, e.tx, e.ty, Math.max(2, Math.round(e.power)), color, now, 260);
+          break;
+        }
+        case "gain": {
+          const [cause = "", jar = ""] = (e.reaction_id ?? "").split(":");
+          const color = JAR_COLOR[jar] ?? COLOR.grey;
+          // Where it came from, streaming into the suit: mist from the air,
+          // bubbles from the electrolyser, smoke from a flame.
+          this.stream(e.x, e.y, e.tx, e.ty, cause === "split" ? 6 : 8, color, now, 420, cause === "split");
+          this.onGain(jar, e.power, cause);
+          break;
+        }
         default:
           break;
       }
     }
+  }
+
+  /** Particles that fly from (x, y) to (tx, ty) over about `ms`. */
+  private stream(x: number, y: number, tx: number, ty: number, n: number, color: string, now: number, ms: number, ring = false): void {
+    this.spawn(n, (p, i) => {
+      const life = ms * (0.8 + Math.random() * 0.4);
+      p.x = x + (Math.random() - 0.5) * 4;
+      p.y = y + (Math.random() - 0.5) * 4;
+      p.vx = (tx - p.x) / life;
+      p.vy = (ty - p.y) / life;
+      p.born = now + i * 18;
+      p.life = life;
+      p.size = ring ? 1 : 0.7 + Math.random() * 0.6;
+      p.color = color;
+      p.ring = ring;
+    });
   }
 
   /** Where the last impact landed, in world cells (for automated checks). */
@@ -721,6 +769,28 @@ export class FxLayer {
       ctx.fill();
     }
 
+    // Gather beams: a wobbling glow line from the source to the hand.
+    this.beams = this.beams.filter((b) => now - b.born < 140);
+    for (const b of this.beams) {
+      const t = (now - b.born) / 140;
+      this.lastBeamAt = now;
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = b.color;
+      ctx.lineCap = "round";
+      for (const [w, a] of [[5, 0.25], [1.6, 0.9]] as const) {
+        ctx.globalAlpha = a * (1 - t * 0.6);
+        ctx.lineWidth = w * k;
+        ctx.beginPath();
+        ctx.moveTo(sx(b.x0), sy(b.y0));
+        const mx = (b.x0 + b.x1) / 2;
+        const my = (b.y0 + b.y1) / 2 + (this.reducedMotion ? 0 : Math.sin(now / 60) * 2);
+        ctx.quadraticCurveTo(sx(mx), sy(my), sx(b.x1), sy(b.y1));
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = "source-over";
+    }
+    ctx.globalAlpha = 1;
+
     // Shockwaves: a ring that races out and thins as it fades.
     this.waves = this.waves.filter((w) => now - w.born < WAVE_MS);
     const css = this.canvas.clientWidth / this.canvas.width;
@@ -862,7 +932,7 @@ export class FxLayer {
 
   /** Whether anything is drawn on the overlay canvas this frame. */
   private busy(now: number): boolean {
-    if (this.charges.length || this.bolts.length || this.flashes.length || this.orbs.length || this.ghosts.length || this.waves.length || this.pending.length) {
+    if (this.beams.length || this.charges.length || this.bolts.length || this.flashes.length || this.orbs.length || this.ghosts.length || this.waves.length || this.pending.length) {
       return true;
     }
     if (now - this.frostBorn < 700 || now - this.bloom.born < 220) return true;
