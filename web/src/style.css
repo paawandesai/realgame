@@ -2422,11 +2422,15 @@ body[data-tier="sprout"] .grim-card > .grim-words {
   transform: translate(-6px, -4px);
 }
 
+.slot.locked {
+  padding-top: 12px;
+}
+
 .slot-need {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 1px;
+  top: 2px;
   font-size: 0.62rem;
   line-height: 1;
   text-align: center;
@@ -2896,4 +2900,120 @@ body[data-tier="sprout"] #menu-trial {
     width: auto;
     max-height: calc(100vh - 84px);
   }
+}
+
+/* ------------------------------------------------ F16: heat lens legend */
+
+#lens-legend {
+  position: absolute;
+  right: 10px;
+  bottom: 136px;
+  width: 280px;
+  padding: 8px 14px 10px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  z-index: 4;
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+#lens-legend[hidden] {
+  display: none;
+}
+
+.legend-title {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.legend-bar {
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid #3a4b5c;
+}
+
+.legend-ticks {
+  position: relative;
+  height: 30px;
+}
+
+.legend-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  padding-top: 5px;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.legend-tick::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 5px;
+  background: var(--ink);
+}
+
+.legend-note {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--quiet);
+}
+
+.lens-spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -30px 0 0 -26px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid #ff8a5c;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.lens-spot.cold {
+  border-color: #7cc8ff;
+}
+
+@media (max-height: 500px) {
+  #lens-legend {
+    bottom: 64px;
+    width: 220px;
+    font-size: 0.7rem;
+  }
+}
+
+/* Goal markers are signposts, not buttons: no solid disc or white rim,
+   just the picture with a soft glow and a small pointer at the target. */
+.goal-icon {
+  background: none;
+  border: none;
+  padding: 2px;
+  filter: drop-shadow(0 0 4px rgba(15, 23, 32, 0.95)) drop-shadow(0 0 8px rgba(240, 199, 94, 0.35));
+  pointer-events: none;
+  cursor: default;
+}
+
+.goal-icon.next {
+  border: none;
+}
+
+.goal-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  margin-left: -6px;
+  border: 6px solid transparent;
+  border-top-color: #f0c75e;
+  border-bottom: 0;
 }

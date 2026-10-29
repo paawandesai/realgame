@@ -10,7 +10,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 mod rooms;
-pub use rooms::{Goal, Rect, TorchView};
+pub use rooms::{Goal, Rect, TorchView, DOOR_TOP, GATE_W, GATE_X};
 
 /// The world is four 320-cell rooms side by side; the camera shows one room's width.
 pub const ROOM_W: usize = 320;
@@ -1901,6 +1901,52 @@ impl Game {
         }
     }
 
+    /// Spots worth a label under the heat lens, in world cells: the hottest
+    /// cell of up to `max` well-separated hot areas (above 60 °C) in the
+    /// view starting at `view_x`, hottest first, then the coldest cell if
+    /// anything is below freezing. Display only.
+    pub fn hotspots(&self, view_x: i32, max: usize) -> Vec<(i32, i32, f32)> {
+        const BLOCK: i32 = 32;
+        const APART: i32 = 48;
+        let x0 = view_x.clamp(0, (WORLD_W - VIEW_W) as i32);
+        let mut hot: Vec<(i32, i32, f32)> = vec![];
+        let mut cold: Option<(i32, i32, f32)> = None;
+        for by in (0..HEIGHT as i32).step_by(BLOCK as usize) {
+            for bx in (x0..x0 + VIEW_W as i32).step_by(BLOCK as usize) {
+                let mut best: Option<(i32, i32, f32)> = None;
+                for y in by..(by + BLOCK).min(HEIGHT as i32) {
+                    for x in bx..(bx + BLOCK).min(x0 + VIEW_W as i32) {
+                        let t = self.grid.temp_at(x, y);
+                        if best.is_none_or(|b| t > b.2) {
+                            best = Some((x, y, t));
+                        }
+                        if t < -1.0 && cold.is_none_or(|c| t < c.2) {
+                            cold = Some((x, y, t));
+                        }
+                    }
+                }
+                if let Some(b) = best.filter(|b| b.2 > 60.0) {
+                    hot.push(b);
+                }
+            }
+        }
+        hot.sort_by(|a, b| b.2.total_cmp(&a.2));
+        let mut out: Vec<(i32, i32, f32)> = vec![];
+        for h in hot {
+            if out.len() >= max {
+                break;
+            }
+            if out
+                .iter()
+                .all(|o| (o.0 - h.0).abs() >= APART || (o.1 - h.1).abs() >= APART)
+            {
+                out.push(h);
+            }
+        }
+        out.extend(cold);
+        out
+    }
+
     /// True once the brazier is lit and the last door has opened.
     pub fn trial_complete(&self) -> bool {
         self.rooms.brazier_lit
@@ -2466,6 +2512,26 @@ mod tests {
         }
         assert!(causes.contains("condense:H2O"), "{causes:?}");
         assert!(causes.contains("split:H2") && causes.contains("split:O2"));
+    }
+
+    #[test]
+    fn heat_lens_labels_the_burning_hedge_and_the_ice() {
+        let mut g = game(Tier::Seedling);
+        settle(&mut g, 30);
+        let spots = g.hotspots(g.view_x.round() as i32, 3);
+        let fire = g.goals()[0].x;
+        assert!(
+            spots
+                .iter()
+                .any(|&(x, _, t)| t > 300.0 && (x - fire).abs() < 80),
+            "{spots:?}"
+        );
+        assert!(spots.len() <= 4);
+        // Room 2's ice wall is the cold spot there.
+        g.player.x = 440.0;
+        g.snap_camera();
+        let spots = g.hotspots(g.view_x.round() as i32, 3);
+        assert!(spots.iter().any(|s| s.2 < 0.0), "{spots:?}");
     }
 
     #[test]

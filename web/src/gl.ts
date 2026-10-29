@@ -101,9 +101,9 @@ void main() {
   if (s != SPRITE) {
     if (u_lens > 0.5) {
       vec3 heat = texture2D(u_lut, vec2(d.r * (255.0 / 256.0) + 0.5 / 256.0, 0.5)).rgb;
-      // Solids keep a grey tint so shapes stay readable.
+      // Solids keep their hue but darker, so shapes stay readable (palette::lens_solid).
       bool solid = s == 1.0 || s == 2.0 || s == 4.0 || s == 12.0 || s == CRYSTAL;
-      c = solid ? mix(heat, vec3(0.353, 0.353, 0.392), 0.35) : heat;
+      c = solid ? mix(heat, vec3(0.039, 0.047, 0.078), 0.62) : heat;
     } else if (s == FLAME) {
       // Flicker: each cell picks a new brightness about six times a second.
       float n = hash(wc + floor(u_time * 6.0) * vec2(7.13, 3.71));

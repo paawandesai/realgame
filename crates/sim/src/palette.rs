@@ -212,28 +212,39 @@ pub fn cell_color(
     }
 }
 
-/// Temperature colour map for the Insight lens: blue cold, dark at room
-/// temperature, then red, orange, yellow and white as it heats.
+/// Temperature colour map for the Insight lens, a thermal-camera ramp:
+/// deep blue when freezing, blue at room temperature, cyan when warm,
+/// yellow at water's boiling point, then orange, red and white-hot. The
+/// stops sit on the temperatures the game is about (0 °C ice melts, 100 °C
+/// water boils, 300-600 °C fuels ignite, 1000+ °C flames).
 pub fn heat_color(t: f32) -> [u8; 3] {
-    let stops: [(f32, [u8; 3]); 7] = [
-        (-60.0, [60, 120, 255]),
-        (0.0, [70, 170, 230]),
-        (20.0, [24, 28, 40]),
-        (100.0, [120, 40, 140]),
-        (500.0, [220, 40, 30]),
-        (1500.0, [255, 170, 30]),
-        (2800.0, [255, 255, 230]),
+    const STOPS: [(f32, [u8; 3]); 9] = [
+        (-60.0, [20, 24, 120]),
+        (-5.0, [30, 70, 215]),
+        (20.0, [30, 100, 200]),
+        (55.0, [40, 215, 225]),
+        (100.0, [245, 225, 50]),
+        (400.0, [250, 140, 30]),
+        (800.0, [230, 40, 30]),
+        (1500.0, [255, 150, 140]),
+        (2000.0, [255, 255, 255]),
     ];
-    if t <= stops[0].0 {
-        return stops[0].1;
+    if t <= STOPS[0].0 {
+        return STOPS[0].1;
     }
-    for w in stops.windows(2) {
+    for w in STOPS.windows(2) {
         let ((t0, c0), (t1, c1)) = (w[0], w[1]);
         if t <= t1 {
             return mix(c0, c1, (t - t0) / (t1 - t0));
         }
     }
-    stops[6].1
+    STOPS[STOPS.len() - 1].1
+}
+
+/// Under the lens, solids keep their temperature's hue but darker, so
+/// shapes stay readable without turning the world grey.
+pub fn lens_solid(heat: [u8; 3]) -> [u8; 3] {
+    mix(heat, [10, 12, 20], 0.62)
 }
 
 /// Temperature range the GPU renderer's one-byte temperatures cover, °C.
@@ -358,6 +369,44 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn the_heat_lens_is_a_thermal_ramp() {
+        let hue = |c: [u8; 3]| {
+            let [r, g, b] = c.map(|v| v as f32);
+            let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+            if max - min < 1.0 {
+                return 0.0;
+            }
+            let h = if max == r {
+                (g - b) / (max - min)
+            } else if max == g {
+                2.0 + (b - r) / (max - min)
+            } else {
+                4.0 + (r - g) / (max - min)
+            };
+            (h * 60.0).rem_euclid(360.0)
+        };
+        // Room-temperature air reads blue-cyan, never grey.
+        let air = heat_color(20.0);
+        assert!((180.0..=240.0).contains(&hue(air)), "{air:?}");
+        assert!(air[2] as i32 - air[0] as i32 > 120);
+        // Solids keep the hue but are clearly darker than the air around them.
+        let ground = lens_solid(air);
+        assert!(ground
+            .iter()
+            .zip(air)
+            .all(|(g, a)| (*g as i32) < a as i32 / 2 + 8));
+        // Boiling water is yellow, a wood fire red, a flame white-hot.
+        assert!((45.0..=70.0).contains(&hue(heat_color(100.0))));
+        let fire = heat_color(1100.0);
+        assert!(hue(fire) < 20.0 || hue(fire) > 340.0, "{fire:?}");
+        assert!(heat_color(2000.0).iter().all(|&v| v > 240));
+        // Hotter is never darker past room temperature.
+        let lum = |c: [u8; 3]| c[0] as u32 * 3 + c[1] as u32 * 6 + c[2] as u32;
+        assert!(lum(heat_color(1500.0)) > lum(heat_color(800.0)));
+        assert!(lum(heat_color(2000.0)) > lum(heat_color(1500.0)));
+    }
 
     fn lin(c: u8) -> f32 {
         let c = c as f32 / 255.0;

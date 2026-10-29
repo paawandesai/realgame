@@ -1,7 +1,7 @@
 //! The browser-facing API, exported to JavaScript with wasm-bindgen, and the
 //! renderer that turns the grid into pixels.
 
-use crate::game::{Game, Tier, HEIGHT, VIEW_W, WORLD_W};
+use crate::game::{Game, Tier, DOOR_TOP, GATE_W, GATE_X, HEIGHT, VIEW_W, WORLD_W};
 use crate::palette::{self, glow_of, hash, heat_color, mix, temp_byte, Around, GlowMap};
 use crate::species::Species;
 use wasm_bindgen::prelude::*;
@@ -173,6 +173,17 @@ impl WebGame {
     pub fn emissive(&self) -> Vec<f32> {
         self.glow.entries()
     }
+
+    /// The heat lens's labels: up to three of the hottest spots in view
+    /// (and the coldest, when something is freezing), as flat
+    /// `[x, y, temp_c]` groups in viewport cells.
+    pub fn hotspots(&self) -> Vec<f32> {
+        self.game
+            .hotspots(self.drawn_view_x, 3)
+            .into_iter()
+            .flat_map(|(x, y, t)| [(x - self.drawn_view_x) as f32, y as f32, t])
+            .collect()
+    }
 }
 
 /// Species byte in `cell_data` for sprite pixels (drawn as-is by the GPU).
@@ -206,7 +217,7 @@ fn render(game: &Game, out: &mut Frame, glow: &mut GlowMap, lens: bool, alpha: f
             let c = if lens {
                 let base = heat_color(t);
                 if s.is_solid() {
-                    mix(base, [90, 90, 100], 0.35)
+                    palette::lens_solid(base)
                 } else {
                     base
                 }
@@ -219,6 +230,10 @@ fn render(game: &Game, out: &mut Frame, glow: &mut GlowMap, lens: bool, alpha: f
                         surface: s == Species::Water && y > 0 && g.cells[i - g.w] != s,
                     };
                     palette::cell_color(s, x, y, g.frame, sky_c, around)
+                };
+                let c = match gate_at(s, x, y) {
+                    Some(k) => pylon(x as i32 - GATE_X[k], y, game.rooms.gates_open[k], g.frame),
+                    None => c,
                 };
                 if t > 400.0 && s != Species::Flame {
                     mix(c, [255, 110, 30], (t - 400.0) / 1400.0)
@@ -237,6 +252,47 @@ fn render(game: &Game, out: &mut Frame, glow: &mut GlowMap, lens: bool, alpha: f
     draw_torch(game, out, view_x);
     draw_player(game, out, alpha, view_x);
     draw_aim(game, out, view_x);
+}
+
+/// Which gate's overhead pylon a stone cell belongs to, if any.
+fn gate_at(s: Species, x: usize, y: usize) -> Option<usize> {
+    if s != Species::Stone || y >= DOOR_TOP as usize {
+        return None;
+    }
+    let x = x as i32;
+    GATE_X.iter().position(|&gx| x >= gx && x < gx + GATE_W)
+}
+
+/// The stone above each gate drawn as what it is in the story: a steel
+/// gate pylon with bolted bands and a light strip (amber while the gate is
+/// shut, green once it opens), so it never reads as a glitch in the sky.
+fn pylon(lx: i32, y: usize, open: bool, frame: u32) -> [u8; 3] {
+    let band = y % 16 < 2;
+    let mut c = match lx {
+        0 => [150, 172, 196],
+        l if l == GATE_W - 1 => [36, 44, 58],
+        _ => [72, 90, 114],
+    };
+    if band {
+        c = if lx == 1 || lx == GATE_W - 2 {
+            [196, 206, 220]
+        } else {
+            [48, 58, 74]
+        };
+    } else if lx == GATE_W / 2 - 1 || lx == GATE_W / 2 {
+        // The light strip, with a slow pulse running down it while shut.
+        let pulse = !open && (y as u32 + frame / 3) % 24 < 4;
+        c = match (open, pulse) {
+            (true, _) => [80, 190, 130],
+            (false, true) => [255, 214, 120],
+            (false, false) => [230, 150, 40],
+        };
+    }
+    // The emitter cap just above the doorway.
+    if y + 3 >= DOOR_TOP as usize {
+        c = [30, 36, 48];
+    }
+    c
 }
 
 /// The room-2 torch: a wooden post with a flickering flame when lit. Drawn

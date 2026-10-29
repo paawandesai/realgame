@@ -50,8 +50,8 @@ impl Rect {
 pub const GROUND_Y: i32 = 148;
 /// Each room's gate: a stone column with a door at its foot.
 pub const GATE_X: [i32; ROOMS] = [308, 628, 948, 1264];
-const GATE_W: i32 = 6;
-const DOOR_TOP: i32 = 112;
+pub const GATE_W: i32 = 6;
+pub const DOOR_TOP: i32 = 112;
 
 // Room 1: Splash Garden.
 pub const HEDGE1: Rect = Rect::new(236, 132, 260, GROUND_Y);

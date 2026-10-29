@@ -562,6 +562,113 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   function setLens(on: boolean): void {
     lens = on;
     byId("lens-btn").setAttribute("aria-pressed", String(on));
+    legend.hidden = !on;
+    if (!on) for (const el of spotEls) el.hidden = true;
+    lastSpotsAt = -Infinity;
+  }
+
+  // The heat lens legend: the same colours the lens draws (the sim's own
+  // lookup table), on the same square-root temperature scale, with the
+  // temperatures the game is about marked.
+  const LUT = heat_lut();
+  const TEMP_MIN = -60;
+  const TEMP_SPAN = 2860;
+  /** The legend's scale: piecewise, so the temperatures that matter (0 and
+   * 100 °C) get room apart, while flames still fit on the right. */
+  const LEGEND_SCALE: [number, number][] = [
+    [-60, 0],
+    [0, 0.14],
+    [100, 0.36],
+    [500, 0.6],
+    [1000, 0.8],
+    [2000, 1],
+  ];
+  const legendPos = (t: number): number => {
+    for (let i = 1; i < LEGEND_SCALE.length; i++) {
+      const [t0, p0] = LEGEND_SCALE[i - 1]!;
+      const [t1, p1] = LEGEND_SCALE[i]!;
+      if (t <= t1) return p0 + ((Math.max(t, t0) - t0) / (t1 - t0)) * (p1 - p0);
+    }
+    return 1;
+  };
+  const legendTemp = (pos: number): number => {
+    for (let i = 1; i < LEGEND_SCALE.length; i++) {
+      const [t0, p0] = LEGEND_SCALE[i - 1]!;
+      const [t1, p1] = LEGEND_SCALE[i]!;
+      if (pos <= p1) return t0 + ((pos - p0) / (p1 - p0)) * (t1 - t0);
+    }
+    return 2000;
+  };
+  /** The lens colour at a temperature, from the sim's lookup table (byte
+   * index as `palette::temp_byte`). */
+  const lutAt = (t: number): string => {
+    const u = Math.min(1, Math.max(0, (t - TEMP_MIN) / TEMP_SPAN));
+    const b = Math.round(Math.sqrt(u) * 255) * 4;
+    return `rgb(${LUT[b]}, ${LUT[b + 1]}, ${LUT[b + 2]})`;
+  };
+  const legend = byId("lens-legend");
+  {
+    const title = document.createElement("span");
+    title.className = "legend-title";
+    title.textContent = tier === "sprout" ? "Hot and cold" : "Heat lens, °C";
+    const bar = document.createElement("div");
+    bar.className = "legend-bar";
+    const stops: string[] = [];
+    for (let i = 0; i <= 32; i++) stops.push(`${lutAt(legendTemp(i / 32))} ${((i / 32) * 100).toFixed(1)}%`);
+    bar.style.background = `linear-gradient(to right, ${stops.join(", ")})`;
+    const ticks = document.createElement("div");
+    ticks.className = "legend-ticks";
+    const marks: [number, string, string][] = [
+      [0, "0", "ice melts"],
+      [100, "100", "water boils"],
+      [500, "500", ""],
+      [1000, "1000+", ""],
+    ];
+    for (const [t, label, note] of marks) {
+      const tick = document.createElement("span");
+      tick.className = "legend-tick";
+      tick.style.left = `${(legendPos(t) * 100).toFixed(1)}%`;
+      tick.textContent = label;
+      if (note && tier !== "sprout") {
+        const n = document.createElement("span");
+        n.className = "legend-note";
+        n.textContent = note;
+        tick.append(n);
+      }
+      ticks.append(tick);
+    }
+    legend.append(title, bar, ticks);
+  }
+
+  /** Labels on the hottest (and coldest) spots while the lens is on. */
+  const spotEls: HTMLElement[] = [];
+  let lastSpotsAt = -Infinity;
+  function updateSpots(now: number): void {
+    if (!lens || now - lastSpotsAt < 250) return;
+    lastSpotsAt = now;
+    const flat = game.hotspots();
+    const kx = stage.clientWidth / w;
+    const ky = stage.clientHeight / h;
+    for (let i = 0; i * 3 < Math.max(flat.length, spotEls.length * 3); i++) {
+      let el = spotEls[i];
+      if (!el) {
+        el = document.createElement("span");
+        el.className = "lens-spot";
+        goals.layer.append(el);
+        spotEls.push(el);
+      }
+      if (i * 3 >= flat.length) {
+        el.hidden = true;
+        continue;
+      }
+      const x = flat[i * 3]!;
+      const y = flat[i * 3 + 1]!;
+      const t = flat[i * 3 + 2]!;
+      el.hidden = false;
+      el.classList.toggle("cold", t < 0);
+      el.textContent = tier === "sprout" ? (t < 0 ? "Cold!" : "Hot!") : `${Math.round(t)} °C`;
+      el.style.transform = `translate(${(x * kx).toFixed(1)}px, ${(y * ky).toFixed(1)}px)`;
+    }
   }
 
   // ---------------------------------------------------- Apprentice spell box
@@ -1625,6 +1732,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       shownGoalLine = objective.line;
     }
     framePortrait(viewX);
+    updateSpots(now);
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
     updateLift(now, viewX);
     if (jumpHint) jumpHintTick(now, viewX);
@@ -1774,6 +1882,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       lastOutcome: () => lastResult,
       frameMs: () => frameWork.reduce((a, b) => a + b, 0) / Math.max(1, frameWork.length),
       emissive: () => Array.from(game.emissive()),
+      /** Heat-lens label spots: flat [x, y, °C] in viewport cells. */
+      hotspots: () => Array.from(game.hotspots()),
       frameParts: () => [...frameParts],
       renderer: () => (gl ? "webgl" : "2d"),
       fxStats: () => fx.stats(),
