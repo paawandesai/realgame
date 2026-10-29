@@ -697,6 +697,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     hintOnCast(result);
     scoreCast(result);
     afterCastNudges(result);
+    lastCastRoom = goals.next?.room ?? -1;
     if (tray) {
       setTrayOpen(false);
       if (result.outcome === "partial" && result.suggestion) tray.offerFix(result.suggestion);
@@ -740,8 +741,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const ghostHand = byId("ghost-hand");
   setIcon(ghostHand, "hand");
   const hint = { floor: 0, misses: 0, since: performance.now(), key: "", level: 0, nudged: false };
-  /** After the first bubbles in room 3: point at Boom at once, not after a wait. */
-  let nudgeBoom = false;
+  /** Boom is the answer right now (after the first bubbles in room 3, or
+   * water thrown at the ice): its card glows at once, not after a wait.
+   * Holds the kind of goal it's for, and ends when that goal does. */
+  let nudgeFor: Goal["kind"] | null = null;
+  /** The room whose goal the player last cast at (-1: none yet). */
+  let lastCastRoom = -1;
   /** Casts since the goals last moved on; two in a row show a pointer. */
   let castsNoProgress = 0;
   let progressSig = "";
@@ -773,8 +778,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   function afterCastNudges(r: CastOutcome): void {
     const next = goals.next;
     const worked = r.outcome === "full" || r.outcome === "partial";
-    if (worked && r.spell === "split" && next?.kind === "gas" && !nudgeBoom) {
-      nudgeBoom = true;
+    if (worked && r.spell === "split" && next?.kind === "gas" && nudgeFor === null) {
+      nudgeFor = "gas";
       speech.say(
         tier === "sprout"
           ? "Now light the bubbles! Tap boom!"
@@ -782,7 +787,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
             ? "Now light the bubbles with boom!"
             : "Now light the trapped gas: 2H2 + O2 -> 2H2O",
       );
-    } else if (r.spell === "boom" && worked) nudgeBoom = false;
+    } else if (r.spell === "boom" && worked) nudgeFor = null;
     castsNoProgress++;
     if (castsNoProgress >= 2) {
       goals.pointAt = true;
@@ -808,7 +813,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   function resetHints(): void {
-    nudgeBoom = false;
+    nudgeFor = null;
+    lastCastRoom = -1;
     castsNoProgress = 0;
     goals.pointAt = false;
     hint.floor = 0;
@@ -833,18 +839,19 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const idle = steps.filter((ms) => waited >= ms).length;
     let level = next ? Math.min(3, Math.max(hint.floor, idle)) : 0;
     // Bubbles made: go straight to the glowing Boom card.
-    if (nudgeBoom && next?.kind !== "gas") nudgeBoom = false;
-    if (nudgeBoom && next) level = Math.max(level, 2);
-    if (level !== hint.level || nudgeBoom !== hint.nudged) applyHint(level, next);
+    if (nudgeFor !== null && next?.kind !== nudgeFor) nudgeFor = null;
+    const nudged = nudgeFor !== null;
+    if (nudged && next) level = Math.max(level, 2);
+    if (level !== hint.level || nudged !== hint.nudged) applyHint(level, next);
     placeGhostHand(now);
   }
 
   function applyHint(level: number, next: Goal | null): void {
     hint.level = level;
-    hint.nudged = nudgeBoom;
+    hint.nudged = nudgeFor !== null;
     document.body.dataset.hint = String(level);
     goals.setHintLevel(level);
-    const need: Goal["need"] | null = next ? (nudgeBoom ? "boom" : next.need) : null;
+    const need: Goal["need"] | null = next ? (nudgeFor !== null ? "boom" : next.need) : null;
     const spell = need ? SPELLS[tier][need] : "";
     hintSpell = spell;
     const glow = level >= 2 && !goals.goVisible && need !== null;
@@ -880,20 +887,36 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (!cards) return;
     const next = goals.next;
     const onboarding = castCount === 0;
-    const show = next !== null && !ended && (onboarding || hint.level >= 3 || nudgeBoom);
+    // A goal nobody has cast at yet: show which card, and where it goes.
+    const freshGoal = next !== null && next.room !== lastCastRoom;
+    const show = next !== null && !ended && (onboarding || hint.level >= 3 || nudgeFor !== null || freshGoal);
     let target: Element | null = null;
     if (show) {
-      const need = nudgeBoom ? "boom" : next.need;
+      const need = nudgeFor !== null ? "boom" : next.need;
       target = goals.goVisible ? document.getElementById("go-arrow") : cards.element(need as CardSpell);
     }
     ghostHand.hidden = !target;
     if (!target) return;
     const r = target.getBoundingClientRect();
     const s = stage.getBoundingClientRect();
-    const tap = fx.reducedMotion ? 0 : Math.max(0, Math.sin(now / 250)) * 8;
-    ghostHand.style.left = `${r.left - s.left + r.width / 2}px`;
-    ghostHand.style.top = `${r.top - s.top + r.height / 2 + tap}px`;
+    let x = r.left - s.left + r.width / 2;
+    let y = r.top - s.top + r.height / 2;
+    const goal = goals.goVisible ? null : goals.nextOnStage(game.view_x());
+    if (goal && !fx.reducedMotion) {
+      // Tap the card, then glide from the card to the target and rest there.
+      const t = (now % 2000) / 2000;
+      const k = t < 0.25 ? 0 : t > 0.75 ? 1 : (t - 0.25) / 0.5;
+      const ease = k * k * (3 - 2 * k);
+      x += (goal[0] - x) * ease;
+      y += (goal[1] - y) * ease;
+      if (t < 0.25) y += Math.max(0, Math.sin(t * 4 * Math.PI)) * 8;
+    } else if (!fx.reducedMotion) {
+      y += Math.max(0, Math.sin(now / 250)) * 8;
+    }
+    ghostHand.style.left = `${x}px`;
+    ghostHand.style.top = `${y}px`;
   }
+
 
   // -------------------------------------------------------------------- HUD
 
@@ -1208,7 +1231,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     sfx.handle(events, outcomes);
     fx.handle(events, outcomes, performance.now());
     // Reactions seen in the world (the torch's wood, a lit methane vent) find pages too.
-    for (const e of events) if (e.kind === "discover" && e.reaction_id) foundPage(e.reaction_id);
+    for (const e of events) {
+      if (e.kind === "discover" && e.reaction_id) foundPage(e.reaction_id);
+      // Water bounced off the ice: point straight at Boom.
+      if (e.kind === "frost" && goals.next?.kind === "ice") nudgeFor = "ice";
+    }
   }
 
   let accumulator = 0;

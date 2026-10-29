@@ -320,6 +320,11 @@ export class FxLayer {
         case "hiss":
           this.bubbles(e.x, e.y - 2, 12, () => "#e8eef3", now);
           break;
+        case "frost":
+          // Water meets the ice wall and can't melt it: a cold white puff.
+          this.burst(e.x, e.y, 24, (i) => (i % 3 ? COLOR.frost : "#ffffff"), 0.035, now, -0.00001);
+          this.frostBorn = now;
+          break;
         case "melt":
           this.burst(e.x, e.y, 14, COLOR.frost, 0.04, now, 0.0001);
           break;

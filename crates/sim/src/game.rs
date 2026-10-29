@@ -50,6 +50,8 @@ const CRYSTAL_RECHARGE_KJ_PER_TICK: f32 = 1.0;
 const WATER_CELLS_PER_MOL: u32 = 40;
 /// ...that cools everything within this radius of where it lands...
 const WATER_COOL_RADIUS: i32 = 6;
+/// How far past a heat burst's radius ice still melts, in cells.
+const ICE_MELT_EXTRA: i32 = 3;
 /// ...and soaks through this many burning cells of a hedge it hits.
 const SOAK_CELLS_PER_MOL: u32 = 160;
 /// One mole of the cloud spell is this many cells of CO2...
@@ -65,8 +67,8 @@ const GAS_CELLS_PER_MOL: u32 = 3;
 const WATER_GATHER_CELLS_PER_MOL: u32 = 4;
 const GATHER_RADIUS: i32 = 48;
 /// Sprout and Seedling aim at the obvious target when the player has not
-/// aimed on purpose for this long (3 s).
-const AUTO_AIM_TICKS: u64 = 180;
+/// aimed on purpose for this long (2 s).
+const AUTO_AIM_TICKS: u64 = 120;
 /// Pointing within this many cells of a goal marker locks onto that goal's
 /// real target, on every tier (the marker floats a little off the target).
 const MARKER_SNAP: f32 = 12.0;
@@ -392,33 +394,6 @@ impl Game {
             id: 0,
             power,
         });
-    }
-
-    /// The player saw a book reaction happen in the world (not from a cast),
-    /// such as the torch's wood burning. The first time, it counts as found
-    /// and a `discover` event carries its id. Returns whether it was new.
-    pub(crate) fn witness(&mut self, reaction_id: &str, x: f32, y: f32) -> bool {
-        if self.discovered.iter().any(|d| d == reaction_id)
-            || self.book.by_id(reaction_id).is_none()
-        {
-            return false;
-        }
-        self.discovered.push(reaction_id.to_string());
-        self.emit(Fx {
-            kind: "discover",
-            x,
-            y,
-            tx: x,
-            ty: y,
-            dh_kj: 0.0,
-            outcome: None,
-            leftovers: Atoms::new(),
-            reaction_id: Some(reaction_id.to_string()),
-            id: 0,
-            power: 1.0,
-        });
-        self.refresh_version();
-        true
     }
 
     /// Drains the presentation events since the last call.
@@ -987,7 +962,18 @@ impl Game {
             }
             c
         };
-        let label = self.label(spell, outcome, &res);
+        let mut label = self.label(spell, outcome, &res);
+        // Water thrown at the ice wall: it can't melt it, and the label says
+        // what will (the impact shows a frost puff).
+        if spell == "water" && outcome != Outcome::Fizzle && self.lands_on_ice((hx, hy)) {
+            label = self
+                .line(
+                    "Too cold! Try boom!",
+                    "Too cold! Water can't melt ice. Try boom.",
+                    "Water is too cold to melt the ice. Heat it: 2H2 + O2 -> 2H2O.",
+                )
+                .to_string();
+        }
         let out = CastOutcome {
             id,
             outcome,
@@ -1202,6 +1188,16 @@ impl Game {
         last
     }
 
+    /// Whether a spell from `from` toward the aim lands on (or beside) ice.
+    fn lands_on_ice(&self, from: (f32, f32)) -> bool {
+        let at = self.trace(from, self.aim);
+        Self::ice_near(&self.grid, at)
+    }
+
+    fn ice_near(grid: &Grid, at: (i32, i32)) -> bool {
+        (-3..=3).any(|dy| (-3..=3).any(|dx| grid.get(at.0 + dx, at.1 + dy) == Species::Ice))
+    }
+
     /// Spells stop at anything that isn't a gas, except the crystal
     /// battery: a thin column the player often stands against, which a
     /// spell passes through instead of fizzling into it.
@@ -1269,6 +1265,14 @@ impl Game {
         }
         if split && in_reach(trap) {
             found = Some(trap);
+        }
+        // Nothing to act on in reach: fly at the room's goal anyway, so a
+        // tapped card always goes somewhere that teaches something (water
+        // on the ice says "too cold, try boom").
+        if found.is_none() {
+            found = self.goal_aim_point().filter(|&(x, y)| {
+                ((x as f32 - hx).powi(2) + (y as f32 - hy).powi(2)).sqrt() <= BOLT_RANGE
+            });
         }
         // Trapped hydrogen hugs the roof; aim into the middle of the pocket so
         // the bolt clears the overhang's lip and the fireball reaches the gas.
@@ -1391,6 +1395,9 @@ impl Game {
                 let cells = (n("H2O") * WATER_CELLS_PER_MOL).min(4 * WATER_CELLS_PER_MOL);
                 self.spawn_blob_at(at, Species::Water, cells, AMBIENT_C);
                 extra.push("splash");
+                if Self::ice_near(&self.grid, at) {
+                    extra.push("frost");
+                }
                 if doused > 0 {
                     extra.push("hiss");
                 }
@@ -1440,7 +1447,9 @@ impl Game {
                     "burn" => 700.0,
                     _ => 900.0,
                 };
-                let melted = self.melt_ice(at, radius);
+                // Ice soaks up the blast's heat (fusion, 6.01 kJ/mol, CRC), so it melts
+                // a little past the fireball's edge.
+                let melted = self.melt_ice(at, radius + ICE_MELT_EXTRA);
                 self.rooms.last_heat = Some((self.ticks, at.0, at.1));
                 if melted > 0 || rooms::ICE.grow(radius + 4).contains(at.0, at.1) {
                     self.rooms.ice_heated = true;

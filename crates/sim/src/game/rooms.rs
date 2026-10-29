@@ -598,7 +598,8 @@ impl Game {
                 });
                 if hot {
                     self.rooms.vent_lit[k] = true;
-                    self.witness("methane_combustion", x as f32, y as f32);
+                    // No Grimoire page: pages come only from spells the
+                    // player casts (CH4 + 2O2 -> CO2 + 2H2O, typed, finds it).
                     let line = self.line(
                         "The bubbles caught fire! Stand close to catch the gas.",
                         "Methane burns into CO2. Stand close to catch it.",
@@ -694,10 +695,8 @@ impl Game {
             self.rooms.torch.lit = true;
             self.torch_lit = true;
             // The torch is wood burning: carbon + oxygen -> carbon dioxide
-            // (wood simplified to carbon, as everywhere in the game).
-            if !self.witness("carbon_combustion", tx as f32, ty as f32) {
-                self.emit_at("discover", tx as f32, ty as f32, 1.0);
-            }
+            // (wood simplified to carbon, as everywhere in the game). It finds
+            // no Grimoire page: only spells the player casts do.
             let line = if self.rooms.torch.carried {
                 "Your torch caught fire."
             } else {
@@ -1011,9 +1010,6 @@ impl Game {
                 id: 0,
                 power: 1.0,
             });
-            if !self.discovered.iter().any(|d| d == "electrolysis_water") {
-                self.discovered.push("electrolysis_water".into());
-            }
         }
         made
     }
@@ -1156,14 +1152,12 @@ impl Game {
         }
     }
 
-    /// Soft auto-aim targets for heat spells, in priority order: ice, an
-    /// unlit torch, trapped hydrogen, the brazier.
+    /// Soft auto-aim targets for heat spells: ice, trapped hydrogen, the
+    /// brazier. (Not the torch: lighting it is an optional second way, and a
+    /// card tapped in room 2 must go to the ice.)
     pub(super) fn heat_target(&self, x: i32, y: i32) -> bool {
         let s = self.grid.get(x, y);
         if s == Species::Ice {
-            return true;
-        }
-        if !self.rooms.torch.lit && !self.rooms.torch.carried && (x, y) == self.torch_head() {
             return true;
         }
         if s == Species::H2 && TRAP.contains(x, y) {
@@ -1172,6 +1166,33 @@ impl Game {
         !self.rooms.brazier_lit
             && self.rooms.hedges[1].out
             && (x, y) == (BRAZIER.centre().0, BRAZIER.y1 - 4)
+    }
+}
+
+impl Game {
+    /// Where soft auto-aim sends a spell when nothing it acts on is in
+    /// reach: the target of the room's unfinished goal (the ice, the gas
+    /// pocket, the hedge or the brazier), so a tapped card always flies at
+    /// the goal. None when the room's goal is done.
+    pub(super) fn goal_aim_point(&self) -> Option<(i32, i32)> {
+        let k = self.room();
+        if self.goals().get(k).is_none_or(|g| g.done) {
+            return None;
+        }
+        Some(match k {
+            0 => HEDGE1.centre(),
+            1 => {
+                let (hx, hy) = self.hand();
+                let d = |&(x, y): &(i32, i32)| (x as f32 - hx).powi(2) + (y as f32 - hy).powi(2);
+                ICE.cells()
+                    .filter(|&(x, y)| self.grid.get(x, y) == Species::Ice)
+                    .min_by(|a, b| d(a).total_cmp(&d(b)))
+                    .unwrap_or((ICE.x0, ICE.centre().1))
+            }
+            2 => TRAP.centre(),
+            _ if self.rooms.hedges[1].out => (BRAZIER.centre().0, BRAZIER.y1 - 4),
+            _ => HEDGE2.centre(),
+        })
     }
 }
 
@@ -1442,31 +1463,25 @@ mod tests {
     }
 
     #[test]
-    fn lighting_the_torch_finds_the_burning_wood_page_once() {
+    fn lighting_the_torch_finds_no_page_the_player_did_not_cast() {
         let mut g = Game::new(Tier::Apprentice, 7);
         teleport(&mut g, TORCH_X as f32 - 20.0);
         g.take_fx();
-        assert!(!g.discovered.iter().any(|d| d == "carbon_combustion"));
         let head = g.torch_head();
-        cast_at(&mut g, "boom", head);
+        let out = cast_at(&mut g, "boom", head);
         settle(&mut g, 10);
         assert!(g.rooms.torch.lit);
-        let pages: Vec<_> = g
-            .discovered
-            .iter()
-            .filter(|d| *d == "carbon_combustion")
+        // The boom the player cast is theirs; the burning wood is not.
+        assert_eq!(g.discovered, ["water_synthesis"]);
+        let discovers: Vec<_> = g
+            .take_fx()
+            .into_iter()
+            .filter(|f| f.kind == "discover")
             .collect();
-        assert_eq!(pages.len(), 1, "{:?}", g.discovered);
-        // A world reaction never pretends to be a cast: its discover event has no cast id.
-        let mut g2 = Game::new(Tier::Apprentice, 7);
-        assert!(g2.witness("carbon_combustion", 1.0, 2.0));
-        assert!(!g2.witness("carbon_combustion", 1.0, 2.0), "found twice");
-        assert!(!g2.witness("not_in_the_book", 1.0, 2.0));
-        let fx = g2.take_fx();
-        assert_eq!(fx.len(), 1);
-        assert_eq!(fx[0].kind, "discover");
-        assert_eq!(fx[0].id, 0);
-        assert_eq!(fx[0].reaction_id.as_deref(), Some("carbon_combustion"));
+        assert!(
+            discovers.iter().all(|f| f.id == out.id),
+            "a discover event not from the cast: {discovers:?}"
+        );
     }
 
     #[test]
@@ -1799,13 +1814,12 @@ mod marsh {
             cast_at(&mut g, "boom", (mouth.0, mouth.1 - 2));
             settle(&mut g, 30);
             assert!(g.rooms.vent_lit[0], "seed {seed}: vent not lit");
-            // Seeing methane burn finds its Grimoire page, once.
-            let found = g
-                .discovered
-                .iter()
-                .filter(|d| *d == "methane_combustion")
-                .count();
-            assert_eq!(found, 1, "seed {seed}: {:?}", g.discovered);
+            // Seeing methane burn finds no page: only casting it would.
+            assert!(
+                !g.discovered.iter().any(|d| d == "methane_combustion"),
+                "seed {seed}: {:?}",
+                g.discovered
+            );
             assert!(
                 cells_of(&g, marsh_air, Species::CO2).len() > co2,
                 "seed {seed}: no CO2 made"
@@ -2003,9 +2017,10 @@ mod restart_tests {
     /// Plays the trial the way the hint ladder and go arrow suggest: stand at
     /// each goal's `stand_x` and cast its `need` with soft auto-aim (no
     /// aiming). Returns the game and every line said along the way.
-    fn play_by_goals(tier: Tier, seed: u64) -> (Game, Vec<String>) {
+    fn play_by_goals(tier: Tier, seed: u64) -> (Game, Vec<String>, Vec<CastOutcome>) {
         let mut g = Game::new(tier, seed);
         let mut said = vec![];
+        let mut outs = vec![];
         settle(&mut g, 30);
         let mut casts = 0;
         for k in 0..ROOMS {
@@ -2035,7 +2050,7 @@ mod restart_tests {
                     (_, "split") => "2H2O -> 2H2 + O2",
                     _ => "2H2 + O2 -> 2H2O",
                 };
-                g.cast(text);
+                outs.push(g.cast(text));
                 land(&mut g);
                 settle(&mut g, 40);
                 said.extend(g.state().messages);
@@ -2043,20 +2058,76 @@ mod restart_tests {
                 assert!(casts < 40, "room {k}: no progress with {spell}");
             }
         }
-        (g, said)
+        (g, said, outs)
     }
 
     #[test]
     fn standing_where_each_goal_says_and_casting_its_spell_moves_it_on() {
         for tier in [Tier::Sprout, Tier::Seedling] {
-            let (g, _) = play_by_goals(tier, 7);
+            let (g, _, _) = play_by_goals(tier, 7);
             assert!(g.trial_complete(), "{tier:?}");
         }
     }
 
     #[test]
+    fn grimoire_pages_come_only_from_spells_the_player_cast() {
+        for tier in [Tier::Sprout, Tier::Seedling] {
+            let (g, _, outs) = play_by_goals(tier, 42);
+            assert!(g.trial_complete());
+            let firsts: Vec<_> = outs
+                .iter()
+                .filter(|o| o.first_discovery)
+                .filter_map(|o| o.reaction_id.clone())
+                .collect();
+            assert_eq!(g.discovered, firsts, "{tier:?}");
+            assert!(!g.discovered.iter().any(|d| d == "carbon_combustion"));
+        }
+    }
+
+    #[test]
+    fn sprout_boom_card_with_no_aim_melts_the_ice_in_three_casts() {
+        for seed in SEEDS {
+            for start in [GATE_X[0] as f32 + 24.0, 440.0] {
+                let mut g = Game::new(Tier::Sprout, seed);
+                g.open_gate(0);
+                teleport(&mut g, start);
+                assert_eq!(g.aim_tick, 0, "never aimed");
+                let mut casts = 0;
+                while !g.rooms.gates_open[1] && casts < 3 {
+                    while g.jars["H2"] < 2 || g.jars["O2"] < 1 {
+                        settle(&mut g, 10);
+                    }
+                    assert_eq!(g.cast("boom").outcome, Outcome::Full);
+                    casts += 1;
+                    land(&mut g);
+                    settle(&mut g, 40);
+                }
+                assert!(
+                    g.rooms.gates_open[1],
+                    "seed {seed} from {start}: ice left {} of {}",
+                    g.rooms.ice_left, g.rooms.ice_start
+                );
+                assert!(!g.rooms.torch.lit, "the card went to the torch");
+            }
+        }
+    }
+
+    #[test]
+    fn water_on_the_ice_says_too_cold_with_a_frost_puff() {
+        let mut g = Game::new(Tier::Sprout, 42);
+        g.open_gate(0);
+        teleport(&mut g, 440.0);
+        g.take_fx();
+        let out = g.cast("water");
+        assert_eq!(out.outcome, Outcome::Full);
+        assert!(out.label.contains("Too cold"), "{}", out.label);
+        land(&mut g);
+        assert!(g.take_fx().iter().any(|f| f.kind == "frost"));
+    }
+
+    #[test]
     fn seedling_prompts_are_eight_words_or_fewer() {
-        let (g, said) = play_by_goals(Tier::Seedling, 42);
+        let (g, said, _) = play_by_goals(Tier::Seedling, 42);
         assert!(said.len() >= 6, "{said:?}");
         // Grimoire discoveries quote the sourced concept text; prompts are short.
         let book = ReactionBook::load();

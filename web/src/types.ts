@@ -80,6 +80,7 @@ export interface Fx {
     | "splash"
     | "hiss"
     | "melt"
+    | "frost"
     | "arc"
     | "bubble"
     | "door"

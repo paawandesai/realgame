@@ -152,6 +152,9 @@ export class Sfx {
         case "melt":
           this.melt();
           break;
+        case "frost":
+          this.frost();
+          break;
         case "bubble":
           this.plinks(out?.spell === "split" ? 6 : 4);
           break;
