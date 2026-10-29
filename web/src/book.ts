@@ -9,6 +9,8 @@ export interface BookReaction {
   id: string;
   name: string;
   equation: string;
+  /** The equation with state symbols at 25 °C, which ΔH refers to. */
+  equation_states: string;
   delta_h_kj: number;
   concept: string;
   /** Six words or fewer, for Sprout. */
@@ -19,19 +21,38 @@ export interface BookReaction {
   source: string;
 }
 
+interface PhaseChange {
+  id: string;
+  note?: string;
+  source: string;
+}
+
 export interface Book {
   byId: Map<string, BookReaction>;
+  /** Why steam and liquid water give different ΔH (sourced), if present. */
+  vaporNote: { text: string; source: string } | null;
 }
 
 export function parseBook(json: string): Book {
   const byId = new Map<string, BookReaction>();
+  let vaporNote: Book["vaporNote"] = null;
   try {
-    const t = JSON.parse(json) as { reactions?: BookReaction[] };
+    const t = JSON.parse(json) as { reactions?: BookReaction[]; phase_changes?: PhaseChange[] };
     for (const r of t.reactions ?? []) byId.set(r.id, r);
+    const v = (t.phase_changes ?? []).find((p) => p.id === "water_vaporisation_25c");
+    if (v?.note) vaporNote = { text: v.note, source: v.source };
   } catch {
     // The table is compiled into the sim; an unreadable copy only loses the cards.
   }
-  return { byId };
+  return { byId, vaporNote };
+}
+
+/** Reactions whose ΔH depends on water being steam or liquid. */
+const WATER_STATE_REACTIONS = new Set(["water_synthesis", "electrolysis_water"]);
+
+/** The sourced steam-vs-liquid note for a reaction that needs it, else "". */
+export function stateNote(id: string, book: Book): string {
+  return WATER_STATE_REACTIONS.has(id) && book.vaporNote ? book.vaporNote.text : "";
 }
 
 /** A spell the player can cast by hotkey, card or name. */
@@ -88,9 +109,13 @@ export function spellCardLines(spell: SpellDef, book: Book): { title: string; li
   const r = spell.reaction ? book.byId.get(spell.reaction) : undefined;
   if (r) {
     return {
-      title: `${spell.name}: ${prettyFormula(r.equation)}`,
-      lines: [`ΔH = ${formatDh(r.delta_h_kj)} ${r.delta_h_kj < 0 ? "(releases heat)" : "(takes in energy)"}`, r.concept],
-      source: r.source,
+      title: `${spell.name}: ${prettyFormula(r.equation_states ?? r.equation)}`,
+      lines: [
+        `ΔH = ${formatDh(r.delta_h_kj)} ${r.delta_h_kj < 0 ? "(releases heat)" : "(takes in energy)"}`,
+        r.concept,
+        stateNote(r.id, book),
+      ],
+      source: stateNote(r.id, book) && book.vaporNote ? `${r.source}; ${book.vaporNote.source}` : r.source,
     };
   }
   return {

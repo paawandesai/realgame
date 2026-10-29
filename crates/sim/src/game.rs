@@ -5,7 +5,7 @@ use crate::formula::Atoms;
 use crate::grid::{Grid, AMBIENT_C, CH4_IGNITION_C, WOOD_IGNITION_C};
 use crate::reactions::ReactionBook;
 use crate::species::{Phase, Species};
-use crate::spell::{self, Outcome, Plan, Resolution, Stock};
+use crate::spell::{self, Outcome, Plan, Rejection, Resolution, Stock};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -182,6 +182,12 @@ pub struct CastOutcome {
     pub delta_h_kj: Option<f32>,
     pub source: Option<String>,
     pub first_discovery: bool,
+    /// Why an `Unknown` cast was rejected: "empty", "parse", "element",
+    /// "not_in_world", "unbalanced", "state" or "zero".
+    pub reason: Option<&'static str>,
+    /// Apprentice only: the reaction with state symbols, matching the ΔH
+    /// shown (`2H2(g) + O2(g) -> 2H2O(g)`).
+    pub equation_states: Option<String>,
 }
 
 /// A presentation-only event for the browser (particles, sound, labels).
@@ -851,9 +857,9 @@ impl Game {
         let (hx, hy) = self.hand();
 
         let (res, spell, equation, reaction_id, balanced) = match &plan {
-            Plan::Unknown { suggestion } => {
+            Plan::Unknown { suggestion, reason } => {
                 self.misses_in_a_row += 1;
-                let out = self.unknown_outcome(id, &input, suggestion.clone());
+                let out = self.unknown_outcome(id, &input, suggestion.clone(), reason);
                 self.emit(Fx {
                     kind: "unknown",
                     x: hx,
@@ -890,11 +896,16 @@ impl Game {
                 air_o2,
                 balanced,
             } => {
-                let (reaction, known) = self
+                let (mut reaction, known) = self
                     .book
                     .by_id(reaction_id)
                     .cloned()
                     .expect("plans only name reactions from the book");
+                // States the player wrote (2H2O(l)) shift ΔH by sourced latent
+                // heat; plans only allow states with data.
+                reaction.delta_h_kj =
+                    spell::delta_h_with_states(&self.book, &reaction, &known, typed)
+                        .unwrap_or(reaction.delta_h_kj);
                 let r = spell::resolve_reaction(
                     &reaction, &known, typed, *balanced, *air_o2, &self.jars,
                 );
@@ -1044,6 +1055,26 @@ impl Game {
                 });
             }
         }
+        // Fractions are cast as whole molecules: a bolt can't carry half a
+        // molecule, so the amounts are scaled up and the label says so.
+        if let Plan::React { typed, .. } = &plan {
+            if typed.per > 1 && self.tier > Tier::Sprout && outcome != Outcome::Fizzle {
+                label.push_str(&format!(
+                    "  (no half molecules: cast ×{} as {typed})",
+                    typed.per
+                ));
+            }
+        }
+        let equation_states = match &plan {
+            Plan::React { typed, .. } if show_numbers => Some(
+                typed.with_states_from(
+                    self.book
+                        .by_id(reaction_id.as_deref().unwrap_or(""))
+                        .map(|(_, k)| k),
+                ),
+            ),
+            _ => None,
+        };
         // Water thrown at the ice wall: it can't melt it, and the label says
         // what will (the impact shows a frost puff).
         if spell == "water" && outcome != Outcome::Fizzle && self.lands_on_ice((hx, hy)) {
@@ -1085,6 +1116,8 @@ impl Game {
                 .filter(|_| show_numbers)
                 .map(|r| r.source.clone()),
             first_discovery: first,
+            reason: None,
+            equation_states,
         };
 
         let shot = Shot {
@@ -1124,7 +1157,67 @@ impl Game {
         out
     }
 
-    fn unknown_outcome(&self, id: u32, input: &str, suggestion: Option<String>) -> CastOutcome {
+    fn unknown_outcome(
+        &self,
+        id: u32,
+        input: &str,
+        suggestion: Option<String>,
+        reason: &Rejection,
+    ) -> CastOutcome {
+        let young = self.tier == Tier::Sprout;
+        let mut imbalance = vec![];
+        let label = match reason {
+            Rejection::ZeroForO => match &suggestion {
+                Some(s) => format!("Did you mean {s}? (letter O, not zero)"),
+                None => "Use the letter O, not zero".into(),
+            },
+            Rejection::Empty => self
+                .line(
+                    "Pick a spell!",
+                    "Write a formula first.",
+                    "Write a formula first.",
+                )
+                .into(),
+            Rejection::NotAFormula => self
+                .line(
+                    "That's not a spell!",
+                    "That isn't a formula. Try H2O.",
+                    "That isn't a formula. Try H2O or 2H2 + O2 -> 2H2O.",
+                )
+                .into(),
+            Rejection::UnknownElement(el) => format!("{el} is not an element"),
+            Rejection::NotInWorld { balanced: true } => {
+                "Balanced, real chemistry! Not in this trial yet".into()
+            }
+            Rejection::NotInWorld { balanced: false } => {
+                let what = input.trim();
+                if young || what.chars().count() > 16 {
+                    "Not in this trial yet".into()
+                } else {
+                    format!("{what} is not in this trial yet")
+                }
+            }
+            Rejection::Unbalanced { counts, pair } => {
+                imbalance = counts.clone();
+                let counts = counts.join("; ");
+                match pair {
+                    Some(p) if young => format!("It comes in pairs: {p}"),
+                    Some(p) => {
+                        let el = p.trim_end_matches('2');
+                        if counts.is_empty() {
+                            format!("{el} gas comes in pairs: {p}")
+                        } else {
+                            format!("{el} gas comes in pairs: {p}. Then {counts}")
+                        }
+                    }
+                    None if young => "Not balanced".into(),
+                    None => format!("Not balanced: {counts}"),
+                }
+            }
+            Rejection::WrongState(term) => {
+                format!("{term}: that state is not in this trial yet")
+            }
+        };
         CastOutcome {
             id,
             outcome: Outcome::Unknown,
@@ -1141,12 +1234,9 @@ impl Game {
             source_y: None,
             power: 0.0,
             dh_kj: 0.0,
-            label: match &suggestion {
-                Some(s) => format!("Did you mean {s}? (letter O, not zero)"),
-                None => "Not in your Grimoire yet".into(),
-            },
+            label,
             suggestion,
-            imbalance: vec![],
+            imbalance,
             unreacted: vec![],
             canonical: None,
             multiple: 1,
@@ -1155,10 +1245,11 @@ impl Game {
             delta_h_kj: None,
             source: None,
             first_discovery: false,
+            reason: Some(reason.code()),
+            equation_states: None,
         }
     }
 
-    /// A short line for the floating label at the impact point.
     fn label(
         &self,
         spell: &str,
@@ -2062,6 +2153,64 @@ mod tests {
             "{}",
             r.label
         );
+    }
+
+    #[test]
+    fn rejected_casts_say_why_in_kid_words() {
+        let mut g = game(Tier::Seedling);
+        let cases = [
+            ("asdf", "parse", "That isn't a formula. Try H2O."),
+            ("Hh", "element", "Hh is not an element"),
+            ("NaCl", "not_in_world", "NaCl is not in this trial yet"),
+            (
+                "2Na + Cl2 -> 2NaCl",
+                "not_in_world",
+                "Balanced, real chemistry! Not in this trial yet",
+            ),
+            (
+                "H2O -> H2 + O",
+                "unbalanced",
+                "O gas comes in pairs: O2. Then O: 1 on the left, 2 on the right",
+            ),
+        ];
+        for (text, code, label) in cases {
+            let r = g.cast(text);
+            assert_eq!(r.outcome, Outcome::Unknown, "{text}");
+            assert_eq!(r.reason, Some(code), "{text}");
+            assert_eq!(r.label, label, "{text}");
+        }
+        assert_eq!(g.cast("H2O -> H2 + O").imbalance.len(), 1);
+        // Real casts carry no rejection reason.
+        assert_eq!(g.cast("H2O").reason, None);
+    }
+
+    #[test]
+    fn apprentice_states_and_fractions_cast_with_sourced_enthalpy() {
+        let mut g = game(Tier::Apprentice);
+        let r = g.cast("2H2(g) + O2(g) -> 2H2O(g)");
+        assert_eq!(r.outcome, Outcome::Full, "{}", r.label);
+        assert_eq!(r.reaction_id.as_deref(), Some("water_synthesis"));
+        assert!((r.dh_kj + 483.6).abs() < 0.01);
+        assert_eq!(
+            r.equation_states.as_deref(),
+            Some("2H2(g) + O2(g) -> 2H2O(g)")
+        );
+        // Plain typing gets the book's states on the card.
+        let r = g.cast("2H2O -> 2H2 + O2");
+        assert_eq!(
+            r.equation_states.as_deref(),
+            Some("2H2O(l) -> 2H2(g) + O2(g)")
+        );
+        // Condensing the product to liquid releases 2 x 44.0 kJ more.
+        g.jars.insert("H2".into(), 4);
+        g.jars.insert("O2".into(), 2);
+        let r = g.cast("2H2 + O2 -> 2H2O(l)");
+        assert!((r.dh_kj + 571.6).abs() < 0.01, "{}", r.dh_kj);
+        // A fraction is cast as whole molecules, and the label says so.
+        let r = g.cast("H2 + 1/2O2 -> H2O");
+        assert_ne!(r.outcome, Outcome::Unknown, "{}", r.label);
+        assert!(r.label.contains("no half molecules"), "{}", r.label);
+        assert_eq!(r.reason, None);
     }
 
     #[test]

@@ -517,7 +517,8 @@ export class FxLayer {
       eq.className = "fx-eq";
       // The youngest players see atoms as balls, never subscripts.
       if (this.tier === "sprout") eq.append(equationBalls(out.equation));
-      else eq.textContent = prettyFormula(out.equation);
+      // Apprentice sees state symbols, so ΔH for H₂O(g) and H₂O(l) can't look contradictory.
+      else eq.textContent = prettyFormula(out.equation_states ?? out.equation);
       el.append(eq);
     }
     const text = document.createElement("div");

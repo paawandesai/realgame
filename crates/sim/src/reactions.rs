@@ -13,6 +13,9 @@ pub struct Reaction {
     pub id: String,
     pub name: String,
     pub equation: String,
+    /// The same equation with state symbols at 25 C (`2H2O(g)`), which the
+    /// enthalpy refers to.
+    pub equation_states: String,
     /// Enthalpy change for the equation as written, kJ. Negative releases heat.
     pub delta_h_kj: f32,
     pub needs: String,
@@ -31,6 +34,9 @@ pub struct PhaseChange {
     pub id: String,
     pub temperature_c: f32,
     pub latent_heat_kj_per_mol: f32,
+    #[serde(default)]
+    pub note: Option<String>,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -52,7 +58,24 @@ impl ReactionBook {
             .reactions
             .into_iter()
             .map(|r| {
-                let eq = parse_equation(&r.equation).expect("reaction equations in content parse");
+                let plain =
+                    parse_equation(&r.equation).expect("reaction equations in content parse");
+                let eq = parse_equation(&r.equation_states)
+                    .expect("reaction equations with states in content parse");
+                assert_eq!(
+                    eq.to_string(),
+                    plain.to_string(),
+                    "content reaction {}: equation_states must match equation",
+                    r.id
+                );
+                assert!(
+                    eq.reactants
+                        .iter()
+                        .chain(eq.products.iter())
+                        .all(|t| t.state.is_some()),
+                    "content reaction {}: every term needs a state symbol",
+                    r.id
+                );
                 assert!(
                     eq.is_balanced(),
                     "content reaction {} must be balanced",
@@ -118,5 +141,23 @@ mod tests {
         assert!((dh("electrolysis_water") + 2.0 * h2o_l).abs() < 0.1);
         assert!((dh("methane_combustion") - (co2 + 2.0 * h2o_g - ch4)).abs() < 0.1);
         assert!((dh("carbon_combustion") - co2).abs() < 0.1);
+    }
+
+    #[test]
+    fn steam_and_liquid_water_differ_by_the_heat_of_vaporisation() {
+        // Hess's law: splitting liquid water (+571.7 kJ) and burning hydrogen to
+        // steam (-483.6 kJ) differ by vaporising 2 mol of water at 25 C.
+        let book = ReactionBook::load();
+        let dh = |id: &str| book.by_id(id).unwrap().0.delta_h_kj;
+        let vap = book.latent_heat("water_vaporisation_25c");
+        assert!((vap - 44.0).abs() < 0.01);
+        assert!((dh("electrolysis_water") + dh("water_synthesis") - 2.0 * vap).abs() < 0.2);
+        let p = book
+            .phase_changes
+            .iter()
+            .find(|p| p.id == "water_vaporisation_25c")
+            .unwrap();
+        assert!(p.source.contains("NIST") && p.source.contains("44.0"));
+        assert!(p.note.as_deref().unwrap_or("").contains("2 x 44.0"));
     }
 }

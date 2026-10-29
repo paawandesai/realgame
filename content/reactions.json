@@ -6,6 +6,7 @@
       "id": "water_synthesis",
       "name": "Conjure Water (hydrogen burns)",
       "equation": "2H2 + O2 -> 2H2O",
+      "equation_states": "2H2(g) + O2(g) -> 2H2O(g)",
       "delta_h_kj": -483.6,
       "product_state": "gas",
       "needs": "spark",
@@ -21,6 +22,7 @@
       "id": "electrolysis_water",
       "name": "Split Water (electrolysis)",
       "equation": "2H2O -> 2H2 + O2",
+      "equation_states": "2H2O(l) -> 2H2(g) + O2(g)",
       "delta_h_kj": 571.7,
       "product_state": "gas",
       "needs": "electricity",
@@ -36,6 +38,7 @@
       "id": "methane_combustion",
       "name": "Fireball (methane burns)",
       "equation": "CH4 + 2O2 -> CO2 + 2H2O",
+      "equation_states": "CH4(g) + 2O2(g) -> CO2(g) + 2H2O(g)",
       "delta_h_kj": -802.3,
       "product_state": "gas",
       "needs": "spark",
@@ -51,6 +54,7 @@
       "id": "carbon_combustion",
       "name": "Burning wood (carbon burns)",
       "equation": "C + O2 -> CO2",
+      "equation_states": "C(s) + O2(g) -> CO2(g)",
       "delta_h_kj": -393.5,
       "product_state": "gas",
       "needs": "spark",
@@ -78,6 +82,15 @@
       "temperature_c": 100.0,
       "latent_heat_kj_per_mol": 40.65,
       "source": "CRC Handbook of Chemistry and Physics, enthalpy of vaporization of water at 100 C",
+      "reviewed_by": null
+    },
+    {
+      "id": "water_vaporisation_25c",
+      "substance": "H2O",
+      "temperature_c": 25.0,
+      "latent_heat_kj_per_mol": 44.0,
+      "note": "Why 2H2 + O2 -> 2H2O(g) releases 483.6 kJ but splitting 2H2O(l) costs 571.7 kJ: the difference, 88.1 kJ, is 2 x 44.0 kJ/mol, the heat it takes to turn liquid water into steam at 25 C.",
+      "source": "NIST Chemistry WebBook: standard enthalpies of formation H2O(g) -241.826 and H2O(l) -285.830 kJ/mol differ by 44.004 kJ/mol, the standard enthalpy of vaporization of water at 25 C (CRC Handbook of Chemistry and Physics gives 44.0 kJ/mol)",
       "reviewed_by": null
     }
   ]

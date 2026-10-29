@@ -6,7 +6,7 @@
 //! far as the limiting reagent allows, and atoms are conserved exactly:
 //! atoms drawn (from the suit and the air) = atoms in products + leftovers.
 
-use crate::formula::{parse_equation, side_atoms, Atoms, Equation, Term};
+use crate::formula::{parse_equation, side_atoms, Atoms, Equation, ParseError, State, Term};
 use crate::reactions::{Reaction, ReactionBook};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -57,10 +57,7 @@ pub fn alias(text: &str) -> Option<&'static str> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Plan {
     /// Pour `coef` moles of one carried substance.
-    Release {
-        formula: String,
-        coef: u32,
-    },
+    Release { formula: String, coef: u32 },
     /// Run a reaction from the book. `typed` holds the coefficients the player
     /// asked for (already auto-balanced for the youngest tier).
     React {
@@ -72,7 +69,126 @@ pub enum Plan {
     },
     Unknown {
         suggestion: Option<String>,
+        reason: Rejection,
     },
+}
+
+/// Why a cast could not become a spell, so the player hears something more
+/// useful than "no".
+#[derive(Debug, Clone, PartialEq)]
+pub enum Rejection {
+    /// Nothing typed.
+    Empty,
+    /// Not shaped like a formula at all (`asdf`, `H2 ++ O2`).
+    NotAFormula,
+    /// A capital letter group that is not an element (`Hh`).
+    UnknownElement(String),
+    /// A real-looking formula or a balanced reaction this trial does not have
+    /// (`NaCl`, `2Na + Cl2 -> 2NaCl`).
+    NotInWorld { balanced: bool },
+    /// Atoms do not add up and no known reaction matches. `counts` are
+    /// per-element lines ("O: 1 on the left, 2 on the right"). `pair` names a
+    /// diatomic gas written as a lone atom (`O` for `O2`).
+    Unbalanced {
+        counts: Vec<String>,
+        pair: Option<String>,
+    },
+    /// A known reaction, but with a state this trial has no data for
+    /// (`H2(l)`), named as the term the player wrote.
+    WrongState(String),
+    /// A digit zero where the letter O was meant (the suggestion holds the fix).
+    ZeroForO,
+}
+
+impl Rejection {
+    /// A short machine name for the UI ("parse", "element", ...).
+    pub fn code(&self) -> &'static str {
+        match self {
+            Rejection::Empty => "empty",
+            Rejection::NotAFormula => "parse",
+            Rejection::UnknownElement(_) => "element",
+            Rejection::NotInWorld { .. } => "not_in_world",
+            Rejection::Unbalanced { .. } => "unbalanced",
+            Rejection::WrongState(_) => "state",
+            Rejection::ZeroForO => "zero",
+        }
+    }
+}
+
+/// Elements that exist as two-atom molecules as gases or liquids at room
+/// temperature.
+const DIATOMIC: &[&str] = &["H", "N", "O", "F", "Cl", "Br", "I"];
+
+/// Heat to turn one mole of liquid water into steam at 25 C, kJ/mol, read
+/// from `content/reactions.json` (`water_vaporisation_25c`, NIST-sourced).
+fn state_enthalpy_offset(book: &ReactionBook, formula: &str, state: State) -> Option<f32> {
+    match (formula, state) {
+        ("H2O", State::Liquid) => Some(0.0),
+        ("H2O", State::Gas) => Some(book.latent_heat("water_vaporisation_25c")),
+        _ => None,
+    }
+}
+
+/// The enthalpy of a book reaction as written in the book, but with the
+/// states the player typed. Only water's liquid/gas switch has sourced data;
+/// any other change of state is `Err` naming the term.
+pub fn delta_h_with_states(
+    book: &ReactionBook,
+    reaction: &Reaction,
+    known: &Equation,
+    typed: &Equation,
+) -> Result<f32, String> {
+    let mut dh = reaction.delta_h_kj;
+    let sides = [
+        (&known.reactants, &typed.reactants, -1.0f32),
+        (&known.products, &typed.products, 1.0f32),
+    ];
+    for (book_side, typed_side, sign) in sides {
+        for t in typed_side.iter() {
+            let (Some(state), Some(k)) =
+                (t.state, book_side.iter().find(|k| k.formula == t.formula))
+            else {
+                continue;
+            };
+            let Some(book_state) = k.state else { continue };
+            if state == book_state {
+                continue;
+            }
+            let shift = state_enthalpy_offset(book, &t.formula, state)
+                .zip(state_enthalpy_offset(book, &t.formula, book_state))
+                .map(|(a, b)| a - b);
+            match shift {
+                Some(per_mol) => dh += sign * per_mol * k.coef as f32,
+                None => return Err(format!("{}({})", t.formula, state.symbol())),
+            }
+        }
+    }
+    Ok(dh)
+}
+
+/// Enthalpy, kJ, of a typed equation that matches a book reaction, scaled to
+/// the amounts written (fractions included) and corrected for the states
+/// written. `None` if it is not a book reaction in the book's proportions.
+pub fn delta_h_for(book: &ReactionBook, typed: &Equation) -> Option<f32> {
+    let (reaction, known) = book.find_by_species(typed)?;
+    let dh = delta_h_with_states(book, reaction, known, typed).ok()?;
+    let k0 = known.reactants.first()?;
+    let t0 = typed.reactants.iter().find(|t| t.formula == k0.formula)?;
+    // Every typed coefficient must be the same multiple of the book's.
+    let ratio = t0.coef as f32 / k0.coef as f32;
+    let proportional = known
+        .reactants
+        .iter()
+        .chain(known.products.iter())
+        .all(|k| {
+            typed
+                .reactants
+                .iter()
+                .chain(typed.products.iter())
+                .find(|t| t.formula == k.formula)
+                .is_some_and(|t| (t.coef as f32 - ratio * k.coef as f32).abs() < 1e-4)
+        });
+    proportional.then(|| dh * ratio / typed.per.max(1) as f32)
 }
 
 /// The formula text actually cast, after alias lookup.
@@ -83,26 +199,70 @@ pub fn resolve_text(text: &str) -> String {
     }
 }
 
-fn parse_lenient(text: &str) -> Option<Equation> {
-    if let Ok(eq) = parse_equation(text) {
-        return Some(eq);
+/// Parses typed text, forgiving all-lower-case typing ("h2o", "ch4"). A
+/// failure keeps the error from the text as typed, unless that was only an
+/// unknown element: "Hh" is reported as not an element, "asdf" as not a
+/// formula (never as "A is not an element").
+fn parse_lenient(text: &str) -> Result<Equation, ParseError> {
+    let err = match parse_equation(text) {
+        Ok(eq) => return Ok(eq),
+        Err(e @ ParseError::BadCharacter(_)) => e,
+        Err(e) => return Err(e),
+    };
+    parse_equation(&upper_keeping_states(text)).map_err(|_| err)
+}
+
+/// Upper-cases letters, but leaves state symbols like `(g)` and `(aq)` alone.
+fn upper_keeping_states(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(c) = rest.chars().next() {
+        if c == '(' {
+            let state = ["(s)", "(l)", "(g)", "(aq)"].into_iter().find(|s| {
+                rest.get(..s.len())
+                    .is_some_and(|p| p.eq_ignore_ascii_case(s))
+            });
+            if let Some(s) = state {
+                out.push_str(s);
+                rest = &rest[s.len()..];
+                continue;
+            }
+        }
+        out.push(c.to_ascii_uppercase());
+        rest = &rest[c.len_utf8()..];
     }
-    // Lower-case typing ("h2o", "ch4") is still clearly a formula.
-    let upper = text.to_ascii_uppercase();
-    parse_equation(&upper).ok()
+    out
+}
+
+fn unknown(reason: Rejection) -> Plan {
+    Plan::Unknown {
+        suggestion: None,
+        reason,
+    }
 }
 
 /// Turns typed text into a plan. `auto_balance` fixes coefficients for players
 /// too young to balance equations themselves.
 pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
     let resolved = resolve_text(text);
-    let Some(eq) = parse_lenient(&resolved) else {
-        return Plan::Unknown {
-            suggestion: zero_hint(book, &resolved),
-        };
+    let eq = match parse_lenient(&resolved) {
+        Ok(eq) => eq,
+        Err(e) => {
+            if let Some(fix) = zero_hint(book, &resolved) {
+                return Plan::Unknown {
+                    suggestion: Some(fix),
+                    reason: Rejection::ZeroForO,
+                };
+            }
+            return unknown(match e {
+                ParseError::Empty => Rejection::Empty,
+                ParseError::UnknownElement(el) => Rejection::UnknownElement(el),
+                _ => Rejection::NotAFormula,
+            });
+        }
     };
     if eq.reactants.is_empty() {
-        return Plan::Unknown { suggestion: None };
+        return unknown(Rejection::Empty);
     }
     // Hydrogen alone (with or without "-> H2O") burns in air.
     let lone_h2 = eq.reactants.len() == 1
@@ -125,9 +285,13 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
                 coef: t.coef,
             };
         }
-        return Plan::Unknown {
-            suggestion: zero_hint(book, &resolved),
-        };
+        if let Some(fix) = zero_hint(book, &resolved) {
+            return Plan::Unknown {
+                suggestion: Some(fix),
+                reason: Rejection::ZeroForO,
+            };
+        }
+        return unknown(Rejection::NotInWorld { balanced: false });
     }
     let found = if eq.products.is_empty() {
         find_by_reactants(book, &eq)
@@ -135,10 +299,17 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
         book.find_by_species(&eq)
     };
     let Some((reaction, known)) = found else {
-        return Plan::Unknown {
-            suggestion: zero_hint(book, &resolved),
-        };
+        if let Some(fix) = zero_hint(book, &resolved) {
+            return Plan::Unknown {
+                suggestion: Some(fix),
+                reason: Rejection::ZeroForO,
+            };
+        }
+        return unknown(not_a_book_reaction(book, &eq));
     };
+    if let Err(term) = delta_h_with_states(book, reaction, known, &eq) {
+        return unknown(Rejection::WrongState(term));
+    }
     let typed_balanced = eq.is_balanced();
     let typed = if eq.products.is_empty() {
         // "2H2 + O2" with no arrow: keep the typed amounts, use the book's products.
@@ -146,6 +317,7 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
         for t in e.reactants.iter_mut() {
             if let Some(r) = eq.reactants.iter().find(|r| r.formula == t.formula) {
                 t.coef = r.coef;
+                t.state = r.state;
             }
         }
         e
@@ -160,6 +332,42 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
         typed,
         air_o2: false,
         balanced,
+    }
+}
+
+/// Why an equation with no matching book reaction was rejected: a lone atom
+/// of a two-atom gas (`H2O -> H2 + O`), atoms that do not add up, or a
+/// balanced reaction this trial simply does not have.
+fn not_a_book_reaction(book: &ReactionBook, eq: &Equation) -> Rejection {
+    let mut paired = eq.clone();
+    let mut pair = None;
+    for t in paired
+        .reactants
+        .iter_mut()
+        .chain(paired.products.iter_mut())
+    {
+        if DIATOMIC.contains(&t.formula.as_str()) {
+            pair = Some(format!("{}2", t.formula));
+            t.formula = format!("{}2", t.formula);
+            for n in t.atoms.values_mut() {
+                *n = 2;
+            }
+        }
+    }
+    if pair.is_some() && book.find_by_species(&paired).is_some() {
+        return Rejection::Unbalanced {
+            counts: paired.imbalance_report(),
+            pair,
+        };
+    }
+    if !eq.products.is_empty() && !eq.is_balanced() {
+        return Rejection::Unbalanced {
+            counts: eq.imbalance_report(),
+            pair: None,
+        };
+    }
+    Rejection::NotInWorld {
+        balanced: eq.is_balanced(),
     }
 }
 
@@ -551,9 +759,92 @@ mod tests {
         assert!(matches!(plan(&book, "xyz", false), Plan::Unknown { .. }));
         assert!(matches!(plan(&book, "", false), Plan::Unknown { .. }));
         assert!(matches!(plan(&book, "NaCl", false), Plan::Unknown { .. }));
-        let Plan::Unknown { suggestion } = plan(&book, "2H20", false) else {
+        let Plan::Unknown { suggestion, reason } = plan(&book, "2H20", false) else {
             panic!()
         };
         assert_eq!(suggestion.as_deref(), Some("2H2O"));
+        assert_eq!(reason, Rejection::ZeroForO);
+    }
+
+    fn reason(book: &ReactionBook, text: &str) -> Rejection {
+        match plan(book, text, false) {
+            Plan::Unknown { reason, .. } => reason,
+            other => panic!("{text} should be rejected, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejections_say_why() {
+        let book = ReactionBook::load();
+        assert_eq!(reason(&book, "asdf"), Rejection::NotAFormula);
+        assert_eq!(reason(&book, "xyz"), Rejection::NotAFormula);
+        assert_eq!(reason(&book, "H2 ++ O2"), Rejection::NotAFormula);
+        assert_eq!(reason(&book, "   "), Rejection::Empty);
+        assert_eq!(reason(&book, "Hh"), Rejection::UnknownElement("Hh".into()));
+        assert_eq!(
+            reason(&book, "NaCl"),
+            Rejection::NotInWorld { balanced: false }
+        );
+        assert_eq!(
+            reason(&book, "2Na + Cl2 -> 2NaCl"),
+            Rejection::NotInWorld { balanced: true }
+        );
+        assert_eq!(
+            reason(&book, "Na + Cl2 -> NaCl"),
+            Rejection::Unbalanced {
+                counts: vec!["Cl: 2 on the left, 1 on the right".into()],
+                pair: None,
+            }
+        );
+        // Oxygen gas comes in pairs: read as O2, the atoms don't add up.
+        assert_eq!(
+            reason(&book, "H2O -> H2 + O"),
+            Rejection::Unbalanced {
+                counts: vec!["O: 1 on the left, 2 on the right".into()],
+                pair: Some("O2".into()),
+            }
+        );
+        assert_eq!(
+            reason(&book, "2H2(l) + O2 -> 2H2O"),
+            Rejection::WrongState("H2(l)".into())
+        );
+    }
+
+    #[test]
+    fn state_symbols_cast_the_same_reaction() {
+        let book = ReactionBook::load();
+        let with = plan(&book, "2H2(g) + O2(g) -> 2H2O(g)", false);
+        let without = plan(&book, "2H2 + O2 -> 2H2O", false);
+        let id = |p: &Plan| match p {
+            Plan::React {
+                reaction_id,
+                typed,
+                balanced,
+                ..
+            } => (reaction_id.clone(), typed.to_string(), *balanced),
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(id(&with), id(&without));
+        assert_eq!(id(&with).0, "water_synthesis");
+        // Lower-case typing with states still works.
+        assert_eq!(
+            id(&plan(&book, "2h2(g) + o2(g) -> 2h2o(g)", false)),
+            id(&without)
+        );
+    }
+
+    #[test]
+    fn enthalpy_follows_amounts_and_states() {
+        let book = ReactionBook::load();
+        let dh = |t: &str| delta_h_for(&book, &parse_equation(t).unwrap()).unwrap();
+        assert!((dh("2H2 + O2 -> 2H2O") + 483.6).abs() < 0.01);
+        assert!((dh("H2 + 1/2O2 -> H2O") + 241.8).abs() < 0.01);
+        assert!((dh("H2 + 0.5O2 -> H2O") + 241.8).abs() < 0.01);
+        assert!((dh("4H2 + 2O2 -> 4H2O") + 967.2).abs() < 0.01);
+        // Liquid water holds 44.0 kJ/mol less than steam (sourced in the book).
+        assert!((dh("2H2(g) + O2(g) -> 2H2O(l)") + 571.6).abs() < 0.01);
+        assert!((dh("2H2O(l) -> 2H2(g) + O2(g)") - 571.7).abs() < 0.01);
+        assert!((dh("2H2O(g) -> 2H2 + O2") - 483.7).abs() < 0.01);
+        assert!(delta_h_for(&book, &parse_equation("H2 + O2 -> H2O").unwrap()).is_none());
     }
 }

@@ -130,6 +130,10 @@ export interface CastOutcome {
   delta_h_kj: number | null;
   source: string | null;
   first_discovery: boolean;
+  /** Why an "unknown" cast was rejected; null for real casts. */
+  reason: "empty" | "parse" | "element" | "not_in_world" | "unbalanced" | "state" | "zero" | null;
+  /** Apprentice only: the reaction with state symbols, matching the ΔH shown. */
+  equation_states: string | null;
 }
 
 /** Turns "2H2 + O2 -> 2H2O" into display text with subscripts and a real arrow. */

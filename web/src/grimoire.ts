@@ -3,7 +3,7 @@
 // localStorage on this device only; if storage is blocked the book still
 // works for the visit.
 
-import { GRIMOIRE_PAGES, formatDh, type Book, type HoverCard } from "./book";
+import { GRIMOIRE_PAGES, formatDh, stateNote, type Book, type HoverCard } from "./book";
 import { equationBalls, icon } from "./icons";
 import { storageGet, storageSet } from "./prefs";
 import { prettyFormula, type Tier } from "./types";
@@ -101,6 +101,7 @@ export class Grimoire {
     const eq = document.createElement("span");
     eq.className = "grim-eq";
     if (this.tier === "sprout") eq.append(equationBalls(r.equation));
+    else if (this.tier === "apprentice") eq.textContent = prettyFormula(r.equation_states ?? r.equation);
     else eq.textContent = prettyFormula(r.equation);
     const dh = document.createElement("span");
     dh.className = `grim-dh ${r.delta_h_kj < 0 ? "exo" : "endo"}`;
@@ -148,16 +149,24 @@ export class Grimoire {
       });
     } else {
       words.textContent = r.concept;
-      li.append(eq, dh, words, src);
+      li.append(eq, dh, words);
+      const note = stateNote(r.id, this.book);
+      if (note) {
+        const n = document.createElement("span");
+        n.className = "grim-note";
+        n.textContent = note;
+        li.append(n);
+      }
+      li.append(src);
     }
     li.tabIndex = 0;
     li.setAttribute("aria-label", `${page.name}: ${r.equation}`);
     // Seedling cards turn over to show the same details, so no pop-up too.
     if (this.tier === "seedling") return li;
     this.hover.attach(li, () => ({
-      title: `${page.name}: ${prettyFormula(r.equation)}`,
-      lines: [`ΔH = ${formatDh(r.delta_h_kj)}`, r.concept, r.real_world],
-      source: r.source,
+      title: `${page.name}: ${prettyFormula(r.equation_states ?? r.equation)}`,
+      lines: [`ΔH = ${formatDh(r.delta_h_kj)}`, r.concept, r.real_world, stateNote(r.id, this.book)],
+      source: stateNote(r.id, this.book) && this.book.vaporNote ? `${r.source}; ${this.book.vaporNote.source}` : r.source,
     }));
     return li;
   }

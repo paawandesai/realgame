@@ -1636,6 +1636,13 @@ body[data-tier="apprentice"] #jars-mini {
   color: var(--quiet);
 }
 
+.grim-note {
+  font-size: 0.72rem;
+  color: var(--quiet);
+  border-left: 2px solid #7cc4f0;
+  padding-left: 6px;
+}
+
 .grim-src {
   font-size: 0.72rem;
   color: var(--quiet);
