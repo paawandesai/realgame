@@ -27,6 +27,13 @@ pub const WATER_CP_J_PER_MOL_K: f32 = 75.3;
 /// (carbon burned); flames below it leave plain air (hydrogen burned).
 const FLAME_LEAVES_CO2: i16 = 1000;
 
+/// Air cooler than this is the background medium and only moves when displaced.
+const STILL_AIR_BELOW_C: f32 = 60.0;
+
+/// Neighbouring cells closer in temperature than this exchange no heat; the
+/// transfer would be far below anything visible or gameplay-relevant.
+const HEAT_EPSILON_C: f32 = 0.01;
+
 const NEIGHBORS: [(i32, i32); 8] = [
     (0, 1),
     (0, -1),
@@ -155,10 +162,16 @@ impl Grid {
             for k in 0..self.w {
                 let x = if left_to_right { k } else { self.w - 1 - k };
                 let i = self.idx(x, y);
-                if self.moved[i] == self.frame {
+                let s = self.cells[i];
+                // Cool air is the still background (see `move_gas`) and solids
+                // never move: most cells end here without touching the RNG.
+                if (s == Species::Air && self.temp[i] < STILL_AIR_BELOW_C)
+                    || s.is_solid()
+                    || self.moved[i] == self.frame
+                {
                     continue;
                 }
-                match self.cells[i].phase() {
+                match s.phase() {
                     Phase::Liquid => self.move_liquid(x as i32, y as i32),
                     Phase::Gas => self.move_gas(x as i32, y as i32),
                     Phase::Flame => self.move_flame(x as i32, y as i32),
@@ -211,7 +224,7 @@ impl Grid {
         let s = self.cells[i];
         let t = self.temp[i];
         // Cool air is the background medium and only moves when displaced.
-        if s == Species::Air && t < 60.0 {
+        if s == Species::Air && t < STILL_AIR_BELOW_C {
             return;
         }
         let m = self.buoyant_mass(s, t);
@@ -530,17 +543,21 @@ impl Grid {
         for y in 0..self.h {
             for x in 0..self.w {
                 let i = self.idx(x, y);
-                let pi = self.cells[i].props();
+                let si = self.cells[i];
                 for (nx, ny) in [(x + 1, y), (x, y + 1)] {
                     if nx >= self.w || ny >= self.h {
                         continue;
                     }
                     let j = self.idx(nx, ny);
-                    let pj = self.cells[j].props();
-                    let k = pi.conductivity.min(pj.conductivity);
-                    let q = k * (self.temp[j] - self.temp[i]);
-                    self.temp[i] += q / pi.heat_capacity;
-                    self.temp[j] -= q / pj.heat_capacity;
+                    let dt = self.temp[j] - self.temp[i];
+                    if dt.abs() < HEAT_EPSILON_C {
+                        continue;
+                    }
+                    let sj = self.cells[j];
+                    let k = si.conductivity().min(sj.conductivity());
+                    let q = k * dt;
+                    self.temp[i] += q / si.heat_capacity();
+                    self.temp[j] -= q / sj.heat_capacity();
                 }
                 // Open air loses heat to the wider world.
                 if self.cells[i] == Species::Air {
