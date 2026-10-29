@@ -75,6 +75,17 @@ const BOWL: Shape[] = [
 
 const ARROW_R: Shape[] = [["path", { d: "M12 8 L38 24 L12 40 Z", fill: "currentColor" }]];
 const ARROW_L: Shape[] = [["path", { d: "M36 8 L10 24 L36 40 Z", fill: "currentColor" }]];
+// An open stone doorway with a chevron through it: "on to the next room".
+const DOOR: Shape[] = [
+  ["path", { d: "M8 44 V16 a16 14 0 0 1 32 0 V44 Z", fill: "#8a8f98", stroke: "#fff7d6", "stroke-width": 2 }],
+  ["path", { d: "M14 44 V18 a10 9 0 0 1 20 0 V44 Z", fill: "#1d2733" }],
+  ["path", { d: "M19 22 L30 31 L19 40 Z", fill: "#f0c75e" }],
+];
+const DOOR_L: Shape[] = [
+  DOOR[0]!,
+  DOOR[1]!,
+  ["path", { d: "M29 22 L18 31 L29 40 Z", fill: "#f0c75e" }],
+];
 const JUMP: Shape[] = [["path", { d: "M24 6 L42 30 H31 V42 H17 V30 H6 Z", fill: "currentColor" }]];
 
 const GEAR: Shape[] = [
@@ -190,6 +201,8 @@ const ICONS = {
   right: ARROW_R,
   left: ARROW_L,
   jump: JUMP,
+  door: DOOR,
+  doorLeft: DOOR_L,
   gear: GEAR,
   speaker: SPEAKER,
   hand: HAND,

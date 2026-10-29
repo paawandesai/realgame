@@ -89,6 +89,11 @@ const AIR_MAX: f32 = 1.5;
 const JUMP_V: f32 = -4.5;
 /// Letting go of jump while rising keeps only this share of the upward speed.
 const JUMP_CUT: f32 = 0.45;
+/// A tapped jump rises at full speed for this many ticks before the cut, so
+/// a one-tick tap still clears 16 cells: a hedge stump or a crate.
+const MIN_JUMP_TICKS: u8 = 4;
+/// Grounded walking climbs ledges up to this many cells without a jump.
+const STEP_UP: i32 = 2;
 const GRAVITY: f32 = 0.3;
 const MAX_FALL: f32 = 5.0;
 /// A jump still works this many ticks after walking off an edge...
@@ -250,6 +255,8 @@ pub struct Player {
     jump_held: bool,
     /// True while rising from a jump the player can still cut short.
     jumping: bool,
+    /// Ticks since the jump started, so even a tap rises `MIN_JUMP_TICKS`.
+    jump_ticks: u8,
 }
 
 pub struct Game {
@@ -328,6 +335,7 @@ impl Game {
                 jump_buffer: 0,
                 jump_held: false,
                 jumping: false,
+                jump_ticks: 0,
             },
             tier,
             // A full water tank, and gas "left over from your last trial":
@@ -536,6 +544,7 @@ impl Game {
             p.jump_buffer = 0;
             p.coyote = 0;
             p.jumping = true;
+            p.jump_ticks = 0;
         } else if held && swimming {
             // At the surface a kick lifts you out; underwater you swim up.
             let head = self.grid.get(
@@ -549,7 +558,8 @@ impl Game {
             };
         }
         let p = &mut self.player;
-        if p.jumping && (!held || p.vy >= 0.0) {
+        p.jump_ticks = p.jump_ticks.saturating_add(1);
+        if p.jumping && ((!held && p.jump_ticks > MIN_JUMP_TICKS) || p.vy >= 0.0) {
             // Letting go early cuts the jump short: tap for a hop, hold to go high.
             if p.vy < 0.0 {
                 p.vy *= JUMP_CUT;
@@ -562,17 +572,24 @@ impl Game {
             (p.vy + GRAVITY).min(MAX_FALL)
         };
 
-        // Horizontal, in steps of at most one cell, each with a one-cell
-        // step-up so bumpy ground doesn't stop you.
+        // Horizontal, in steps of at most one cell, each with a step-up of
+        // up to `STEP_UP` cells so bumps and low ledges don't stop you.
         let steps = self.player.vx.abs().ceil().max(1.0) as i32;
         let sx = self.player.vx / steps as f32;
         for _ in 0..steps {
             let (x, y) = (self.player.x + sx, self.player.y);
             if !self.box_blocked(x, y) {
                 self.player.x = x;
-            } else if grounded && !self.box_blocked(x, y - 1.0) {
+                continue;
+            }
+            let climb = if grounded {
+                (1..=STEP_UP).find(|&up| !self.box_blocked(x, y - up as f32))
+            } else {
+                None
+            };
+            if let Some(up) = climb {
                 self.player.x = x;
-                self.player.y -= 1.0;
+                self.player.y -= up as f32;
             } else {
                 self.player.vx = 0.0;
                 break;
@@ -2353,6 +2370,33 @@ mod feel {
         };
         let (tap, full) = (peak(2), peak(60));
         assert!(full > 25.0 && tap < full * 0.6, "tap {tap}, full {full}");
+    }
+
+    #[test]
+    fn walking_climbs_a_two_cell_step_but_not_three() {
+        let climb = |h: i32| {
+            let mut g = arena();
+            g.grid.fill_rect(720, 150 - h, 760, 150, Species::Stone);
+            for _ in 0..40 {
+                g.tick(INPUT_RIGHT);
+            }
+            g.player.x
+        };
+        assert!(climb(2) > 730.0, "stopped at a 2-cell step: x {}", climb(2));
+        assert!(climb(3) < 720.0, "walked up a 3-cell wall: x {}", climb(3));
+    }
+
+    #[test]
+    fn a_one_tick_jump_tap_clears_a_16_cell_stump() {
+        let mut g = arena();
+        let y0 = g.player.y;
+        let mut top = y0;
+        g.tick(INPUT_JUMP);
+        for _ in 0..60 {
+            g.tick(0);
+            top = top.min(g.player.y);
+        }
+        assert!(y0 - top > 16.0, "tap rose only {}", y0 - top);
     }
 
     #[test]

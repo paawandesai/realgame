@@ -2226,3 +2226,49 @@ body[data-motion="calm"] #goal-area {
 body[data-motion="calm"] #room-clear {
   animation: none;
 }
+
+/* ------------------------------------------- Sprout jump hint (F6) */
+
+#jump-hint {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 56px;
+  height: 56px;
+  margin: -64px 0 0 -28px;
+  padding: 8px;
+  border-radius: 50%;
+  color: #0f1720;
+  background: #f0c75e;
+  border: 3px solid #fff7d6;
+  z-index: 6;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+#jump-hint .icon {
+  width: 100%;
+  height: 100%;
+  animation: hop 0.7s ease-in-out infinite;
+}
+
+@keyframes hop {
+  50% { transform: translateY(-8px); }
+}
+
+#moves button.hinting {
+  animation: pulse-gold 1s ease-in-out infinite;
+  background: #f0c75e;
+  color: #0f1720;
+}
+
+body[data-motion="calm"] #jump-hint .icon,
+body[data-motion="calm"] #moves button.hinting {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #jump-hint .icon,
+  #moves button.hinting {
+    animation: none;
+  }
+}

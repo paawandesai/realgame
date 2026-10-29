@@ -233,6 +233,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const next = goals.next;
     if (next) autoWalk = { target: next.stand_x, stuck: 0, lastX: game.player_x() };
   });
+  fx.follow(goals.layer);
   // The room's goal in one line: a banner on arrival, then a chip at the top.
   const objective = new ObjectiveBanner(stage, tier);
   objective.onAnnounce = (line) => speech.say(line, speakable(line), true);
@@ -1329,6 +1330,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       shownGoalLine = objective.line;
     }
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
+    updateLift(now, viewX);
+    if (jumpHint) jumpHintTick(now, viewX);
     hintTick(now);
     // JSON is only built when something on the HUD actually changed.
     const version = game.state_version();
@@ -1347,6 +1350,87 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     frameParts[3] = frameParts[3]! * 0.95 + (end - tFx) * 0.05;
     requestAnimationFrame(loop);
   }
+  // Sprout: pushing against a ledge or wall with no progress brings up a
+  // bouncing jump arrow over the player and pulses the jump button.
+  const JUMP_HINT_MS = 1500;
+  let jumpHint: HTMLElement | null = null;
+  const blocked = { since: -1, x: 0 };
+  if (tier === "sprout") {
+    jumpHint = document.createElement("div");
+    jumpHint.id = "jump-hint";
+    jumpHint.setAttribute("aria-hidden", "true");
+    jumpHint.hidden = true;
+    jumpHint.append(icon("jump"));
+    goals.layer.append(jumpHint);
+  }
+  function jumpHintTick(now: number, viewX: number): void {
+    if (!jumpHint) return;
+    const pushing =
+      keys.has("a") || keys.has("arrowleft") || held.has("left") || keys.has("d") || keys.has("arrowright") || held.has("right");
+    const jumping = keys.has(" ") || keys.has("w") || keys.has("arrowup") || held.has("jump");
+    const x = game.player_x();
+    if (!pushing || jumping || Math.abs(x - blocked.x) > 2) {
+      blocked.since = pushing && !jumping ? now : -1;
+      blocked.x = x;
+    }
+    const show = blocked.since >= 0 && now - blocked.since >= JUMP_HINT_MS;
+    if (jumpHint.hidden === show) {
+      jumpHint.hidden = !show;
+      document.querySelector('#moves [data-key="jump"]')?.classList.toggle("hinting", show);
+    }
+    if (show) {
+      const kx = stage.clientWidth / w;
+      const ky = stage.clientHeight / h;
+      jumpHint.style.transform = `translate(${((x + 3 - viewX) * kx).toFixed(1)}px, ${((game.player_y() - 4) * ky).toFixed(1)}px)`;
+    }
+  }
+
+  // Camera framing: the world is exactly as tall as the stage, so when the
+  // player drops into a pit behind a bottom HUD bar, the world layers slide
+  // up (the strip uncovered at the bottom stays under the HUD).
+  const LIFT_MARGIN_PX = 8;
+  let hudRects: DOMRect[] = [];
+  let hudRectsAt = -Infinity;
+  function bottomHudRects(): DOMRect[] {
+    const out: DOMRect[] = [];
+    const add = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) out.push(r);
+    };
+    for (const id of ["hud-bottom", "tray"]) {
+      const el = document.getElementById(id);
+      if (el && !el.hidden) add(el);
+    }
+    for (const id of ["cards", "moves", "actions"]) {
+      const el = document.getElementById(id);
+      if (el && !el.hidden) for (const c of el.children) add(c);
+    }
+    return out;
+  }
+  function updateLift(now: number, viewX: number): void {
+    if (now - hudRectsAt > 250) {
+      hudRectsAt = now;
+      hudRects = bottomHudRects();
+    }
+    const sr = canvas.getBoundingClientRect();
+    // The canvas rect already includes the current lift; undo it.
+    const top0 = sr.top + fx.liftPx;
+    const kx = sr.width / w;
+    const ky = sr.height / h;
+    const pl = sr.left + (game.player_x() - viewX) * kx;
+    const pr = pl + 6 * kx;
+    const pb = top0 + (game.player_y() + 12) * ky + LIFT_MARGIN_PX;
+    let need = 0;
+    for (const r of hudRects) {
+      if (r.right < pl - 8 || r.left > pr + 8) continue;
+      if (r.top > top0 + sr.height || r.bottom < top0) continue;
+      need = Math.max(need, pb - r.top);
+    }
+    const target = Math.min(Math.max(0, need), sr.height * 0.3);
+    const lift = fx.liftPx + (target - fx.liftPx) * (target > fx.liftPx ? 0.35 : 0.12);
+    fx.liftPx = Math.abs(lift - target) < 0.5 ? target : lift;
+  }
+
   /** How long each of the last frames took to compute (for automated checks). */
   const frameWork: number[] = [];
   /** Smoothed ms per frame for sim steps, world render, overlay, and HUD. */
@@ -1359,6 +1443,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       state: () => state,
       viewX: () => game.view_x(),
       playerX: () => game.player_x(),
+      playerY: () => game.player_y(),
       goals: () => JSON.parse(game.goals()) as Goal[],
       shake: () => ({ max: fx.maxShakePx, last: fx.lastShakePx }),
       cast: (f: string) => requestCast(f),

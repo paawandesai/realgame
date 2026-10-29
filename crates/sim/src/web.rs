@@ -51,6 +51,11 @@ impl WebGame {
         self.game.player.x
     }
 
+    /// The player's top edge, in world cells (camera lift and browser tests).
+    pub fn player_y(&self) -> f32 {
+        self.game.player.y
+    }
+
     /// Where the gauntlet points, in world cells (for browser tests).
     pub fn aim(&self) -> Vec<i32> {
         vec![self.game.aim.0, self.game.aim.1]

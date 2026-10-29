@@ -389,8 +389,9 @@ impl Game {
         self.flatten(226, 300);
         let g = &mut self.grid;
         // Stone curbs either side of the hedge: the fire's fuel is the hedge only.
-        g.fill_rect(228, 144, 232, GROUND_Y, Species::Stone);
-        g.fill_rect(264, 144, 268, GROUND_Y, Species::Stone);
+        // Two cells tall, so walking steps over them without a jump.
+        g.fill_rect(228, GROUND_Y - 2, 232, GROUND_Y, Species::Stone);
+        g.fill_rect(264, GROUND_Y - 2, 268, GROUND_Y, Species::Stone);
         let h = HEDGE1;
         g.fill_rect(h.x0, h.y0, h.x1, h.y1, Species::Wood);
         // Its left end is already burning.
@@ -805,6 +806,7 @@ impl Game {
         self.update_hedge(0);
         let h = &self.rooms.hedges[0];
         if h.out && h.hits > 0 && self.open_gate(0) {
+            self.crumble_hedge(0);
             let line = self.line(
                 "You put out the fire! The gate is open.",
                 "Fire out! Cooling it stopped it. Gate open.",
@@ -893,6 +895,24 @@ impl Game {
             if self.grid.get(x, y) == Species::Air {
                 self.grid.spawn_flame(x, y, 8, false, WOOD_FIRE_C);
             }
+        }
+    }
+
+    /// A put-out hedge falls to ash (drawn as a dust puff) so its scorched
+    /// stump can't block the path. Ash itself is not simulated: it is too
+    /// little mass to matter, so the cells become air at the air's temperature.
+    fn crumble_hedge(&mut self, k: usize) {
+        let r = self.rooms.hedges[k].rect;
+        let mut n = 0;
+        for (x, y) in r.cells() {
+            if matches!(self.grid.get(x, y), Species::Wood | Species::Flame) {
+                self.grid.set(x, y, Species::Air, AMBIENT_C);
+                n += 1;
+            }
+        }
+        if n > 0 {
+            let (cx, _) = r.centre();
+            self.emit_at("land", cx as f32, r.y1 as f32, 5.0);
         }
     }
 
@@ -2243,5 +2263,57 @@ mod full_run {
         settle(&mut g, 8000);
         assert!(!g.trial_complete());
         assert!(!g.rooms.brazier_lit);
+    }
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::script::*;
+    use super::*;
+
+    /// Puts out the room-1 fire from the spawn with water casts.
+    fn douse_from_spawn(seed: u64) -> Game {
+        let mut g = Game::new(Tier::Seedling, seed);
+        settle(&mut g, 30);
+        let mut casts = 0;
+        while !g.rooms.gates_open[0] && casts < 6 {
+            g.cast("water");
+            casts += 1;
+            settle(&mut g, 60);
+        }
+        assert!(g.rooms.gates_open[0], "seed {seed}: fire still burning");
+        g
+    }
+
+    #[test]
+    fn holding_right_with_a_jump_tap_every_second_reaches_room_2() {
+        for seed in SEEDS {
+            let mut g = douse_from_spawn(seed);
+            let mut reached = None;
+            for t in 0..600u32 {
+                let tap = if t % 60 == 0 { INPUT_JUMP } else { 0 };
+                g.tick(INPUT_RIGHT | tap);
+                if g.room() == 1 {
+                    reached = Some(t);
+                    break;
+                }
+            }
+            let t = reached.unwrap_or_else(|| panic!("seed {seed}: stuck at x={}", g.player.x));
+            // About 100 cells of walking at 2.2 cells/tick, plus slack.
+            assert!(t < 240, "seed {seed}: took {t} ticks");
+        }
+    }
+
+    #[test]
+    fn a_put_out_hedge_falls_to_ash_and_stops_blocking() {
+        let g = douse_from_spawn(42);
+        let wood = HEDGE1
+            .cells()
+            .filter(|&(x, y)| g.grid.get(x, y) == Species::Wood)
+            .count();
+        assert_eq!(wood, 0, "scorched stump left behind");
+        assert!(HEDGE1
+            .cells()
+            .all(|(x, y)| !blocks_player(g.grid.get(x, y), g.grid.temp_at(x, y))));
     }
 }

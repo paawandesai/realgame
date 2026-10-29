@@ -134,6 +134,14 @@ export class FxLayer {
   /** For automated checks (exposed only with ?debug): largest shake offset applied, in px. */
   maxShakePx = 0;
   lastShakePx = 0;
+  /** How far the world layers are raised (px) to keep the player above the
+   * bottom HUD. Framing, not motion, so it applies under Calm motion too. */
+  liftPx = 0;
+
+  /** Another world-anchored layer (goal markers) that moves with the world. */
+  follow(el: HTMLElement): void {
+    this.shaken.push(el);
+  }
 
   constructor(
     private readonly stage: HTMLElement,
@@ -722,6 +730,7 @@ export class FxLayer {
     }
     this.lastShakePx = Math.max(Math.abs(dx), Math.abs(dy));
     this.maxShakePx = Math.max(this.maxShakePx, this.lastShakePx);
+    dy -= this.liftPx;
     const transform = dx === 0 && dy === 0 ? "" : `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
     for (const el of this.shaken) {
       if (el.style.transform !== transform) el.style.transform = transform;

@@ -22,7 +22,7 @@ interface Marker {
 }
 
 export class GoalMarkers {
-  private readonly layer: HTMLElement;
+  readonly layer: HTMLElement;
   private readonly markers: Marker[] = [];
   private readonly go: HTMLButtonElement;
   private readonly pulse: HTMLElement;
@@ -141,6 +141,7 @@ export class GoalMarkers {
   /** Repositions everything for this frame. */
   private goRight: boolean | null = null;
 
+
   draw(now: number, viewX: number, playerCx: number, reducedMotion: boolean): void {
     const sw = this.stage.clientWidth;
     const sh = this.stage.clientHeight;
@@ -168,7 +169,15 @@ export class GoalMarkers {
       if (this.goRight !== right) {
         this.goRight = right;
         this.go.classList.toggle("left", !right);
-        this.go.replaceChildren(icon(right ? "right" : "left"));
+      }
+      // The next goal is through a door: show an open doorway, not a play
+      // arrow, so "walk on to the next room" reads at a glance.
+      const door = next.room !== Math.floor(playerCx / this.viewW);
+      const pic = door ? (right ? "door" : "doorLeft") : right ? "right" : "left";
+      if (this.go.dataset.pic !== pic) {
+        this.go.dataset.pic = pic;
+        this.go.replaceChildren(icon(pic));
+        this.go.setAttribute("aria-label", door ? "Go to the next room" : "Walk to the next goal");
       }
       this.go.classList.toggle("hinting", this.hintLevel >= 1);
     }
