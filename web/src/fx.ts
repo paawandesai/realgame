@@ -779,7 +779,8 @@ export class FxLayer {
     if (out.suggestion) {
       const fix = document.createElement("button");
       fix.type = "button";
-      fix.textContent = `Fix it: ${prettyFormula(out.suggestion)}`;
+      // An arrow pointing at nothing gets a spell to use, not a fix.
+      fix.textContent = `${out.reason === "no_products" ? "Use it" : "Fix it"}: ${prettyFormula(out.suggestion)}`;
       const s = out.suggestion;
       fix.addEventListener("click", () => this.onFix(s));
       el.append(fix);

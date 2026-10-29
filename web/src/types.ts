@@ -158,6 +158,7 @@ export interface CastOutcome {
     | "no_change"
     | "noble_gas"
     | "unbalanced"
+    | "no_products"
     | "state"
     | "zero"
     | null;

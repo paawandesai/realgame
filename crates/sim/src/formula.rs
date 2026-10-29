@@ -418,7 +418,7 @@ impl Equation {
             .filter_map(|el| {
                 let l = left.get(el).copied().unwrap_or(0);
                 let r = right.get(el).copied().unwrap_or(0);
-                (l != r).then(|| format!("{el}: {l} on the left, {r} on the right"))
+                (l != r).then(|| format!("{el}: {l} before, {r} after"))
             })
             .collect()
     }
@@ -557,10 +557,7 @@ mod tests {
     fn detects_unbalanced() {
         let eq = parse_equation("H2 + O2 -> H2O").unwrap();
         assert!(!eq.is_balanced());
-        assert_eq!(
-            eq.imbalance_report(),
-            vec!["O: 2 on the left, 1 on the right"]
-        );
+        assert_eq!(eq.imbalance_report(), vec!["O: 2 before, 1 after"]);
     }
 
     #[test]

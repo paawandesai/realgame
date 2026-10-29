@@ -70,6 +70,10 @@ pub enum Plan {
         /// Lone hydrogen burns with oxygen from the air (about 21% O2).
         air_o2: bool,
         balanced: bool,
+        /// The player wrote only what goes in, with no arrow (`H2`,
+        /// `H2 + O2`): the products come from the book, so an uneven mix is
+        /// never called "not balanced" (it just runs out of one reagent).
+        mixed: bool,
     },
     Unknown {
         suggestion: Option<String>,
@@ -97,7 +101,7 @@ pub enum Rejection {
     /// A noble gas as a reactant (`He + O2 -> HeO2`), named by its symbol.
     NobleGas(String),
     /// Atoms do not add up and no known reaction matches. `counts` are
-    /// per-element lines ("O: 1 on the left, 2 on the right"). `pair` names a
+    /// per-element lines ("O: 1 before, 2 after"). `pair` names a
     /// diatomic gas written as a lone atom (`O` for `O2`).
     Unbalanced {
         counts: Vec<String>,
@@ -108,6 +112,9 @@ pub enum Rejection {
     WrongState(String),
     /// A digit zero where the letter O was meant (the suggestion holds the fix).
     ZeroForO,
+    /// An arrow with nothing after it (`H2 + O2 ->`): the player wrote the
+    /// reactants but not what they make. The suggestion holds a real spell.
+    NoProducts,
 }
 
 impl Rejection {
@@ -123,6 +130,7 @@ impl Rejection {
             Rejection::Unbalanced { .. } => "unbalanced",
             Rejection::WrongState(_) => "state",
             Rejection::ZeroForO => "zero",
+            Rejection::NoProducts => "no_products",
         }
     }
 }
@@ -292,6 +300,15 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
     if eq.reactants.is_empty() {
         return unknown(Rejection::Empty);
     }
+    // "H2 + O2 ->": an arrow pointing at nothing. Never invent the right-hand
+    // side and then call it unbalanced; ask what they make, and offer a real
+    // spell with these reactants.
+    if eq.has_arrow && eq.products.is_empty() {
+        return Plan::Unknown {
+            suggestion: spell_with_reactants(book, &eq).map(|known| known.to_string()),
+            reason: Rejection::NoProducts,
+        };
+    }
     // Hydrogen alone (with or without "-> H2O") burns in air.
     let lone_h2 = eq.reactants.len() == 1
         && eq.reactants[0].formula == "H2"
@@ -303,6 +320,7 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
             typed,
             air_o2: true,
             balanced: false,
+            mixed: !eq.has_arrow,
         };
     }
     if !eq.has_arrow && eq.reactants.len() == 1 {
@@ -366,7 +384,24 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
         typed,
         air_o2: false,
         balanced,
+        mixed: !eq.has_arrow,
     }
+}
+
+/// A book spell that starts from exactly these reactants, or else the first
+/// one that uses all of them (`H2 ->` is offered `2H2 + O2 -> 2H2O`).
+fn spell_with_reactants<'a>(book: &'a ReactionBook, eq: &Equation) -> Option<&'a Equation> {
+    if let Some((_, known)) = find_by_reactants(book, eq) {
+        return Some(known);
+    }
+    book.reactions
+        .iter()
+        .find(|(_, known)| {
+            eq.reactants
+                .iter()
+                .all(|t| known.reactants.iter().any(|k| k.formula == t.formula))
+        })
+        .map(|(_, known)| known)
 }
 
 /// Why an equation with no matching book reaction was rejected: a lone atom
@@ -839,6 +874,7 @@ mod tests {
             typed,
             balanced,
             air_o2,
+            ..
         } = plan(&book, "H2 + O2 -> H2O", false)
         else {
             panic!("should be a reaction");
@@ -868,11 +904,13 @@ mod tests {
             typed,
             balanced,
             air_o2,
+            mixed,
         } = p
         else {
             panic!("lone H2 should burn");
         };
         assert!(air_o2);
+        assert!(mixed, "no arrow: only reactants were written");
         let (reaction, known) = book.by_id(&reaction_id).unwrap();
         let r = resolve_reaction(
             reaction,
@@ -896,6 +934,7 @@ mod tests {
             typed,
             balanced,
             air_o2,
+            ..
         } = plan(&book, "H2 + O2 -> H2O", true)
         else {
             panic!()
@@ -922,6 +961,7 @@ mod tests {
             typed,
             balanced,
             air_o2,
+            ..
         } = plan(&book, "CH4 + 2O2 -> CO2 + 2H2O", false)
         else {
             panic!("should be a reaction");
@@ -1021,7 +1061,7 @@ mod tests {
         assert_eq!(
             reason(&book, "Na + Cl2 -> NaCl"),
             Rejection::Unbalanced {
-                counts: vec!["Cl: 2 on the left, 1 on the right".into()],
+                counts: vec!["Cl: 2 before, 1 after".into()],
                 pair: None,
             }
         );
@@ -1029,7 +1069,7 @@ mod tests {
         assert_eq!(
             reason(&book, "H2O -> H2 + O"),
             Rejection::Unbalanced {
-                counts: vec!["O: 1 on the left, 2 on the right".into()],
+                counts: vec!["O: 1 before, 2 after".into()],
                 pair: Some("O2".into()),
             }
         );

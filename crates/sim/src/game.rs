@@ -1122,6 +1122,7 @@ impl Game {
                 typed,
                 air_o2,
                 balanced,
+                ..
             } => {
                 let (mut reaction, known) = self
                     .book
@@ -1152,6 +1153,27 @@ impl Game {
             }
         };
         let mut res = res;
+        // Only reactants written, no arrow ("H2", "H2 + O2"): the book says
+        // what they make, so the mix is never called "not balanced".
+        let (mixed, lone) = match &plan {
+            Plan::React { mixed, air_o2, .. } => (*mixed, *mixed && *air_o2),
+            _ => (false, false),
+        };
+        let equation = if mixed {
+            if let Plan::React { typed, .. } = &plan {
+                crate::formula::Equation {
+                    reactants: typed.reactants.clone(),
+                    products: vec![],
+                    has_arrow: false,
+                    per: typed.per,
+                }
+                .to_string()
+            } else {
+                equation
+            }
+        } else {
+            equation
+        };
         // Splitting water costs energy (+571.7 kJ per 2 H2O). Away from a
         // crystal the battery must hold it, or nothing splits.
         let short_of_energy = spell == "split"
@@ -1191,7 +1213,7 @@ impl Game {
         let mut suggestion = None;
         let mut imbalance = vec![];
         if let Plan::React { typed, .. } = &plan {
-            if !balanced {
+            if !balanced && !mixed {
                 imbalance = typed.imbalance_report();
             }
         }
@@ -1285,7 +1307,16 @@ impl Game {
         let went = Self::where_products_went(spell, &res.products);
         let mut label = self.label(spell, outcome, &res, &unreacted);
         if let Plan::React { typed, .. } = &plan {
-            if !balanced {
+            if !balanced && mixed {
+                label = self.mixed_label(
+                    &equation,
+                    lone,
+                    outcome,
+                    &res,
+                    &unreacted,
+                    reacted.as_deref(),
+                );
+            } else if !balanced {
                 label = self.unbalanced_label(typed, outcome, &res, &unreacted, reacted.as_deref());
             } else if multiple > 1 && outcome == Outcome::Full && self.tier > Tier::Sprout {
                 label.push_str(&if multiple == 2 {
@@ -1306,7 +1337,7 @@ impl Game {
             }
         }
         let equation_states = match &plan {
-            Plan::React { typed, .. } if show_numbers => Some(
+            Plan::React { typed, .. } if show_numbers && !mixed => Some(
                 typed.with_states_from(
                     self.book
                         .by_id(reaction_id.as_deref().unwrap_or(""))
@@ -1493,6 +1524,15 @@ impl Game {
             Rejection::WrongState(term) => {
                 format!("{term}: that state is not in this trial yet")
             }
+            // Nothing after the arrow: ask, and offer a real spell (a Use-it
+            // chip). Nothing is cast, so no jar is touched.
+            Rejection::NoProducts => match (&suggestion, young) {
+                (_, true) => "What do they make?".into(),
+                (Some(s), false) => {
+                    format!("You wrote the reactants. What do they make? Try {s}")
+                }
+                (None, false) => "You wrote the reactants. What do they make?".into(),
+            },
         };
         CastOutcome {
             id,
@@ -1612,7 +1652,7 @@ impl Game {
                 _ => "Weak pop! Some left over.".into(),
             };
         }
-        // Name the imbalance per element: "O: 2 left, 1 right".
+        // Name the imbalance per element: "O: 2 before, 1 after".
         let left = crate::formula::side_atoms(&typed.reactants);
         let right = crate::formula::side_atoms(&typed.products);
         let mut els: Vec<&String> = left.keys().chain(right.keys()).collect();
@@ -1625,14 +1665,51 @@ impl Game {
                     left.get(el).copied().unwrap_or(0),
                     right.get(el).copied().unwrap_or(0),
                 );
-                (l != r).then(|| format!("{el}: {l} left, {r} right"))
+                (l != r).then(|| format!("{el}: {l} before, {r} after"))
             })
             .collect();
-        let mut lines = vec![if parts.is_empty() {
+        let not_balanced = if parts.is_empty() {
             "Not balanced.".to_string()
         } else {
             format!("Not balanced ({}).", parts.join("; "))
-        }];
+        };
+        // Seedling: one short line first (the card shows it alone, with the
+        // rest behind "Why?"), and never a fraction.
+        if self.tier == Tier::Seedling {
+            let first = if outcome == Outcome::Fizzle && !res.missing.is_empty() {
+                self.label("", outcome, res, &[])
+            } else if outcome == Outcome::Fizzle {
+                "Oops! Nothing paired up. Tap Fix it.".to_string()
+            } else {
+                let n: u32 = res.leftovers.values().sum();
+                if n == 0 {
+                    "Oops! The atoms don't match. Tap Fix it.".to_string()
+                } else {
+                    let verb = if n == 1 { "is" } else { "are" };
+                    format!(
+                        "Oops! {} {verb} left over. Tap Fix it.",
+                        Self::atoms_in_words(&res.leftovers)
+                    )
+                }
+            };
+            let mut lines = vec![first, not_balanced];
+            if outcome != Outcome::Fizzle {
+                let made: Vec<String> = res
+                    .products
+                    .iter()
+                    .filter(|(_, n)| **n > 0)
+                    .map(|(f, n)| format!("{n} {f}"))
+                    .collect();
+                if !made.is_empty() {
+                    lines.push(format!(
+                        "Only part of it reacted: it made {}.",
+                        made.join(" + ")
+                    ));
+                }
+            }
+            return lines.join("\n");
+        }
+        let mut lines = vec![not_balanced];
         if outcome == Outcome::Fizzle {
             lines.push(if res.missing.is_empty() {
                 "Nothing paired up. Fix it and cast again.".into()
@@ -1653,6 +1730,86 @@ impl Game {
             lines.push(format!("{} left over", unreacted.join(", ")));
         }
         lines.join("\n")
+    }
+
+    /// Reactants written with no arrow ("H2", "H2 + O2") ran as far as the
+    /// amounts allow. Says what was released and what happened, never "not
+    /// balanced": the player wrote no equation to balance.
+    fn mixed_label(
+        &self,
+        written: &str,
+        lone: bool,
+        outcome: Outcome,
+        res: &Resolution,
+        unreacted: &[String],
+        reacted: Option<&str>,
+    ) -> String {
+        if outcome == Outcome::Fizzle {
+            return self.label("", outcome, res, &[]);
+        }
+        let mut lines = vec![match (self.tier, lone) {
+            (Tier::Sprout, true) => return "Pop! It caught fire!".into(),
+            (Tier::Sprout, false) => return "Pop! Some left over.".into(),
+            (_, true) => format!("Released {written}, and it caught fire!"),
+            (_, false) => format!("Mixed {written}, and they reacted!"),
+        }];
+        let made: Vec<String> = res
+            .products
+            .iter()
+            .filter(|(_, n)| **n > 0)
+            .map(|(f, n)| format!("{n} {f}"))
+            .collect();
+        let made = made.join(" + ");
+        let air = if lone { " (O2 from the air)" } else { "" };
+        match (self.tier, reacted) {
+            (Tier::Apprentice, Some(eq)) => {
+                let sign = if res.dh_kj < 0.0 { "-" } else { "+" };
+                lines.push(format!(
+                    "What happened: {eq}{air}, ΔH {sign}{:.1} kJ",
+                    res.dh_kj.abs()
+                ));
+            }
+            // Seedlings never see half molecules: say it in words.
+            (_, Some(eq)) if eq.contains('/') || lone => {
+                lines.push(if lone {
+                    format!("What happened: it met oxygen in the air and made {made}")
+                } else {
+                    format!("What happened: they made {made}")
+                });
+            }
+            (_, Some(eq)) => lines.push(format!("What happened: {eq}")),
+            (_, None) => {}
+        }
+        if !unreacted.is_empty() {
+            if self.tier == Tier::Apprentice {
+                lines.push(format!("{} left over", unreacted.join(", ")));
+            } else {
+                lines.push(format!(
+                    "{} left over",
+                    Self::atoms_in_words(&res.leftovers)
+                ));
+            }
+        }
+        lines.join("\n")
+    }
+
+    /// Leftover atoms in words with no fractions: "1 oxygen atom".
+    fn atoms_in_words(atoms: &Atoms) -> String {
+        let parts: Vec<String> = atoms
+            .iter()
+            .filter(|(_, n)| **n > 0)
+            .map(|(el, n)| {
+                let name = match el.as_str() {
+                    "H" => "hydrogen",
+                    "O" => "oxygen",
+                    "C" => "carbon",
+                    "N" => "nitrogen",
+                    other => other,
+                };
+                format!("{n} {name} atom{}", if *n == 1 { "" } else { "s" })
+            })
+            .collect();
+        parts.join(" and ")
     }
 
     /// Where a cast's products ended up, in words: "2 H2O released as steam".
@@ -2523,9 +2680,10 @@ mod tests {
         assert!(!out.first_discovery, "a lopsided spell earns no page");
         assert_eq!(g.discovered, before);
         // Redesigned in playtest round 2: short lines, no flavour text.
+        // Round 3: counts say before/after, not left/right.
         assert_eq!(
             out.label,
-            "Not balanced (O: 2 left, 1 right).\nWhat reacted: H2 + 1/2 O2 -> H2O, ΔH -241.8 kJ\n1/2 O2 left over"
+            "Not balanced (O: 2 before, 1 after).\nWhat reacted: H2 + 1/2 O2 -> H2O, ΔH -241.8 kJ\n1/2 O2 left over"
         );
         assert!(!out.label.contains("+1 O"), "{}", out.label);
         assert!(!out.label.contains("Boom"), "{}", out.label);
@@ -2593,9 +2751,19 @@ mod tests {
                     "{text}: {reacted} ΔH {} vs {expected}",
                     out.dh_kj
                 );
-                assert!(out.label.starts_with("Not balanced ("), "{}", out.label);
-                assert!(out.label.contains(&format!("What reacted: {reacted}")));
-                assert!(out.label.contains("left over"), "{}", out.label);
+                if tier == Tier::Seedling {
+                    // Round 3: one short line first, the detail after it,
+                    // and no fractions anywhere.
+                    let first = out.label.lines().next().unwrap();
+                    assert!(first.starts_with("Oops! "), "{}", out.label);
+                    assert!(first.contains("left over"), "{}", out.label);
+                    assert!(out.label.contains("Not balanced ("), "{}", out.label);
+                    assert!(!out.label.contains('/'), "{}", out.label);
+                } else {
+                    assert!(out.label.starts_with("Not balanced ("), "{}", out.label);
+                    assert!(out.label.contains(&format!("What reacted: {reacted}")));
+                    assert!(out.label.contains("left over"), "{}", out.label);
+                }
                 if tier == Tier::Apprentice {
                     let sign = if out.dh_kj < 0.0 { "-" } else { "+" };
                     assert!(
@@ -2660,13 +2828,118 @@ mod tests {
     }
 
     #[test]
+    fn an_arrow_with_nothing_after_it_asks_what_they_make() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for (text, want) in [
+                ("H2 + O2 ->", "2H2 + O2 -> 2H2O"),
+                ("H2O ->", "2H2O -> 2H2 + O2"),
+                ("H2 ->", "2H2 + O2 -> 2H2O"),
+            ] {
+                let mut g = game(tier);
+                let jars = g.jars.clone();
+                let loose = g.loose.clone();
+                let out = g.cast(text);
+                assert_eq!(out.outcome, Outcome::Unknown, "{tier:?} {text}");
+                assert_eq!(out.reason, Some("no_products"));
+                assert_eq!(out.suggestion.as_deref(), Some(want), "{text}");
+                // Nothing made up, nothing called unbalanced, nothing spent.
+                for field in [&out.label, &out.equation] {
+                    assert!(!field.contains("Not balanced"), "{field}");
+                    assert!(
+                        !field.contains("2H2O(g)") && !field.contains("2H₂O"),
+                        "{field}"
+                    );
+                }
+                assert_eq!(out.equation, text);
+                assert!(out.imbalance.is_empty());
+                assert!(out.reacted.is_none() && out.products.is_empty());
+                settle(&mut g, 60);
+                assert_eq!(g.loose, loose, "{text}: no loose atoms change");
+                // The suit only ever refills by itself; no jar went down.
+                for (f, n) in &jars {
+                    assert!(
+                        g.jars.get(f).copied().unwrap_or(0) >= *n,
+                        "{text}: {f} spent"
+                    );
+                }
+                if tier != Tier::Sprout {
+                    assert_eq!(
+                        out.label,
+                        format!("You wrote the reactants. What do they make? Try {want}")
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_lone_gas_or_a_word_that_catches_fire_is_never_called_unbalanced() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for text in ["hydrogen", "H2", "2H2", "H2 + O2"] {
+                let mut g = game(tier);
+                let out = g.cast(text);
+                assert_eq!(out.outcome, Outcome::Partial, "{tier:?} {text}");
+                assert!(out.imbalance.is_empty(), "{text}");
+                for field in [&out.label, &out.equation] {
+                    assert!(!field.contains("Not balanced"), "{text}: {field}");
+                }
+                // The equation shown as the player's is what they wrote.
+                assert!(!out.equation.contains("->"), "{text}: {}", out.equation);
+                if tier == Tier::Sprout {
+                    continue;
+                }
+                let first = out.label.lines().next().unwrap();
+                if text == "H2 + O2" {
+                    assert_eq!(first, "Mixed H2 + O2, and they reacted!");
+                } else {
+                    let what = if text == "2H2" { "2H2" } else { "H2" };
+                    assert_eq!(first, format!("Released {what}, and it caught fire!"));
+                }
+                assert!(out.label.contains("\nWhat happened: "), "{}", out.label);
+                if tier == Tier::Seedling {
+                    assert!(!out.label.contains('/'), "{}", out.label);
+                } else {
+                    assert!(out.label.contains("ΔH"), "{}", out.label);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn not_balanced_counts_say_before_and_after() {
+        for tier in [Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            let out = g.cast("H2 + O2 -> H2O");
+            let line = out
+                .label
+                .lines()
+                .find(|l| l.starts_with("Not balanced"))
+                .expect("a not-balanced line");
+            assert!(
+                line.contains("before") || line.contains("reactants"),
+                "{line}"
+            );
+            assert!(
+                !line.contains(" left,") && !line.contains("right"),
+                "{line}"
+            );
+            for count in &out.imbalance {
+                assert!(
+                    count.contains("before") && !count.contains("left"),
+                    "{count}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn excess_reagent_is_named_as_whole_molecules() {
         let mut g = game(Tier::Apprentice);
         let out = g.cast("3H2 + O2 -> 2H2O");
         assert_eq!(out.outcome, Outcome::Partial);
         assert_eq!(out.unreacted, ["1 H2"]);
         assert!(out.label.contains("1 H2 left over"), "{}", out.label);
-        assert!(out.label.contains("H: 6 left, 4 right"), "{}", out.label);
+        assert!(out.label.contains("H: 6 before, 4 after"), "{}", out.label);
         assert!(!out.label.contains("excess"), "{}", out.label);
     }
 
@@ -2776,14 +3049,20 @@ mod tests {
         assert!(!r.imbalance.is_empty());
         assert!(!r.first_discovery);
         assert!(g.discovered.is_empty());
+        // Round 3: one short line (the card shows it alone), then the detail
+        // behind "Why?", with no fractions.
         assert!(
-            r.label.starts_with("Not balanced (O: 2 left, 1 right)."),
+            r.label
+                .starts_with("Oops! 1 oxygen atom is left over. Tap Fix it.\nNot balanced (O: 2 before, 1 after)."),
             "{}",
             r.label
         );
-        // Seedling: no ΔH and no "unreacted (excess)", just what was left.
-        assert!(r.label.contains("What reacted: H2 + 1/2 O2 -> H2O"));
-        assert!(r.label.contains("1/2 O2 left over"), "{}", r.label);
+        assert!(r.label.contains("it made 1 H2O"), "{}", r.label);
+        assert!(
+            !r.label.contains('/') && !r.label.contains('½'),
+            "{}",
+            r.label
+        );
         assert!(!r.label.contains("ΔH") && !r.label.contains("excess"));
     }
 
@@ -2847,7 +3126,7 @@ mod tests {
             (
                 "H2O -> H2 + O",
                 "unbalanced",
-                "O gas comes in pairs: O2. Then O: 1 on the left, 2 on the right",
+                "O gas comes in pairs: O2. Then O: 1 before, 2 after",
             ),
         ];
         for (text, code, label) in cases {
