@@ -164,6 +164,9 @@ export class FxLayer {
   /** How far the world layers are raised (px) to keep the player above the
    * bottom HUD. Framing, not motion, so it applies under Calm motion too. */
   liftPx = 0;
+  /** HUD popups the cast-result bubble must steer clear of (the Grimoire
+   * card, Mote's caption, the objective banner). Hidden ones are skipped. */
+  avoid: () => (HTMLElement | null)[] = () => [];
 
   /** Another world-anchored layer (goal markers) that moves with the world. */
   follow(el: HTMLElement): void {
@@ -570,8 +573,46 @@ export class FxLayer {
       tx = x > sw / 2 ? x - lw / 2 - LABEL_GAP_PX : x + lw / 2 + LABEL_GAP_PX;
       tx = Math.max(half, Math.min(sw - half, tx));
     }
+    [tx, ty] = this.clearOfPopups(tx, ty, lw, lh, sw, sh);
     l.el.style.left = `${tx}px`;
     l.el.style.top = `${ty}px`;
+  }
+
+  /** Moves a label (centre `tx`, top `ty`) off any visible HUD popup: below
+   * it, above it, or beside it, whichever first stays on the stage. */
+  private clearOfPopups(tx: number, ty: number, lw: number, lh: number, sw: number, sh: number): [number, number] {
+    const s = this.stage.getBoundingClientRect();
+    const rects: DOMRect[] = [];
+    for (const el of this.avoid()) {
+      if (!el || el.hidden || el.offsetParent === null) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      rects.push(new DOMRect(r.left - s.left, r.top - s.top, r.width, r.height));
+    }
+    const pad = 8;
+    const hits = (x: number, y: number) =>
+      rects.find((r) => x - lw / 2 < r.right + pad && x + lw / 2 > r.left - pad && y < r.bottom + pad && y + lh > r.top - pad);
+    const fits = (x: number, y: number) => x - lw / 2 >= 0 && x + lw / 2 <= sw && y >= 0 && y + lh <= sh;
+    let hit = hits(tx, ty);
+    if (!hit) return [tx, ty];
+    // Try each way out of each popup in the way, nearest first.
+    for (let tries = 0; hit && tries < 4; tries++) {
+      const r = hit;
+      const options: [number, number][] = [
+        [tx, r.bottom + pad + 1],
+        [tx, r.top - pad - lh - 1],
+        [r.left - pad - lw / 2 - 1, ty],
+        [r.right + pad + lw / 2 + 1, ty],
+      ];
+      options.sort((a, b) => Math.hypot(a[0] - tx, a[1] - ty) - Math.hypot(b[0] - tx, b[1] - ty));
+      const ok = options.find(([x, y]) => fits(x, y) && !hits(x, y));
+      if (ok) return ok;
+      const next = options.find(([x, y]) => fits(x, y));
+      if (!next) break;
+      [tx, ty] = next;
+      hit = hits(tx, ty);
+    }
+    return [tx, ty];
   }
 
   // ----------------------------------------------------------------- draw

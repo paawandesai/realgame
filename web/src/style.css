@@ -781,8 +781,9 @@ body[data-tier="seedling"] #readout {
   z-index: 4;
 }
 
+/* Ends before the room dots (right 158px, up to 140px wide) with a gap. */
 #mote {
-  max-width: calc(100% - 340px);
+  max-width: calc(100% - 84px - 158px - 140px - 16px);
 }
 
 body[data-tier="sprout"] #mote,
@@ -1164,20 +1165,31 @@ body.cast-full #spellbar {
   background: #22303d;
 }
 
+/* The molecule's "how many": tap to count up (1-4, then round again). */
 .bar-coef {
+  position: relative;
   min-width: 44px;
   min-height: 44px;
   padding: 0;
   font-weight: 700;
   font-size: 1.2rem;
+  border: 2px solid var(--accent);
+}
+
+.bar-coef::after {
+  content: "▴";
+  position: absolute;
+  right: 3px;
+  top: 0;
+  font-size: 0.7rem;
+  color: var(--accent);
 }
 
 .bar-coef.one {
   color: var(--quiet);
 }
 
-.bar-coef.fix,
-.tray-tile.coef.fix {
+.bar-coef.fix {
   border: 3px solid #f0c75e;
   color: #f0c75e;
   animation: pulse-gold 0.9s ease-in-out infinite;
@@ -1194,12 +1206,6 @@ body.cast-full #spellbar {
 
 .bar-chip.arrow {
   color: var(--accent);
-}
-
-.bar-chip.pending {
-  padding: 2px 8px;
-  border: 2px dashed var(--accent);
-  border-radius: 6px;
 }
 
 .bar-chip.empty {
@@ -1243,11 +1249,6 @@ body.cast-full #spellbar {
 
 .tray-tile .formula {
   font-size: 1rem;
-}
-
-.tray-tile.coef.selected {
-  border-color: var(--accent);
-  background: #0f766e;
 }
 
 #scale {
@@ -1653,17 +1654,20 @@ body[data-tier="apprentice"] #jars-mini {
   animation: card-flip 0.9s cubic-bezier(0.3, 1.4, 0.5, 1);
 }
 
+/* Face-on from the first frame: it grows and brightens, never edge-on. */
 @keyframes card-flip {
-  0% { transform: rotateY(180deg) scale(0.7); filter: brightness(0.2); }
-  50% { transform: rotateY(90deg) scale(1.05); filter: brightness(0.6); }
-  100% { transform: none; filter: none; }
+  0% { transform: scale(0.6); opacity: 0; filter: brightness(1.8); }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: none; opacity: 1; filter: none; }
 }
 
+/* The popup corner: under the Grimoire button, clear of the caption (top
+   left), the room dots and the cast-result bubble (which steers around it). */
 #discover {
   position: absolute;
-  left: 50%;
-  top: 22%;
-  transform: translateX(-50%);
+  right: 10px;
+  top: 84px;
+  max-width: 200px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1674,12 +1678,30 @@ body[data-tier="apprentice"] #jars-mini {
 }
 
 #discover .grim-card {
-  width: 200px;
-  box-shadow: 0 0 30px rgba(240, 199, 94, 0.7);
+  width: 180px;
+  box-shadow: 0 0 24px rgba(240, 199, 94, 0.7);
+}
+
+/* The popup copy shows the picture, name, equation and ΔH; the rest is in the book. */
+.grim-card.compact .grim-words,
+.grim-card.compact .grim-note,
+.grim-card.compact .grim-src,
+.grim-card.compact .grim-why,
+.grim-card.compact .grim-back {
+  display: none;
+}
+
+.popup-in {
+  animation: popup-in 0.2s ease-out;
+}
+
+@keyframes popup-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .discover-title {
-  font-size: 1.4rem;
+  font-size: 1.15rem;
   color: #f0c75e;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
 }
@@ -1713,11 +1735,65 @@ body[data-tier="apprentice"] #jars-mini {
   min-width: 180px;
 }
 
+/* The spell row: as many slots as fit, then a "+N" button with the rest. */
+#slots-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 #slots {
   flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
+}
+
+/* Narrow: picture and number only (the name is on the hover card). */
+#slots.compact .slot-name {
+  display: none;
+}
+
+#slots.compact .slot {
+  padding: 4px;
+}
+
+#slots-more {
+  flex: none;
+  min-width: 52px;
+  min-height: 44px;
+  font-weight: 700;
+  border-color: var(--accent);
+}
+
+#slots-more-list {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid var(--accent);
+  z-index: 8;
+}
+
+#slots-more-list .slot {
+  max-width: none;
+}
+
+/* The heat lens has its own corner, above the spell bar on the right. */
+#lens-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 90px;
+  min-height: 44px;
+  background: var(--panel);
+  z-index: 3;
 }
 
 .slot {
@@ -1792,6 +1868,8 @@ body[data-tier="apprentice"] #jars-mini {
     left: auto;
     right: 10px;
     bottom: 10px;
+    /* Clear of the move buttons on the left. */
+    max-width: calc(100% - 240px);
     padding: 0;
     gap: 6px;
     background: none;
@@ -1809,6 +1887,14 @@ body[data-tier="apprentice"] #jars-mini {
   #lens-btn .lens-icon {
     display: inline;
     font-weight: 700;
+  }
+
+  #lens-btn {
+    width: 56px;
+    height: 56px;
+    padding: 8px;
+    bottom: 76px;
+    background: var(--panel-solid);
   }
 
   .slot,
@@ -2003,11 +2089,11 @@ body[data-tier="apprentice"] #jars-mini {
   }
 
   #discover {
-    top: 10%;
+    top: 62px;
   }
 
   #discover .grim-card {
-    width: 160px;
+    width: 150px;
   }
 
   /* Above the world's middle, not over it. */

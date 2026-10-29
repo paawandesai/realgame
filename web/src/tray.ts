@@ -1,6 +1,7 @@
-// Seedling spell building: a tray of picture tiles (molecules, coefficients,
-// "+" and "->") that snap into a spell bar, with a live balance scale that
-// counts the atoms on each side and tips until they match.
+// Seedling spell building: a tray of picture tiles (molecules, "+" and "->")
+// that snap into a spell bar, with a live balance scale that counts the atoms
+// on each side and tips until they match. Each molecule in the bar has one
+// control for how many: tap its number to count 1, 2, 3, 4 and round again.
 
 import { words } from "./device";
 import { ATOM_COLOR, atomsOf, molecule } from "./icons";
@@ -50,9 +51,13 @@ export function parseSpell(text: string): Token[] {
   return out;
 }
 
+/** Most molecules a spell can hold (the game's reactions use at most four). */
+const MAX_MOLECULES = 5;
+/** Largest number the per-molecule counter goes to before wrapping to 1. */
+const MAX_COEF = 4;
+
 export class SpellTray {
   private tokens: Token[] = [];
-  private pendingCoef: number | null = null;
   /** Coefficients a one-tap fix would set, by molecule token index. */
   private fixes = new Map<number, number>();
   private readonly bar: HTMLElement;
@@ -60,7 +65,6 @@ export class SpellTray {
   private readonly beam: HTMLElement;
   private readonly pans: [HTMLElement, HTMLElement];
   private readonly scaleLabel: HTMLElement;
-  private readonly coefTiles = new Map<number, HTMLButtonElement>();
   private readonly molTiles = new Map<string, HTMLButtonElement>();
 
   constructor(
@@ -110,12 +114,6 @@ export class SpellTray {
       tiles.append(b);
       this.molTiles.set(m.formula, b);
     }
-    for (const n of [1, 2, 3, 4]) {
-      const b = button(String(n), `${n} of the next one`, "tray-tile coef", () => this.setCoef(n));
-      b.dataset.coef = String(n);
-      tiles.append(b);
-      this.coefTiles.set(n, b);
-    }
     tiles.append(
       button("+", "plus", "tray-tile op", () => this.addPlus()),
       button("→", "makes", "tray-tile op", () => this.addArrow()),
@@ -137,7 +135,6 @@ export class SpellTray {
 
   set(text: string): void {
     this.tokens = parseSpell(text);
-    this.pendingCoef = null;
     this.fixes.clear();
     this.render();
   }
@@ -171,17 +168,15 @@ export class SpellTray {
   }
 
   private addMolecule(formula: string): void {
+    if (this.tokens.filter((t) => t.kind === "mol").length >= MAX_MOLECULES) {
+      this.onSpeak(words("Your spell is full. Tap Clear to start again."));
+      return;
+    }
     const last = this.tokens[this.tokens.length - 1];
     // Two molecules in a row on one side are joined with "+".
     if (last?.kind === "mol") this.tokens.push({ kind: "plus" });
-    this.tokens.push({ kind: "mol", formula, coef: this.pendingCoef ?? 1 });
-    this.pendingCoef = null;
+    this.tokens.push({ kind: "mol", formula, coef: 1 });
     this.changed();
-  }
-
-  private setCoef(n: number): void {
-    this.pendingCoef = n;
-    this.render();
   }
 
   private addPlus(): void {
@@ -199,16 +194,16 @@ export class SpellTray {
   }
 
   private backspace(): void {
-    if (this.pendingCoef !== null) this.pendingCoef = null;
-    else this.tokens.pop();
+    this.tokens.pop();
     this.changed();
   }
 
+  /** The one "how many" control: this molecule only, 1 -> 2 -> 3 -> 4 -> 1. */
   private cycleCoef(i: number): void {
     const t = this.tokens[i];
     if (t?.kind !== "mol") return;
-    const fix = this.fixes.get(i);
-    t.coef = fix ?? (t.coef % 4) + 1;
+    t.coef = (t.coef % MAX_COEF) + 1;
+    // A pulsing fix on this molecule is answered (either way) once tapped.
     this.fixes.delete(i);
     this.render();
     if (this.balanced()) this.onSpeak("Balanced!");
@@ -234,10 +229,10 @@ export class SpellTray {
       else {
         const c = document.createElement("span");
         c.className = "bar-term";
-        const fix = this.fixes.get(i);
-        const coef = button(fix ? String(fix) : t.coef > 1 ? String(t.coef) : "1", `How many ${t.formula}`, "bar-coef", () => this.cycleCoef(i));
-        if (fix) coef.classList.add("fix");
-        else if (t.coef === 1) coef.classList.add("one");
+        // Always the molecule's own number; a suggested fix only pulses it.
+        const coef = button(String(t.coef), `How many ${t.formula}: ${t.coef}. Tap for more.`, "bar-coef", () => this.cycleCoef(i));
+        if (this.fixes.has(i)) coef.classList.add("fix");
+        if (t.coef === 1) coef.classList.add("one");
         coef.dataset.index = String(i);
         const f = document.createElement("span");
         f.className = "bar-formula";
@@ -246,13 +241,7 @@ export class SpellTray {
         this.bar.append(c);
       }
     });
-    if (this.pendingCoef !== null) this.bar.append(chip(String(this.pendingCoef), "pending"));
-    if (this.tokens.length === 0 && this.pendingCoef === null) this.bar.append(chip(words("Tap tiles to build a spell"), "empty"));
-    for (const [n, b] of this.coefTiles) {
-      b.classList.toggle("selected", this.pendingCoef === n);
-      // After a partial cast, the coefficient that fixes it pulses.
-      b.classList.toggle("fix", [...this.fixes.values()].includes(n));
-    }
+    if (this.tokens.length === 0) this.bar.append(chip(words("Tap tiles to build a spell"), "empty"));
     this.renderScale();
   }
 

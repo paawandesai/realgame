@@ -9,12 +9,11 @@ import { storageGet, storageSet } from "./prefs";
 import { prettyFormula, type Tier } from "./types";
 
 const KEY = "grimoire";
-const CONFETTI = 28;
+const CONFETTI = 20;
 const CONFETTI_COLORS = ["#e69f00", "#56b4e9", "#009e73", "#f0e442", "#0072b2", "#d55e00", "#cc79a7"];
 
 export class Grimoire {
   readonly found = new Set<string>();
-  private popTimer = 0;
 
   constructor(
     private readonly book: Book,
@@ -48,12 +47,18 @@ export class Grimoire {
     list.replaceChildren(...GRIMOIRE_PAGES.map((p) => this.card(p.id, flip.has(p.id))));
   }
 
-  /** The "new page" moment: the card flips face up in the middle of the screen, with confetti. */
+  /**
+   * The "new page" moment: a compact copy of the card pops face up in the
+   * popup corner, with a little confetti. Fills `host`; the caller shows and
+   * hides it (one popup at a time).
+   */
   celebrate(host: HTMLElement, id: string, calm: boolean): void {
     const title = document.createElement("strong");
     title.className = "discover-title";
     title.textContent = this.tier === "sprout" ? "New card!" : "New Grimoire page!";
     const card = this.card(id, true);
+    card.classList.add("compact");
+    card.removeAttribute("tabindex");
     const parts: HTMLElement[] = [title, card];
     if (!calm) {
       const burst = document.createElement("div");
@@ -62,19 +67,17 @@ export class Grimoire {
       for (let i = 0; i < CONFETTI; i++) {
         const c = document.createElement("span");
         const angle = (i / CONFETTI) * Math.PI * 2;
-        const dist = 120 + (i % 5) * 30;
+        const dist = 50 + (i % 5) * 14;
         c.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
-        c.style.setProperty("--dy", `${Math.sin(angle) * dist - 40}px`);
+        c.style.setProperty("--dy", `${Math.sin(angle) * dist - 20}px`);
         c.style.setProperty("--rot", `${(i * 47) % 360}deg`);
         c.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length]!;
         burst.append(c);
       }
       parts.push(burst);
     }
+    // Replaced, never added to: the popup holds one card at a time.
     host.replaceChildren(...parts);
-    host.hidden = false;
-    window.clearTimeout(this.popTimer);
-    this.popTimer = window.setTimeout(() => (host.hidden = true), 3200);
   }
 
   private card(id: string, flip: boolean): HTMLLIElement {

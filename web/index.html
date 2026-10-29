@@ -57,16 +57,20 @@
 
         <section id="hud-bottom" hidden>
           <div id="caster">
-            <input id="cast-input" type="text" maxlength="64" autocomplete="off" spellcheck="false" enterkeyhint="go" aria-label="Type a formula or a word, then press Enter to cast" placeholder="Type a spell (try water)" />
+            <input id="cast-input" type="text" maxlength="64" autocomplete="off" spellcheck="false" enterkeyhint="go" aria-label="Type a formula or a word, then press Enter to cast" placeholder="Try: water" />
             <button id="cast-go" type="button" class="primary">Cast</button>
           </div>
-          <div id="slots" aria-label="Grimoire spells, keys 1 to 5"></div>
+          <div id="slots-wrap">
+            <div id="slots" aria-label="Grimoire spells, keys 1 to 9"></div>
+            <button id="slots-more" type="button" aria-expanded="false" aria-controls="slots-more-list" hidden></button>
+            <div id="slots-more-list" role="group" aria-label="More spells" hidden></div>
+          </div>
           <div class="hud-buttons">
-            <button id="lens-btn" type="button" aria-pressed="false" aria-label="Heat lens"><span class="lens-word">Heat lens</span><span class="lens-icon" aria-hidden="true">°C</span> <kbd>L</kbd></button>
             <button id="app-write" type="button" class="touch-only" aria-label="Write a spell"></button>
             <button id="app-gather" type="button" class="touch-only" data-hold="gather" aria-label="Gather"></button>
           </div>
         </section>
+        <button id="lens-btn" type="button" aria-pressed="false" aria-label="Heat lens" hidden><span class="lens-word">Heat lens</span><span class="lens-icon" aria-hidden="true">°C</span> <kbd>L</kbd></button>
         <p id="app-tutorial" hidden><span id="app-tutorial-text"></span> <button id="tutorial-skip" type="button">Skip</button></p>
         <div id="challenge" role="status" aria-live="polite" hidden></div>
 

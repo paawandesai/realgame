@@ -95,6 +95,8 @@ export class GoalMarkers {
       const m = this.markers[i]!;
       if (m.el.dataset.kind !== g.kind) {
         m.el.dataset.kind = g.kind;
+        // Swap the picture, never stack a second one.
+        m.el.querySelector(":scope > .icon")?.remove();
         m.el.prepend(icon(GOAL_ICON[g.kind]));
       }
       m.el.dataset.room = String(g.room);
