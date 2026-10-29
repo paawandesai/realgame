@@ -630,6 +630,19 @@ export class FxLayer {
     this.applyShake(now);
   }
 
+  /** Counts of what is on screen right now (for automated checks). */
+  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number } {
+    let particles = 0;
+    for (const p of this.pool) if (p.alive) particles++;
+    return {
+      particles,
+      bolts: this.bolts.length,
+      ghosts: this.ghosts.length,
+      flashes: this.flashes.length,
+      labels: this.labels.length,
+    };
+  }
+
   /** Whether anything is drawn on the overlay canvas this frame. */
   private busy(now: number): boolean {
     if (this.charges.length || this.bolts.length || this.flashes.length || this.orbs.length || this.ghosts.length) {

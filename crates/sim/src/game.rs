@@ -67,6 +67,9 @@ const GATHER_RADIUS: i32 = 48;
 /// Sprout and Seedling aim at the obvious target when the player has not
 /// aimed on purpose for this long (3 s).
 const AUTO_AIM_TICKS: u64 = 180;
+/// Pointing within this many cells of a goal marker locks onto that goal's
+/// real target, on every tier (the marker floats a little off the target).
+const MARKER_SNAP: f32 = 12.0;
 pub const PLAYER_W: f32 = 6.0;
 pub const PLAYER_H: f32 = 12.0;
 /// Where a new trial starts: beside the burning hedge, already within soft
@@ -1201,11 +1204,13 @@ impl Game {
                 (hy as i32).min(HEIGHT as i32 - 1),
             );
         }
-        if self.tier > Tier::Seedling {
-            return;
-        }
-        if !never_aimed && self.ticks.saturating_sub(self.aim_tick) <= AUTO_AIM_TICKS {
-            return;
+        if !self.aim_on_goal_marker() {
+            if self.tier > Tier::Seedling {
+                return;
+            }
+            if !never_aimed && self.ticks.saturating_sub(self.aim_tick) <= AUTO_AIM_TICKS {
+                return;
+            }
         }
         let douse =
             matches!(plan, Plan::Release { formula, .. } if formula == "H2O" || formula == "CO2");
@@ -1254,6 +1259,14 @@ impl Game {
         if let Some(p) = found {
             self.aim = p;
         }
+    }
+
+    /// Whether the aim rests on the marker of a goal not yet done.
+    fn aim_on_goal_marker(&self) -> bool {
+        let (ax, ay) = (self.aim.0 as f32, self.aim.1 as f32);
+        self.goals().iter().any(|g| {
+            !g.done && ((g.x as f32 - ax).powi(2) + (g.y as f32 - ay).powi(2)).sqrt() <= MARKER_SNAP
+        })
     }
 
     /// Sends a resolved spell flying from the hand toward the aim.

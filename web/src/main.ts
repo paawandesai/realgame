@@ -68,6 +68,22 @@ function speakNow(line: string): void {
   }
 }
 
+/** Apprentice type-ahead: keys more than this far apart are separate actions. */
+const TYPE_GAP_MS = 700;
+/** How long a number key waits to see whether a formula follows ("2H2"). */
+const HOTKEY_WAIT_MS = 250;
+/** Words the spell box understands (see ALIASES in crates/sim/src/spell.rs). */
+const SPELL_WORDS = ["water", "h20", "fire", "boom", "pop", "split", "bubbles", "hydrogen", "oxygen", "cloud", "smother", "co2"];
+
+/** Whether `text` (at least two keys) is how a spell word or formula begins. */
+function startsSpell(text: string): boolean {
+  const t = text.toLowerCase();
+  if (t.length < 2) return false;
+  // A coefficient, then an element this game uses (H, O, C, Cl) or a bracket.
+  if (/^[1-9][hoc(]/.test(t)) return true;
+  return SPELL_WORDS.some((w) => w.startsWith(t));
+}
+
 /** The WebGL renderer is opt-in with ?gl=1 (and ?gl=0 always keeps Canvas2D). */
 function wantWebGl(): boolean {
   return new URLSearchParams(window.location.search).get("gl") === "1";
@@ -275,6 +291,17 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   });
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+  // A HUD button clicked with a mouse or finger hands focus back to the game,
+  // so Space jumps and Enter casts instead of pressing that button again.
+  // Keyboard users (detail 0) keep focus where they put it, and dialogs keep
+  // theirs.
+  document.addEventListener("click", (e) => {
+    if (e.detail === 0 || !(e.target instanceof Element)) return;
+    const b = e.target.closest("button");
+    if (!b || b.closest("#settings, #grimoire-panel, #end, #start")) return;
+    if (document.activeElement === b) b.blur();
+  });
+
   /** Buttons, inputs and selects handle Enter and Space themselves. */
   const isControl = (t: EventTarget | null): boolean =>
     t instanceof HTMLElement && t.closest("button, input, select, textarea, [contenteditable]") !== null;
@@ -290,10 +317,25 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (!menu.hidden || !byId("end").hidden) return;
     if ((k === "enter" || k === " ") && isControl(e.target)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (k === "l") setLens(!lens);
-    else if (k === "q" && tier !== "sprout") ring.toggle();
-    else if (k === "b" || k === "n") toggleGrimoire();
-    else if (k === "tab" && castInput && !isControl(e.target)) {
+    // Apprentices type spells straight into the game; remember recent keys so
+    // a word that starts with a game key ("water", "boom") or a formula that
+    // starts with a digit ("2H2 + O2") still reaches the spell box whole.
+    if (castInput && !e.repeat && e.key.length === 1) {
+      const now = performance.now();
+      if (now - typed.at > TYPE_GAP_MS) typed.keys = [];
+      typed.at = now;
+    }
+    if (k === "l") {
+      setLens(!lens);
+      remember(e, () => setLens(!lens));
+    } else if (k === "q" && tier !== "sprout") {
+      ring.toggle();
+      remember(e, () => ring.toggle(false));
+    } else if (k === "b" || k === "n") {
+      const was = !grimPanel.hidden;
+      toggleGrimoire();
+      remember(e, () => toggleGrimoire(was));
+    } else if (k === "tab" && castInput && !isControl(e.target)) {
       // Tab from the game (not from a button) picks the next Grimoire spell.
       e.preventDefault();
       cycleSpell(e.shiftKey ? -1 : 1);
@@ -307,20 +349,63 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       return;
     } else if (/^[1-9]$/.test(k) && !e.repeat) {
       const spell = tier === "sprout" ? CARDS[Number(k) - 1]?.spell : slots[Number(k) - 1];
-      if (spell && (tier !== "sprout" || cards?.element(spell as CardSpell))) requestCast(spell);
-    } else if (k === " ") e.preventDefault();
-    else if (castInput && /^[a-z(]$/i.test(e.key) && !GAME_KEYS.has(k)) {
+      if (!spell || (tier === "sprout" && !cards?.element(spell as CardSpell))) return;
+      if (castInput) {
+        // A hotkey fires a moment later, unless it was the start of a formula.
+        cancelHotkey();
+        pendingHotkey = window.setTimeout(() => {
+          pendingHotkey = 0;
+          // Cast for real now: these keys can no longer start a formula.
+          typed.keys = [];
+          requestCast(spell);
+        }, HOTKEY_WAIT_MS);
+        remember(e, cancelHotkey);
+        return;
+      }
+      requestCast(spell);
+    } else if (k === " ") {
+      e.preventDefault();
+      remember(e, null);
+    } else if (castInput && /^[a-z(]$/i.test(e.key) && !GAME_KEYS.has(k)) {
       // Starting to type a formula ("H2O", "CO2", "oxygen") anywhere opens the box.
       e.preventDefault();
+      const lead = typeAheadLead(e.key);
+      keys.clear();
       focusCastBox("");
-      castInput.value = e.key;
+      castInput.value = lead + e.key;
       return;
-    }
+    } else remember(e, null);
     if (["a", "d", "arrowleft", "arrowright", " ", "w", "arrowup"].includes(k)) autoWalk = null;
     keys.add(k);
   });
   window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
   window.addEventListener("blur", () => keys.clear());
+
+  /** Keys typed in quick succession, with how to undo what each one did. */
+  const typed: { at: number; keys: { ch: string; undo: (() => void) | null }[] } = { at: 0, keys: [] };
+  let pendingHotkey = 0;
+  function cancelHotkey(): void {
+    window.clearTimeout(pendingHotkey);
+    pendingHotkey = 0;
+  }
+  function remember(e: KeyboardEvent, undo: (() => void) | null): void {
+    if (castInput && !e.repeat && e.key.length === 1) typed.keys.push({ ch: e.key, undo });
+  }
+  /** The run of just-typed keys that, with `ch`, starts a spell word or a
+   * formula; what those keys did (a hop, the Grimoire, a hotkey) is undone. */
+  function typeAheadLead(ch: string): string {
+    const list = typed.keys;
+    typed.keys = [];
+    for (let n = list.length; n > 0; n--) {
+      const run = list.slice(-n);
+      const lead = run.map((t) => t.ch).join("");
+      if (startsSpell(lead + ch)) {
+        for (const t of run.reverse()) t.undo?.();
+        return lead;
+      }
+    }
+    return "";
+  }
 
   // On-screen move buttons (always shown to the younger tiers, on touch for all).
   const held = new Set<string>();
@@ -1120,6 +1205,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       emissive: () => Array.from(game.emissive()),
       frameParts: () => [...frameParts],
       renderer: () => (gl ? "webgl" : "2d"),
+      fxStats: () => fx.stats(),
+      room: () => game.room(),
     };
   }
 

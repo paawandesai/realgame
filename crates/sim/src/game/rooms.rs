@@ -1018,8 +1018,10 @@ impl Game {
             Goal {
                 room: 2,
                 kind: "ice",
+                // On the ice itself (above it is solid rock), so pointing at
+                // the marker points at the wall.
                 x: ix,
-                y: ICE.y0 - 8,
+                y: ICE.y0 + 6,
                 done: r.gates_open[1],
                 meter: None,
                 need: "boom",
@@ -1341,6 +1343,38 @@ mod tests {
     }
 
     // ------------------------------------------------------------- room 2
+
+    /// An Apprentice who points at the goal marker (as a naive player does)
+    /// opens the ice gate too: the marker sits on the ice and pointing near
+    /// any marker locks onto that goal's target.
+    #[test]
+    fn pointing_at_the_ice_marker_melts_the_ice() {
+        for seed in SEEDS {
+            let mut g = Game::new(Tier::Apprentice, seed);
+            teleport(&mut g, 440.0);
+            let marker = g.goals()[1].clone();
+            assert!(ICE.contains(marker.x, marker.y), "marker on the ice");
+            let start = g.ticks;
+            let mut booms = 0;
+            while !g.rooms.gates_open[1] && g.ticks - start < 3000 {
+                if g.jars["H2"] >= 2 && g.jars["O2"] >= 1 {
+                    // A little above the marker, on the rock: still locks on.
+                    let out = cast_at(&mut g, "2H2 + O2 -> 2H2O", (marker.x, marker.y - 10));
+                    assert_eq!(out.outcome, Outcome::Full);
+                    booms += 1;
+                    settle(&mut g, 40);
+                } else {
+                    settle(&mut g, 20);
+                }
+            }
+            assert!(
+                g.rooms.gates_open[1],
+                "seed {seed}: {} ice left after {booms} booms",
+                g.rooms.ice_left
+            );
+            assert!(booms <= 4, "seed {seed}: took {booms} booms");
+        }
+    }
 
     #[test]
     fn booms_at_the_ice_melt_it_and_open_gate_2() {
