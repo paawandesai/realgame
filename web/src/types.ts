@@ -45,6 +45,10 @@ export interface Goal {
   done: boolean;
   /** "Fire left", 0..1, for the burning hedges. */
   meter: number | null;
+  /** The spell that moves this goal on right now. */
+  need: "water" | "boom" | "split";
+  /** Where to stand (player centre, world cells) to cast it. */
+  stand_x: number;
 }
 
 export interface TorchView {

@@ -3,7 +3,8 @@
 // labels and screen shake. Presentation only: nothing here feeds back into
 // the simulation. Strength comes from the sourced enthalpy on each event.
 
-import { prettyFormula, type CastOutcome, type Fx, type Goal, type Tier } from "./types";
+import { equationBalls } from "./icons";
+import { prettyFormula, type CastOutcome, type Fx, type Tier } from "./types";
 
 const POOL_SIZE = 512;
 /** Bolts fly 6 cells per tick in the sim; 60 ticks a second. */
@@ -26,14 +27,6 @@ const COLOR = {
   co2: "#cfd6dd",
   gold: "#f0c75e",
 } as const;
-
-/** Goal markers: an emoji on a badge (the badge keeps it visible without an emoji font). */
-const GOAL_ICONS: Record<Goal["kind"], string> = {
-  fire: "🔥",
-  ice: "🧊",
-  gas: "🫧",
-  brazier: "🏮",
-};
 
 const ICONS: Record<string, string> = {
   H2O: "💧",
@@ -86,6 +79,8 @@ interface Orb {
   ty: number;
   born: number;
   text: string;
+  /** The orb's label as page text, so it can be read (and tested). */
+  el: HTMLElement;
 }
 
 interface Ghost {
@@ -116,7 +111,6 @@ export class FxLayer {
   private orbs: Orb[] = [];
   private ghosts: Ghost[] = [];
   private labels: Label[] = [];
-  private goals: Goal[] = [];
   private frostBorn = -Infinity;
   private shakeAmp = 0;
   private shakeBorn = -Infinity;
@@ -153,8 +147,11 @@ export class FxLayer {
     resize();
   }
 
-  private get reducedMotion(): boolean {
-    return this.reduced.matches;
+  /** Menu setting; null follows the system's reduced-motion preference. */
+  reducedOverride: boolean | null = null;
+
+  get reducedMotion(): boolean {
+    return this.reducedOverride ?? this.reduced.matches;
   }
 
   private resize(): void {
@@ -304,7 +301,12 @@ export class FxLayer {
     // Leftover atoms drift back to the player as labelled orbs.
     const left = Object.entries(e.leftovers);
     left.forEach(([el, count], i) => {
-      this.orbs.push({ x: e.x + i * 4, y: e.y - 4, tx: e.tx, ty: e.ty, born: now + 200 + i * 120, text: `+${count} ${el}` });
+      const label = document.createElement("div");
+      label.className = "orb-label";
+      label.textContent = `+${count} ${el}`;
+      label.hidden = true;
+      this.stage.append(label);
+      this.orbs.push({ x: e.x + i * 4, y: e.y - 4, tx: e.tx, ty: e.ty, born: now + 200 + i * 120, text: `+${count} ${el}`, el: label });
     });
     if (out) window.setTimeout(() => this.label(out, e.x, e.y), 100);
   }
@@ -342,7 +344,9 @@ export class FxLayer {
     if (out.outcome !== "unknown") {
       const eq = document.createElement("div");
       eq.className = "fx-eq";
-      eq.textContent = prettyFormula(out.equation);
+      // The youngest players see atoms as balls, never subscripts.
+      if (this.tier === "sprout") eq.append(equationBalls(out.equation));
+      else eq.textContent = prettyFormula(out.equation);
       el.append(eq);
     }
     const text = document.createElement("div");
@@ -383,65 +387,6 @@ export class FxLayer {
     l.el.style.top = `${Math.max(sh * 0.2, Math.min(sh * 0.8, y))}px`;
   }
 
-  /** The rooms' targets, from the simulation (polled a few times a second). */
-  setGoals(goals: Goal[]): void {
-    this.goals = goals;
-  }
-
-  /** Bobbing icons over each open goal, a "fire left" meter over burning
-   * hedges, and an edge arrow toward the next goal when it is off screen. */
-  private drawGoals(now: number, k: number, viewX: number): void {
-    const ctx = this.ctx;
-    const next = this.goals.find((g) => !g.done);
-    const bob = this.reducedMotion ? 0 : Math.sin(now / 300) * 1.5;
-    for (const g of this.goals) {
-      if (g.done) continue;
-      const x = (g.x - viewX) * k;
-      const y = (g.y + bob) * k;
-      const onScreen = g.x >= viewX - 8 && g.x <= viewX + this.viewW + 8;
-      if (!onScreen) {
-        if (g === next) {
-          const edge = g.x < viewX ? 10 * k : this.canvas.width - 10 * k;
-          const dir = g.x < viewX ? -1 : 1;
-          ctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(now / 400));
-          ctx.fillStyle = COLOR.gold;
-          ctx.beginPath();
-          ctx.moveTo(edge + dir * 4 * k, y);
-          ctx.lineTo(edge - dir * 2 * k, y - 4 * k);
-          ctx.lineTo(edge - dir * 2 * k, y + 4 * k);
-          ctx.closePath();
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-        continue;
-      }
-      ctx.globalAlpha = 0.92;
-      ctx.fillStyle = "rgba(15,23,32,0.7)";
-      ctx.strokeStyle = g === next ? COLOR.gold : "#ffffff";
-      ctx.lineWidth = Math.max(1, k * 0.5);
-      ctx.beginPath();
-      ctx.arc(x, y, 6 * k, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#ffffff";
-      ctx.font = `${Math.round(7 * k)}px system-ui, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(GOAL_ICONS[g.kind] ?? "★", x, y + k * 0.5);
-      if (g.meter !== null && g.meter > 0) {
-        // "Fire left": a bar that empties as the fire goes out.
-        const w = 24 * k;
-        const h = 2.5 * k;
-        const top = y - 10 * k;
-        ctx.fillStyle = "rgba(15,23,32,0.8)";
-        ctx.fillRect(x - w / 2 - k * 0.5, top - k * 0.5, w + k, h + k);
-        ctx.fillStyle = COLOR.oxygen;
-        ctx.fillRect(x - w / 2, top, w * g.meter, h);
-      }
-    }
-    ctx.globalAlpha = 1;
-  }
-
   // ----------------------------------------------------------------- draw
 
   /** Draws one frame. `viewX` is the camera's left edge in world cells. */
@@ -452,7 +397,6 @@ export class FxLayer {
     const sx = (x: number) => (x - viewX) * k;
     const sy = (y: number) => y * k;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.drawGoals(now, k, viewX);
 
     // Charge rings at the gauntlet.
     this.charges = this.charges.filter((c) => now - c.born < c.life);
@@ -533,7 +477,11 @@ export class FxLayer {
     }
 
     // Leftover orbs drift back to the player.
-    this.orbs = this.orbs.filter((o) => now - o.born < 1400);
+    this.orbs = this.orbs.filter((o) => {
+      if (now - o.born < 1400) return true;
+      o.el.remove();
+      return false;
+    });
     ctx.font = `bold ${Math.round(4 * k)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -547,8 +495,11 @@ export class FxLayer {
       ctx.beginPath();
       ctx.arc(sx(x), sy(y), 3 * k, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(o.text, sx(x), sy(y) - 6 * k);
+      const css = this.canvas.clientWidth / this.canvas.width;
+      o.el.hidden = now < o.born;
+      o.el.style.left = `${sx(x) * css}px`;
+      o.el.style.top = `${(sy(y) - 6 * k) * css}px`;
+      o.el.style.opacity = String(ctx.globalAlpha);
     }
 
     // Fizzle hints: a ghost of what was missing and an arrow to where to get it.
