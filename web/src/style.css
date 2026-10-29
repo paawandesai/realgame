@@ -1710,6 +1710,8 @@ body[data-tier="apprentice"] #jars-mini {
   position: absolute;
   left: 50%;
   top: 50%;
+  /* Behind the card, so it never covers the words. */
+  z-index: -1;
 }
 
 .confetti span {
