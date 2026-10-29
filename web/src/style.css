@@ -1,0 +1,543 @@
+:root {
+  --bg: #0f1720;
+  --panel: rgba(15, 23, 32, 0.78);
+  --panel-solid: #16212c;
+  --ink: #f1f5f9;
+  --quiet: #a7b4c2;
+  --accent: #5eead4;
+  --good: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --radius: 10px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: #22303d;
+  border: 1px solid #3a4b5c;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button.primary {
+  background: #0f766e;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8em;
+  padding: 1px 5px;
+  border: 1px solid #4b5d6f;
+  border-radius: 4px;
+  background: #1c2733;
+  margin: 0 1px;
+}
+
+.small {
+  font-size: 0.85rem;
+  color: var(--quiet);
+}
+
+/* ---------------------------------------------------------------- start */
+
+#start {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+#start h1 {
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  margin: 0 0 8px;
+}
+
+#start .lead {
+  color: var(--quiet);
+  margin: 0 0 32px;
+}
+
+.ages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+
+.ages button {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  font-size: 1.1rem;
+}
+
+.ages span {
+  font-size: 0.9rem;
+  color: var(--quiet);
+}
+
+/* ----------------------------------------------------------------- game */
+
+#game {
+  padding: 8px;
+}
+
+#stage {
+  position: relative;
+  width: min(100%, calc((100vh - 60px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius);
+}
+
+#world {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#help {
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+#status,
+#objectives,
+#mote,
+#readout,
+#hud-bottom,
+#toast,
+#ring,
+#notebook {
+  position: absolute;
+  background: var(--panel);
+  border-radius: var(--radius);
+  backdrop-filter: blur(4px);
+}
+
+#status {
+  top: 10px;
+  left: 10px;
+  padding: 8px 12px;
+  min-width: 200px;
+  font-weight: 600;
+}
+
+.bar {
+  margin-top: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: #334155;
+  overflow: hidden;
+}
+
+#realm-fill {
+  height: 100%;
+  width: 0;
+  background: var(--good);
+  transition: width 0.4s;
+}
+
+#objectives {
+  top: 10px;
+  right: 10px;
+  max-width: 34%;
+  padding: 8px 12px 8px 4px;
+  font-size: 0.85rem;
+}
+
+#objectives ol {
+  margin: 0;
+  padding-left: 22px;
+}
+
+#objectives li {
+  margin: 2px 0;
+}
+
+#objectives li.done {
+  color: var(--good);
+  text-decoration: line-through;
+}
+
+#mote {
+  top: 72px;
+  left: 10px;
+  transform: translateY(-8px);
+  max-width: 38%;
+  padding: 10px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+
+#mote.show {
+  opacity: 1;
+  transform: none;
+}
+
+.mote-orb {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #e0f2fe, #38bdf8);
+  box-shadow: 0 0 10px #38bdf8;
+}
+
+#readout {
+  bottom: 86px;
+  left: 10px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: var(--quiet);
+}
+
+/* ------------------------------------------------------------------ HUD */
+
+#hud-bottom {
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  padding: 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#jars {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.jar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.75rem;
+  gap: 2px;
+  min-width: 44px;
+}
+
+.jar .glass {
+  width: 24px;
+  height: 32px;
+  border: 2px solid #94a3b8;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.jar .fill {
+  width: 100%;
+  transition: height 0.2s;
+}
+
+.f-h2o { background: #3b82f6; }
+.f-h2 { background: #f0abfc; }
+.f-o2 { background: #a5f3fc; }
+.f-ch4 { background: #bef264; }
+.f-co2 { background: #9ca3af; }
+
+.jar.charge {
+  font-size: 0.95rem;
+  color: var(--warn);
+  align-self: center;
+}
+
+#slots {
+  display: flex;
+  gap: 6px;
+}
+
+.slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+  max-width: 110px;
+  padding: 4px 6px;
+  font-size: 0.75rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.slot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hud-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+/* --------------------------------------------------------- formula ring */
+
+#ring {
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  width: min(560px, 92%);
+  padding: 14px;
+  border: 1px solid #3a4b5c;
+}
+
+#tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 72px;
+  padding: 8px;
+  font-weight: 600;
+}
+
+.tile .pic {
+  font-size: 1.5rem;
+}
+
+#builder {
+  margin-top: 12px;
+}
+
+#equation {
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 1.3rem;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+#equation .hint {
+  font-size: 0.9rem;
+  color: var(--quiet);
+}
+
+#equation .op {
+  color: var(--quiet);
+  padding: 0 4px;
+}
+
+#equation .arrow {
+  color: var(--accent);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #22303d;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.chip .term {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.dial {
+  padding: 0 8px;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+#formula {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  /* A proportional font keeps the round letter O clearly different from a narrow zero. */
+  font: 1.2rem system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  font-variant-numeric: slashed-zero;
+  color: var(--ink);
+  background: #0b1219;
+  border: 1px solid #3a4b5c;
+  border-radius: 8px;
+}
+
+.builder-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ---------------------------------------------------------------- toast */
+
+#toast {
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  max-width: 70%;
+  padding: 10px 14px;
+  border-left: 4px solid var(--quiet);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#toast.good { border-left-color: var(--good); }
+#toast.fizzle { border-left-color: var(--warn); }
+#toast.bad { border-left-color: var(--bad); }
+
+.toast-eq {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+#toast button {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+/* ------------------------------------------------------------- notebook */
+
+#notebook {
+  top: 10px;
+  bottom: 10px;
+  right: 10px;
+  width: min(360px, 80%);
+  padding: 14px;
+  overflow-y: auto;
+  background: var(--panel-solid);
+}
+
+#notebook h2 {
+  margin: 0 0 8px;
+}
+
+#notebook ul {
+  list-style: none;
+  padding: 0;
+}
+
+#notebook li {
+  border-top: 1px solid #2d3b49;
+  padding: 8px 0;
+}
+
+#notebook p {
+  margin: 4px 0;
+}
+
+/* --------------------------------------------------------------- touch */
+
+#touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  #touch {
+    position: absolute;
+    display: flex;
+    gap: 8px;
+    bottom: 96px;
+    right: 10px;
+  }
+  #touch button {
+    min-width: 56px;
+    min-height: 48px;
+    background: var(--panel);
+  }
+  #help {
+    display: none;
+  }
+}
+
+/* Sprout: bigger targets, fewer words. */
+body[data-tier="sprout"] .tile {
+  min-width: 90px;
+  font-size: 1.05rem;
+}
+
+body[data-tier="sprout"] .tile .pic {
+  font-size: 2rem;
+}
+
+.error {
+  color: var(--bad);
+  text-align: center;
+  padding: 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
+/* The world is landscape; on a phone held upright, ask to rotate. */
+#rotate {
+  display: none;
+  text-align: center;
+  padding: 48px 16px;
+  font-size: 1.2rem;
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  #rotate {
+    display: block;
+  }
+  #stage,
+  #help {
+    display: none;
+  }
+}

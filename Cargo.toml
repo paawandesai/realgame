@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["crates/sim"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+# Tests run thousands of simulation steps; optimise them so the suite stays fast.
+[profile.test]
+opt-level = 2

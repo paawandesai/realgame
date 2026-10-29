@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: CI only needs to read the code.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Simulation (Rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Lint (warnings are errors)
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Lint the WebAssembly build
+        run: cargo clippy --target wasm32-unknown-unknown --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
+
+  supply-chain:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources
+
+  web:
+    name: Browser shell
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+      - name: Install exact dependencies from the lockfile
+        run: npm ci
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
+      - name: Build (compiles Rust to WebAssembly, type-checks, bundles)
+        run: npm run build
+      - name: Check download size budget (school networks)
+        run: |
+          total=$(du -sk dist | cut -f1)
+          echo "dist is ${total} KB"
+          test "$total" -lt 2048
