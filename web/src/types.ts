@@ -20,6 +20,10 @@ export interface GameState {
   trial_complete: boolean;
   aim_temp_c: number;
   aim_substance: string;
+  aim_x: number;
+  aim_y: number;
+  /** Camera left edge in world cells. */
+  view_x: number;
 }
 
 export interface CastResult {

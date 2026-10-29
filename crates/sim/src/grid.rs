@@ -148,19 +148,28 @@ impl Grid {
     }
 
     pub fn step(&mut self) {
+        self.step_columns(0, self.w);
+    }
+
+    /// Steps only columns `x0..x1` (clamped to the grid). Everything outside is
+    /// frozen until it is back in range; the range is a pure function of game
+    /// state, so this stays deterministic.
+    pub fn step_columns(&mut self, x0: usize, x1: usize) {
+        let x1 = x1.min(self.w);
+        let x0 = x0.min(x1);
         self.frame = self.frame.wrapping_add(1);
-        self.move_pass();
-        self.chemistry_pass();
-        self.heat_pass();
+        self.move_pass(x0, x1);
+        self.chemistry_pass(x0, x1);
+        self.heat_pass(x0, x1);
     }
 
     // ---------------------------------------------------------------- movement
 
-    fn move_pass(&mut self) {
+    fn move_pass(&mut self, x0: usize, x1: usize) {
         let left_to_right = self.frame.is_multiple_of(2);
         for y in (0..self.h).rev() {
-            for k in 0..self.w {
-                let x = if left_to_right { k } else { self.w - 1 - k };
+            for k in x0..x1 {
+                let x = if left_to_right { k } else { x1 - 1 - (k - x0) };
                 let i = self.idx(x, y);
                 let s = self.cells[i];
                 // Cool air is the still background (see `move_gas`) and solids
@@ -329,9 +338,9 @@ impl Grid {
         }
     }
 
-    fn chemistry_pass(&mut self) {
+    fn chemistry_pass(&mut self, x0: usize, x1: usize) {
         for y in 0..self.h as i32 {
-            for x in 0..self.w as i32 {
+            for x in x0 as i32..x1 as i32 {
                 let i = self.idx(x as usize, y as usize);
                 if self.reacted[i] == self.frame {
                     continue;
@@ -539,13 +548,13 @@ impl Grid {
 
     // -------------------------------------------------------------------- heat
 
-    fn heat_pass(&mut self) {
+    fn heat_pass(&mut self, x0: usize, x1: usize) {
         for y in 0..self.h {
-            for x in 0..self.w {
+            for x in x0..x1 {
                 let i = self.idx(x, y);
                 let si = self.cells[i];
                 for (nx, ny) in [(x + 1, y), (x, y + 1)] {
-                    if nx >= self.w || ny >= self.h {
+                    if nx >= x1 || ny >= self.h {
                         continue;
                     }
                     let j = self.idx(nx, ny);

@@ -1,7 +1,7 @@
 //! The browser-facing API, exported to JavaScript with wasm-bindgen, and the
 //! renderer that turns the grid into pixels.
 
-use crate::game::{Game, Tier, HEIGHT, WIDTH};
+use crate::game::{Game, Tier, HEIGHT, VIEW_W, WORLD_W};
 use crate::species::Species;
 use wasm_bindgen::prelude::*;
 
@@ -9,6 +9,9 @@ use wasm_bindgen::prelude::*;
 pub struct WebGame {
     game: Game,
     pixels: Vec<u8>,
+    /// The camera position the last frame was drawn at, so pointer input maps
+    /// to exactly the cells the player sees.
+    drawn_view_x: i32,
 }
 
 #[wasm_bindgen]
@@ -17,12 +20,19 @@ impl WebGame {
     pub fn new(tier: &str, seed: u32) -> WebGame {
         WebGame {
             game: Game::new(Tier::parse(tier), seed as u64 + 1),
-            pixels: vec![0; WIDTH * HEIGHT * 4],
+            pixels: vec![0; VIEW_W * HEIGHT * 4],
+            drawn_view_x: 0,
         }
     }
 
+    /// Width of the viewport (and of the rendered frame) in cells.
     pub fn width(&self) -> usize {
-        WIDTH
+        VIEW_W
+    }
+
+    /// Left edge of the last rendered frame, in world cells.
+    pub fn view_x(&self) -> i32 {
+        self.drawn_view_x
     }
 
     pub fn height(&self) -> usize {
@@ -34,7 +44,10 @@ impl WebGame {
     }
 
     pub fn set_aim(&mut self, x: i32, y: i32) {
-        self.game.aim = (x.clamp(0, WIDTH as i32 - 1), y.clamp(0, HEIGHT as i32 - 1));
+        self.game.aim = (
+            x.clamp(0, WORLD_W as i32 - 1),
+            y.clamp(0, HEIGHT as i32 - 1),
+        );
     }
 
     /// Returns a JSON `CastResult`.
@@ -47,11 +60,15 @@ impl WebGame {
         serde_json::to_string(&self.game.state()).unwrap_or_default()
     }
 
-    /// Draws the frame and returns a pointer to WIDTH * HEIGHT RGBA bytes in
+    /// Draws the viewport and returns a pointer to VIEW_W * HEIGHT RGBA bytes in
     /// WebAssembly memory. `lens` switches to the temperature view; `alpha`
     /// (0..=1) is how far the display is between the last two ticks.
     pub fn render(&mut self, lens: bool, alpha: f32) -> *const u8 {
-        render(&self.game, &mut self.pixels, lens, alpha.clamp(0.0, 1.0));
+        let alpha = alpha.clamp(0.0, 1.0);
+        let g = &self.game;
+        let vx = (g.prev_view_x + (g.view_x - g.prev_view_x) * alpha).round() as i32;
+        self.drawn_view_x = vx.clamp(0, (WORLD_W - VIEW_W) as i32);
+        render(g, &mut self.pixels, lens, alpha, self.drawn_view_x);
         self.pixels.as_ptr()
     }
 }
@@ -95,11 +112,13 @@ fn heat_color(t: f32) -> [u8; 3] {
     stops[6].1
 }
 
-fn render(game: &Game, out: &mut [u8], lens: bool, alpha: f32) {
+fn render(game: &Game, out: &mut [u8], lens: bool, alpha: f32, view_x: i32) {
     let g = &game.grid;
     for y in 0..g.h {
-        for x in 0..g.w {
+        for sx in 0..VIEW_W {
+            let x = sx + view_x as usize;
             let i = g.idx(x, y);
+            let o = (y * VIEW_W + sx) * 4;
             let s = g.cells[i];
             let t = g.temp[i];
             let n = (hash(x, y) % 21) as i32 - 10;
@@ -138,25 +157,25 @@ fn render(game: &Game, out: &mut [u8], lens: bool, alpha: f32) {
             if !lens && s == Species::Crystal && (g.frame / 8 + x as u32).is_multiple_of(12) {
                 c = [230, 200, 255];
             }
-            out[i * 4..i * 4 + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
+            out[o..o + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
         }
     }
-    draw_player(game, out, alpha);
-    draw_aim(game, out);
+    draw_player(game, out, alpha, view_x);
+    draw_aim(game, out, view_x);
 }
 
 fn put(out: &mut [u8], x: i32, y: i32, c: [u8; 3]) {
-    if x >= 0 && y >= 0 && (x as usize) < WIDTH && (y as usize) < HEIGHT {
-        let i = (y as usize * WIDTH + x as usize) * 4;
+    if x >= 0 && y >= 0 && (x as usize) < VIEW_W && (y as usize) < HEIGHT {
+        let i = (y as usize * VIEW_W + x as usize) * 4;
         out[i..i + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
     }
 }
 
-fn draw_player(game: &Game, out: &mut [u8], alpha: f32) {
+fn draw_player(game: &Game, out: &mut [u8], alpha: f32, view_x: i32) {
     let p = &game.player;
     let lerp = |a: f32, b: f32| a + (b - a) * alpha;
     let (px, py) = (
-        lerp(p.prev_x, p.x).round() as i32,
+        lerp(p.prev_x, p.x).round() as i32 - view_x,
         lerp(p.prev_y, p.y).round() as i32,
     );
     let skin = [240, 196, 160];
@@ -180,8 +199,8 @@ fn draw_player(game: &Game, out: &mut [u8], alpha: f32) {
     put(out, px + 2, py + 7, dark);
 }
 
-fn draw_aim(game: &Game, out: &mut [u8]) {
-    let (ax, ay) = game.aim;
+fn draw_aim(game: &Game, out: &mut [u8], view_x: i32) {
+    let (ax, ay) = (game.aim.0 - view_x, game.aim.1);
     let c = [255, 255, 255];
     for d in [2, 3] {
         put(out, ax + d, ay, c);

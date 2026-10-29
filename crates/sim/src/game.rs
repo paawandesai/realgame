@@ -8,8 +8,14 @@ use crate::species::Species;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-pub const WIDTH: usize = 320;
+/// The world is four 320-cell rooms side by side; the camera shows one room's width.
+pub const ROOM_W: usize = 320;
+pub const ROOMS: usize = 4;
+pub const WORLD_W: usize = ROOM_W * ROOMS;
+pub const VIEW_W: usize = 320;
 pub const HEIGHT: usize = 180;
+/// How quickly the camera catches up once the player leaves the deadzone.
+const CAMERA_LERP: f32 = 0.2;
 
 pub const INPUT_LEFT: u32 = 1;
 pub const INPUT_RIGHT: u32 = 2;
@@ -81,6 +87,10 @@ pub struct State {
     pub trial_complete: bool,
     pub aim_temp_c: f32,
     pub aim_substance: String,
+    pub aim_x: i32,
+    pub aim_y: i32,
+    /// Left edge of the camera, in world cells.
+    pub view_x: i32,
 }
 
 pub struct Player {
@@ -103,6 +113,10 @@ pub struct Game {
     pub objectives: Vec<Objective>,
     messages: Vec<String>,
     pub aim: (i32, i32),
+    /// Camera left edge in world cells, and its value one tick ago (for
+    /// interpolation). A pure function of the player's path, so deterministic.
+    pub view_x: f32,
+    pub prev_view_x: f32,
     book: ReactionBook,
     pub discovered: Vec<String>,
     fizzles_in_a_row: u32,
@@ -118,7 +132,7 @@ impl Game {
     pub fn new(tier: Tier, seed: u64) -> Game {
         let book = ReactionBook::load();
         let grid = Grid::new(
-            WIDTH,
+            WORLD_W,
             HEIGHT,
             seed,
             book.latent_heat("water_boiling"),
@@ -144,6 +158,8 @@ impl Game {
             objectives: vec![],
             messages: vec![],
             aim: (40, 140),
+            view_x: 0.0,
+            prev_view_x: 0.0,
             book,
             discovered: vec![],
             fizzles_in_a_row: 0,
@@ -155,6 +171,7 @@ impl Game {
             announced_complete: false,
         };
         game.build_trial();
+        game.snap_camera();
         game
     }
 
@@ -168,9 +185,9 @@ impl Game {
     /// crystal and a sealed door with a torch beside it.
     fn build_trial(&mut self) {
         let g = &mut self.grid;
-        g.fill_rect(0, 150, WIDTH as i32, HEIGHT as i32, Species::Stone);
+        g.fill_rect(0, 150, WORLD_W as i32, HEIGHT as i32, Species::Stone);
         // Gentle bumps in the ground so it doesn't look ruled.
-        for x in 0..WIDTH as i32 {
+        for x in 0..WORLD_W as i32 {
             let bump = ((x as f32 * 0.11).sin() * 1.5 + (x as f32 * 0.037).cos() * 1.5) as i32;
             g.fill_rect(x, 148 - bump.max(-1), x + 1, 150, Species::Stone);
         }
@@ -200,6 +217,25 @@ impl Game {
         g.fill_rect(236, 128, 242, 148, Species::Door);
         g.fill_rect(220, 118, 236, 121, Species::Stone);
         g.fill_rect(226, 111, 230, 118, Species::Wood);
+
+        // Rooms 2-4 are placeholders until their content lands: a stone arch
+        // marking each room boundary and a few boulders, all walkable.
+        for room in 1..ROOMS as i32 {
+            let x0 = room * ROOM_W as i32;
+            g.fill_rect(x0 - 4, 0, x0 + 4, 96, Species::Stone);
+            g.fill_rect(x0 - 10, 90, x0 + 10, 96, Species::Stone);
+            // Mounds slope one cell per column, so walking steps over them.
+            for (dx, w, h) in [(70, 14, 4), (150, 8, 2), (230, 18, 5)] {
+                for c in 0..w {
+                    let x = x0 + dx + c;
+                    let ground = (0..HEIGHT as i32)
+                        .find(|&y| g.get(x, y) == Species::Stone && y > 100)
+                        .unwrap_or(148);
+                    let top = ground - (c + 1).min(w - c).min(h);
+                    g.fill_rect(x, top, x + 1, ground, Species::Stone);
+                }
+            }
+        }
 
         self.objectives = vec![
             Objective {
@@ -237,6 +273,7 @@ impl Game {
         self.player.prev_x = self.player.x;
         self.player.prev_y = self.player.y;
         self.move_player(input);
+        self.update_camera();
         if input & INPUT_GATHER != 0 {
             // Lock onto what was under the cursor when gathering started.
             if self.gather_target.is_none() {
@@ -248,9 +285,39 @@ impl Game {
         } else {
             self.gather_target = None;
         }
-        self.grid.step();
+        // Only the area around the camera is simulated; distant rooms wait.
+        let vx = self.view_x.round() as usize;
+        self.grid
+            .step_columns(vx.saturating_sub(VIEW_W), vx + 2 * VIEW_W);
         self.touch_crystal();
         self.check_objectives();
+    }
+
+    fn camera_bounds(x: f32) -> f32 {
+        x.clamp(0.0, (WORLD_W - VIEW_W) as f32)
+    }
+
+    /// Puts the camera where it would settle, with no lerp (new game, teleports).
+    pub fn snap_camera(&mut self) {
+        let cx = self.player.x + PLAYER_W / 2.0;
+        self.view_x = Self::camera_bounds(cx - VIEW_W as f32 / 2.0);
+        self.prev_view_x = self.view_x;
+    }
+
+    /// Follows the player with a deadzone over the middle third of the view.
+    fn update_camera(&mut self) {
+        self.prev_view_x = self.view_x;
+        let cx = self.player.x + PLAYER_W / 2.0;
+        let third = VIEW_W as f32 / 3.0;
+        let on_screen = cx - self.view_x;
+        let target = if on_screen < third {
+            cx - third
+        } else if on_screen > 2.0 * third {
+            cx - 2.0 * third
+        } else {
+            self.view_x
+        };
+        self.view_x = Self::camera_bounds(self.view_x + (target - self.view_x) * CAMERA_LERP);
     }
 
     /// Trees are scenery the player walks in front of; everything else solid blocks.
@@ -338,7 +405,7 @@ impl Game {
             }
             self.player.y = ny;
         }
-        self.player.x = self.player.x.clamp(0.0, WIDTH as f32 - PLAYER_W);
+        self.player.x = self.player.x.clamp(0.0, WORLD_W as f32 - PLAYER_W);
         self.player.y = self.player.y.clamp(0.0, HEIGHT as f32 - PLAYER_H);
     }
 
@@ -828,6 +895,9 @@ impl Game {
             trial_complete: self.objectives.iter().all(|o| o.done),
             aim_temp_c: self.grid.temp_at(ax, ay),
             aim_substance: s.props().name.to_string(),
+            aim_x: ax,
+            aim_y: ay,
+            view_x: self.view_x.round() as i32,
         }
     }
 }
@@ -1018,6 +1088,43 @@ mod balance {
             "fire still burning: {} hot wood",
             burning_wood(&g)
         );
+    }
+}
+
+#[cfg(test)]
+mod world {
+    use super::*;
+
+    #[test]
+    fn walking_right_crosses_rooms_and_the_camera_follows() {
+        let mut g = Game::new(Tier::Seedling, 42);
+        // Past the stream and the crystal, with room 1's door already open.
+        g.grid.fill_rect(236, 128, 242, 148, Species::Air);
+        g.player.x = 200.0;
+        g.player.y = 120.0;
+        g.snap_camera();
+        for _ in 0..1200 {
+            g.tick(INPUT_RIGHT);
+            let screen_x = g.player.x - g.view_x;
+            assert!(
+                screen_x >= 0.0 && screen_x + PLAYER_W <= VIEW_W as f32,
+                "player at {} left the view at {}",
+                g.player.x,
+                g.view_x
+            );
+        }
+        assert!(g.player.x > 600.0, "only reached x = {}", g.player.x);
+        assert!(g.view_x > 300.0);
+    }
+
+    #[test]
+    fn distant_rooms_are_frozen() {
+        let mut g = Game::new(Tier::Seedling, 42);
+        g.grid.set(1200, 20, Species::Water, AMBIENT_C);
+        for _ in 0..30 {
+            g.tick(0);
+        }
+        assert_eq!(g.grid.get(1200, 20), Species::Water, "room 4 is off screen");
     }
 }
 

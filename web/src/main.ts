@@ -89,12 +89,22 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   const toGrid = (clientX: number, clientY: number): [number, number] => {
     const r = canvas.getBoundingClientRect();
-    return [Math.floor(((clientX - r.left) / r.width) * w), Math.floor(((clientY - r.top) / r.height) * h)];
+    // The canvas shows the viewport; the camera's left edge turns it into world cells.
+    return [
+      game.view_x() + Math.floor(((clientX - r.left) / r.width) * w),
+      Math.floor(((clientY - r.top) / r.height) * h),
+    ];
   };
 
   // Pointing at the world only ever aims. Casting is a separate, deliberate action.
-  canvas.addEventListener("pointermove", (e) => game.set_aim(...toGrid(e.clientX, e.clientY)));
-  canvas.addEventListener("pointerdown", (e) => game.set_aim(...toGrid(e.clientX, e.clientY)));
+  // The pointer's screen position is kept so the aim stays under it while the camera scrolls.
+  let pointer: [number, number] | null = null;
+  const aimAt = (e: PointerEvent) => {
+    pointer = [e.clientX, e.clientY];
+    game.set_aim(...toGrid(e.clientX, e.clientY));
+  };
+  canvas.addEventListener("pointermove", aimAt);
+  canvas.addEventListener("pointerdown", aimAt);
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
   /** Buttons, inputs and selects handle Enter and Space themselves. */
@@ -404,6 +414,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (accumulator >= STEP_MS) accumulator = 0;
     const alpha = accumulator / STEP_MS;
     ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
+    if (pointer && steps > 0) game.set_aim(...toGrid(pointer[0], pointer[1]));
     if (now - lastHudTime >= 100 || state === null) {
       lastHudTime = now;
       state = JSON.parse(game.state()) as GameState;
