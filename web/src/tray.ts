@@ -270,8 +270,8 @@ export class SpellTray {
       this.scaleLabel.textContent = "Balanced!";
     } else {
       state = "tipped";
-      // The heavier side (more atoms) sinks; a mismatch of the same count
-      // still tips a little so it never looks balanced.
+      // The side with more atoms sinks (negative turns the left end down);
+      // a mismatch with equal totals still tips a little so it never looks level.
       angle = nl === nr ? 4 : Math.max(-14, Math.min(14, (nr - nl) * 3));
       const extra = Object.keys({ ...left, ...right })
         .filter((e) => (left[e] ?? 0) !== (right[e] ?? 0))
@@ -279,7 +279,7 @@ export class SpellTray {
       this.scaleLabel.textContent = `Not balanced: count the ${extra.join(" and ")}`;
     }
     this.scale.dataset.state = state;
-    this.beam.style.transform = `rotate(${-angle}deg)`;
+    this.beam.style.transform = `rotate(${angle}deg)`;
     this.scale.setAttribute("aria-label", `${this.scaleLabel.textContent}. Left ${describe(left)}. Right ${describe(right)}.`);
     this.fillPan(this.pans[0], left);
     this.fillPan(this.pans[1], right);

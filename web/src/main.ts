@@ -152,6 +152,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let freePlay = false;
   let endTimer = 0;
   let seedlingRoom2Filled = false;
+  let lastResult: CastOutcome | null = null;
 
   const replayBtn = byId<HTMLButtonElement>("replay");
   setIcon(replayBtn, "speaker");
@@ -347,6 +348,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   function doCast(formula: string): void {
     const result = JSON.parse(game.cast(formula)) as CastOutcome;
+    lastResult = result;
     outcomes.set(result.id, result);
     if (outcomes.size > 32) outcomes.delete(outcomes.keys().next().value as number);
     // Events from the cast itself (charge, bolt, fizzle) show at once.
@@ -832,6 +834,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       cast: (f: string) => requestCast(f),
       hintLevel: () => hint.level,
       trayText: () => tray?.text() ?? null,
+      lastOutcome: () => lastResult,
     };
   }
 

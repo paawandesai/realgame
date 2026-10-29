@@ -435,6 +435,7 @@ body[data-tier="seedling"] .fx-label {
 
 .fx-label button {
   margin-top: 6px;
+  min-height: 44px;
   pointer-events: auto;
 }
 
@@ -627,7 +628,7 @@ body {
 }
 
 body[data-tier="seedling"] {
-  --below: 176px;
+  --below: 160px;
 }
 
 #stage {
@@ -644,9 +645,8 @@ body[data-tier="seedling"] #readout {
 
 #progress {
   position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 22px;
+  right: 84px;
   display: flex;
   gap: 10px;
   padding: 8px 12px;
@@ -774,6 +774,10 @@ body[data-tier="seedling"] #readout {
   padding: 12px;
   background: var(--panel);
   z-index: 4;
+}
+
+#mote {
+  max-width: calc(100% - 340px);
 }
 
 body[data-tier="sprout"] #mote,
@@ -1018,6 +1022,7 @@ body[data-tier="sprout"] #settings .row {
   margin: -20px;
   border-radius: 50%;
   box-shadow: 0 0 0 0 rgba(240, 199, 94, 0.7);
+  background: rgba(240, 199, 94, 0.5);
   animation: burst 1.8s ease-out infinite;
   pointer-events: none;
 }
