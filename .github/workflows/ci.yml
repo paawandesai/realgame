@@ -101,7 +101,8 @@ jobs:
         if: always()
         run: |
           cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
-          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+          # Peak RSS of the whole job (runner included), as an annotation.
+          awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
   lint-wasm:
     name: Lint (clippy, wasm32)
@@ -126,7 +127,8 @@ jobs:
         if: always()
         run: |
           cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
-          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+          # Peak RSS of the whole job (runner included), as an annotation.
+          awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
   test-rust:
     name: Test (Rust)
@@ -149,7 +151,8 @@ jobs:
         if: always()
         run: |
           cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
-          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+          # Peak RSS of the whole job (runner included), as an annotation.
+          awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
   # Build the WebAssembly package once and hand it to the web job.
   build-wasm:
@@ -188,7 +191,8 @@ jobs:
         if: always()
         run: |
           cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
-          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+          # Peak RSS of the whole job (runner included), as an annotation.
+          awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
   web:
     name: Web (typecheck + bundle)
@@ -234,7 +238,8 @@ jobs:
         if: always()
         run: |
           cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
-          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+          # Peak RSS of the whole job (runner included), as an annotation.
+          awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
   supply-chain:
     name: Dependency audit
@@ -273,11 +278,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Cancelled counts as not passed. When a newer push supersedes this
+      # run, this job fails on the old commit on purpose; only the newest
+      # commit's result matters for merging.
       - name: Fail if any job failed or was cancelled
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "results: $RESULTS"
           case " $RESULTS " in
-            *" failure "*|*" cancelled "*) exit 1 ;;
+            *" failure "*) echo "::error::A required job failed."; exit 1 ;;
+            *" cancelled "*) echo "::error::A job was cancelled (a newer push supersedes this run, a timeout, or a manual cancel). Not a pass."; exit 1 ;;
           esac
