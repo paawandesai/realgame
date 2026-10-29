@@ -4345,3 +4345,43 @@ body[data-motion="calm"] #goal-area.sprout-cloud .cloud-eye {
   margin: -14px 0 0 -14px;
   box-shadow: 0 0 0 2px rgba(15, 23, 32, 0.6);
 }
+
+/* Safety notes: a warning picture, then the words. */
+.fx-safety,
+.grim-safety {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fx-safety svg,
+.grim-safety svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+body[data-tier="sprout"] .grim-safety svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* The electrolyser at work: beads fly from the water jar into the gas jars
+ * (#jars-mini is already positioned, so beads place inside it). */
+.jar-bead {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: #56b4e9;
+  box-shadow: 0 0 6px rgba(143, 211, 255, 0.9);
+}
+
+.jar-bead.f-o2 {
+  background: #d55e00;
+  box-shadow: 0 0 6px rgba(255, 170, 110, 0.9);
+}

@@ -77,6 +77,13 @@ const HEDGE_FIRE: Shape[] = [
   ["path", { d: "M24 14 C27 17 29 19 29 22 a5 5 0 0 1 -10 0 C19 19 22 17 24 14 Z", fill: "#f0e442" }],
 ];
 
+/** A warning triangle with an exclamation mark (real-world safety notes). */
+const WARNING: Shape[] = [
+  ["path", { d: "M24 4 L45 42 H3 Z", fill: "#f0c75e", stroke: "#0f1720", "stroke-width": 2, "stroke-linejoin": "round" }],
+  ["path", { d: "M24 17 V30", stroke: "#0f1720", "stroke-width": 5, "stroke-linecap": "round" }],
+  ["circle", { cx: 24, cy: 36.5, r: 2.8, fill: "#0f1720" }],
+];
+
 const ICE: Shape[] = [
   ["rect", { x: 8, y: 8, width: 32, height: 32, rx: 4, fill: "#a6dcf5", stroke: "#ffffff", "stroke-width": 2 }],
   ["path", { d: "M14 16 l8 -4 M14 26 l14 -8 M20 36 l14 -8", stroke: "#ffffff", "stroke-width": 3, "stroke-linecap": "round" }],
@@ -283,6 +290,7 @@ const ICONS = {
   cloud: CLOUD,
   fire: FIRE,
   hedgeFire: HEDGE_FIRE,
+  warning: WARNING,
   ice: ICE,
   crystal: CRYSTAL,
   bowl: BOWL,

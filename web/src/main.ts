@@ -1080,7 +1080,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const parts = [`Room ${room + 1} clear`, `${n} cast${n === 1 ? "" : "s"}`, `${h} hint${h === 1 ? "" : "s"}`];
     if (challenge.kj >= 0.05) parts.push(`${challenge.kj.toFixed(1)} kJ heat released`);
     if (challenge.kjIn >= 0.05) parts.push(`${challenge.kjIn.toFixed(1)} kJ energy in`);
-    if (challenge.wasted > 0) parts.push(`${challenge.wasted} atom${challenge.wasted === 1 ? "" : "s"} wasted`);
+    // "Wasted" needs saying: atoms an unbalanced cast left unreacted.
+    if (challenge.wasted > 0)
+      parts.push(`${challenge.wasted} atom${challenge.wasted === 1 ? "" : "s"} wasted (left over, unreacted, by unbalanced casts)`);
     parts.push(`${medal.text} (gold: ${gold} cast${gold === 1 ? "" : "s"}, balanced first try, no full-equation hint)`);
     parts.push(first ? "first clear" : n < best ? `new record (was ${best})` : `record ${best}`);
     challengeEl.textContent = parts.join(" · ");
@@ -1911,9 +1913,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       if (tier !== "apprentice" && n === 0 && (formula === "CH4" || formula === "CO2")) continue;
       const el = jarEl(formula);
       el.root.classList.toggle("empty", n === 0);
-      el.fill.style.height = `${Math.min(100, (n / (s.jar_caps[formula] ?? 10)) * 100)}%`;
-      el.label.textContent = `${prettyFormula(formula)} ${n}`;
-      el.root.setAttribute("aria-label", `${JAR_INFO[formula]?.name ?? formula}: ${n}`);
+      // Never show more than the gauge holds: the number and the glass
+      // agree with the suit's real capacity for that jar.
+      const cap = s.jar_caps[formula] ?? 10;
+      const shownN = Math.min(n, cap);
+      el.fill.style.height = `${Math.min(100, (shownN / cap) * 100)}%`;
+      el.root.dataset.max = String(cap);
+      el.root.dataset.value = String(shownN);
+      // Apprentice: amounts are moles of game matter, said on the gauge.
+      const unit = tier === "apprentice" ? " mol" : "";
+      el.label.textContent = `${prettyFormula(formula)} ${shownN}${unit}`;
+      el.root.title = `${JAR_INFO[formula]?.name ?? formula}: ${shownN} of ${cap}${tier === "apprentice" ? " mol" : ""}`;
+      el.root.setAttribute("aria-label", `${JAR_INFO[formula]?.name ?? formula}: ${shownN} of ${cap}${unit}`);
       shown.push(el.root);
     }
     if (tier !== "sprout") {
@@ -1944,6 +1955,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         if (mine !== 0) gaugeTick(formula, mine);
         if (bg !== 0) suitPending.set(formula, (suitPending.get(formula) ?? 0) + bg);
       }
+      // The electrolyser split water: show it moving from the water jar
+      // into the hydrogen and oxygen jars.
+      if ((s.background["H2O"] ?? 0) < 0 && (s.background["H2"] ?? 0) > 0) jarTransfer("H2O", ["H2", "O2"]);
     } else {
       for (const [formula, bg] of Object.entries(s.background)) if (bg !== 0) suitPending.set(formula, (suitPending.get(formula) ?? 0) + bg);
     }
@@ -1957,7 +1971,6 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const SUIT_CHIP_MS = 3000;
   const suitPending = new Map<string, number>();
   let suitChipAt = -Infinity;
-  let suitExplained = false;
   let suitTimer = 0;
   /** One soft chip for everything the suit did by itself since the last
    * one: "⚙ suit: +1 H₂O, +2 H₂, +1 O₂, −2 H₂O" merged per gauge. */
@@ -1990,18 +2003,42 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     jars.append(chip);
     for (const old of [...jars.querySelectorAll(".suit-tick")].slice(0, -2)) old.remove();
     window.setTimeout(() => chip.remove(), 2600);
-    if (!suitExplained) {
-      suitExplained = true;
-      const note = document.createElement("span");
-      note.className = "suit-note";
-      note.textContent =
-        tier === "sprout"
-          ? "⚙ Your suit fills itself slowly."
-          : tier === "seedling"
-            ? "⚙ Your suit refills itself: water from air, split by ⚡."
-            : "⚙ Grey chips are your suit working by itself: the collar condenses water from the air, and the electrolyser splits it into H₂ and O₂ using ⚡ battery energy. Your casts show in colour.";
-      jars.append(note);
-      window.setTimeout(() => note.remove(), 7000);
+  }
+
+  /** Little beads flying from one jar's glass to others (the suit's own
+   * electrolyser at work), at most once a second. */
+  let transferAt = -Infinity;
+  function jarTransfer(from: string, to: string[]): void {
+    const now = performance.now();
+    if (now - transferAt < 1000 || fx.reducedMotion) return;
+    transferAt = now;
+    const jars = byId("jars-mini");
+    const src = jarEls.get(from)?.root;
+    if (!src || jars.hidden || !src.isConnected) return;
+    const base = jars.getBoundingClientRect();
+    const a = src.getBoundingClientRect();
+    for (const f of to) {
+      const dst = jarEls.get(f)?.root;
+      if (!dst?.isConnected) continue;
+      const b = dst.getBoundingClientRect();
+      const bead = document.createElement("span");
+      bead.className = `jar-bead f-${f.toLowerCase()}`;
+      bead.setAttribute("aria-hidden", "true");
+      jars.append(bead);
+      const x0 = a.left - base.left + 8;
+      const y0 = a.top - base.top + a.height / 2;
+      const x1 = b.left - base.left + 8;
+      const y1 = b.top - base.top + b.height / 2;
+      const anim = bead.animate(
+        [
+          { transform: `translate(${x0}px, ${y0}px) scale(0.6)`, opacity: 0 },
+          { transform: `translate(${(x0 + x1) / 2 + 14}px, ${(y0 + y1) / 2}px) scale(1)`, opacity: 1 },
+          { transform: `translate(${x1}px, ${y1}px) scale(0.6)`, opacity: 0 },
+        ],
+        { duration: 700, easing: "ease-in-out" },
+      );
+      anim.onfinish = () => bead.remove();
+      window.setTimeout(() => bead.remove(), 1000);
     }
   }
 

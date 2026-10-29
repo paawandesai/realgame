@@ -6,7 +6,7 @@
 import { BAR_SPELLS, GRIMOIRE_PAGES, earnablePages, formatDh, stateNote, type Book, type GrimoirePage, type HoverCard } from "./book";
 import { equationBalls, icon } from "./icons";
 import { storageGet, storageSet } from "./prefs";
-import { prettyFormula, type Tier } from "./types";
+import { prettyFormula, SEEDLING_SAFETY, type Tier } from "./types";
 
 const KEY = "grimoire";
 const CONFETTI = 20;
@@ -107,7 +107,11 @@ export class Grimoire {
       el.append(icon("boom"), icon("left"));
       el.setAttribute("aria-label", "Stand back");
     }
-    else el.textContent = `⚠ ${prettyFormula(note)}`;
+    else {
+      const words = document.createElement("span");
+      words.textContent = this.tier === "seedling" ? SEEDLING_SAFETY : prettyFormula(note);
+      el.append(icon("warning"), words);
+    }
     return el;
   }
 

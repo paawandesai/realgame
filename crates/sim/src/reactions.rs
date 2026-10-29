@@ -29,7 +29,7 @@ pub struct Reaction {
     pub id: String,
     pub name: String,
     pub equation: String,
-    /// The same equation with state symbols at 25 C (`2H2O(g)`), which the
+    /// The same equation with state symbols at 25 °C (`2H2O(g)`), which the
     /// enthalpy refers to.
     pub equation_states: String,
     /// Enthalpy change for the equation as written, kJ. Negative releases heat.
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn steam_and_liquid_water_differ_by_the_heat_of_vaporisation() {
         // Hess's law: splitting liquid water (+571.7 kJ) and burning hydrogen to
-        // steam (-483.6 kJ) differ by vaporising 2 mol of water at 25 C.
+        // steam (-483.6 kJ) differ by vaporising 2 mol of water at 25 °C.
         let book = ReactionBook::load();
         let dh = |id: &str| book.by_id(id).unwrap().0.delta_h_kj;
         let vap = book.latent_heat("water_vaporisation_25c");
@@ -228,6 +228,6 @@ mod tests {
             .find(|p| p.id == "water_vaporisation_25c")
             .unwrap();
         assert!(p.source.contains("NIST") && p.source.contains("44.0"));
-        assert!(p.note.as_deref().unwrap_or("").contains("2 x 44.0"));
+        assert!(p.note.as_deref().unwrap_or("").contains("2 × 44.0"));
     }
 }

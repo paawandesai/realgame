@@ -384,6 +384,10 @@ pub struct Game {
     torch_lit: bool,
     pub rooms: rooms::Rooms,
     met_crystal: bool,
+    /// Mote has explained, once, that the suit splits spare water into H2
+    /// and O2 by itself (said at its first refill after the player's
+    /// first cast, so it explains gas the player has just used).
+    pub refill_told: bool,
     /// "Stand back" was said after the first knockback.
     knock_told: bool,
     gather_target: Option<Species>,
@@ -479,6 +483,7 @@ impl Game {
             torch_lit: false,
             rooms: rooms::Rooms::new(),
             met_crystal: false,
+            refill_told: false,
             knock_told: false,
             gather_target: None,
             gather_held: 0,
@@ -1073,6 +1078,15 @@ impl Game {
         let from = powered.map_or((hx, hy), |(x, y)| (x as f32, y as f32));
         self.gain("H2", 2, "split", from);
         self.gain("O2", 1, "split", from);
+        if !self.refill_told && self.next_cast_id > 1 {
+            self.refill_told = true;
+            let line = self.line(
+                "Suit makes bubbles from water!",
+                "Suit splits spare water into H₂ and O₂.",
+                "Your suit splits spare water into H₂ and O₂.",
+            );
+            self.say(line);
+        }
         // The sourced +571.7 kJ per 2 H2O, from the battery, wherever it is.
         self.crystal_kj -= self.split_kj;
         if let Some((x, y)) = powered {
@@ -3468,7 +3482,7 @@ mod tests {
             r.equation_states.as_deref(),
             Some("2H2O(l) -> 2H2(g) + O2(g)")
         );
-        // Condensing the product to liquid releases 2 x 44.0 kJ more.
+        // Condensing the product to liquid releases 2 × 44.0 kJ more.
         g.jars.insert("H2".into(), 4);
         g.jars.insert("O2".into(), 2);
         let r = g.cast("2H2 + O2 -> 2H2O(l)");
@@ -3573,6 +3587,28 @@ mod tests {
         g.jars.insert("H2O".into(), 0);
         settle(&mut g, 100);
         assert!(g.jar("H2O") >= 1);
+    }
+
+    #[test]
+    fn the_suit_refill_is_explained_exactly_once_after_the_first_cast() {
+        let mut g = game(Tier::Apprentice);
+        let said = |g: &mut Game| {
+            g.state()
+                .messages
+                .iter()
+                .filter(|m| m.contains("splits spare water"))
+                .count()
+        };
+        settle(&mut g, 400);
+        assert_eq!(said(&mut g), 0, "not before the player has cast");
+        g.cast("2H2 + O2 -> 2H2O");
+        let mut n = 0;
+        for _ in 0..40 {
+            settle(&mut g, 60);
+            n += said(&mut g);
+        }
+        assert!(g.refill_told);
+        assert_eq!(n, 1, "said once, not every refill");
     }
 
     #[test]

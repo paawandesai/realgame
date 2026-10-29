@@ -139,7 +139,7 @@ impl Rejection {
 /// temperature.
 const DIATOMIC: &[&str] = &["H", "N", "O", "F", "Cl", "Br", "I"];
 
-/// Heat to turn one mole of liquid water into steam at 25 C, kJ/mol, read
+/// Heat to turn one mole of liquid water into steam at 25 °C, kJ/mol, read
 /// from `content/reactions.json` (`water_vaporisation_25c`, NIST-sourced).
 fn state_enthalpy_offset(book: &ReactionBook, formula: &str, state: State) -> Option<f32> {
     match (formula, state) {

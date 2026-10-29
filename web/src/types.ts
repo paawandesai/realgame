@@ -181,3 +181,7 @@ export function prettyFormula(text: string): string {
     .replace(/->/g, "→")
     .replace(/([A-Za-z)])(\d+)/g, (_, el: string, n: string) => el + [...n].map((d) => subs[Number(d)]).join(""));
 }
+
+/** Seedling's real-world safety note: short, plain, shown with a warning
+ * picture (the full sourced note is the Apprentice's). */
+export const SEEDLING_SAFETY = "Real hydrogen booms. Only grown-up chemists do this!";

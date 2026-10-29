@@ -170,7 +170,7 @@ export const GRIMOIRE_PAGES: GrimoirePage[] = [
     name: "Fireball",
     picture: "methane",
     room: 4,
-    where: "Room 4, the Marsh Door: put out the hedge, then light the brazier. Bonus star: light it with fireball (CH4 + 2O2 -> CO2 + 2H2O), using methane from the marsh bubbles.",
+    where: "Room 4 bonus: put out the hedge, then light the brazier with fireball (CH4 + 2O2 -> CO2 + 2H2O), using methane from the marsh bubbles.",
     again: "Bonus: gather methane from marsh bubbles, then cast fireball at a brazier or a flame: CH4 + 2O2 -> CO2 + 2H2O.",
     whereSprout: "The marsh bubbles.",
     tiers: ["seedling", "apprentice"],

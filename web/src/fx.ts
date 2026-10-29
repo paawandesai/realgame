@@ -6,7 +6,7 @@
 import { words } from "./device";
 import { ATOM_COLOR, icon, type IconName } from "./icons";
 import { parseSpell, sideAtoms } from "./tray";
-import { prettyFormula, type CastOutcome, type Fx, type Tier } from "./types";
+import { prettyFormula, SEEDLING_SAFETY, type CastOutcome, type Fx, type Tier } from "./types";
 
 const POOL_SIZE = 512;
 /** Live particles at most (at full quality): a burst past it recycles the
@@ -973,10 +973,12 @@ export class FxLayer {
         sb.append(icon("boom"), icon("left"));
         sb.setAttribute("aria-label", "Stand back");
         el.append(sb);
-      } else {
+      } else if (!safetySeenThisSession()) {
         const note = document.createElement("div");
         note.className = "fx-safety";
-        note.textContent = `⚠ ${prettyFormula(out.safety)}`;
+        const words = document.createElement("span");
+        words.textContent = this.tier === "seedling" ? SEEDLING_SAFETY : prettyFormula(out.safety);
+        note.append(icon("warning"), words);
         el.append(note);
       }
     }
@@ -1549,6 +1551,19 @@ export class FxLayer {
       if (el.style.transform !== transform) el.style.transform = transform;
     }
   }
+}
+
+/** Whether the cast-card safety note was already shown in this browser
+ * session (it shows once; a page reload in the same tab does not repeat it).
+ * Storage can be blocked: then it shows once per page instead. */
+function safetySeenThisSession(): boolean {
+  try {
+    if (window.sessionStorage.getItem("safety-shown") === "1") return true;
+    window.sessionStorage.setItem("safety-shown", "1");
+  } catch {
+    // No storage: the per-page flag already limits it.
+  }
+  return false;
 }
 
 function boltColor(out: CastOutcome | undefined): string {
