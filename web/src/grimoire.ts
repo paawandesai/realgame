@@ -98,13 +98,42 @@ export class Grimoire {
 
   /** A dangerous reaction's real-world note: words for readers, a
    * "Stand back!" picture for Sprout. */
-  private safety(li: HTMLElement, note: string | undefined): void {
-    if (!note) return;
+  private safety(note: string | undefined): HTMLElement | null {
+    if (!note) return null;
     const el = document.createElement("span");
     el.className = "grim-safety";
     if (this.tier === "sprout") el.append(icon("boom"), icon("left"), "Stand back!");
     else el.textContent = `⚠ ${prettyFormula(note)}`;
-    li.append(el);
+    return el;
+  }
+
+  /**
+   * The long words (why it happens, the source, the safety note) wait
+   * behind a "More" button, so a card stays short and the book fits the
+   * screen. Sprout reads none of it: its parts show as they are.
+   */
+  private more(li: HTMLElement, parts: (HTMLElement | null)[]): void {
+    const body = parts.filter((p): p is HTMLElement => p !== null);
+    if (body.length === 0) return;
+    if (this.tier === "sprout") {
+      li.append(...body);
+      return;
+    }
+    const box = document.createElement("span");
+    box.className = "grim-more-body";
+    box.append(...body);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "grim-more";
+    btn.textContent = "More";
+    btn.setAttribute("aria-expanded", "false");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = li.classList.toggle("show-more");
+      btn.setAttribute("aria-expanded", String(open));
+      btn.textContent = open ? "Less" : "More";
+    });
+    li.append(btn, box);
   }
 
   /** A found pour page (water, carbon dioxide): no reaction, so no ΔH. */
@@ -167,7 +196,7 @@ export class Grimoire {
       hint.className = "grim-where";
       hint.textContent = this.tier === "sprout" ? where : prettyFormula(where);
       li.append(hint);
-      this.safety(li, r?.safety);
+      this.more(li, [this.safety(r?.safety)]);
       li.setAttribute("aria-label", `Page not found yet. ${where}${r?.safety && this.tier !== "sprout" ? ` ${r.safety}` : ""}`);
       return li;
     }
@@ -194,50 +223,31 @@ export class Grimoire {
     if (this.tier === "sprout") {
       words.textContent = r.short_sprout;
       li.append(eq, dh, words);
+      this.more(li, [this.safety(r.safety)]);
     } else if (this.tier === "seedling") {
-      // The face keeps it short; the numbers and their source wait behind
-      // "Why?" (tap the card, or press Enter on it).
+      // The face keeps it short; the numbers, why it happens, the source
+      // and the safety note wait behind "More".
       words.textContent = r.short_seedling;
-      const why = document.createElement("span");
-      why.className = "grim-why";
-      why.textContent = "Why?";
-      const back = document.createElement("span");
-      back.className = "grim-back";
       const concept = document.createElement("span");
       concept.className = "grim-words";
       concept.textContent = r.concept;
-      back.append(dh, concept, src);
-      li.append(eq, words, why, back);
-      li.setAttribute("aria-expanded", "false");
-      const turn = () => {
-        const open = li.classList.toggle("show-back");
-        li.setAttribute("aria-expanded", String(open));
-        why.textContent = open ? "Back" : "Why?";
-      };
-      li.addEventListener("click", turn);
-      li.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          e.stopPropagation();
-          turn();
-        }
-      });
+      li.append(eq, words);
+      this.more(li, [dh, concept, src, this.safety(r.safety)]);
     } else {
       words.textContent = r.concept;
-      li.append(eq, dh, words);
+      li.append(eq, dh);
       const note = stateNote(r.id, this.book);
+      let n: HTMLElement | null = null;
       if (note) {
-        const n = document.createElement("span");
+        n = document.createElement("span");
         n.className = "grim-note";
         n.textContent = note;
-        li.append(n);
       }
-      li.append(src);
+      this.more(li, [words, n, src, this.safety(r.safety)]);
     }
-    this.safety(li, r.safety);
     li.tabIndex = 0;
     li.setAttribute("aria-label", `${page.name}: ${r.equation}${r.safety && this.tier !== "sprout" ? `. ${r.safety}` : ""}`);
-    // Seedling cards turn over to show the same details, so no pop-up too.
+    // Seedling cards show the same details behind "More", so no pop-up too.
     if (this.tier === "seedling") return li;
     this.hover.attach(li, () => ({
       title: `${page.name}: ${prettyFormula(r.equation_states ?? r.equation)}`,

@@ -97,7 +97,7 @@
 
         <button id="book-btn" type="button" aria-label="Grimoire" aria-expanded="false" aria-controls="grimoire-panel"></button>
         <aside id="grimoire-panel" hidden role="dialog" aria-modal="false" aria-labelledby="grimoire-title">
-          <h2 id="grimoire-title">Grimoire</h2>
+          <h2 id="grimoire-title" tabindex="-1">Grimoire</h2>
           <p class="small" id="grimoire-count"></p>
           <ul id="grimoire-cards" class="grim-cards"></ul>
           <button id="grimoire-close" type="button">Close</button>
@@ -163,14 +163,19 @@
 
         <section id="end" hidden role="dialog" aria-labelledby="end-title">
           <div class="burst" aria-hidden="true"></div>
-          <h2 id="end-title">Breakthrough!</h2>
-          <p id="end-sub">You passed the Alchemist's Trial.</p>
-          <ul id="grimoire" class="grim-cards" aria-label="Grimoire"></ul>
-          <div class="end-buttons">
+          <header class="end-head">
+            <h2 id="end-title" tabindex="-1">Breakthrough!</h2>
+            <p id="end-stars" hidden></p>
+            <p id="end-sub">You passed the Alchemist's Trial.</p>
+          </header>
+          <div id="end-scroll" class="end-scroll">
+            <ul id="grimoire" class="grim-cards" aria-label="Grimoire"></ul>
+          </div>
+          <footer class="end-buttons">
             <button id="end-replay" type="button" class="primary">Replay</button>
             <button id="end-age" type="button">Change age</button>
             <button id="end-free" type="button">Free play</button>
-          </div>
+          </footer>
         </section>
       </div>
       <section id="tray" hidden aria-label="Spell tray"></section>

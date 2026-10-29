@@ -961,7 +961,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     bookBtn.setAttribute("aria-expanded", String(open));
     if (open) {
       renderGrimoire();
-      byId("grimoire-close").focus();
+      grimPanel.scrollTop = 0;
+      byId("grimoire-title").focus({ preventScroll: true });
     } else hover.hide();
   }
   bookBtn.addEventListener("click", () => toggleGrimoire());
@@ -1112,6 +1113,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const hintUse = byId<HTMLButtonElement>("hint-use");
   const ghostHand = byId("ghost-hand");
   setIcon(ghostHand, "hand");
+  const endScreen = byId("end");
+  /** A dialog (Grimoire, menu, end screen) is open: no ghost hand or hint chip over it. */
+  function dialogOpen(): boolean {
+    return !grimPanel.hidden || !menu.hidden || !endScreen.hidden;
+  }
   const hint = { floor: 0, misses: 0, since: performance.now(), key: "", level: 0, nudged: false, ghostKey: "" };
   /** Boom is the answer right now (after the first bubbles in room 3, or
    * water thrown at the ice): its card glows at once, not after a wait.
@@ -1234,7 +1240,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (nudged && next) level = Math.max(level, 2);
     if (goalChanged || level !== hint.level || nudged !== hint.nudged) applyHint(level, next);
     // Never next to a cast card: one thing to read at a time.
-    const ghostWanted = hint.level >= 3 && next !== null;
+    const ghostWanted = hint.level >= 3 && next !== null && !dialogOpen();
     if (hintGhost.hidden !== (!ghostWanted || fx.labelUp)) hintGhost.hidden = !ghostWanted || fx.labelUp;
     placeGhostHand(now);
   }
@@ -1292,7 +1298,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       }
     }
     // Never next to a cast card: one thing to read at a time.
-    hintGhost.hidden = !showGhost || fx.labelUp;
+    hintGhost.hidden = !showGhost || fx.labelUp || dialogOpen();
   }
 
   /** Sprout: a ghost hand taps the card to use (or the go arrow). */
@@ -1310,7 +1316,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const repeat = lastWorked?.spell === need && lastWorked.room === next.room - 1 && !goals.goVisible;
       target = goals.goVisible ? document.getElementById("go-arrow") : repeat ? null : cards.element(need as CardSpell);
     }
-    if (fx.labelUp) target = null;
+    if (fx.labelUp || dialogOpen()) target = null;
     ghostHand.hidden = !target;
     if (!target) return;
     const r = target.getBoundingClientRect();
@@ -1792,9 +1798,13 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         ? "You did it!"
         : `You passed the Alchemist's Trial and earned ${earned} Grimoire ${earned === 1 ? "page" : "pages"}!` +
           (more > 0 ? ` ${more} bonus ${more === 1 ? "page waits" : "pages wait"} in free play.` : "");
-    byId("end").hidden = false;
+    const end = byId("end");
+    end.hidden = false;
+    // Always opens at the top, title in view and read first.
+    end.scrollTop = 0;
+    byId("end-scroll").scrollTop = 0;
+    byId("end-title").focus({ preventScroll: true });
     speech.say(tier === "sprout" ? "You did it! Yay!" : "Breakthrough! You passed the trial!");
-    byId("end-replay").focus();
   }
 
   byId("end-replay").addEventListener("click", () => restartTrial());
@@ -2360,6 +2370,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       shownAim: () => Array.from(game.shown_aim()),
       /** Puts the player at a world column (to start in a later room). */
       place: (x: number) => game.place_player(x),
+      /** Opens the end screen as the last door would (layout checks). */
+      showEnd: () => showEnd(),
       /** Fills the hotbar with typed spells, as a long session would. */
       setSlots: (list: string[]) => {
         slots.splice(STARTER_SLOTS.length, slots.length, ...list.slice(0, MAX_SLOTS - STARTER_SLOTS.length));
