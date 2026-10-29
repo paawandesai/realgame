@@ -253,6 +253,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const k = e.key.toLowerCase();
     if (k === "escape") {
       if (!menu.hidden) closeMenu();
+      else if (!grimPanel.hidden) toggleGrimoire(false);
       else ring.toggle(false);
       return;
     }
