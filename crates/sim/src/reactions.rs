@@ -42,6 +42,10 @@ pub struct Reaction {
     /// The same idea in eight words or fewer, for Seedling.
     pub short_seedling: String,
     pub real_world: String,
+    /// A one-line real-world safety note, for reactions that are dangerous
+    /// outside a game.
+    #[serde(default)]
+    pub safety: Option<String>,
     pub source: String,
 }
 

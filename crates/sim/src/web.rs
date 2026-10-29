@@ -229,6 +229,14 @@ impl WebGame {
         self.glow.entries()
     }
 
+    /// How far along the suit's next automatic refills are, `[water, gas]`,
+    /// each 0..=1, or -1 when that process is idle; a third value is 1 while
+    /// the suit holds still after a cast.
+    pub fn refill(&self) -> Vec<f32> {
+        let [w, g] = self.game.refill_progress();
+        vec![w, g, if self.game.suit_paused() { 1.0 } else { 0.0 }]
+    }
+
     /// Hydrogen and oxygen in view, for glowing bubbles: flat `[x, y, kind]`
     /// groups in viewport cells (kind 1 H2, 2 O2), at most 240 groups.
     pub fn gas_bubbles(&self) -> Vec<f32> {

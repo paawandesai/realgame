@@ -96,6 +96,17 @@ export class Grimoire {
     host.replaceChildren(...parts);
   }
 
+  /** A dangerous reaction's real-world note: words for readers, a
+   * "Stand back!" picture for Sprout. */
+  private safety(li: HTMLElement, note: string | undefined): void {
+    if (!note) return;
+    const el = document.createElement("span");
+    el.className = "grim-safety";
+    if (this.tier === "sprout") el.append(icon("boom"), icon("left"), "Stand back!");
+    else el.textContent = `⚠ ${prettyFormula(note)}`;
+    li.append(el);
+  }
+
   /** A found pour page (water, carbon dioxide): no reaction, so no ΔH. */
   private pourCard(li: HTMLLIElement, name: HTMLElement, page: GrimoirePage): HTMLLIElement {
     const formula = page.formula ?? "";
@@ -156,7 +167,8 @@ export class Grimoire {
       hint.className = "grim-where";
       hint.textContent = this.tier === "sprout" ? where : prettyFormula(where);
       li.append(hint);
-      li.setAttribute("aria-label", `Page not found yet. ${where}`);
+      this.safety(li, r?.safety);
+      li.setAttribute("aria-label", `Page not found yet. ${where}${r?.safety && this.tier !== "sprout" ? ` ${r.safety}` : ""}`);
       return li;
     }
     if (!r) return this.pourCard(li, name, page);
@@ -222,8 +234,9 @@ export class Grimoire {
       }
       li.append(src);
     }
+    this.safety(li, r.safety);
     li.tabIndex = 0;
-    li.setAttribute("aria-label", `${page.name}: ${r.equation}`);
+    li.setAttribute("aria-label", `${page.name}: ${r.equation}${r.safety && this.tier !== "sprout" ? `. ${r.safety}` : ""}`);
     // Seedling cards turn over to show the same details, so no pop-up too.
     if (this.tier === "seedling") return li;
     this.hover.attach(li, () => ({

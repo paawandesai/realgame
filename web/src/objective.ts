@@ -24,6 +24,7 @@ const STEP_ICON: Record<string, IconName> = {
   boom: "boom",
   fire: "fire",
   bowl: "bowl",
+  methane: "methane",
 };
 
 /** How long the big banner stays before it shrinks into the chip; with
@@ -226,10 +227,11 @@ export class ObjectiveBanner {
       box.replaceChildren(
         ...steps.map((s) => {
           const el = document.createElement("span");
-          el.className = s.done ? "objective-step done" : "objective-step";
+          el.className = `objective-step${s.done ? " done" : ""}${s.bonus ? " bonus" : ""}`;
           const mark = document.createElement("span");
           mark.className = "step-mark";
-          mark.textContent = s.done ? "✓" : "○";
+          // A bonus star is optional: a star, not a tick box.
+          mark.textContent = s.bonus ? (s.done ? "★" : "☆") : s.done ? "✓" : "○";
           if (this.tier === "sprout") {
             el.append(mark, this.stepPicture(s.pic, fill));
             return el;

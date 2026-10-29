@@ -217,6 +217,10 @@ pub struct Rooms {
     pub brazier_lit: bool,
     /// The last heat spell's landing point and tick (a player cause).
     pub last_heat: Option<(u64, i32, i32)>,
+    /// That heat spell was the balanced methane combustion (fireball).
+    pub last_heat_methane: bool,
+    /// Bonus star: the brazier was lit with CH4 + 2O2 -> CO2 + 2H2O.
+    pub fireball_bonus: bool,
     pub vent_lit: [bool; 2],
     vent_wet_until: [u64; 2],
     ch4_loose: u32,
@@ -245,6 +249,8 @@ impl Rooms {
             boom_prompted: false,
             brazier_lit: false,
             last_heat: None,
+            last_heat_methane: false,
+            fireball_bonus: false,
             vent_lit: [false; 2],
             vent_wet_until: [0; 2],
             ch4_loose: 0,
@@ -279,6 +285,7 @@ impl Rooms {
             _ => {
                 self.hedges[1] = fresh.hedges[1].clone();
                 self.brazier_lit = false;
+                self.fireball_bonus = false;
                 self.vent_lit = fresh.vent_lit;
                 self.vent_wet_until = fresh.vent_wet_until;
                 self.ch4_loose = fresh.ch4_loose;
@@ -327,8 +334,10 @@ pub struct Step {
     pub text: &'static str,
     pub done: bool,
     /// A picture for readers who can't read yet (an icon name): "bubbles",
-    /// "trap" (the trap's fill bar), "boom", "fire" or "bowl".
+    /// "trap" (the trap's fill bar), "boom", "fire", "bowl" or "methane".
     pub pic: &'static str,
+    /// An optional extra (a bonus star), not needed to clear the room.
+    pub bonus: bool,
 }
 
 /// The torch as the renderer needs it.
@@ -575,6 +584,12 @@ impl Game {
         (((self.player.x + PLAYER_W / 2.0) as usize) / ROOM_W).min(ROOMS - 1)
     }
 
+    /// Whether the room the player is in has a crystal to charge from
+    /// (only room 3), so hints never send the player to one that isn't there.
+    pub fn room_has_crystal(&self) -> bool {
+        CRYSTAL.x0 as usize / ROOM_W == self.room()
+    }
+
     fn count_in(&self, r: Rect, s: Species) -> u32 {
         r.cells().filter(|&(x, y)| self.grid.get(x, y) == s).count() as u32
     }
@@ -672,8 +687,8 @@ impl Game {
             ),
             3 => self.line(
                 "Fire! Then light the bowl!",
-                "Douse hedge, light brazier. Hold G in bubbles.",
-                "The marsh bubbles methane: hold G in the bubbles to gather it. Put out the hedge with water or carbon dioxide, then light the brazier.",
+                "Douse the hedge, then light the brazier.",
+                "Put out the hedge with water or carbon dioxide, then light the brazier. Bonus star: light it with methane from the marsh bubbles (hold G there).",
             ),
             _ => return,
         };
@@ -1039,6 +1054,16 @@ impl Game {
                     "The brazier is lit and the last door is open. Trial complete: you broke through to the next realm!",
                 );
                 self.say(line);
+                // The bonus star: lit with the curriculum's methane fireball.
+                if cast_here && self.rooms.last_heat_methane && self.tier != Tier::Sprout {
+                    self.rooms.fireball_bonus = true;
+                    let line = self.line(
+                        "",
+                        "Bonus star! Methane lit the brazier.",
+                        "Bonus star: methane fuel lit it. CH4 + 2O2 -> CO2 + 2H2O, the same reaction as a gas stove.",
+                    );
+                    self.say(line);
+                }
             }
         }
         if self.rooms.brazier_lit && self.ticks.is_multiple_of(3) {
@@ -1356,6 +1381,7 @@ impl Game {
                         ),
                         done: r.gas_made || self.trap_ready() || r.gates_open[2],
                         pic: "bubbles",
+                        bonus: false,
                     },
                     Step {
                         text: self.line(
@@ -1365,6 +1391,7 @@ impl Game {
                         ),
                         done: self.trap_ready() || r.gates_open[2],
                         pic: "trap",
+                        bonus: false,
                     },
                     Step {
                         text: self.line(
@@ -1374,6 +1401,7 @@ impl Game {
                         ),
                         done: r.gates_open[2],
                         pic: "boom",
+                        bonus: false,
                     },
                 ]),
             },
@@ -1391,28 +1419,50 @@ impl Game {
                 text: self.objective_line(3),
                 area: None,
                 battery: None,
-                steps: Some(vec![
-                    Step {
-                        text: self.line(
-                            "Fire out!",
-                            "1. Put out the hedge.",
-                            "1. Put out the hedge: H2O or CO2.",
-                        ),
-                        done: r.hedges[1].out,
-                        pic: "fire",
-                    },
-                    Step {
-                        text: self.line(
-                            "Light the bowl!",
-                            "2. Light the brazier.",
-                            "2. Light the brazier: 2H2 + O2 -> 2H2O.",
-                        ),
-                        done: r.brazier_lit,
-                        pic: "bowl",
-                    },
-                ]),
+                steps: Some(self.room_4_steps()),
             },
         ]
+    }
+
+    /// Room 4's goal in steps: the hedge, the brazier, and (Seedling and
+    /// Apprentice) an optional bonus star for lighting it with methane.
+    fn room_4_steps(&self) -> Vec<Step> {
+        let r = &self.rooms;
+        let mut steps = vec![
+            Step {
+                text: self.line(
+                    "Fire out!",
+                    "1. Put out the hedge.",
+                    "1. Put out the hedge: H2O or CO2.",
+                ),
+                done: r.hedges[1].out,
+                pic: "fire",
+                bonus: false,
+            },
+            Step {
+                text: self.line(
+                    "Light the bowl!",
+                    "2. Light the brazier.",
+                    "2. Light the brazier: 2H2 + O2 -> 2H2O.",
+                ),
+                done: r.brazier_lit,
+                pic: "bowl",
+                bonus: false,
+            },
+        ];
+        if self.tier != Tier::Sprout {
+            steps.push(Step {
+                text: self.line(
+                    "",
+                    "Bonus: light it with methane fireball.",
+                    "Bonus: light it with CH4 + 2O2 -> CO2 + 2H2O.",
+                ),
+                done: r.fireball_bonus,
+                pic: "methane",
+                bonus: true,
+            });
+        }
+        steps
     }
 
     /// Starts the room the player is in again: its cells and state come back
@@ -1953,8 +2003,10 @@ mod tests {
                     .as_ref()
                     .unwrap()
                     .iter()
+                    .filter(|s| !s.bonus)
                     .map(|s| s.pic)
                     .collect();
+                // The required steps (the methane bonus star is optional).
                 assert_eq!(room4, ["fire", "bowl"]);
                 g.state();
                 if tier == Tier::Apprentice {
@@ -2561,12 +2613,14 @@ mod marsh {
     }
 
     #[test]
-    fn room_4_goal_has_two_steps_ticked_in_order() {
+    fn room_4_goal_has_two_steps_ticked_in_order_and_a_bonus() {
         let mut g = Game::new(Tier::Seedling, 42);
         teleport(&mut g, 1150.0);
         let steps = |g: &Game| g.goals()[3].steps.clone().expect("room 4 has steps");
         let s = steps(&g);
-        assert_eq!(s.len(), 2);
+        // Two steps to clear the room, then the optional bonus star.
+        assert_eq!(s.len(), 3);
+        assert!(!s[0].bonus && !s[1].bonus && s[2].bonus);
         assert!(!s[0].done && !s[1].done);
         assert!(douse(&mut g, 1, 4).is_some());
         settle(&mut g, 60);
@@ -3186,6 +3240,173 @@ mod copy_tests {
                 std::mem::take(&mut g.messages).contains(want),
                 "{tier:?} did not hear {want}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod round3_tests {
+    use super::script::*;
+    use super::*;
+
+    #[test]
+    fn running_out_of_hydrogen_names_the_crystal_only_where_there_is_one() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            // Room 1 and room 2 have no crystal.
+            for x in [SPAWN_X, 400.0] {
+                let mut g = Game::new(tier, 42);
+                teleport(&mut g, x);
+                g.jars.insert("H2".into(), 0);
+                let out = g.cast("boom");
+                assert_eq!(out.outcome, Outcome::Fizzle);
+                assert!(
+                    !out.label.to_lowercase().contains("crystal"),
+                    "{tier:?} at {x}: {}",
+                    out.label
+                );
+                if tier != Tier::Sprout {
+                    assert!(out.label.contains("refilling"), "{}", out.label);
+                }
+            }
+            // Room 3 has one, so the hint may send the player there.
+            let mut g = Game::new(tier, 42);
+            g.free_play();
+            teleport(&mut g, 700.0);
+            g.jars.insert("H2".into(), 0);
+            let out = g.cast("boom");
+            if tier != Tier::Sprout {
+                assert!(out.label.contains("crystal"), "{}", out.label);
+            }
+        }
+    }
+
+    #[test]
+    fn a_boom_beside_the_player_knocks_them_away_deterministically() {
+        let run = |seed: u64, side: i32| {
+            let mut g = Game::new(Tier::Seedling, seed);
+            teleport(&mut g, 200.0);
+            g.messages.clear();
+            let cx = (g.player.x + PLAYER_W / 2.0) as i32;
+            let cy = (g.player.y + PLAYER_H / 2.0) as i32;
+            let at = (cx + side * 6, cy);
+            let out = cast_at(&mut g, "boom", at);
+            assert_eq!(out.outcome, Outcome::Full);
+            let pushed = (g.player.vx, g.player.vy, g.player.x, g.player.y);
+            let fx = g.take_fx();
+            assert!(fx.iter().any(|f| f.kind == "knock"), "no knock fx");
+            (pushed, g.messages.clone())
+        };
+        for seed in SEEDS {
+            // Blast to the right: thrown left (and up); to the left: thrown right.
+            let ((vx, vy, ..), said) = run(seed, 1);
+            assert!(vx < -1.0, "seed {seed}: vx {vx}");
+            assert!(vy < 0.0, "seed {seed}: vy {vy}");
+            assert!(said.iter().any(|m| m.contains("Stand back")), "{said:?}");
+            let ((vx, ..), _) = run(seed, -1);
+            assert!(vx > 1.0, "seed {seed}: vx {vx}");
+            // The same seed gives exactly the same push.
+            assert_eq!(run(seed, 1).0, run(seed, 1).0);
+        }
+    }
+
+    #[test]
+    fn a_far_boom_does_not_move_the_player() {
+        let mut g = Game::new(Tier::Apprentice, 7);
+        teleport(&mut g, 200.0);
+        let cx = (g.player.x + PLAYER_W / 2.0) as i32;
+        let cy = (g.player.y + PLAYER_H / 2.0) as i32;
+        cast_at(&mut g, "boom", (cx - 40, cy));
+        assert_eq!(g.player.knock, 0);
+        assert!(!g.take_fx().iter().any(|f| f.kind == "knock"));
+    }
+
+    #[test]
+    fn the_suit_holds_its_jars_still_for_a_moment_after_a_cast() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = Game::new(tier, 42);
+            settle(&mut g, 10);
+            assert_eq!(g.cast("water").outcome, Outcome::Full);
+            g.tick(0);
+            let one = g.jars.clone();
+            settle(&mut g, 99);
+            assert_eq!(one, g.jars, "{tier:?}: the suit refilled during the pause");
+            // ...and the refill that fell due lands right after it.
+            settle(&mut g, 30);
+            assert!(g.jars["H2O"] > one["H2O"], "{tier:?}: no refill after");
+        }
+    }
+
+    #[test]
+    fn the_boom_reaction_carries_a_trained_chemists_safety_note() {
+        let book = ReactionBook::load();
+        let (r, _) = book.by_id("water_synthesis").expect("boom is in the book");
+        assert!(r.safety.as_deref().unwrap_or("").contains("trained"));
+        let mut g = Game::new(Tier::Seedling, 1);
+        let out = g.cast("boom");
+        assert!(out.safety.unwrap_or_default().contains("trained"));
+    }
+
+    fn brazier_ready(tier: Tier, seed: u64) -> Game {
+        let mut g = Game::new(tier, seed);
+        g.free_play();
+        teleport(&mut g, 1150.0);
+        assert!(
+            douse(&mut g, 1, 4).is_some(),
+            "seed {seed}: hedge 2 burning"
+        );
+        settle(&mut g, 60);
+        assert!(walk_to(&mut g, 1218.0, 800), "seed {seed}: stuck");
+        assert!(!g.rooms.brazier_lit);
+        g
+    }
+
+    #[test]
+    fn a_methane_fireball_lights_the_brazier_for_a_bonus_star_and_boom_does_not() {
+        for seed in [1, 42, 2024] {
+            for tier in [Tier::Seedling, Tier::Apprentice] {
+                let mut g = brazier_ready(tier, seed);
+                g.jars.insert("CH4".into(), 2);
+                g.jars.insert("O2".into(), 4);
+                let out = cast_at(
+                    &mut g,
+                    "CH4 + 2O2 -> CO2 + 2H2O",
+                    (BRAZIER.centre().0, BRAZIER.y1 - 4),
+                );
+                assert_eq!(out.outcome, Outcome::Full, "{}", out.label);
+                settle(&mut g, 60);
+                assert!(g.rooms.brazier_lit, "{tier:?} seed {seed}: dark");
+                assert!(g.rooms.fireball_bonus, "{tier:?} seed {seed}: no bonus");
+                let steps = g.goals()[3].steps.clone().unwrap();
+                assert!(steps.iter().all(|s| s.done), "{steps:?}");
+
+                let mut g = brazier_ready(tier, seed);
+                let out = cast_at(&mut g, "boom", (BRAZIER.centre().0, BRAZIER.y1 - 4));
+                assert_eq!(out.outcome, Outcome::Full);
+                settle(&mut g, 60);
+                assert!(
+                    g.rooms.brazier_lit,
+                    "{tier:?} seed {seed}: boom left it dark"
+                );
+                assert!(g.rooms.gates_open[3]);
+                assert!(!g.rooms.fireball_bonus);
+            }
+        }
+    }
+
+    #[test]
+    fn room_4_text_names_the_hedge_and_the_brazier() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let g = Game::new(tier, 1);
+            let goal = &g.goals()[3];
+            let steps = goal.steps.clone().unwrap();
+            let required: Vec<_> = steps.iter().filter(|s| !s.bonus).collect();
+            assert_eq!(required.len(), 2);
+            let bonus: Vec<_> = steps.iter().filter(|s| s.bonus).collect();
+            assert_eq!(bonus.len(), usize::from(tier != Tier::Sprout), "{tier:?}");
+            if tier != Tier::Sprout {
+                assert!(goal.text.contains("hedge") && goal.text.contains("brazier"));
+                assert!(bonus[0].text.contains("methane") || bonus[0].text.contains("CH4"));
+            }
         }
     }
 }

@@ -18,6 +18,8 @@ export interface BookReaction {
   /** Eight words or fewer, for Seedling. */
   short_seedling: string;
   real_world: string;
+  /** A real-world safety note, for reactions dangerous outside a game. */
+  safety?: string;
   source: string;
 }
 
@@ -168,8 +170,8 @@ export const GRIMOIRE_PAGES: GrimoirePage[] = [
     name: "Fireball",
     picture: "methane",
     room: 4,
-    where: "Room 4, the Marsh Door: hold G in the marsh bubbles for methane, then light the brazier with fireball (CH4 + 2O2 -> CO2 + 2H2O).",
-    again: "Hold G in the marsh bubbles for methane, then cast fireball: CH4 + 2O2 -> CO2 + 2H2O.",
+    where: "Room 4, the Marsh Door: put out the hedge, then light the brazier. Bonus star: light it with fireball (CH4 + 2O2 -> CO2 + 2H2O), using methane from the marsh bubbles.",
+    again: "Bonus: gather methane from marsh bubbles, then cast fireball at a brazier or a flame: CH4 + 2O2 -> CO2 + 2H2O.",
     whereSprout: "The marsh bubbles.",
     tiers: ["seedling", "apprentice"],
   },

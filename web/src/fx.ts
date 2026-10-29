@@ -451,10 +451,13 @@ export class FxLayer {
   // ------------------------------------------------------------ particles
 
   private spawn(n: number, init: (p: Particle, i: number) => void): void {
-    const count = Math.round(this.reducedMotion ? n * 0.3 : n);
+    const count = Math.round((this.reducedMotion ? n * 0.3 : n) * this.quality);
+    let live = 0;
+    for (const p of this.pool) if (p.alive) live++;
+    const room = Math.max(0, this.liveCap - live);
     let made = 0;
     for (const p of this.pool) {
-      if (made >= count) break;
+      if (made >= count || made >= room) break;
       if (p.alive) continue;
       p.alive = true;
       p.ring = false;
@@ -609,6 +612,13 @@ export class FxLayer {
           }
           this.flashes.push({ x: e.x, y: e.y, born: now, life: 400, color: COLOR.gold, radius: 22 });
           break;
+        case "knock": {
+          // The blast threw the player back: it lands with the on-screen blast.
+          const at = Math.max(now, ...this.pending.map((p) => p.at));
+          if (at > now) this.pending.push({ e, out, at });
+          else this.knock(e, now);
+          break;
+        }
         case "land":
           this.burst(e.x, e.y, Math.min(10, Math.round(e.power * 2)), "#c9b48a", 0.03, now, 0.0001);
           break;
@@ -649,6 +659,36 @@ export class FxLayer {
       p.color = color;
       p.ring = ring;
     });
+  }
+
+  /** The player was thrown back by a blast: a hard shake and a dust puff. */
+  private knock(e: Fx, now: number): void {
+    this.burst(e.x, e.y + 5, 14, (i) => (i % 2 ? "#c9b48a" : COLOR.spark), 0.05, now, 0.0002);
+    this.flashes.push({ x: e.x, y: e.y, born: now, life: 180, color: "#ffffff", radius: 6 });
+    this.knocks++;
+    if (this.reducedMotion) return;
+    this.shakeAmp = Math.max(this.shakeAmp * Math.exp((-4 * (now - this.shakeBorn)) / SHAKE_MS), 6 + 6 * e.power);
+    this.shakeBorn = now;
+  }
+
+  /** The boom safety note was shown on a cast card this visit. */
+  private safetyShown = false;
+
+  /** For automated checks: how many knockbacks were shown. */
+  knocks = 0;
+
+  /**
+   * Share of each particle request actually spawned, 0.3..1. The page lowers
+   * it while frames run slow (a rolling frame time over 12 ms) and raises it
+   * again when they are fast, so a slow device keeps its frame rate.
+   */
+  private quality = 1;
+  /** Live particles at most, scaled with `quality`. */
+  private liveCap = POOL_SIZE;
+  setLoad(frameMs: number): void {
+    const want = frameMs > 12 ? Math.max(0.3, this.quality - 0.05) : frameMs < 8 ? Math.min(1, this.quality + 0.02) : this.quality;
+    this.quality = want;
+    this.liveCap = Math.round(POOL_SIZE * want);
   }
 
   /** Where the last impact landed, in world cells (for automated checks). */
@@ -785,6 +825,22 @@ export class FxLayer {
       const what = same ? "" : ` for ${prettyFormula(out.reacted ?? "")}`;
       dh.textContent = `ΔH = ${sign}${Math.abs(out.delta_h_kj).toFixed(1)} kJ${what} (${out.source?.split(",")[0] ?? ""})`;
       el.append(dh);
+    }
+    // The first boom of the visit carries the real-world safety note
+    // (Sprout: a "Stand back!" picture instead of words).
+    if (out.safety && !this.safetyShown && (out.outcome === "full" || out.outcome === "partial")) {
+      this.safetyShown = true;
+      if (this.tier === "sprout") {
+        const sb = document.createElement("div");
+        sb.className = "fx-standback";
+        sb.append(icon("boom"), icon("left"), "Stand back!");
+        el.append(sb);
+      } else {
+        const note = document.createElement("div");
+        note.className = "fx-safety";
+        note.textContent = `⚠ ${prettyFormula(out.safety)}`;
+        el.append(note);
+      }
     }
     if (this.tier === "apprentice" && out.note) {
       const note = document.createElement("div");
@@ -959,7 +1015,10 @@ export class FxLayer {
     if (this.pending.length) {
       const due = this.pending.filter((p) => p.at <= now);
       this.pending = this.pending.filter((p) => p.at > now);
-      for (const p of due) this.impact(p.e, p.out, now);
+      for (const p of due) {
+        if (p.e.kind === "knock") this.knock(p.e, now);
+        else this.impact(p.e, p.out, now);
+      }
     }
 
     this.drawGas(now);
@@ -1190,11 +1249,13 @@ export class FxLayer {
   }
 
   /** Counts of what is on screen right now (for automated checks). */
-  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number; waves: number } {
+  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number; waves: number; quality: number; knocks: number } {
     let particles = 0;
     for (const p of this.pool) if (p.alive) particles++;
     return {
       particles,
+      quality: this.quality,
+      knocks: this.knocks,
       waves: this.waves.length,
       bolts: this.bolts.filter((b) => b.id !== -1 && performance.now() - b.born < b.dur).length,
       ghosts: this.ghosts.length,

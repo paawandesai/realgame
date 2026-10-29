@@ -241,6 +241,26 @@ kbd {
   transition: height 0.2s;
 }
 
+/* The suit's next refill: a thin bar under the gauge that fills up. */
+.jar .refill {
+  display: block;
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.35);
+  overflow: hidden;
+}
+.jar .refill[hidden] { display: none; }
+.jar .refill > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #e2e8f0;
+  transition: width 0.2s linear;
+}
+/* Held still for a moment after a cast, so the cast's change reads first. */
+.jar .refill.paused > span { background: #94a3b8; }
+
 /* Okabe-Ito, matching the atom balls: H sky blue, O vermillion. */
 .f-h2o { background: #0072b2; }
 .f-h2 { background: #56b4e9; }
@@ -3880,3 +3900,27 @@ body[data-motion="calm"] .slot.cooling::after {
 body[data-motion="calm"] .tap-pop {
   animation-duration: 0.01s;
 }
+
+/* An optional bonus step (the methane bonus star): quieter than the steps
+   that clear the room. */
+.objective-step.bonus {
+  opacity: 0.8;
+  font-style: italic;
+}
+.objective-step.bonus.done { opacity: 1; color: #f0c040; }
+
+/* Safety notes on boom cards and the Boom Grimoire page. */
+.fx-safety, .grim-safety {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: #fbbf24;
+}
+.fx-standback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+.fx-standback svg, .grim-safety svg { width: 28px; height: 28px; }

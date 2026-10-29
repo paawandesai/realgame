@@ -61,7 +61,7 @@ export interface Goal {
   /** Where to label the crystal battery (top centre), in room 3. */
   battery: [number, number] | null;
   /** The goal in ordered steps, each ticked when done (rooms 3 and 4). */
-  steps: { text: string; done: boolean; pic: "bubbles" | "trap" | "boom" | "fire" | "bowl" }[] | null;
+  steps: { text: string; done: boolean; pic: "bubbles" | "trap" | "boom" | "fire" | "bowl" | "methane"; bonus: boolean }[] | null;
 }
 
 export interface TorchView {
@@ -98,7 +98,9 @@ export interface Fx {
     /** Methane bubbling up from a marsh vent (no reaction). */
     | "seep"
     /** A gauge went up; reaction_id is "cause:jar" (condense, split, capture, gather). */
-    | "gain";
+    | "gain"
+    /** A blast threw the player back (x, y: the player; tx, ty: the blast). */
+    | "knock";
   x: number;
   y: number;
   tx: number;
@@ -146,6 +148,8 @@ export interface CastOutcome {
   multiple: number;
   concept: string | null;
   real_world: string | null;
+  /** A real-world safety note (the hydrogen + oxygen boom). */
+  safety: string | null;
   delta_h_kj: number | null;
   source: string | null;
   first_discovery: boolean;

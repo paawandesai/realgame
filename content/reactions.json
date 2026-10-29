@@ -15,6 +15,7 @@
       "short_sprout": "Boom! Water!",
       "short_seedling": "Two gases join and give off heat.",
       "real_world": "Hydrogen fuel cells and the main engines of the Space Shuttle used this reaction.",
+      "safety": "Real hydrogen + oxygen mixtures explode violently; only trained chemists handle them.",
       "source": "NIST Chemistry WebBook, standard enthalpy of formation of H2O(g)",
       "reviewed_by": null
     },

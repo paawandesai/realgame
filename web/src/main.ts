@@ -891,6 +891,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   /** Apprentice: each room's casts, energy and wasted atoms (all from this run of the seed). */
   const challenge = { room: 0, casts: 0, kj: 0, kjIn: 0, wasted: 0 };
   const challengeEl = byId("challenge");
+  /** Casts for a gold star in each room: hedge (water), ice (one boom),
+   * trap (split, then boom), marsh (put out the hedge, light the brazier). */
+  const GOLD_CASTS = [2, 1, 2, 3];
   /** How long the room score stays up (it also goes on the next room). */
   const SCORE_MS = 4000;
   function scoreCast(r: CastOutcome): void {
@@ -908,14 +911,20 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     const key = `best-room-${room}`;
     const best = Number(storageGet(key) ?? "0");
-    const isBest = best === 0 || challenge.casts < best;
-    if (isBest) storageSet(key, String(challenge.casts));
-    challengeEl.textContent =
-      `Room ${room + 1} clear · ${challenge.casts} cast${challenge.casts === 1 ? "" : "s"} · ` +
-      `${challenge.kj.toFixed(1)} kJ heat released · ` +
-      (challenge.kjIn > 0 ? `${challenge.kjIn.toFixed(1)} kJ energy in · ` : "") +
-      `${challenge.wasted} atom${challenge.wasted === 1 ? "" : "s"} wasted` +
-      (isBest ? " · best" : ` · best ${best} casts`);
+    const first = !(best > 0);
+    if (first || challenge.casts < best) storageSet(key, String(challenge.casts));
+    const n = challenge.casts;
+    const gold = GOLD_CASTS[room] ?? 1;
+    // Only numbers that mean something: no "0.0 kJ", no "0 atoms wasted".
+    const parts = [`Room ${room + 1} clear`, `${n} cast${n === 1 ? "" : "s"}`];
+    if (challenge.kj >= 0.05) parts.push(`${challenge.kj.toFixed(1)} kJ heat released`);
+    if (challenge.kjIn >= 0.05) parts.push(`${challenge.kjIn.toFixed(1)} kJ energy in`);
+    if (challenge.wasted > 0) parts.push(`${challenge.wasted} atom${challenge.wasted === 1 ? "" : "s"} wasted`);
+    // A simple star target: gold at the room's par, silver within two more.
+    const par = `${gold} cast${gold === 1 ? "" : "s"} = gold`;
+    parts.push(n <= gold ? `★ gold (${par})` : n <= gold + 2 ? `☆ silver (${par})` : par);
+    parts.push(first ? "first clear" : n < best ? `new record (was ${best})` : `record ${best}`);
+    challengeEl.textContent = parts.join(" · ");
     popups.push({ kind: "score", el: challengeEl, ms: SCORE_MS, dismissOnInput: true });
     challenge.casts = challenge.kj = challenge.kjIn = challenge.wasted = 0;
   }
@@ -1566,7 +1575,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     fill.className = `fill f-${formula.toLowerCase()}`;
     glass.append(fill);
     const label = document.createElement("span");
-    root.append(glass, label);
+    // A thin bar under the gauge: how close the suit's next refill is.
+    const refill = document.createElement("span");
+    refill.className = "refill";
+    refill.setAttribute("aria-hidden", "true");
+    refill.append(document.createElement("span"));
+    root.append(glass, label, refill);
     hover.attach(root, () => {
       const info = JAR_INFO[formula];
       const n = state?.jars[formula] ?? 0;
@@ -1601,6 +1615,25 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     void el.root.offsetWidth;
     el.root.classList.add("pulse");
     window.setTimeout(() => t.remove(), 1400);
+  }
+
+  /** The refill bars under the water and gas gauges, from the suit's timers. */
+  let refillKey = "";
+  function renderRefill(): void {
+    const [water = -1, gas = -1, paused = 0] = game.refill();
+    const pct = (v: number) => (v < 0 ? -1 : Math.round(v * 20) * 5);
+    const key = `${pct(water)}:${pct(gas)}:${paused}`;
+    if (key === refillKey) return;
+    refillKey = key;
+    for (const [formula, v] of [["H2O", water], ["H2", gas], ["O2", gas]] as const) {
+      const el = jarEls.get(formula);
+      const bar = el?.root.querySelector<HTMLElement>(".refill");
+      if (!bar) continue;
+      bar.hidden = v < 0;
+      bar.classList.toggle("paused", paused > 0);
+      (bar.firstElementChild as HTMLElement).style.width = `${pct(v)}%`;
+      bar.title = formula === "H2O" ? "Condenser: next water" : "Electrolyser: next hydrogen and oxygen";
+    }
   }
 
   function renderJars(s: GameState): void {
@@ -2074,6 +2107,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         actTray.classList.add("new-spell");
       }
       updateBoomReady(here ?? null);
+      renderRefill();
       if (!room1Cleared && list[0]?.done) room1Cleared = true;
       if (objective.line !== shownGoalLine) renderTutorial();
       shownGoalLine = objective.line;
@@ -2099,6 +2133,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       renderHud(state);
     }
     const end = performance.now();
+    // A slow device gets fewer particles while its frames run long.
+    workEma = workEma * 0.9 + (end - now) * 0.1;
+    fx.setLoad(workEma);
     frameWork.push(end - now);
     if (frameWork.length > 120) frameWork.shift();
     frameParts[0] = frameParts[0]! * 0.95 + (tSim - now) * 0.05;
@@ -2251,6 +2288,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   /** How long each of the last frames took to compute (for automated checks). */
   const frameWork: number[] = [];
+  /** Rolling (smoothed) ms of work per frame, for the particle budget. */
+  let workEma = 0;
   /** Smoothed ms per frame for sim steps, world render, overlay, and HUD. */
   const frameParts = [0, 0, 0, 0];
 

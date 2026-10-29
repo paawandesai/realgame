@@ -41,6 +41,9 @@ pub const CONDENSE_TICKS: u32 = 90;
 /// crystal, a slow trickle from the solar strip elsewhere.
 const ELECTRO_TICKS_NEAR: u32 = 12;
 const ELECTRO_TICKS_SOLAR: u32 = 150;
+/// After a cast the condenser and electrolyser wait this long (2 s), so the
+/// gauges show what the cast itself spent before the suit tops them up.
+const SUIT_PAUSE_TICKS: u64 = 120;
 /// The electrolyser leaves at least this many water casts in the tank.
 const SPLIT_RESERVE: u32 = 2;
 /// How close (in cells) the player must be to a crystal to draw on it.
@@ -122,6 +125,17 @@ const COYOTE_TICKS: u8 = 6;
 const JUMP_BUFFER_TICKS: u8 = 6;
 /// Landings faster than this make a dust puff.
 const LAND_FX_SPEED: f32 = 2.0;
+/// A blast pushes the player away when they stand this many cells past its
+/// burst radius or closer (a balanced boom: 9 + 3 = 12 cells)...
+const KNOCK_EXTRA_R: i32 = 3;
+/// ...at this speed (cells/tick) at the edge, up to `KNOCK_MAX` at its heart,
+const KNOCK_MIN: f32 = 2.0;
+const KNOCK_MAX: f32 = 4.5;
+/// with a hop of up to this speed upward,
+const KNOCK_HOP: f32 = 3.0;
+/// for this many ticks, slowing by this much each tick.
+const KNOCK_TICKS: u8 = 14;
+const KNOCK_DRAG: f32 = 0.12;
 const REACH: f32 = 140.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize)]
@@ -207,6 +221,9 @@ pub struct CastOutcome {
     pub multiple: u32,
     pub concept: Option<String>,
     pub real_world: Option<String>,
+    /// A real-world safety note for dangerous reactions (the hydrogen and
+    /// oxygen boom), from the reaction table.
+    pub safety: Option<String>,
     /// Shown at Apprentice tier and above, with its source.
     pub delta_h_kj: Option<f32>,
     pub source: Option<String>,
@@ -304,6 +321,9 @@ pub struct Player {
     jumping: bool,
     /// Ticks since the jump started, so even a tap rises `MIN_JUMP_TICKS`.
     jump_ticks: u8,
+    /// Ticks left of a blast's knockback: air control and the air speed
+    /// cap wait so the push carries the player clear.
+    pub knock: u8,
 }
 
 pub struct Game {
@@ -325,6 +345,8 @@ pub struct Game {
     fusion_kj: f32,
     condense_timer: u32,
     electro_timer: u32,
+    /// The condenser and electrolyser wait until this tick (set by a cast).
+    suit_paused_until: u64,
     gather_cells: u32,
     /// Gauge changes the suit made by itself (condenser, electrolyser, CO2
     /// scrubber) since the HUD last asked, per jar. Not the player's casts.
@@ -347,6 +369,8 @@ pub struct Game {
     torch_lit: bool,
     pub rooms: rooms::Rooms,
     met_crystal: bool,
+    /// "Stand back" was said after the first knockback.
+    knock_told: bool,
     gather_target: Option<Species>,
     /// Ticks gather has been held this press, whether anything came in,
     /// and whether the reason nothing did has been said.
@@ -395,6 +419,7 @@ impl Game {
                 jump_tap: false,
                 jumping: false,
                 jump_ticks: 0,
+                knock: 0,
             },
             tier,
             // A full water tank, and gas "left over from your last trial":
@@ -416,6 +441,7 @@ impl Game {
             fusion_kj: book.latent_heat("water_melting"),
             condense_timer: 0,
             electro_timer: 0,
+            suit_paused_until: 0,
             gather_cells: 0,
             background: BTreeMap::new(),
             objectives: vec![],
@@ -434,6 +460,7 @@ impl Game {
             torch_lit: false,
             rooms: rooms::Rooms::new(),
             met_crystal: false,
+            knock_told: false,
             gather_target: None,
             gather_held: 0,
             gather_got: false,
@@ -581,14 +608,18 @@ impl Game {
             target_vx += max;
             self.player.facing = 1;
         }
-        let rate = if target_vx == 0.0 {
+        let knocked = self.player.knock > 0;
+        self.player.knock = self.player.knock.saturating_sub(1);
+        let rate = if knocked {
+            KNOCK_DRAG
+        } else if target_vx == 0.0 {
             RUN_DECEL
         } else {
             RUN_ACCEL
         };
         let dv = (target_vx - self.player.vx).clamp(-rate, rate);
         self.player.vx += dv;
-        if !grounded && !swimming {
+        if !grounded && !swimming && !knocked {
             self.player.vx = self.player.vx.clamp(-AIR_MAX, AIR_MAX);
         }
 
@@ -963,16 +994,6 @@ impl Game {
     /// are conserved; it keeps `SPLIT_RESERVE` casts of water in the tank.
     fn suit_tick(&mut self) {
         let (hx, hy) = self.hand();
-        if self.jar("H2O") < H2O_CAP {
-            self.condense_timer += 1;
-            if self.condense_timer >= CONDENSE_TICKS {
-                self.condense_timer = 0;
-                // Mist streams in from the air just above the hand.
-                self.gain("H2O", 1, "condense", (hx, hy - 10.0));
-            }
-        } else {
-            self.condense_timer = 0;
-        }
         let crystal = self.nearest_crystal();
         let charge = if crystal.is_some() {
             CRYSTAL_CHARGE_KJ_PER_TICK
@@ -990,12 +1011,21 @@ impl Game {
             );
             self.say(line);
         }
-        // Splitting water costs energy: no split without a full split's worth.
-        let room = self.jar("H2") + 2 <= Self::jar_cap("H2")
-            && self.jar("O2") < Self::jar_cap("O2")
-            && self.jar("H2O") >= 2 + SPLIT_RESERVE
-            && self.crystal_kj >= self.split_kj;
-        if !room {
+        // Right after a cast the jars hold still, so the cast's own change
+        // is what the gauges show. The timers keep running, so a refill
+        // that falls due meanwhile lands as soon as the pause ends.
+        let paused = self.suit_paused();
+        if self.jar("H2O") < H2O_CAP {
+            self.condense_timer = (self.condense_timer + 1).min(CONDENSE_TICKS);
+            if self.condense_timer >= CONDENSE_TICKS && !paused {
+                self.condense_timer = 0;
+                // Mist streams in from the air just above the hand.
+                self.gain("H2O", 1, "condense", (hx, hy - 10.0));
+            }
+        } else {
+            self.condense_timer = 0;
+        }
+        if !self.electro_ready() {
             self.electro_timer = 0;
             return;
         }
@@ -1005,8 +1035,8 @@ impl Game {
         } else {
             ELECTRO_TICKS_SOLAR
         };
-        self.electro_timer += 1;
-        if self.electro_timer < period {
+        self.electro_timer = (self.electro_timer + 1).min(period);
+        if self.electro_timer < period || paused {
             return;
         }
         self.electro_timer = 0;
@@ -1034,6 +1064,43 @@ impl Game {
                 power: 1.0,
             });
         }
+    }
+
+    /// Whether the electrolyser can split now: room in both gas jars, water
+    /// above the reserve, and a full split's worth of energy (splitting
+    /// water costs energy: no split without it).
+    fn electro_ready(&self) -> bool {
+        self.jar("H2") + 2 <= Self::jar_cap("H2")
+            && self.jar("O2") < Self::jar_cap("O2")
+            && self.jar("H2O") >= 2 + SPLIT_RESERVE
+            && self.crystal_kj >= self.split_kj
+    }
+
+    /// The suit's automatic refills wait for a moment after every cast.
+    pub fn suit_paused(&self) -> bool {
+        self.ticks < self.suit_paused_until
+    }
+
+    /// How far along the next automatic refill is, 0..=1, for the water
+    /// tank (condenser) and the gas jars (electrolyser); -1 when that
+    /// process is idle (full, or nothing to make it from).
+    pub fn refill_progress(&self) -> [f32; 2] {
+        let water = if self.jar("H2O") < H2O_CAP {
+            self.condense_timer as f32 / CONDENSE_TICKS as f32
+        } else {
+            -1.0
+        };
+        let gas = if self.electro_ready() {
+            let period = if self.nearest_crystal().is_some() {
+                ELECTRO_TICKS_NEAR
+            } else {
+                ELECTRO_TICKS_SOLAR
+            };
+            self.electro_timer as f32 / period as f32
+        } else {
+            -1.0
+        };
+        [water, gas]
     }
 
     /// Adds to a gauge and tells the browser where it came from, so every
@@ -1385,6 +1452,7 @@ impl Game {
             multiple,
             concept: entry.as_ref().map(|r| r.concept.clone()),
             real_world: entry.as_ref().map(|r| r.real_world.clone()),
+            safety: entry.as_ref().and_then(|r| r.safety.clone()),
             delta_h_kj: entry.as_ref().filter(|_| show_numbers).map(|_| res.dh_kj),
             source: entry
                 .as_ref()
@@ -1427,6 +1495,7 @@ impl Game {
                 power: 0.0,
             });
         } else {
+            self.suit_paused_until = self.ticks + SUIT_PAUSE_TICKS;
             self.launch(shot);
         }
         self.refresh_version();
@@ -1561,6 +1630,7 @@ impl Game {
             multiple: 1,
             concept: None,
             real_world: None,
+            safety: None,
             delta_h_kj: None,
             source: None,
             first_discovery: false,
@@ -1586,20 +1656,25 @@ impl Game {
     ) -> String {
         let young = self.tier == Tier::Sprout;
         if outcome == Outcome::Fizzle {
-            // Always name what ran out, and how to get more.
+            // Always name what ran out, and how to get more. Only name
+            // things in this room: the crystal only where there is one.
             let what = res.missing.first().map(String::as_str).unwrap_or("");
+            let crystal = self.room_has_crystal();
             return match (what, young) {
                 ("H2O", true) => "Out of water! Wait.".into(),
                 ("H2" | "O2", true) => "Out of gas! Wait.".into(),
-                (ENERGY, true) => "Out of power! Find crystal.".into(),
+                (ENERGY, true) if crystal => "Out of power! Find crystal.".into(),
+                (ENERGY, true) => "Out of power! Wait.".into(),
                 ("CH4", true) => "Out of gas! Grab bubbles.".into(),
                 ("CO2", true) => "Out of cloud! Find fire.".into(),
                 (_, true) => "Out of stuff! Wait.".into(),
                 ("H2O", false) => "Out of H2O: hold G near water.".into(),
-                ("H2" | "O2", false) => {
+                ("H2" | "O2", false) if crystal => {
                     format!("Out of {what}: wait, or stand by the crystal.")
                 }
-                (ENERGY, false) => "Out of ⚡: stand by the crystal to charge.".into(),
+                ("H2" | "O2", false) => format!("Out of {what}: wait, your suit is refilling."),
+                (ENERGY, false) if crystal => "Out of ⚡: stand by the crystal to charge.".into(),
+                (ENERGY, false) => "Out of ⚡: wait, the sun recharges it.".into(),
                 ("CH4", false) => "Out of CH4: hold G in marsh bubbles.".into(),
                 ("CO2", false) => "Out of CO2: stand by a flame to catch it.".into(),
                 ("", false) => "Nothing to cast: your suit is empty.".into(),
@@ -2189,10 +2264,13 @@ impl Game {
                     self.ice_progress_line(shot.spell);
                 }
                 self.rooms.last_heat = Some((self.ticks, at.0, at.1));
+                self.rooms.last_heat_methane =
+                    shot.spell == "fireball" && shot.outcome == Outcome::Full;
                 if melted > 0 || rooms::ICE.grow(radius + 4).contains(at.0, at.1) {
                     self.rooms.ice_heated = true;
                 }
                 self.heat_burst(at, radius, peak * (0.5 + 0.5 * shot.power));
+                self.knockback(at, radius, shot.power);
                 self.spawn_blob_at(at, Species::Steam, n("H2O") * 4, 300.0);
                 self.spawn_blob_at(at, Species::CO2, n("CO2") * 4, 300.0);
                 if melted > 0 {
@@ -2208,6 +2286,63 @@ impl Game {
                 kind,
                 ..base.clone()
             });
+        }
+    }
+
+    /// A blast close to the player shoves them away from it (and hops them
+    /// up), harder the closer they stood: real explosions are dangerous at
+    /// point blank. Pure arithmetic on the player's state, so deterministic.
+    fn knockback(&mut self, at: (i32, i32), radius: i32, power: f32) {
+        let reach = (radius + KNOCK_EXTRA_R) as f32;
+        let (px, py) = (
+            self.player.x + PLAYER_W / 2.0,
+            self.player.y + PLAYER_H / 2.0,
+        );
+        let (dx, dy) = (px - (at.0 as f32 + 0.5), py - (at.1 as f32 + 0.5));
+        let d = dx.hypot(dy);
+        if d > reach {
+            return;
+        }
+        let near = (1.0 - d / reach).clamp(0.0, 1.0);
+        let strength = power.clamp(0.25, 1.0);
+        // Straight overhead or underfoot: thrown back the way they face from.
+        let dir = if dx.abs() < 0.5 {
+            -(self.player.facing as f32)
+        } else {
+            dx.signum()
+        };
+        let push = (KNOCK_MIN + (KNOCK_MAX - KNOCK_MIN) * near) * strength;
+        self.player.vx = dir * push;
+        // A blast at or below chest height lifts; one overhead doesn't.
+        if dy > -(PLAYER_H / 2.0 + 2.0) {
+            self.player.vy = self
+                .player
+                .vy
+                .min(-KNOCK_HOP * (0.5 + 0.5 * near) * strength);
+            self.player.jumping = false;
+        }
+        self.player.knock = KNOCK_TICKS;
+        self.emit(Fx {
+            kind: "knock",
+            x: px,
+            y: py,
+            tx: at.0 as f32,
+            ty: at.1 as f32,
+            dh_kj: 0.0,
+            outcome: None,
+            leftovers: Atoms::new(),
+            reaction_id: None,
+            id: 0,
+            power: near * strength,
+        });
+        if !self.knock_told {
+            self.knock_told = true;
+            let line = self.line(
+                "Whoa! Stand back from booms!",
+                "Too close! Stand back from a boom.",
+                "Too close: the blast threw you back. Real hydrogen + oxygen mixtures explode violently; only trained chemists handle them.",
+            );
+            self.say(line);
         }
     }
 
