@@ -244,9 +244,8 @@ jobs:
   supply-chain:
     name: Dependency audit
     needs: changes
-    # Any code or dependency change; a docs-only change skips it (the nightly
-    # Security workflow still audits every day).
-    if: needs.changes.outputs.deps == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true'
+    # Runs on every push, docs-only included, as it did before this pipeline
+    # existed: a newly published advisory should block a merge immediately.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
