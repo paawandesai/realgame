@@ -51,6 +51,19 @@
 
         <div id="readout" aria-live="off"></div>
 
+        <!-- One column under the top bar for every top message, so they
+             stack and never overlap: the goal pill, then the hint chip,
+             then the tip, then one banner at a time. -->
+        <div id="hud-top">
+          <div id="hud-pill"></div>
+          <div id="hint-ghost" hidden>
+            <span id="hint-text"></span>
+            <button id="hint-use" type="button" hidden>Use it</button>
+          </div>
+          <p id="app-tutorial" hidden><span id="app-tutorial-text"></span> <button id="tutorial-skip" type="button">Skip</button></p>
+          <div id="hud-banners"></div>
+        </div>
+
         <section id="ring" hidden aria-label="Formula ring">
           <div id="tiles" role="group" aria-label="Substances"></div>
           <div id="builder">
@@ -81,7 +94,6 @@
         </section>
         <button id="lens-btn" type="button" aria-pressed="false" aria-label="Heat lens" hidden><span class="lens-word">Heat lens</span><span class="lens-icon" aria-hidden="true">°C</span> <kbd>L</kbd></button>
         <div id="lens-legend" hidden aria-label="Heat lens colours, degrees Celsius"></div>
-        <p id="app-tutorial" hidden><span id="app-tutorial-text"></span> <button id="tutorial-skip" type="button">Skip</button></p>
         <div id="challenge" role="status" aria-live="polite" hidden></div>
 
         <div id="jars-mini" aria-label="Suit gauges" hidden></div>
@@ -110,10 +122,6 @@
 
         <div id="cards" role="group" aria-label="Spell cards" hidden></div>
 
-        <div id="hint-ghost" hidden>
-          <span id="hint-text"></span>
-          <button id="hint-use" type="button" hidden>Use it</button>
-        </div>
         <div id="ghost-hand" aria-hidden="true" hidden></div>
 
         <button id="settings-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="settings"></button>

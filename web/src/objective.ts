@@ -1,9 +1,12 @@
 // The room objective: when the player reaches a room (or its goal changes),
-// a big banner with the goal's picture and one line shows in the middle of
-// the stage, then shrinks into a goal chip at the top that stays. Tapping
-// the chip shows (and says) the goal again. Separate from Mote's captions,
-// so every tier always sees what the room wants, whatever the caption
-// setting. Presentation only.
+// a big banner with the goal's picture and one line shows under the top bar,
+// then shrinks into a goal chip (the pill) that stays. Only one copy of the
+// goal is ever on screen: the pill steps aside while the banner (or any
+// other banner, such as the room-clear stamp) is up, a ticked step only
+// glows the pill, and the first key press or tap sends the banner into the
+// pill early. Tapping the pill shows (and says) the goal again. Separate
+// from Mote's captions, so every tier always sees what the room wants,
+// whatever the caption setting. Presentation only.
 
 import { icon, type IconName } from "./icons";
 import type { Goal, Tier } from "./types";
@@ -18,6 +21,9 @@ const GOAL_ICON: Record<Goal["kind"], IconName> = {
 
 /** How long the big banner stays before it shrinks into the chip. */
 const BANNER_MS = 3200;
+/** Input this soon after the banner appears doesn't dismiss it (the tap or
+ * step that brought it up is still in flight). */
+const INPUT_GRACE_MS = 400;
 
 export class ObjectiveBanner {
   private readonly banner: HTMLElement;
@@ -33,13 +39,21 @@ export class ObjectiveBanner {
   private timer = 0;
   private holdTimer = 0;
   private holdUntil = 0;
+  private shownAt = 0;
+  /** Another banner (the room-clear stamp) is up: the pill waits too. */
+  private othersUp = false;
+  /** The banner is waiting for another banner to finish. */
+  private pending = false;
   /** The goal line as the simulation wrote it (for speech). */
   private raw = "";
   /** Called when the player asks for the goal again; the caller speaks it. */
   onAnnounce: ((line: string) => void) | null = null;
 
+  /** `pillRow` holds the goal chip, `bannerRow` the big banner; both live
+   * in the top HUD column, so they stack and never overlap. */
   constructor(
-    stage: HTMLElement,
+    pillRow: HTMLElement,
+    bannerRow: HTMLElement,
     private readonly tier: Tier,
   ) {
     this.banner = document.createElement("div");
@@ -69,7 +83,40 @@ export class ObjectiveBanner {
     this.chipSteps.className = "objective-steps";
     this.chip.append(this.chipPic, this.chipText, this.chipSteps);
     this.chip.addEventListener("click", () => this.replay());
-    stage.append(this.banner, this.chip);
+    pillRow.append(this.chip);
+    bannerRow.append(this.banner);
+    // The first key press or tap after the banner appears tucks it away.
+    const onInput = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.repeat) return;
+      if (this.bannerUp && performance.now() - this.shownAt > INPUT_GRACE_MS) this.shrink();
+    };
+    window.addEventListener("keydown", onInput, { capture: true });
+    window.addEventListener("pointerdown", onInput, { capture: true });
+  }
+
+  /** Whether the big banner is on screen (not shrinking away). */
+  get bannerUp(): boolean {
+    return !this.banner.hidden && !this.banner.classList.contains("shrink");
+  }
+
+  /** Another banner is showing or queued (or not): the goal banner waits
+   * its turn and the pill steps aside meanwhile. */
+  setOthersUp(up: boolean): void {
+    if (up === this.othersUp) return;
+    this.othersUp = up;
+    if (up && !this.banner.hidden) {
+      // Make way now; come back once the other banner is gone.
+      window.clearTimeout(this.timer);
+      this.banner.hidden = true;
+      this.pending = true;
+    } else if (!up && this.pending) this.show();
+    this.sync();
+  }
+
+  /** One copy of the goal at a time: the pill hides while any banner is on
+   * screen (including the goal banner's own shrink). */
+  private sync(): void {
+    this.chip.classList.toggle("yield", !this.banner.hidden || this.othersUp);
   }
 
   /** The current objective line (what the chip says), for other UI. */
@@ -85,6 +132,7 @@ export class ObjectiveBanner {
   update(goal: Goal | null): void {
     if (!goal) {
       this.key = "done";
+      this.pending = false;
       this.chip.hidden = true;
       this.banner.hidden = true;
       return;
@@ -123,9 +171,16 @@ export class ObjectiveBanner {
     }
     const said = steps.length ? ` Steps: ${steps.map((s) => `${s.text}${s.done ? " (done)" : ""}`).join(", ")}.` : "";
     this.chip.setAttribute("aria-label", `Goal: ${text}.${said} Say it again.`);
-    // A step just ticked: the chip glows; the banner comes back to show it.
+    // A step just ticked: the pill already says it, so it only glows (no
+    // second, bigger copy of the same words).
     this.chip.classList.toggle("ticked", ticked);
     this.chip.hidden = false;
+    if (ticked) {
+      this.chip.classList.remove("pop");
+      void this.chip.offsetWidth;
+      this.chip.classList.add("pop");
+      return;
+    }
     // Not spoken here: each room already speaks its own entry line.
     this.show();
   }
@@ -134,6 +189,7 @@ export class ObjectiveBanner {
   holdFor(ms: number): void {
     this.holdUntil = performance.now() + ms;
     if (!this.banner.hidden) this.banner.hidden = true;
+    this.sync();
   }
 
   /** The chip was tapped: big banner again, read aloud again. */
@@ -150,14 +206,29 @@ export class ObjectiveBanner {
       this.holdTimer = window.setTimeout(() => this.show(), wait);
       return;
     }
+    if (this.othersUp) {
+      this.pending = true;
+      this.sync();
+      return;
+    }
+    this.pending = false;
     this.banner.hidden = false;
     this.banner.classList.remove("shrink");
     this.chip.classList.remove("pop");
+    this.shownAt = performance.now();
+    this.sync();
     window.clearTimeout(this.timer);
+    this.timer = window.setTimeout(() => this.shrink(), BANNER_MS);
+  }
+
+  /** The banner shrinks away and the pill comes back in its place. */
+  private shrink(): void {
+    window.clearTimeout(this.timer);
+    this.banner.classList.add("shrink");
+    this.chip.classList.add("pop");
     this.timer = window.setTimeout(() => {
-      this.banner.classList.add("shrink");
-      this.chip.classList.add("pop");
-      this.timer = window.setTimeout(() => (this.banner.hidden = true), 450);
-    }, BANNER_MS);
+      this.banner.hidden = true;
+      this.sync();
+    }, 450);
   }
 }

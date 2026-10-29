@@ -25,6 +25,12 @@ const DROP: Shape[] = [
   ["ellipse", { cx: 18, cy: 30, rx: 3, ry: 6, fill: "#e6f6ff", opacity: 0.7 }],
 ];
 
+/** The glowing crystal battery of room 3. */
+const CRYSTAL: Shape[] = [
+  ["path", { d: "M24 3 L36 17 L30 44 H18 L12 17 Z", fill: "#e879f9", stroke: "#fdf4ff", "stroke-width": 2 }],
+  ["path", { d: "M24 3 L24 44 M12 17 H36", stroke: "#fdf4ff", "stroke-width": 1.5, opacity: 0.7 }],
+];
+
 const BUBBLES: Shape[] = [
   ["circle", { cx: 17, cy: 30, r: 10, fill: "none", stroke: "#0072b2", "stroke-width": 4 }],
   ["circle", { cx: 33, cy: 34, r: 7, fill: "none", stroke: "#0072b2", "stroke-width": 4 }],
@@ -269,6 +275,7 @@ const ICONS = {
   cloud: CLOUD,
   fire: FIRE,
   ice: ICE,
+  crystal: CRYSTAL,
   bowl: BOWL,
   right: ARROW_R,
   left: ARROW_L,

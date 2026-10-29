@@ -40,6 +40,11 @@ export class PopupQueue {
     return this.current?.el ?? null;
   }
 
+  /** Whether a popup of one of these kinds is showing or waiting its turn. */
+  has(...kinds: string[]): boolean {
+    return (this.current !== null && kinds.includes(this.current.kind)) || this.queue.some((q) => kinds.includes(q.kind));
+  }
+
   /** Shows `p` now if nothing is showing, else after what is queued. A popup
    * of the same kind already waiting or showing is replaced, not repeated. */
   push(p: Popup): void {

@@ -3,6 +3,7 @@
 // string with no symbols, so "2H2 + O2 -> 2H2O" is read as words.
 
 import { words } from "./device";
+import { icon, type IconName } from "./icons";
 
 const NAMES: Record<string, [string, string]> = {
   // formula: [one, many]
@@ -74,6 +75,9 @@ export class Speech {
   enabled: boolean;
   /** Show the caption box. Hints still show when this is off. */
   captions = true;
+  /** A picture for a caption (flame, ice, crystal, bubbles), shown beside
+   * it for readers who are still learning; null for none. */
+  pictureFor: ((caption: string) => IconName | null) | null = null;
 
   constructor(
     enabled: boolean,
@@ -125,9 +129,29 @@ export class Speech {
     if (this.unlocked) this.speak(spoken);
     if (!this.captions && !force) return;
     this.text.textContent = caption;
+    const pic = this.pictureFor?.(caption) ?? null;
+    let slot = this.box.querySelector<HTMLElement>(".mote-pic");
+    if (pic) {
+      if (!slot) {
+        slot = document.createElement("span");
+        slot.className = "mote-pic";
+        slot.setAttribute("aria-hidden", "true");
+        this.text.before(slot);
+      }
+      slot.replaceChildren(icon(pic));
+    } else slot?.remove();
     this.box.classList.add("show");
     window.clearTimeout(this.hideTimer);
     this.hideTimer = window.setTimeout(() => this.box.classList.remove("show"), 9000);
+  }
+
+  /** Reads a line aloud with no caption: for words already on screen in
+   * their own place (the hint chip), so they never show twice. */
+  sayOnly(rawCaption: string, rawSpoken: string = speakable(rawCaption)): void {
+    const spoken = words(rawSpoken);
+    this.lastCaption = words(rawCaption);
+    this.lastSpoken = spoken;
+    if (this.unlocked) this.speak(spoken);
   }
 
   replay(): void {

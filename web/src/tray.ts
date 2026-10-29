@@ -2,6 +2,11 @@
 // that snap into a spell bar, with a live balance scale that counts the atoms
 // on each side and tips until they match. Each molecule in the bar has one
 // control for how many: tap its number to count 1, 2, 3, 4 and round again.
+//
+// The game suggests one spell per room goal. The suggestion goes in once,
+// when the goal changes, with a "New spell" pulse; once the player taps any
+// tile or number the bar is theirs and is never overwritten (a later
+// suggestion waits on the label, to use with a tap).
 
 import { words } from "./device";
 import { ATOM_COLOR, atomsOf, molecule } from "./icons";
@@ -66,6 +71,15 @@ export class SpellTray {
   private readonly pans: [HTMLElement, HTMLElement];
   private readonly scaleLabel: HTMLElement;
   private readonly molTiles = new Map<string, HTMLButtonElement>();
+  /** The "New spell" label over the bar (a button when it offers a swap). */
+  private readonly newLabel: HTMLButtonElement;
+  private newTimer = 0;
+  /** The player has edited the bar since the last suggestion went in. */
+  private touched = false;
+  /** Which goal the current suggestion is for (-1: none yet). */
+  private suggestKey = -1;
+  /** A suggestion waiting on the label while the player's own spell stays. */
+  private offered = "";
 
   constructor(
     root: HTMLElement,
@@ -80,9 +94,14 @@ export class SpellTray {
     this.bar.setAttribute("aria-live", "polite");
     const back = button("⌫", "Remove last tile", "tray-key", () => this.backspace());
     const clear = button("Clear", "Clear the spell", "tray-key", () => this.set(""));
+    this.newLabel = button("New spell", "New spell", "tray-new", () => {
+      if (this.offered) this.set(this.offered);
+      this.hideNew();
+    });
+    this.newLabel.hidden = true;
     const cast = button("Cast", "Cast the spell", "tray-cast primary", () => this.cast());
     cast.id = "tray-cast";
-    barRow.append(this.bar, back, clear, cast);
+    barRow.append(this.newLabel, this.bar, back, clear, cast);
 
     // The balance scale: a beam with a pan of atoms at each end.
     this.scale = document.createElement("div");
@@ -100,7 +119,12 @@ export class SpellTray {
     post.className = "post";
     this.scaleLabel = document.createElement("div");
     this.scaleLabel.className = "scale-label";
-    this.scale.append(this.beam, post, this.scaleLabel);
+    // What the two sides mean, in words a Seedling knows (each pan's name
+    // hangs under it, see fillPan).
+    const caption = document.createElement("div");
+    caption.className = "scale-caption";
+    caption.textContent = "Atoms in = atoms out";
+    this.scale.append(caption, this.beam, post, this.scaleLabel);
 
     const tiles = document.createElement("div");
     tiles.id = "tray-tiles";
@@ -133,10 +157,67 @@ export class SpellTray {
     return s.trim();
   }
 
+  /** The player chose this spell (a fix, a hint's "Use it", Clear): the bar
+   * is theirs from now on. */
   set(text: string): void {
+    this.touched = true;
+    this.offered = "";
     this.tokens = parseSpell(text);
     this.fixes.clear();
     this.render();
+  }
+
+  /**
+   * The suggested spell for goal `key`. Applied once per goal, in one go,
+   * and only while the player hasn't edited the bar; otherwise it waits on
+   * the "New spell" label. Returns true if the bar changed.
+   */
+  suggest(key: number, text: string): boolean {
+    if (key === this.suggestKey) return false;
+    this.suggestKey = key;
+    if (this.touched) {
+      if (parseSpellText(text) === this.text()) return false;
+      this.offered = text;
+      this.showNew(`New spell: ${prettyFormula(text)}`, true);
+      return false;
+    }
+    this.tokens = parseSpell(text);
+    this.fixes.clear();
+    this.render();
+    this.showNew("New spell", false);
+    return true;
+  }
+
+  /** A fresh start (restart): suggestions apply again. */
+  reset(): void {
+    this.touched = false;
+    this.suggestKey = -1;
+    this.offered = "";
+    this.hideNew();
+  }
+
+  private showNew(text: string, offer: boolean): void {
+    this.newLabel.textContent = text;
+    this.newLabel.setAttribute("aria-label", offer ? `${text}. Tap to use it.` : text);
+    this.newLabel.classList.toggle("offer", offer);
+    this.newLabel.hidden = false;
+    this.newLabel.classList.remove("pulse");
+    void this.newLabel.offsetWidth;
+    this.newLabel.classList.add("pulse");
+    window.clearTimeout(this.newTimer);
+    this.newTimer = window.setTimeout(() => this.hideNew(), offer ? 9000 : 2600);
+  }
+
+  private hideNew(): void {
+    window.clearTimeout(this.newTimer);
+    this.newLabel.hidden = true;
+    this.offered = "";
+  }
+
+  /** The player edited the bar by hand. */
+  private touch(): void {
+    this.touched = true;
+    if (!this.offered) this.hideNew();
   }
 
   cast(): void {
@@ -168,6 +249,7 @@ export class SpellTray {
   }
 
   private addMolecule(formula: string): void {
+    this.touch();
     if (this.tokens.filter((t) => t.kind === "mol").length >= MAX_MOLECULES) {
       this.onSpeak(words("Your spell is full. Tap Clear to start again."));
       return;
@@ -180,12 +262,14 @@ export class SpellTray {
   }
 
   private addPlus(): void {
+    this.touch();
     const last = this.tokens[this.tokens.length - 1];
     if (last?.kind === "mol") this.tokens.push({ kind: "plus" });
     this.changed();
   }
 
   private addArrow(): void {
+    this.touch();
     if (this.tokens.some((t) => t.kind === "arrow")) return;
     const last = this.tokens[this.tokens.length - 1];
     if (last?.kind === "plus") this.tokens.pop();
@@ -194,6 +278,7 @@ export class SpellTray {
   }
 
   private backspace(): void {
+    this.touch();
     this.tokens.pop();
     this.changed();
   }
@@ -202,6 +287,7 @@ export class SpellTray {
   private cycleCoef(i: number): void {
     const t = this.tokens[i];
     if (t?.kind !== "mol") return;
+    this.touch();
     t.coef = (t.coef % MAX_COEF) + 1;
     // A pulsing fix on this molecule is answered (either way) once tapped.
     this.fixes.delete(i);
@@ -270,13 +356,16 @@ export class SpellTray {
     }
     this.scale.dataset.state = state;
     this.beam.style.transform = `rotate(${angle}deg)`;
-    this.scale.setAttribute("aria-label", `${this.scaleLabel.textContent}. Left ${describe(left)}. Right ${describe(right)}.`);
+    this.scale.setAttribute("aria-label", `Atoms in equal atoms out. ${this.scaleLabel.textContent}. Before ${describe(left)}. After ${describe(right)}.`);
     this.fillPan(this.pans[0], left);
     this.fillPan(this.pans[1], right);
   }
 
   private fillPan(pan: HTMLElement, atoms: Record<string, number>): void {
-    pan.replaceChildren();
+    const title = document.createElement("span");
+    title.className = "pan-title";
+    title.textContent = pan === this.pans[0] ? "Before" : "After";
+    pan.replaceChildren(title);
     for (const [el, n] of Object.entries(atoms)) {
       const group = document.createElement("span");
       group.className = "pan-group";
@@ -293,6 +382,17 @@ export class SpellTray {
       pan.append(group);
     }
   }
+}
+
+/** A spell written the way the bar writes it ("2H2 + O2 -> 2H2O"). */
+function parseSpellText(text: string): string {
+  let s = "";
+  for (const t of parseSpell(text)) {
+    if (t.kind === "plus") s += " + ";
+    else if (t.kind === "arrow") s += " -> ";
+    else s += `${t.coef > 1 ? t.coef : ""}${t.formula}`;
+  }
+  return s.trim();
 }
 
 function describe(a: Record<string, number>): string {

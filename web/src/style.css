@@ -177,6 +177,18 @@ kbd {
   box-shadow: 0 0 10px #38bdf8;
 }
 
+.mote-pic {
+  flex: none;
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+}
+
+.mote-pic .icon {
+  width: 100%;
+  height: 100%;
+}
+
 #readout {
   bottom: 86px;
   left: 10px;
@@ -1157,9 +1169,47 @@ body[data-tier="sprout"] #settings .row {
 }
 
 .bar-row {
+  position: relative;
   display: flex;
   gap: 8px;
   align-items: stretch;
+}
+
+/* "New spell": the game just put this room's spell in the bar (or, once the
+   player has built their own, offers it with a tap). */
+.tray-new {
+  position: absolute;
+  left: 12px;
+  top: -14px;
+  z-index: 2;
+  min-height: 28px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  border: 2px solid #f0c75e;
+  background: #2a2410;
+  color: #ffe08a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.tray-new.offer {
+  pointer-events: auto;
+  min-height: 36px;
+  top: -20px;
+}
+
+.tray-new.pulse {
+  animation: pulse-gold 0.9s ease-in-out 3;
+}
+
+#act-tray.new-spell {
+  animation: pulse-gold 0.9s ease-in-out 3;
+}
+
+body[data-motion="calm"] .tray-new.pulse,
+body[data-motion="calm"] #act-tray.new-spell {
+  animation: none;
 }
 
 #spellbar {
@@ -1354,6 +1404,31 @@ body.cast-full #spellbar {
   text-align: center;
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.scale-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--quiet);
+}
+
+/* "Before" / "After" hang under each pan and tip with it. */
+#scale .pan .pan-title {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #cfeaff;
 }
 
 #scale[data-state="balanced"] .beam {
@@ -3279,5 +3354,156 @@ body[data-motion="calm"] .suit-tick {
   .fx-label button {
     min-height: 36px;
     margin-top: 3px;
+  }
+}
+
+/* ------------------------------------- one top message channel (F9) */
+
+/* Every top message stacks in one column under the top bar: the goal pill,
+   then the hint chip, then the tip, then one banner at a time. Flow layout
+   means none of them can ever sit on another. */
+#hud-top {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: min(86%, 760px);
+  pointer-events: none;
+}
+
+#hud-pill,
+#hud-banners {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+#hud-pill:empty,
+#hud-banners:empty {
+  display: none;
+}
+
+#hud-top #goal-chip,
+#hud-top #hint-ghost,
+#hud-top #app-tutorial,
+#hud-top #objective-banner,
+#hud-top #room-clear,
+#hud-top #challenge {
+  position: static;
+  top: auto;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#hud-top #goal-chip,
+#hud-top #hint-ghost,
+#hud-top #app-tutorial {
+  pointer-events: auto;
+}
+
+#hud-top #goal-chip.yield,
+#hud-top #app-tutorial.yield {
+  display: none;
+}
+
+#hud-top #objective-banner {
+  animation: objective-in-flow 0.35s ease-out;
+  transition: transform 0.4s ease-in, opacity 0.4s ease-in;
+  transform-origin: top center;
+}
+
+#hud-top #objective-banner.shrink {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+@keyframes objective-in-flow {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+#hud-top #room-clear {
+  animation: room-clear-flow 1.8s ease-out forwards;
+  transform-origin: top center;
+}
+
+@keyframes room-clear-flow {
+  0% { opacity: 0; transform: scale(0.5); }
+  15% { opacity: 1; transform: scale(1.15); }
+  30% { transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+
+body[data-motion="calm"] #hud-top #objective-banner,
+body[data-motion="calm"] #hud-top #room-clear {
+  animation: none;
+  transition: none;
+}
+
+#hud-top #app-tutorial {
+  white-space: normal;
+}
+
+@media (max-height: 500px) {
+  #hud-top {
+    top: 60px;
+    gap: 6px;
+  }
+
+  #hud-top #room-clear {
+    font-size: 1.4rem;
+    padding: 8px 16px;
+  }
+
+  #hud-top #room-clear .icon {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Sprout upright: the column sits over the sky at the top of the world
+   (the player stands near the bottom of it), clear of Mote's words and of
+   the move buttons and cards below the world. The banner stays short: its
+   steps are already ticked off in the pill. */
+@media (orientation: portrait) and (max-width: 700px) {
+  body[data-tier="sprout"] #hud-top {
+    position: fixed;
+    top: 80px;
+    max-width: calc(100vw - 32px);
+  }
+
+  body[data-tier="sprout"] #hud-top #objective-banner {
+    font-size: 1.4rem;
+    padding: 10px 16px;
+  }
+
+  body[data-tier="sprout"] #hud-top #objective-banner .objective-pic {
+    width: 56px;
+    height: 56px;
+  }
+
+  body[data-tier="sprout"] #hud-top #objective-banner .objective-steps {
+    display: none;
+  }
+
+  body[data-tier="sprout"] #hud-top #goal-chip {
+    font-size: 1rem;
+    min-height: 48px;
+  }
+
+  body[data-tier="sprout"] #hud-top #room-clear {
+    font-size: 1.5rem;
   }
 }

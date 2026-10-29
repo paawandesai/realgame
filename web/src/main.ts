@@ -56,6 +56,7 @@ const SPELLS: Record<Tier, Record<Goal["need"], string>> = {
 /** Seedling: what the tile tray holds on entering each room. Room 2 starts
  * unbalanced on purpose (balancing it is the lesson), and room 3 the same
  * way for splitting water. */
+/** The Seedling tray's suggested spell for each room's goal (rooms 1-4). */
 const TRAY_STARTERS = ["H2O", "H2 + O2 -> H2O", "H2O -> H2 + O2", "H2O"];
 
 /** Spells that work from the very first second (the suit starts charged). */
@@ -64,6 +65,20 @@ const STARTER_SLOTS = BAR_SPELLS.map((b) => b.formula);
 /** What to aim at for each goal, in words and as a picture. */
 const AIM_WORDS: Record<Goal["kind"], string> = { fire: "fire", ice: "ice", gas: "bubbles", brazier: "bowl" };
 const GOAL_PICTURE: Record<Goal["kind"], IconName> = { fire: "fire", ice: "ice", gas: "bubbles", brazier: "bowl" };
+
+/** The picture for a caption, from what it talks about (first match wins). */
+const CAPTION_PICTURES: [RegExp, IconName][] = [
+  [/\bcrystal|battery\b/i, "crystal"],
+  [/\bice\b|\bmelt/i, "ice"],
+  [/\bbubble|\bgas\b|\bsplit/i, "bubbles"],
+  [/\bfire\b|\bflame|\bhedge|\bburn|\btorch/i, "fire"],
+  [/\bbowl\b|\bbrazier/i, "bowl"],
+  [/\bboom\b|\bbang\b/i, "boom"],
+  [/\bwater\b|\bsplash/i, "drop"],
+];
+function capPicture(caption: string): IconName | null {
+  return CAPTION_PICTURES.find(([re]) => re.test(caption))?.[1] ?? null;
+}
 
 const REALM_NAMES: Record<Tier, string> = {
   sprout: "Sprout",
@@ -235,6 +250,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   setIcon(replayBtn, "speaker");
   const speech = new Speech(prefs.voice, byId("mote"), byId("mote-text"), replayBtn);
   speech.captions = prefs.captions;
+  // Sprout and Seedling captions carry a picture of what they are about.
+  if (tier !== "apprentice") speech.pictureFor = capPicture;
   const sfx = new Sfx(tier);
   // Browsers only allow audio and speech after a gesture.
   const unlock = () => {
@@ -285,7 +302,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   });
   fx.follow(goals.layer);
   // The room's goal in one line: a banner on arrival, then a chip at the top.
-  const objective = new ObjectiveBanner(stage, tier);
+  const objective = new ObjectiveBanner(byId("hud-pill"), byId("hud-banners"), tier);
   /** The Grimoire card, the room-clear stamp and the room score take turns. */
   const popups = new PopupQueue();
   // The cast-result bubble steers around whichever popup is up.
@@ -293,6 +310,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     popups.active,
     document.querySelector<HTMLElement>("#mote.show"),
     document.querySelector<HTMLElement>("#objective-banner:not(.shrink)"),
+    document.querySelector<HTMLElement>("#goal-chip:not(.yield)"),
+    document.querySelector<HTMLElement>("#hint-ghost"),
   ];
   objective.onAnnounce = (line) => speech.say(line, speakable(line), true);
   /** Room 1 is done: the Apprentice hint line switches to the current goal. */
@@ -313,7 +332,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const root = byId("tray");
     root.hidden = false;
     tray = new SpellTray(root, (t) => requestCast(t), (line) => speech.say(line));
-    tray.set("H2O");
+    tray.suggest(1, TRAY_STARTERS[0]!);
     byId("jars-mini").hidden = false;
   } else {
     byId("hud-bottom").hidden = false;
@@ -327,7 +346,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       ["Move", ["A", "D"]],
       ["Jump", ["Space"]],
       ["Point to aim", []],
-      ["Cast", ["Enter"]],
+      // A key picture, not a word: Seedling casts from the Cast button and
+      // never needs the Apprentice "type, then Enter" words.
+      ["Cast", ["↵"]],
       ["Gather", ["G"]],
       ["Grimoire", ["B"]],
     ];
@@ -685,14 +706,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const tutorial = byId("app-tutorial");
   let tutorialOpen = tier === "apprentice" && storageGet("tutorialDone") !== "1";
   tutorial.hidden = !tutorialOpen;
+  /** The how-to tip: which spell to try for the goal in front of the
+   * player now (the pill already says the goal itself, so the tip never
+   * repeats it). Refreshed whenever the goal changes. */
   function renderTutorial(): void {
     const t = byId("app-tutorial-text");
-    if (room1Cleared && objective.line) {
-      t.textContent = `Goal: ${objective.line}`;
-      return;
-    }
+    const need = goals.next?.need ?? "water";
     const code = document.createElement("code");
-    code.textContent = "water";
+    code.textContent = need === "water" ? "water" : need;
     if (isTouch()) t.replaceChildren("Tap a spell below, or tap the pencil to write one (try ", code, ").");
     else t.replaceChildren("Type a formula or a word (try ", code, "), then press Enter.");
   }
@@ -792,7 +813,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       (challenge.kjIn > 0 ? `${challenge.kjIn.toFixed(1)} kJ energy in · ` : "") +
       `${challenge.wasted} atom${challenge.wasted === 1 ? "" : "s"} wasted` +
       (isBest ? " · best" : ` · best ${best} casts`);
-    popups.push({ kind: "score", el: challengeEl, ms: SCORE_MS });
+    popups.push({ kind: "score", el: challengeEl, ms: SCORE_MS, dismissOnInput: true });
     challenge.casts = challenge.kj = challenge.kjIn = challenge.wasted = 0;
   }
 
@@ -899,8 +920,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     afterCastNudges(result);
     lastCastRoom = goals.next?.room ?? -1;
     if (tray) {
-      setTrayOpen(false);
-      if (result.outcome === "partial" && result.suggestion) tray.offerFix(result.suggestion);
+      // An unbalanced cast keeps the tray open with the number to change
+      // glowing, so the fix is one tap away; anything else tucks it away.
+      const unbalanced = result.imbalance.length > 0;
+      if (!unbalanced) setTrayOpen(false);
+      if (result.suggestion) tray.offerFix(result.suggestion);
       document.body.classList.toggle("cast-full", result.outcome === "full");
       window.setTimeout(() => document.body.classList.remove("cast-full"), 1200);
     }
@@ -950,7 +974,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const hintUse = byId<HTMLButtonElement>("hint-use");
   const ghostHand = byId("ghost-hand");
   setIcon(ghostHand, "hand");
-  const hint = { floor: 0, misses: 0, since: performance.now(), key: "", level: 0, nudged: false };
+  const hint = { floor: 0, misses: 0, since: performance.now(), key: "", level: 0, nudged: false, ghostKey: "" };
   /** Boom is the answer right now (after the first bubbles in room 3, or
    * water thrown at the ice): its card glows at once, not after a wait.
    * Holds the kind of goal it's for, and ends when that goal does. */
@@ -1040,7 +1064,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   function hintTick(now: number): void {
     const next = goals.next;
     const key = next ? `${next.room}:${next.need}:${goals.goVisible}` : "done";
-    if (key !== hint.key) {
+    const goalChanged = key !== hint.key;
+    if (goalChanged) {
       hint.key = key;
       // A new goal (or step): any spell is fair to suggest again.
       lastWorked = null;
@@ -1058,7 +1083,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (nudgeFor !== null && next?.kind !== nudgeFor) nudgeFor = null;
     const nudged = nudgeFor !== null;
     if (nudged && next) level = Math.max(level, 2);
-    if (level !== hint.level || nudged !== hint.nudged) applyHint(level, next);
+    if (goalChanged || level !== hint.level || nudged !== hint.nudged) applyHint(level, next);
     placeGhostHand(now);
   }
 
@@ -1083,30 +1108,35 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       renderSlots();
     }
     const showGhost = level >= 3 && next !== null;
-    if (showGhost && hintGhost.hidden) {
+    // What the chip would say now: it is rewritten whenever that changes
+    // (a new goal, or walking vs casting), so it never goes stale.
+    // Mote reads the chip aloud but shows no caption: the chip is the words.
+    const ghostKey = `${next?.room}:${need}:${goals.goVisible}:${repeat}`;
+    if (showGhost && (hintGhost.hidden || ghostKey !== hint.ghostKey)) {
+      hint.ghostKey = ghostKey;
       if (goals.goVisible) {
         hintText.textContent = "Walk this way";
         hintUse.hidden = true;
-        speech.say("Walk this way! Tap the arrow.");
+        speech.sayOnly("Walk this way! Tap the arrow.");
       } else if (repeat && next) {
         const where = AIM_WORDS[next.kind];
         hintUse.hidden = true;
         if (tier === "sprout") {
           hintText.replaceChildren(icon(GOAL_PICTURE[next.kind]));
-          speech.say(`Again! Aim at the ${where}!`);
+          speech.sayOnly(`Again! Aim at the ${where}!`);
         } else {
           hintText.textContent = `Again: aim right at the ${where}`;
-          speech.say(`Again: aim right at the ${where}.`);
+          speech.sayOnly(`Again: aim right at the ${where}.`);
         }
       } else if (tier === "sprout") {
         const card = CARDS.find((c) => c.spell === need);
         hintText.replaceChildren(icon(card?.picture ?? "drop"));
         hintUse.hidden = true;
-        speech.say(`Try the ${card?.name ?? "water drop"}!`);
+        speech.sayOnly(`Try the ${card?.name ?? "water drop"}!`);
       } else {
         hintText.textContent = `Try: ${prettyFormula(spell)}`;
         hintUse.hidden = false;
-        speech.say(`Try: ${prettyFormula(spell)}`, speakable(`Try ${spell}`));
+        speech.sayOnly(`Try: ${prettyFormula(spell)}`, speakable(`Try ${spell}`));
       }
     }
     hintGhost.hidden = !showGhost;
@@ -1324,11 +1354,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       cards.update(s);
     }
     if (s.room !== hudRoom) {
-      // A new room: last room's score and stamp go, and the Seedling tray
-      // starts over with this room's starter spell.
+      // A new room: last room's score and stamp go. (The Seedling tray's
+      // suggestion follows the goal, not the room the player stands in, so
+      // stepping to and fro over a room edge never rewrites it.)
       if (hudRoom >= 0) popups.drop("score", "room-clear");
       hudRoom = s.room;
-      tray?.set(TRAY_STARTERS[s.room] ?? "H2O");
     }
     // A gate opening ends that room's challenge.
     s.gates_open.forEach((open, i) => {
@@ -1537,12 +1567,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   roomClearEl.hidden = true;
   const roomClearText = document.createElement("span");
   roomClearEl.append(icon("star"), roomClearText);
-  stage.append(roomClearEl);
+  // Banners take turns in the top column, under the pill and hint rows.
+  const hudBanners = byId("hud-banners");
+  hudBanners.append(roomClearEl, byId("challenge"));
   function showRoomClear(room: number): void {
     if (room >= 3) return; // The last door has its own end screen.
     objective.holdFor(ROOM_CLEAR_MS);
     roomClearText.textContent = tier === "sprout" ? "Yay! Gate open!" : `Room ${room + 1} clear! Gate open`;
-    popups.push({ kind: "room-clear", el: roomClearEl, ms: ROOM_CLEAR_MS });
+    popups.push({ kind: "room-clear", el: roomClearEl, ms: ROOM_CLEAR_MS, dismissOnInput: true });
   }
 
   // ------------------------------------------------------------- end screen
@@ -1634,10 +1666,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   });
   byId("menu-age").addEventListener("click", changeAge);
   byId("menu-room").addEventListener("click", () => {
-    const room = game.restart_room();
+    game.restart_room();
     resetHints();
     autoWalk = null;
-    tray?.set(TRAY_STARTERS[room] ?? "H2O");
+    // The room's suggested spell goes back in on the next goals poll.
+    tray?.reset();
     closeMenu();
     speech.say(tier === "sprout" ? "Let's try again!" : "Room restarted.");
   });
@@ -1721,7 +1754,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     hudRoom = -1;
     room1Cleared = false;
     renderTutorial();
-    tray?.set("H2O");
+    tray?.reset();
+    tray?.suggest(1, TRAY_STARTERS[0]!);
     cards?.reset();
     cards?.unlock(["water"]);
     autoWalk = null;
@@ -1848,15 +1882,22 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       goals.setGoals(list);
       trackProgress(list);
       const here = list[game.room()];
-      objective.update(here && !here.done ? here : goals.next);
+      const shownGoal = here && !here.done ? here : goals.next;
+      objective.update(shownGoal);
+      // One suggested spell per goal, swapped in once (never while the
+      // player is editing it).
+      if (tray && shownGoal && tray.suggest(shownGoal.room, TRAY_STARTERS[shownGoal.room - 1] ?? "H2O")) {
+        actTray.classList.remove("new-spell");
+        void actTray.offsetWidth;
+        actTray.classList.add("new-spell");
+      }
       updateBoomReady(here ?? null);
-      if (!room1Cleared && list[0]?.done) {
-        room1Cleared = true;
-        renderTutorial();
-      } else if (room1Cleared && objective.line !== shownGoalLine) renderTutorial();
+      if (!room1Cleared && list[0]?.done) room1Cleared = true;
+      if (objective.line !== shownGoalLine) renderTutorial();
       shownGoalLine = objective.line;
     }
     framePortrait(viewX);
+    layoutTopHud();
     updateSpots(now);
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
     updateLift(now, viewX);
@@ -1980,6 +2021,39 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const target = Math.min(Math.max(0, need), sr.height * 0.3);
     const lift = fx.liftPx + (target - fx.liftPx) * (target > fx.liftPx ? 0.35 : 0.12);
     fx.liftPx = Math.abs(lift - target) < 0.5 ? target : lift;
+  }
+
+  // ------------------------------------------------- one top message channel
+
+  const hudTop = byId("hud-top");
+  const moteEl = byId("mote");
+  const jarsEl = byId("jars-mini");
+  /**
+   * The top column shows one thing at a time: while a banner (room clear,
+   * the room's goal, the room score) is up, the pill and the tip step
+   * aside. The column also drops below Mote's caption when a long caption
+   * wraps into its way.
+   */
+  function layoutTopHud(): void {
+    const bannerUp = popups.has("room-clear", "score");
+    objective.setOthersUp(bannerUp);
+    const anyBanner = bannerUp || objective.bannerUp;
+    tutorial.classList.toggle("yield", anyBanner);
+    let push = 0;
+    const c = hudTop.getBoundingClientRect();
+    const baseTop = c.top - (parseFloat(hudTop.style.marginTop) || 0);
+    // Things in the top corners the column must not sit on: Mote's caption
+    // (when showing) and the suit gauges.
+    for (const el of [moteEl.classList.contains("show") ? moteEl : null, jarsEl]) {
+      if (!el || el.hidden || getComputedStyle(el).position !== "absolute") continue;
+      const m = el.getBoundingClientRect();
+      if (m.width === 0) continue;
+      // Overlaps where the column would be without a push?
+      const across = m.left < c.right && c.left < m.right && m.top < baseTop + c.height && m.bottom > baseTop;
+      if (across) push = Math.max(push, Math.ceil(m.bottom + 8 - baseTop));
+    }
+    const want = `${push}px`;
+    if (hudTop.style.marginTop !== want) hudTop.style.marginTop = want;
   }
 
   /** How long each of the last frames took to compute (for automated checks). */

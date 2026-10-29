@@ -649,8 +649,8 @@ impl Game {
         self.rooms.entered[room] = true;
         let line = match room {
             1 => self.line(
-                "Ice! Boom melts ice!",
-                "Ice wall! Heat melts ice. Balance the boom.",
+                "Boom makes heat! Ice melts!",
+                "Boom makes HEAT, so ice melts!",
                 "An ice wall. Heat melts ice: cast boom (2H2 + O2 -> 2H2O) at it, or light the torch and carry it there.",
             ),
             2 => self.line(

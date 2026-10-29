@@ -168,10 +168,9 @@ export class GoalMarkers {
     this.strip.dataset.done = String(done);
   }
 
-  /** Repositions everything for this frame. */
   private goRight: boolean | null = null;
 
-
+  /** Repositions everything for this frame. */
   draw(now: number, viewX: number, playerCx: number, reducedMotion: boolean): void {
     const sw = this.stage.clientWidth;
     const sh = this.stage.clientHeight;
@@ -194,7 +193,12 @@ export class GoalMarkers {
     this.goVisible = far;
     this.go.hidden = !far;
     if (far && next) {
-      const right = next.stand_x > playerCx;
+      // Point the way to the goal itself: through the gate when it is in a
+      // later room, else toward the target (never toward its standing spot,
+      // which can sit behind a player who has walked past it).
+      // Goals number rooms from 1.
+      const here = Math.floor(playerCx / this.viewW) + 1;
+      const right = next.room !== here ? next.room > here : next.x > playerCx;
       // Only rebuild the arrow's picture when it turns round.
       if (this.goRight !== right) {
         this.goRight = right;
@@ -202,7 +206,7 @@ export class GoalMarkers {
       }
       // The next goal is through a door: show an open doorway, not a play
       // arrow, so "walk on to the next room" reads at a glance.
-      const door = next.room !== Math.floor(playerCx / this.viewW);
+      const door = next.room !== here;
       const pic = door ? (right ? "door" : "doorLeft") : right ? "right" : "left";
       if (this.go.dataset.pic !== pic) {
         this.go.dataset.pic = pic;
