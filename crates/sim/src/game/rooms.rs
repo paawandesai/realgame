@@ -1301,7 +1301,8 @@ impl Game {
             water.len() as u32 >= splits * 3 * GAS_CELLS_PER_MOL
         });
         let mut made = 0;
-        for chunk in water.chunks_exact(3 * GAS_CELLS_PER_MOL as usize) {
+        let (chunks, _) = water.as_chunks::<{ 3 * GAS_CELLS_PER_MOL as usize }>();
+        for chunk in chunks {
             for (k, &(x, y)) in chunk.iter().enumerate() {
                 let s = if k % 3 == 2 { Species::O2 } else { Species::H2 };
                 self.grid.set(x, y, s, 18.0);
