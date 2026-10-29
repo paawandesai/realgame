@@ -603,31 +603,44 @@ impl Grid {
     // -------------------------------------------------------------------- heat
 
     fn heat_pass(&mut self, x0: usize, x1: usize) {
-        for y in 0..self.h {
+        let (w, h) = (self.w, self.h);
+        for y in 0..h {
+            let row = y * w;
+            let has_below = y + 1 < h;
             for x in x0..x1 {
-                let i = self.idx(x, y);
+                let i = row + x;
                 let si = self.cells[i];
-                for (nx, ny) in [(x + 1, y), (x, y + 1)] {
-                    if nx >= x1 || ny >= self.h {
-                        continue;
-                    }
-                    let j = self.idx(nx, ny);
-                    let dt = self.temp[j] - self.temp[i];
-                    if dt.abs() < HEAT_EPSILON_C {
-                        continue;
-                    }
-                    let sj = self.cells[j];
-                    let k = si.conductivity().min(sj.conductivity());
-                    let q = k * dt;
-                    self.temp[i] += q / si.heat_capacity();
-                    self.temp[j] -= q / sj.heat_capacity();
+                // Right neighbour, then the one below (the same order as
+                // always, so results are bit-for-bit what they were).
+                if x + 1 < x1 {
+                    self.exchange(i, i + 1, si);
                 }
-                // Open air loses heat to the wider world.
-                if self.cells[i] == Species::Air {
-                    self.temp[i] += (AMBIENT_C - self.temp[i]) * 0.01;
+                if has_below {
+                    self.exchange(i, i + w, si);
+                }
+                // Open air loses heat to the wider world. Air exactly at
+                // ambient (most of the sky) would add zero, so it is skipped.
+                if si == Species::Air {
+                    let d = AMBIENT_C - self.temp[i];
+                    if d != 0.0 {
+                        self.temp[i] += d * 0.01;
+                    }
                 }
             }
         }
+    }
+
+    #[inline(always)]
+    fn exchange(&mut self, i: usize, j: usize, si: Species) {
+        let dt = self.temp[j] - self.temp[i];
+        if dt.abs() < HEAT_EPSILON_C {
+            return;
+        }
+        let sj = self.cells[j];
+        let k = si.conductivity().min(sj.conductivity());
+        let q = k * dt;
+        self.temp[i] += q / si.heat_capacity();
+        self.temp[j] -= q / sj.heat_capacity();
     }
 }
 

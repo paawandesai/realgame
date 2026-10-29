@@ -2,6 +2,7 @@
 //! renderer that turns the grid into pixels.
 
 use crate::game::{Game, Tier, HEIGHT, VIEW_W, WORLD_W};
+use crate::palette::{self, glow_of, hash, mix, Around, GlowMap};
 use crate::species::Species;
 use wasm_bindgen::prelude::*;
 
@@ -9,6 +10,8 @@ use wasm_bindgen::prelude::*;
 pub struct WebGame {
     game: Game,
     pixels: Vec<u8>,
+    /// Glowing blocks of the last frame, for the browser's glow sprites.
+    glow: GlowMap,
     /// The camera position the last frame was drawn at, so pointer input maps
     /// to exactly the cells the player sees.
     drawn_view_x: i32,
@@ -21,6 +24,7 @@ impl WebGame {
         WebGame {
             game: Game::new(Tier::parse(tier), seed as u64 + 1),
             pixels: vec![0; VIEW_W * HEIGHT * 4],
+            glow: GlowMap::default(),
             drawn_view_x: 0,
         }
     }
@@ -115,24 +119,27 @@ impl WebGame {
         let g = &self.game;
         let vx = (g.prev_view_x + (g.view_x - g.prev_view_x) * alpha).round() as i32;
         self.drawn_view_x = vx.clamp(0, (WORLD_W - VIEW_W) as i32);
-        render(g, &mut self.pixels, lens, alpha, self.drawn_view_x);
+        render(
+            g,
+            &mut self.pixels,
+            &mut self.glow,
+            lens,
+            alpha,
+            self.drawn_view_x,
+        );
         self.pixels.as_ptr()
+    }
+
+    /// The glowing parts of the last rendered frame (flames, crystals, cells
+    /// above 400 °C) as flat `[x, y, kind, strength]` groups in viewport
+    /// cells; kind is 1 hot, 2 crystal, 3 flame. At most `GLOW_CAP` groups.
+    pub fn emissive(&self) -> Vec<f32> {
+        self.glow.entries()
     }
 }
 
-fn hash(x: usize, y: usize) -> u32 {
-    let mut h = (x as u32).wrapping_mul(374_761_393) ^ (y as u32).wrapping_mul(668_265_263);
-    h = (h ^ (h >> 13)).wrapping_mul(1_274_126_177);
-    h ^ (h >> 16)
-}
-
-fn mix(a: [u8; 3], b: [u8; 3], t: f32) -> [u8; 3] {
-    let t = t.clamp(0.0, 1.0);
-    [0, 1, 2].map(|k| (a[k] as f32 + (b[k] as f32 - a[k] as f32) * t) as u8)
-}
-
 fn sky(y: usize) -> [u8; 3] {
-    mix([148, 196, 238], [214, 232, 246], y as f32 / HEIGHT as f32)
+    palette::sky(y, HEIGHT)
 }
 
 /// Temperature colour map for the Insight lens: blue cold, dark at room
@@ -159,17 +166,21 @@ fn heat_color(t: f32) -> [u8; 3] {
     stops[6].1
 }
 
-fn render(game: &Game, out: &mut [u8], lens: bool, alpha: f32, view_x: i32) {
+fn render(game: &Game, out: &mut [u8], glow: &mut GlowMap, lens: bool, alpha: f32, view_x: i32) {
     let g = &game.grid;
+    glow.reset(VIEW_W, g.h);
     for y in 0..g.h {
+        let sky_c = sky(y);
         for sx in 0..VIEW_W {
             let x = sx + view_x as usize;
             let i = g.idx(x, y);
             let o = (y * VIEW_W + sx) * 4;
             let s = g.cells[i];
             let t = g.temp[i];
-            let n = (hash(x, y) % 21) as i32 - 10;
-            let mut c = if lens {
+            if t > 400.0 || matches!(s, Species::Flame | Species::Crystal) {
+                glow.add(sx, y, glow_of(s, t));
+            }
+            let c = if lens {
                 let base = heat_color(t);
                 if s.is_solid() {
                     mix(base, [90, 90, 100], 0.35)
@@ -177,33 +188,21 @@ fn render(game: &Game, out: &mut [u8], lens: bool, alpha: f32, view_x: i32) {
                     base
                 }
             } else {
-                let p = s.props();
-                let base = match s {
-                    Species::Air => sky(y),
-                    Species::Flame => {
-                        let flicker = (hash(x, y + g.frame as usize) % 80) as u8;
-                        [255, 120 + flicker, 30]
-                    }
-                    // Most real gases are colourless; show a faint tint so players
-                    // can follow them, and steam (tiny droplets) clearly.
-                    Species::Steam => mix(sky(y), p.color, 0.7),
-                    _ if s.is_gas() => mix(sky(y), p.color, 0.4),
-                    _ => p.color,
-                };
-                let shaded = if s == Species::Air {
-                    base
+                let c = if s == Species::Air {
+                    sky_c
                 } else {
-                    base.map(|v| (v as i32 + n).clamp(0, 255) as u8)
+                    // Only water draws its surface, so only water looks up.
+                    let around = Around {
+                        surface: s == Species::Water && y > 0 && g.cells[i - g.w] != s,
+                    };
+                    palette::cell_color(s, x, y, g.frame, sky_c, around)
                 };
                 if t > 400.0 && s != Species::Flame {
-                    mix(shaded, [255, 110, 30], (t - 400.0) / 1400.0)
+                    mix(c, [255, 110, 30], (t - 400.0) / 1400.0)
                 } else {
-                    shaded
+                    c
                 }
             };
-            if !lens && s == Species::Crystal && (g.frame / 8 + x as u32).is_multiple_of(12) {
-                c = [230, 200, 255];
-            }
             out[o..o + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
         }
     }

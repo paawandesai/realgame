@@ -17,6 +17,13 @@ pub const ROOM_W: usize = 320;
 pub const ROOMS: usize = 4;
 pub const WORLD_W: usize = ROOM_W * ROOMS;
 pub const VIEW_W: usize = 320;
+/// The simulated strip around the camera: half a room behind its left edge
+/// and half a room beyond its right edge, `[view_x - BEHIND, view_x + AHEAD)`.
+/// Everything farther away freezes until the camera comes back (the Noita
+/// approach). Narrower than the first cut (a whole room each side) so a slow
+/// device keeps one sim step per frame.
+pub const ACTIVE_BEHIND: usize = VIEW_W / 2;
+pub const ACTIVE_AHEAD: usize = VIEW_W + VIEW_W / 2;
 pub const HEIGHT: usize = 180;
 /// How quickly the camera catches up once the player leaves the deadzone.
 const CAMERA_LERP: f32 = 0.2;
@@ -422,7 +429,7 @@ impl Game {
         // Only the area around the camera is simulated; distant rooms wait.
         let vx = self.view_x.round() as usize;
         self.grid
-            .step_columns(vx.saturating_sub(VIEW_W), vx + 2 * VIEW_W);
+            .step_columns(vx.saturating_sub(ACTIVE_BEHIND), vx + ACTIVE_AHEAD);
         self.suit_tick();
         self.update_rooms(input & INPUT_GATHER != 0);
         self.refresh_version();

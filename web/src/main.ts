@@ -21,9 +21,10 @@ const INPUT = { left: 1, right: 2, jump: 4, gather: 8 } as const;
 const MAX_SLOTS = 9;
 /** The simulation always advances in fixed 60 Hz steps, whatever the display rate. */
 const STEP_MS = 1000 / 60;
-/** At most this many steps per frame; anything beyond is dropped so a slow
- * device slows the game down instead of spiralling. */
-const MAX_STEPS_PER_FRAME = 4;
+/** At most this many steps per frame (enough to hold full speed down to 30 fps);
+ * anything beyond is dropped so a slow device slows the game down instead of
+ * spiralling into ever longer frames. */
+const MAX_STEPS_PER_FRAME = 2;
 /** With no choice on the start screen, the youngest tier starts by itself. */
 const AUTOSTART_MS = 8000;
 /** Hint ladder: each step after this long without progress... */
@@ -953,10 +954,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     if (accumulator >= STEP_MS) accumulator = 0;
     if (steps > 0) handleFx(JSON.parse(game.take_fx()) as Fx[]);
+    const tSim = performance.now();
     const alpha = accumulator / STEP_MS;
     ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
+    fx.setGlow(lens ? new Float32Array(0) : game.emissive());
+    const tRender = performance.now();
     const viewX = game.view_x();
     fx.draw(now, viewX);
+    const tFx = performance.now();
     if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1]));
     // Goals change every tick; a few polls a second is plenty.
     if (now - lastGoalsTime >= 200) {
@@ -973,8 +978,19 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       state = JSON.parse(game.state()) as GameState;
       renderHud(state);
     }
+    const end = performance.now();
+    frameWork.push(end - now);
+    if (frameWork.length > 120) frameWork.shift();
+    frameParts[0] = frameParts[0]! * 0.95 + (tSim - now) * 0.05;
+    frameParts[1] = frameParts[1]! * 0.95 + (tRender - tSim) * 0.05;
+    frameParts[2] = frameParts[2]! * 0.95 + (tFx - tRender) * 0.05;
+    frameParts[3] = frameParts[3]! * 0.95 + (end - tFx) * 0.05;
     requestAnimationFrame(loop);
   }
+  /** How long each of the last frames took to compute (for automated checks). */
+  const frameWork: number[] = [];
+  /** Smoothed ms per frame for sim steps, world render, overlay, and HUD. */
+  const frameParts = [0, 0, 0, 0];
 
   // Automated browser tests read the HUD state through this hook. It exposes
   // nothing that isn't already on screen and only exists with ?debug.
@@ -989,6 +1005,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       hintLevel: () => hint.level,
       trayText: () => tray?.text() ?? null,
       lastOutcome: () => lastResult,
+      frameMs: () => frameWork.reduce((a, b) => a + b, 0) / Math.max(1, frameWork.length),
+      emissive: () => Array.from(game.emissive()),
+      frameParts: () => [...frameParts],
     };
   }
 

@@ -147,6 +147,47 @@ export class FxLayer {
     resize();
   }
 
+  // ------------------------------------------------------------------ glow
+
+  /** Glowing blocks from the sim's last frame: [x, y, kind, strength] groups. */
+  private glow: Float32Array = new Float32Array(0);
+  /** Prebaked soft radial sprites, one per glow kind (1 hot, 2 crystal, 3 flame). */
+  private readonly glowSprites: (HTMLCanvasElement | null)[] = [
+    null,
+    bakeGlow("255,110,40", 0.6),
+    bakeGlow("226,150,255", 0.6),
+    bakeGlow("255,190,96", 0.75),
+  ];
+
+  setGlow(entries: Float32Array): void {
+    this.glow = entries;
+  }
+
+  /** Additive light around flames, crystals and anything above 400 °C. */
+  private drawGlow(now: number, sx: (x: number) => number, sy: (y: number) => number, k: number): void {
+    const ctx = this.ctx;
+    const g = this.glow;
+    if (g.length === 0) return;
+    ctx.globalCompositeOperation = "lighter";
+    const calm = this.reducedMotion;
+    for (let i = 0; i + 3 < g.length; i += 4) {
+      const kind = g[i + 2]!;
+      const sprite = this.glowSprites[kind];
+      if (!sprite) continue;
+      const strength = g[i + 3]!;
+      const x = g[i]! + this.viewX;
+      const y = g[i + 1]!;
+      const base = kind === 3 ? 12 : kind === 2 ? 7 : 6;
+      // Flames breathe a little; never faster than a few times a second.
+      const flicker = kind === 3 && !calm ? 0.85 + 0.15 * Math.sin(now / 160 + x * 0.7) : 1;
+      const r = base * (0.8 + 0.4 * strength) * flicker * k;
+      ctx.globalAlpha = Math.min(1, 0.7 + 0.3 * strength);
+      ctx.drawImage(sprite, sx(x) - r, sy(y) - r, r * 2, r * 2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+  }
+
   /** Menu setting; null follows the system's reduced-motion preference. */
   reducedOverride: boolean | null = null;
 
@@ -397,6 +438,7 @@ export class FxLayer {
     const sx = (x: number) => (x - viewX) * k;
     const sy = (y: number) => y * k;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.drawGlow(now, sx, sy, k);
 
     // Charge rings at the gauntlet.
     this.charges = this.charges.filter((c) => now - c.born < c.life);
@@ -617,4 +659,20 @@ function boltColor(out: CastOutcome | undefined): string {
     default:
       return COLOR.grey;
   }
+}
+
+/** A soft radial light on a small offscreen canvas, drawn scaled each frame. */
+function bakeGlow(rgb: string, alpha: number): HTMLCanvasElement | null {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, `rgba(${rgb},${alpha})`);
+  grad.addColorStop(0.25, `rgba(${rgb},${alpha * 0.7})`);
+  grad.addColorStop(0.6, `rgba(${rgb},${alpha * 0.25})`);
+  grad.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return c;
 }

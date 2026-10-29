@@ -120,6 +120,8 @@ export class GoalMarkers {
   }
 
   /** Repositions everything for this frame. */
+  private goRight: boolean | null = null;
+
   draw(now: number, viewX: number, playerCx: number, reducedMotion: boolean): void {
     const sw = this.stage.clientWidth;
     const sh = this.stage.clientHeight;
@@ -143,8 +145,12 @@ export class GoalMarkers {
     this.go.hidden = !far;
     if (far && next) {
       const right = next.stand_x > playerCx;
-      this.go.classList.toggle("left", !right);
-      this.go.replaceChildren(icon(right ? "right" : "left"));
+      // Only rebuild the arrow's picture when it turns round.
+      if (this.goRight !== right) {
+        this.goRight = right;
+        this.go.classList.toggle("left", !right);
+        this.go.replaceChildren(icon(right ? "right" : "left"));
+      }
       this.go.classList.toggle("hinting", this.hintLevel >= 1);
     }
 

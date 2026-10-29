@@ -8,6 +8,7 @@
 pub mod formula;
 pub mod game;
 pub mod grid;
+pub mod palette;
 pub mod reactions;
 pub mod species;
 pub mod spell;

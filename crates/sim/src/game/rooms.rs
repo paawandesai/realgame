@@ -554,7 +554,7 @@ impl Game {
     /// real natural-gas seeps that stay alight for years: CH4 + 2O2 -> CO2 + 2H2O.
     fn vents_tick(&mut self) {
         let vx = self.view_x.round() as i32;
-        let active = vx + 2 * VIEW_W as i32 > MARSH.x0 && vx - (VIEW_W as i32) < MARSH.x1;
+        let active = vx + ACTIVE_AHEAD as i32 > MARSH.x0 && vx - (ACTIVE_BEHIND as i32) < MARSH.x1;
         if !active {
             return;
         }

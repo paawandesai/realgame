@@ -229,11 +229,12 @@ kbd {
   transition: height 0.2s;
 }
 
-.f-h2o { background: #3b82f6; }
-.f-h2 { background: #f0abfc; }
-.f-o2 { background: #a5f3fc; }
-.f-ch4 { background: #bef264; }
-.f-co2 { background: #9ca3af; }
+/* Okabe-Ito, matching the atom balls: H sky blue, O vermillion. */
+.f-h2o { background: #0072b2; }
+.f-h2 { background: #56b4e9; }
+.f-o2 { background: #d55e00; }
+.f-ch4 { background: #009e73; }
+.f-co2 { background: #8a8a90; }
 
 .jar.charge {
   font-size: 0.95rem;
@@ -1069,7 +1070,7 @@ body[data-tier="sprout"] #settings .row {
   transform: translate(-50%, -100%);
   padding: 1px 6px;
   border-radius: 6px;
-  background: rgba(213, 94, 0, 0.9);
+  background: rgba(150, 62, 0, 0.95);
   font-weight: 700;
   font-size: 0.95rem;
   pointer-events: none;
@@ -1488,7 +1489,7 @@ body[data-tier="apprentice"] #jars-mini {
   z-index: 5;
 }
 
-#book-btn[data-count]::after {
+#book-btn[data-count]:not([data-count="0"])::after {
   content: attr(data-count);
   position: absolute;
   right: 2px;
@@ -1658,4 +1659,29 @@ body[data-tier="apprentice"] #jars-mini {
 @keyframes confetti {
   from { transform: translate(0, 0) rotate(0); opacity: 1; }
   to { transform: translate(var(--dx), calc(var(--dy) + 120px)) rotate(var(--rot)); opacity: 0; }
+}
+
+/* One row whatever the number of spells: the list scrolls sideways instead. */
+#hud-bottom {
+  flex-wrap: nowrap;
+}
+
+#caster {
+  flex: 0 1 340px;
+  min-width: 180px;
+}
+
+#slots {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.slot {
+  flex: none;
+}
+
+.hud-buttons {
+  flex: none;
 }

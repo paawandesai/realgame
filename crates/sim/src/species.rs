@@ -60,7 +60,8 @@ pub struct Props {
     pub heat_capacity: f32,
     /// Relative thermal conductivity, 0..=0.25 for numerical stability.
     pub conductivity: f32,
-    pub color: [u8; 3],
+    // How each species looks (Okabe-Ito colours and textures) is presentation
+    // and lives in `palette.rs`.
 }
 
 pub const AIR_MOLAR_MASS: f32 = 28.97;
@@ -145,7 +146,6 @@ const fn p(
     molar_mass: f32,
     heat_capacity: f32,
     conductivity: f32,
-    color: [u8; 3],
 ) -> Props {
     Props {
         name,
@@ -154,7 +154,6 @@ const fn p(
         molar_mass,
         heat_capacity,
         conductivity,
-        color,
     }
 }
 
@@ -162,28 +161,20 @@ const fn p(
 static PROPS: [Props; ALL.len()] = {
     use Phase::*;
     [
-        p("air", "", Gas, AIR_MOLAR_MASS, 1.0, 0.04, [196, 222, 240]),
-        p("stone", "", Solid, 60.0, 2.0, 0.10, [118, 112, 108]),
-        p("wood", "C", Solid, 12.0, 2.0, 0.03, [122, 84, 48]),
-        p("water", "H2O", Liquid, 18.02, 4.0, 0.15, [52, 118, 210]),
-        p("ice", "H2O", Solid, 18.02, 2.0, 0.20, [190, 232, 250]),
-        p("steam", "H2O", Gas, 18.02, 2.0, 0.05, [232, 236, 240]),
-        p("hydrogen", "H2", Gas, 2.016, 1.5, 0.12, [236, 200, 236]),
-        p("oxygen", "O2", Gas, 32.00, 1.0, 0.04, [170, 226, 236]),
-        p("methane", "CH4", Gas, 16.04, 1.5, 0.05, [196, 230, 170]),
-        p(
-            "carbon dioxide",
-            "CO2",
-            Gas,
-            44.01,
-            1.0,
-            0.03,
-            [150, 156, 162],
-        ),
-        p("chlorine", "Cl2", Gas, 70.90, 1.0, 0.02, [206, 222, 92]),
-        p("flame", "", Flame, 0.0, 1.0, 0.15, [255, 160, 40]),
-        p("door", "", Solid, 60.0, 2.0, 0.02, [84, 76, 92]),
-        p("crystal", "", Solid, 60.0, 2.0, 0.02, [168, 110, 240]),
+        p("air", "", Gas, AIR_MOLAR_MASS, 1.0, 0.04),
+        p("stone", "", Solid, 60.0, 2.0, 0.10),
+        p("wood", "C", Solid, 12.0, 2.0, 0.03),
+        p("water", "H2O", Liquid, 18.02, 4.0, 0.15),
+        p("ice", "H2O", Solid, 18.02, 2.0, 0.20),
+        p("steam", "H2O", Gas, 18.02, 2.0, 0.05),
+        p("hydrogen", "H2", Gas, 2.016, 1.5, 0.12),
+        p("oxygen", "O2", Gas, 32.00, 1.0, 0.04),
+        p("methane", "CH4", Gas, 16.04, 1.5, 0.05),
+        p("carbon dioxide", "CO2", Gas, 44.01, 1.0, 0.03),
+        p("chlorine", "Cl2", Gas, 70.90, 1.0, 0.02),
+        p("flame", "", Flame, 0.0, 1.0, 0.15),
+        p("door", "", Solid, 60.0, 2.0, 0.02),
+        p("crystal", "", Solid, 60.0, 2.0, 0.02),
     ]
 };
 
