@@ -9,7 +9,7 @@
 // suggestion waits on the label, to use with a tap).
 
 import { words } from "./device";
-import { ATOM_COLOR, atomsOf, molecule } from "./icons";
+import { ATOM_COLOR, atomsOf, icon, molecule } from "./icons";
 import { prettyFormula } from "./types";
 
 type Token = { kind: "mol"; formula: string; coef: number } | { kind: "plus" } | { kind: "arrow" };
@@ -56,6 +56,68 @@ export function parseSpell(text: string): Token[] {
   return out;
 }
 
+/**
+ * The smallest numbers (1-4 each) that balance these molecules, by token
+ * index, or null when no such numbers exist. Used to point at the number
+ * that needs changing and to offer spells in their balanced form.
+ */
+export function balancedCoefs(tokens: Token[]): Map<number, number> | null {
+  const mols = tokens.map((t, i) => [t, i] as const).filter(([t]) => t.kind === "mol");
+  if (!tokens.some((t) => t.kind === "arrow") || mols.length === 0 || mols.length > MAX_MOLECULES) return null;
+  let best: number[] | null = null;
+  let bestSum = Infinity;
+  const coefs = mols.map(() => 1);
+  const trial = tokens.map((t) => ({ ...t }));
+  for (;;) {
+    const sum = coefs.reduce((a, b) => a + b, 0);
+    if (sum < bestSum) {
+      mols.forEach(([, i], k) => {
+        const t = trial[i]!;
+        if (t.kind === "mol") t.coef = coefs[k]!;
+      });
+      const { left, right } = sideAtoms(trial);
+      const els = new Set([...Object.keys(left), ...Object.keys(right)]);
+      if (Object.keys(right).length > 0 && [...els].every((e) => (left[e] ?? 0) === (right[e] ?? 0))) {
+        best = [...coefs];
+        bestSum = sum;
+      }
+    }
+    // Next combination (odometer over 1..MAX_COEF).
+    let k = 0;
+    while (k < coefs.length && coefs[k] === MAX_COEF) coefs[k++] = 1;
+    if (k === coefs.length) break;
+    coefs[k]!++;
+  }
+  if (!best) return null;
+  const out = new Map<number, number>();
+  mols.forEach(([, i], k) => out.set(i, best[k]!));
+  return out;
+}
+
+/** A spell in its balanced form ("H2O -> H2 + O2" becomes "2H2O -> 2H2 + O2"). */
+export function balancedText(text: string): string {
+  const tokens = parseSpell(text);
+  const fix = balancedCoefs(tokens);
+  if (!fix) return text;
+  for (const [i, c] of fix) {
+    const t = tokens[i];
+    if (t?.kind === "mol") t.coef = c;
+  }
+  return tokensText(tokens);
+}
+
+function tokensText(tokens: Token[]): string {
+  let s = "";
+  for (const t of tokens) {
+    if (t.kind === "plus") s += " + ";
+    else if (t.kind === "arrow") s += " -> ";
+    else s += `${t.coef > 1 ? t.coef : ""}${t.formula}`;
+  }
+  return s.trim();
+}
+
+const COEF_HINT_KEY = "realgame.coefHintSeen";
+
 /** Most molecules a spell can hold (the game's reactions use at most four). */
 const MAX_MOLECULES = 5;
 /** Largest number the per-molecule counter goes to before wrapping to 1. */
@@ -80,6 +142,13 @@ export class SpellTray {
   private suggestKey = -1;
   /** A suggestion waiting on the label while the player's own spell stays. */
   private offered = "";
+  private readonly barRow: HTMLElement;
+  /** The one-time ghost hand on the number to change (null once shown). */
+  private coefHint: HTMLElement | null = null;
+  private coefHintSeen = false;
+  private coefHintTimer = 0;
+  /** Reads a line aloud without a caption (the words are already on screen). */
+  sayOnly: ((line: string) => void) | null = null;
 
   constructor(
     root: HTMLElement,
@@ -88,6 +157,12 @@ export class SpellTray {
   ) {
     const barRow = document.createElement("div");
     barRow.className = "bar-row";
+    this.barRow = barRow;
+    try {
+      this.coefHintSeen = window.localStorage.getItem(COEF_HINT_KEY) === "1";
+    } catch {
+      this.coefHintSeen = false;
+    }
     this.bar = document.createElement("div");
     this.bar.id = "spellbar";
     this.bar.setAttribute("aria-label", "Your spell");
@@ -148,13 +223,7 @@ export class SpellTray {
   }
 
   text(): string {
-    let s = "";
-    for (const t of this.tokens) {
-      if (t.kind === "plus") s += " + ";
-      else if (t.kind === "arrow") s += " -> ";
-      else s += `${t.coef > 1 ? t.coef : ""}${t.formula}`;
-    }
-    return s.trim();
+    return tokensText(this.tokens);
   }
 
   /** The player chose this spell (a fix, a hint's "Use it", Clear): the bar
@@ -176,9 +245,11 @@ export class SpellTray {
     if (key === this.suggestKey) return false;
     this.suggestKey = key;
     if (this.touched) {
-      if (parseSpellText(text) === this.text()) return false;
-      this.offered = text;
-      this.showNew(`New spell: ${prettyFormula(text)}`, true);
+      // Offered in its balanced form, so one tap gives a spell that works.
+      const offer = balancedText(text);
+      if (parseSpellText(offer) === this.text()) return false;
+      this.offered = offer;
+      this.showNew(`New spell: ${prettyFormula(offer)}`, true);
       return false;
     }
     this.tokens = parseSpell(text);
@@ -205,7 +276,14 @@ export class SpellTray {
     void this.newLabel.offsetWidth;
     this.newLabel.classList.add("pulse");
     window.clearTimeout(this.newTimer);
-    this.newTimer = window.setTimeout(() => this.hideNew(), offer ? 9000 : 2600);
+    // An offer keeps its slot until it is used or replaced, so walking away
+    // never loses it; the plain "New spell" note fades.
+    if (!offer) this.newTimer = window.setTimeout(() => this.hideNew(), 2600);
+  }
+
+  /** The offer waiting on the chip ("" for none). */
+  get offer(): string {
+    return this.offered;
   }
 
   private hideNew(): void {
@@ -218,6 +296,7 @@ export class SpellTray {
   private touch(): void {
     this.touched = true;
     if (!this.offered) this.hideNew();
+    else if (parseSpellText(this.offered) === this.text()) this.hideNew();
   }
 
   cast(): void {
@@ -291,6 +370,7 @@ export class SpellTray {
     t.coef = (t.coef % MAX_COEF) + 1;
     // A pulsing fix on this molecule is answered (either way) once tapped.
     this.fixes.delete(i);
+    this.dropCoefHint();
     this.render();
     if (this.balanced()) this.onSpeak("Balanced!");
   }
@@ -329,6 +409,71 @@ export class SpellTray {
     });
     if (this.tokens.length === 0) this.bar.append(chip(words("Tap tiles to build a spell"), "empty"));
     this.renderScale();
+    this.maybeCoefHint();
+  }
+
+  /**
+   * The first time the scale is unbalanced, a ghost hand taps the number
+   * that needs changing: "Tap a number to add more!". Shown once, and only
+   * while the tray is on screen (call again when it opens).
+   */
+  maybeCoefHint(): void {
+    if (this.coefHint) {
+      if (this.scale.dataset.state === "tipped") this.placeCoefHint();
+      else this.dropCoefHint();
+      return;
+    }
+    if (this.coefHintSeen || this.scale.dataset.state !== "tipped") return;
+    if (this.barRow.offsetParent === null || this.barRow.getBoundingClientRect().top >= window.innerHeight) return;
+    const fix = balancedCoefs(this.tokens);
+    let target = -1;
+    if (fix) for (const [i, c] of fix) if (target < 0 && this.tokens[i]?.kind === "mol" && (this.tokens[i] as { coef: number }).coef !== c) target = i;
+    if (target < 0) target = this.tokens.findIndex((t) => t.kind === "mol");
+    if (target < 0) return;
+    this.coefHintSeen = true;
+    try {
+      window.localStorage.setItem(COEF_HINT_KEY, "1");
+    } catch {
+      // Private windows: the hint may show again next time, which is fine.
+    }
+    const hint = document.createElement("div");
+    hint.className = "coef-hint";
+    hint.dataset.index = String(target);
+    hint.setAttribute("role", "note");
+    const hand = document.createElement("span");
+    hand.className = "coef-hand";
+    hand.setAttribute("aria-hidden", "true");
+    hand.append(icon("hand"));
+    const say = document.createElement("span");
+    say.className = "coef-say";
+    say.textContent = words("Tap a number to add more!");
+    hint.append(hand, say);
+    this.barRow.append(hint);
+    this.coefHint = hint;
+    this.placeCoefHint();
+    // The bubble shows the words; they are read aloud, not captioned twice.
+    (this.sayOnly ?? this.onSpeak)(words("Tap a number to add more!"));
+    this.coefHintTimer = window.setTimeout(() => this.dropCoefHint(), 12000);
+  }
+
+  private placeCoefHint(): void {
+    const hint = this.coefHint;
+    if (!hint) return;
+    const btn = this.bar.querySelector<HTMLElement>(`.bar-coef[data-index="${hint.dataset.index ?? ""}"]`);
+    if (!btn) {
+      this.dropCoefHint();
+      return;
+    }
+    const row = this.barRow.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    hint.style.left = `${Math.round(b.left - row.left + b.width / 2)}px`;
+    hint.style.top = `${Math.round(b.top - row.top + b.height / 2)}px`;
+  }
+
+  private dropCoefHint(): void {
+    window.clearTimeout(this.coefHintTimer);
+    this.coefHint?.remove();
+    this.coefHint = null;
   }
 
   private renderScale(): void {

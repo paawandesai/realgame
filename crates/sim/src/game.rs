@@ -1477,7 +1477,7 @@ impl Game {
                 known: false,
             } => self
                 .line(
-                    "Atoms match, but that doesn't happen.",
+                    "Atoms match, but no reaction.",
                     "Atoms match, but balancing doesn't make it happen.",
                     "Atoms match, but I don't know this reaction. Balancing alone doesn't make it happen.",
                 )
@@ -1589,12 +1589,12 @@ impl Game {
             // Always name what ran out, and how to get more.
             let what = res.missing.first().map(String::as_str).unwrap_or("");
             return match (what, young) {
-                ("H2O", true) => "Out of water! Wait a moment.".into(),
-                ("H2" | "O2", true) => "Out of gas! Wait a moment.".into(),
-                (ENERGY, true) => "Out of power! Go to the crystal.".into(),
-                ("CH4", true) => "Out of marsh gas! Grab bubbles.".into(),
-                ("CO2", true) => "Out of cloud! Go near fire.".into(),
-                (_, true) => "Out of stuff! Wait a moment.".into(),
+                ("H2O", true) => "Out of water! Wait.".into(),
+                ("H2" | "O2", true) => "Out of gas! Wait.".into(),
+                (ENERGY, true) => "Out of power! Find crystal.".into(),
+                ("CH4", true) => "Out of gas! Grab bubbles.".into(),
+                ("CO2", true) => "Out of cloud! Find fire.".into(),
+                (_, true) => "Out of stuff! Wait.".into(),
                 ("H2O", false) => "Out of H2O: hold G near water.".into(),
                 ("H2" | "O2", false) => {
                     format!("Out of {what}: wait, or stand by the crystal.")
@@ -2820,9 +2820,11 @@ mod tests {
                 if tier != Tier::Sprout {
                     assert!(l.contains(&format!("Out of {jar}:")), "{l}");
                 }
-                // A recovery cue after the name.
+                // A recovery cue after the name (Sprout's lines stay under
+                // six words, so its cue is one word: "Out of water! Wait.").
                 let cue = l.split("Out of").nth(1).unwrap();
-                assert!(cue.split_whitespace().count() >= 3, "{l}");
+                let min = if tier == Tier::Sprout { 2 } else { 3 };
+                assert!(cue.split_whitespace().count() >= min, "{l}");
             }
         }
     }

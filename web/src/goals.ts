@@ -47,6 +47,21 @@ export class GoalMarkers {
   goVisible = false;
   /** No gold hint ring (Sprout: the one bullseye already sits on the goal). */
   pulseOff = false;
+  /** Sprout: meters and tags are pictures (and digits), never words. */
+  private pictureOnly = false;
+
+  /** Sprout reads pictures: the trap meter is a filling bar with a boom
+   * picture when full, and the battery tag is just its lightning bolt. */
+  setPictureOnly(on: boolean): void {
+    this.pictureOnly = on;
+    this.battery.textContent = on ? "⚡" : "⚡ Crystal battery";
+    const stand = this.stand.firstElementChild;
+    if (stand) stand.textContent = on ? "⬇" : "Stand here";
+    this.trapText.replaceChildren();
+    this.trapKey = "";
+  }
+
+  private trapKey = "";
 
   constructor(
     private readonly stage: HTMLElement,
@@ -238,7 +253,14 @@ export class GoalMarkers {
       const quarters = Math.round(fill * 4);
       this.trapFill.style.width = `${Math.round(fill * 100)}%`;
       const text = fill >= 1 ? "Full! Boom it!" : `gas ${quarters}/4`;
-      if (this.trapText.textContent !== text) this.trapText.textContent = text;
+      const key = `${this.pictureOnly}:${text}`;
+      if (key !== this.trapKey) {
+        this.trapKey = key;
+        if (!this.pictureOnly) this.trapText.textContent = text;
+        else if (fill >= 1) this.trapText.replaceChildren(icon("boom"));
+        else this.trapText.replaceChildren();
+        this.trapText.hidden = this.pictureOnly && fill < 1;
+      }
       this.trapMeter.classList.toggle("full", fill >= 1);
       this.trapMeter.setAttribute("aria-label", fill >= 1 ? "Gas trap full" : `Gas trap ${quarters} of 4 full`);
       const [x0, y0, x1] = area;

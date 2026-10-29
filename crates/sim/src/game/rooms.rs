@@ -326,6 +326,9 @@ pub struct Goal {
 pub struct Step {
     pub text: &'static str,
     pub done: bool,
+    /// A picture for readers who can't read yet (an icon name): "bubbles",
+    /// "trap" (the trap's fill bar), "boom", "fire" or "bowl".
+    pub pic: &'static str,
 }
 
 /// The torch as the renderer needs it.
@@ -391,7 +394,7 @@ impl Game {
                 "Trap the gas under the stone roof, then light it.",
             ),
             _ => self.line(
-                "Fire out, then light the bowl!",
+                "Put out fire, light bowl!",
                 "Put out the hedge, light the brazier.",
                 "Put out the hedge with H2O or CO2, then light the brazier by the door.",
             ),
@@ -838,7 +841,7 @@ impl Game {
         if !self.rooms.torch.carried && touching && (self.rooms.torch.lit || gather) {
             self.rooms.torch.carried = true;
             let line = self.line(
-                "Got the torch! Go to ice!",
+                "Got the torch! To ice!",
                 "Got the torch. Hold it to the ice.",
                 "You picked up the torch. Hold it against something to heat it.",
             );
@@ -1352,6 +1355,7 @@ impl Game {
                             "1. Split water: 2H2O -> 2H2 + O2.",
                         ),
                         done: r.gas_made || self.trap_ready() || r.gates_open[2],
+                        pic: "bubbles",
                     },
                     Step {
                         text: self.line(
@@ -1360,6 +1364,7 @@ impl Game {
                             "2. Let H2 and O2 collect under the roof.",
                         ),
                         done: self.trap_ready() || r.gates_open[2],
+                        pic: "trap",
                     },
                     Step {
                         text: self.line(
@@ -1368,6 +1373,7 @@ impl Game {
                             "3. Light it: 2H2 + O2 -> 2H2O.",
                         ),
                         done: r.gates_open[2],
+                        pic: "boom",
                     },
                 ]),
             },
@@ -1393,6 +1399,7 @@ impl Game {
                             "1. Put out the hedge: H2O or CO2.",
                         ),
                         done: r.hedges[1].out,
+                        pic: "fire",
                     },
                     Step {
                         text: self.line(
@@ -1401,6 +1408,7 @@ impl Game {
                             "2. Light the brazier: 2H2 + O2 -> 2H2O.",
                         ),
                         done: r.brazier_lit,
+                        pic: "bowl",
                     },
                 ]),
             },
@@ -1937,6 +1945,17 @@ mod tests {
                 let steps = goal.steps.expect("room 3 has steps");
                 assert_eq!(steps.len(), 3);
                 assert!(steps.iter().all(|s| !s.done));
+                // Each step has a picture for readers who can't read yet.
+                let pics: Vec<&str> = steps.iter().map(|s| s.pic).collect();
+                assert_eq!(pics, ["bubbles", "trap", "boom"]);
+                let room4: Vec<&str> = g.goals()[3]
+                    .steps
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|s| s.pic)
+                    .collect();
+                assert_eq!(room4, ["fire", "bowl"]);
                 g.state();
                 if tier == Tier::Apprentice {
                     // No auto-aim at Apprentice: point at the goal marker.
@@ -3100,13 +3119,14 @@ mod copy_tests {
     }
 
     #[test]
-    fn sprout_lines_are_six_words_or_fewer() {
+    fn sprout_lines_are_five_words_or_fewer() {
         let book = ReactionBook::load();
         let mut lines: Vec<String> = tier_lines().into_iter().map(|[s, _, _]| s).collect();
         lines.extend(book.reactions.iter().map(|(r, _)| r.short_sprout.clone()));
         for line in lines {
             assert!(
-                words(&line) <= 6,
+                // Playtest round 3: spoken Sprout lines stay under six words.
+                words(&line) <= 5,
                 "{} words for Sprout: {line}",
                 words(&line)
             );
@@ -3128,19 +3148,19 @@ mod copy_tests {
     }
 
     #[test]
-    fn sprout_cast_labels_are_six_words_or_fewer() {
+    fn sprout_cast_labels_are_five_words_or_fewer() {
         let mut g = Game::new(Tier::Sprout, 42);
         settle(&mut g, 30);
         for spell in ["water", "boom", "split", "H2", "cloud", "xyz", "fireball"] {
             let out = g.cast(spell);
-            assert!(words(&out.label) <= 6, "{spell}: {}", out.label);
+            assert!(words(&out.label) <= 5, "{spell}: {}", out.label);
             land(&mut g);
             settle(&mut g, 10);
         }
         // Everything Mote said in a full Sprout play-through, too.
         let (_, said, _) = super::restart_tests::play_by_goals(Tier::Sprout, 42);
         for line in said {
-            assert!(words(&line) <= 6, "Sprout heard: {line}");
+            assert!(words(&line) <= 5, "Sprout heard: {line}");
         }
     }
 

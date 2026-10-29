@@ -324,6 +324,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   if (tier === "sprout") {
     game.set_crosshair(false);
     goals.pulseOff = true;
+    goals.setPictureOnly(true);
     goals.layer.append(bullseye);
   }
   function placeBullseye(viewX: number): void {
@@ -348,6 +349,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const root = byId("tray");
     root.hidden = false;
     tray = new SpellTray(root, (t) => requestCast(t), (line) => speech.say(line));
+    tray.sayOnly = (line) => speech.sayOnly(line);
     tray.suggest(1, TRAY_STARTERS[0]!);
     byId("jars-mini").hidden = false;
   } else {
@@ -355,8 +357,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     byId("jars-mini").hidden = false;
   }
 
-  // The key list under the stage, for the tiers that cast with Enter.
-  if (tier !== "apprentice") {
+  // The key list under the stage, for Seedling (Sprout reads no words, and
+  // Apprentice has its own).
+  byId("help").hidden = tier === "sprout";
+  if (tier === "seedling") {
     const help = byId("help");
     const keysLine: [string, string[]][] = [
       ["Move", ["A", "D"]],
@@ -674,6 +678,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const setTrayOpen = (open: boolean) => {
     document.body.classList.toggle("tray-open", open);
     actTray.setAttribute("aria-expanded", String(open));
+    // The one-time number hint waits until the drawer is on screen.
+    if (open) window.setTimeout(() => tray?.maybeCoefHint(), 260);
   };
   actTray.addEventListener("click", () => setTrayOpen(!document.body.classList.contains("tray-open")));
   byId("act-cast").addEventListener("click", () => requestCast());
@@ -1012,8 +1018,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     // Events from the cast itself (charge, bolt, fizzle) show at once.
     handleFx(JSON.parse(game.take_fx()) as Fx[]);
     castCount++;
-    // Apprentices read the floating label; the caption would only repeat it.
-    if (tier !== "apprentice") speech.say(words(result.label).replace(/\n/g, " "), outcomeSpeech(result));
+    // The cast card shows the words, so the top caption never repeats them:
+    // the younger tiers hear them (Seedling only the card's first line), and
+    // the replay button says them again.
+    if (tier !== "apprentice") speech.sayOnly(words(result.label).replace(/\n/g, " "), outcomeSpeech(result));
     hintOnCast(result);
     scoreCast(result);
     afterCastNudges(result);
@@ -1065,7 +1073,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   /** What gets read aloud for a cast: the label, plus a nudge on a miss. */
   function outcomeSpeech(r: CastOutcome): string {
     let line = words(r.label).replace(/\n/g, " ");
-    if (r.outcome === "unknown" && tier === "sprout") line = "Hmm, that one is not a spell yet.";
+    if (tier === "seedling" && r.imbalance.length > 0) line = words(r.label).split("\n")[0] ?? "";
+    if (r.outcome === "unknown" && tier === "sprout") line = "Hmm, not a spell.";
     return speakable(line);
   }
 
@@ -1122,7 +1131,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       nudgeFor = "gas";
       speech.say(
         tier === "sprout"
-          ? "Now light the bubbles! Tap boom!"
+          ? "Now tap boom!"
           : tier === "seedling"
             ? "Now light the bubbles with boom!"
             : "Now light the trapped gas: 2H2 + O2 -> 2H2O",
@@ -1233,7 +1242,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       if (goals.goVisible) {
         hintText.textContent = "Walk this way";
         hintUse.hidden = true;
-        speech.sayOnly("Walk this way! Tap the arrow.");
+        speech.sayOnly(tier === "sprout" ? "Walk this way!" : "Walk this way! Tap the arrow.");
       } else if (repeat && next) {
         const where = AIM_WORDS[next.kind];
         hintUse.hidden = true;
@@ -1283,13 +1292,21 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     let y = r.top - s.top + r.height / 2;
     const goal = goals.goVisible ? null : goals.nextOnStage(game.view_x());
     if (goal && !fx.reducedMotion) {
-      // Tap the card, then glide from the card to the target and rest there.
-      const t = (now % 2000) / 2000;
-      const k = t < 0.25 ? 0 : t > 0.75 ? 1 : (t - 0.25) / 0.5;
-      const ease = k * k * (3 - 2 * k);
-      x += (goal[0] - x) * ease;
-      y += (goal[1] - y) * ease;
+      // Tap the card, rise straight up off the card row (never across a
+      // neighbouring card), then glide to the target and rest there.
+      const t = (now % 2400) / 2400;
+      const lift = r.height + 60;
       if (t < 0.25) y += Math.max(0, Math.sin(t * 4 * Math.PI)) * 8;
+      else if (t < 0.4) {
+        const k = (t - 0.25) / 0.15;
+        y -= lift * k * k * (3 - 2 * k);
+      } else {
+        const k = Math.min(1, (t - 0.4) / 0.35);
+        const ease = k * k * (3 - 2 * k);
+        const y0 = y - lift;
+        x += (goal[0] - x) * ease;
+        y = y0 + (goal[1] - y0) * ease;
+      }
     } else if (!fx.reducedMotion) {
       y += Math.max(0, Math.sin(now / 250)) * 8;
     }
@@ -1725,7 +1742,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         : `You passed the Alchemist's Trial and earned ${earned} Grimoire ${earned === 1 ? "page" : "pages"}!` +
           (more > 0 ? ` ${more} bonus ${more === 1 ? "page waits" : "pages wait"} in free play.` : "");
     byId("end").hidden = false;
-    speech.say("Breakthrough! You passed the trial!");
+    speech.say(tier === "sprout" ? "You did it! Yay!" : "Breakthrough! You passed the trial!");
     byId("end-replay").focus();
   }
 
@@ -1737,7 +1754,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     byId("end").hidden = true;
     game.free_play();
     cards?.unlock(["water", "boom", "split", "cloud"]);
-    speech.say("Free play! Every door is open.");
+    speech.say(tier === "sprout" ? "Free play! All open!" : "Free play! Every door is open.");
   });
 
   // ------------------------------------------------------------------- menu
@@ -1762,7 +1779,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     trialConfirm.hidden = !open;
     menu.classList.toggle("confirming", open);
     if (open) {
-      speech.say(tier === "sprout" ? "Start all over again?" : "Start the whole trial again?");
+      speech.say(tier === "sprout" ? "Start all over?" : "Start the whole trial again?");
       byId("trial-no").focus();
     } else byId("menu-trial").focus();
   };
@@ -1886,6 +1903,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     typedKeys.clear();
     renderSlots();
     hudRoom = -1;
+    objectiveRoom = -1;
     room1Cleared = false;
     clearedRooms.clear();
     renderTutorial();
@@ -1950,6 +1968,35 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let lastHudTime = -Infinity;
   let lastGoalsTime = -Infinity;
   let shownGoalLine = "";
+  /** The room whose goal the objective shows (-1: none yet). A new room's
+   * goal only shows once its target is on screen; until then a walk arrow
+   * does, so nobody casts at an empty field. */
+  let objectiveRoom = -1;
+  function showObjective(want: Goal | null, viewX: number): Goal | null {
+    if (!want) {
+      objective.walk(0);
+      objective.update(null);
+      return null;
+    }
+    if (want.room !== objectiveRoom) {
+      const [x0, , x1] = want.area ?? [want.x, 0, want.x];
+      // The target itself, not just its edge (the ice wall is 12 cells wide).
+      const margin = 8;
+      const inView = x0 >= viewX + margin && x1 <= viewX + w - margin;
+      if (!inView) {
+        objective.walk(want.x > viewX + w / 2 ? 1 : -1);
+        return null;
+      }
+      objectiveRoom = want.room;
+      objective.walk(0);
+    }
+    objective.update(want);
+    return want;
+  }
+  objective.onWalk = () => {
+    const next = goals.next;
+    if (next) autoWalk = { target: next.stand_x, stuck: 0, lastX: game.player_x() };
+  };
   let stateVersion = -1;
 
   // One frame's error must never stop the game: the next frame is always
@@ -2018,8 +2065,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       goals.setGoals(list);
       trackProgress(list);
       const here = list[game.room()];
-      const shownGoal = here && !here.done ? here : goals.next;
-      objective.update(shownGoal);
+      const shownGoal = showObjective(here && !here.done ? here : goals.next, viewX);
       // One suggested spell per goal, swapped in once (never while the
       // player is editing it).
       if (tray && shownGoal && tray.suggest(shownGoal.room, TRAY_STARTERS[shownGoal.room - 1] ?? "H2O")) {

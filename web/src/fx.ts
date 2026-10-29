@@ -4,7 +4,8 @@
 // the simulation. Strength comes from the sourced enthalpy on each event.
 
 import { words } from "./device";
-import { icon, type IconName } from "./icons";
+import { ATOM_COLOR, icon, type IconName } from "./icons";
+import { parseSpell, sideAtoms } from "./tray";
 import { prettyFormula, type CastOutcome, type Fx, type Tier } from "./types";
 
 const POOL_SIZE = 512;
@@ -679,7 +680,13 @@ export class FxLayer {
       if (dh > 400) this.hitStop = 3;
     }
     // Unreacted reagent (whole molecules, "½ O2") drifts back to the player.
-    const left = out?.unreacted ?? [];
+    // Seedlings never see half molecules: their orbs are whole atoms ("+1 O").
+    const left =
+      this.tier === "seedling" && out
+        ? Object.entries(out.leftovers)
+            .filter(([, n]) => n > 0)
+            .map(([el, n]) => `+${n} ${el}`)
+        : (out?.unreacted ?? []);
     left.forEach((text, i) => {
       const label = document.createElement("div");
       label.className = "orb-label";
@@ -728,6 +735,16 @@ export class FxLayer {
       p.className = "fx-pic";
       p.append(icon(pic));
       el.append(p);
+    }
+    // Seedling, unbalanced: one short line and a picture scale; the detail
+    // (the equation, the counts, what reacted) waits behind "Why?".
+    if (this.tier === "seedling" && out.imbalance.length > 0) {
+      this.seedlingCard(el, out);
+      for (const l of this.labels) l.el.remove();
+      this.labels = [{ el, x, y, born: performance.now(), life: LABEL_FIX_MS }];
+      this.stage.append(el);
+      this.placeLabel(this.labels[0]!);
+      return;
     }
     if (out.outcome !== "unknown" && this.tier !== "sprout") {
       const eq = document.createElement("div");
@@ -791,6 +808,55 @@ export class FxLayer {
     this.labels = [{ el, x, y, born: performance.now(), life }];
     this.stage.append(el);
     this.placeLabel(this.labels[0]!);
+  }
+
+  /** The Seedling card for an unbalanced cast: one line, a scale, Why?, Fix it. */
+  private seedlingCard(el: HTMLElement, out: CastOutcome): void {
+    el.classList.add("seedling-card");
+    const [first = "", ...rest] = words(out.label).split("\n");
+    const line = document.createElement("div");
+    line.className = "fx-line";
+    line.textContent = prettyFormula(first);
+    el.append(line, miniScale(out.equation));
+    const why = document.createElement("div");
+    why.className = "fx-why";
+    why.hidden = true;
+    const eq = document.createElement("div");
+    eq.className = "fx-eq";
+    eq.textContent = prettyFormula(out.equation);
+    why.append(eq);
+    for (const r of rest) {
+      const d = document.createElement("div");
+      d.textContent = prettyFormula(r);
+      why.append(d);
+    }
+    const row = document.createElement("div");
+    row.className = "fx-buttons";
+    const whyBtn = document.createElement("button");
+    whyBtn.type = "button";
+    whyBtn.className = "fx-why-btn";
+    whyBtn.textContent = "Why?";
+    whyBtn.setAttribute("aria-expanded", "false");
+    whyBtn.addEventListener("click", () => {
+      why.hidden = !why.hidden;
+      whyBtn.setAttribute("aria-expanded", String(!why.hidden));
+      // Reading takes time: the card stays while the detail is open.
+      const l = this.labels.find((x) => x.el === el);
+      if (l) l.life = Math.max(l.life, performance.now() - l.born + 12000);
+      this.placeLabel(l ?? { el, x: 0, y: 0, born: 0, life: 0 });
+    });
+    row.append(whyBtn);
+    if (out.suggestion) {
+      const fix = document.createElement("button");
+      fix.type = "button";
+      fix.className = "fx-fix";
+      fix.textContent = "Fix it";
+      fix.setAttribute("aria-label", `Fix it: ${prettyFormula(out.suggestion)}`);
+      const s = out.suggestion;
+      fix.addEventListener("click", () => this.onFix(s));
+      row.append(" ", fix);
+    }
+    el.append(row, why);
   }
 
   private placeLabel(l: Label): void {
@@ -1271,4 +1337,43 @@ function bakeBubble(rgb: string): HTMLCanvasElement | null {
   g.arc(19, 18, 3.5, 0, Math.PI * 2);
   g.fill();
   return c;
+}
+
+/**
+ * A picture-only balance scale for a cast card: the atoms before and after
+ * as coloured balls on two pans, tipped toward the heavier side.
+ */
+function miniScale(equation: string): HTMLElement {
+  const { left, right } = sideAtoms(parseSpell(equation));
+  const count = (a: Record<string, number>) => Object.values(a).reduce((x, y) => x + y, 0);
+  const [nl, nr] = [count(left), count(right)];
+  const scale = document.createElement("div");
+  scale.className = "card-scale";
+  scale.setAttribute("role", "img");
+  const list = (a: Record<string, number>) =>
+    Object.entries(a)
+      .map(([e, n]) => `${n} ${e}`)
+      .join(", ") || "nothing";
+  scale.setAttribute("aria-label", `Before: ${list(left)}. After: ${list(right)}.`);
+  const beam = document.createElement("div");
+  beam.className = "card-beam";
+  const angle = nl === nr ? 4 : Math.max(-12, Math.min(12, (nr - nl) * 3));
+  beam.style.transform = `rotate(${angle}deg)`;
+  for (const side of [left, right]) {
+    const pan = document.createElement("div");
+    pan.className = "card-pan";
+    for (const [el, n] of Object.entries(side)) {
+      for (let i = 0; i < Math.min(n, 10); i++) {
+        const b = document.createElement("span");
+        b.className = "card-ball";
+        b.style.background = ATOM_COLOR[el] ?? "#cc79a7";
+        pan.append(b);
+      }
+    }
+    beam.append(pan);
+  }
+  const post = document.createElement("div");
+  post.className = "card-post";
+  scale.append(beam, post);
+  return scale;
 }

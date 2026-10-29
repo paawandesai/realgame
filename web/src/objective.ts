@@ -19,6 +19,13 @@ const GOAL_ICON: Record<Goal["kind"], IconName> = {
   brazier: "bowl",
 };
 
+const STEP_ICON: Record<string, IconName> = {
+  bubbles: "bubbles",
+  boom: "boom",
+  fire: "fire",
+  bowl: "bowl",
+};
+
 /** How long the big banner stays before it shrinks into the chip; with
  * the shrink it is gone within 2.5 s. */
 const BANNER_MS = 2150;
@@ -51,6 +58,13 @@ export class ObjectiveBanner {
   private raw = "";
   /** Called when the player asks for the goal again; the caller speaks it. */
   onAnnounce: ((line: string) => void) | null = null;
+  /** "Walk this way": shown in the chip's place while the next goal is
+   * still off screen, so nobody casts at an empty field. */
+  private readonly walkEl: HTMLButtonElement;
+  private readonly walkPic: HTMLElement;
+  private walkDir = 0;
+  /** The walk prompt was tapped (walk there for me). */
+  onWalk: (() => void) | null = null;
 
   /** `pillRow` holds the goal chip, `bannerRow` the big banner; both live
    * in the top HUD column, so they stack and never overlap. */
@@ -86,7 +100,23 @@ export class ObjectiveBanner {
     this.chipSteps.className = "objective-steps";
     this.chip.append(this.chipPic, this.chipText, this.chipSteps);
     this.chip.addEventListener("click", () => this.replay());
-    pillRow.append(this.chip);
+    this.walkEl = document.createElement("button");
+    this.walkEl.type = "button";
+    this.walkEl.id = "walk-prompt";
+    this.walkEl.hidden = true;
+    this.walkPic = document.createElement("span");
+    this.walkPic.className = "walk-pic";
+    this.walkPic.setAttribute("aria-hidden", "true");
+    this.walkEl.append(this.walkPic);
+    if (tier !== "sprout") {
+      const words = document.createElement("span");
+      words.className = "walk-text";
+      words.textContent = "Walk this way";
+      this.walkEl.append(words);
+    }
+    this.walkEl.setAttribute("aria-label", "Walk this way to the next goal");
+    this.walkEl.addEventListener("click", () => this.onWalk?.());
+    pillRow.append(this.chip, this.walkEl);
     bannerRow.append(this.banner);
     // The first key press or tap after the banner appears tucks it away.
     const onInput = (e: Event) => {
@@ -132,6 +162,34 @@ export class ObjectiveBanner {
    * that room is done. A new goal pops the banner; the same one only keeps
    * the chip up to date.
    */
+  /**
+   * The next goal is not on screen yet: a big walk arrow takes the chip's
+   * place (and the banner waits) until it is. `dir` is 1 for right, -1 for
+   * left, 0 to stop walking and show the goal again.
+   */
+  walk(dir: number): void {
+    if (dir === this.walkDir) return;
+    this.walkDir = dir;
+    this.walkEl.hidden = dir === 0;
+    if (dir !== 0) {
+      this.walkPic.replaceChildren(icon(dir > 0 ? "right" : "left"));
+      this.walkEl.classList.toggle("left", dir < 0);
+      // The old goal is done: nothing about it (or the next one) shows yet.
+      window.clearTimeout(this.timer);
+      this.banner.hidden = true;
+      this.pending = false;
+      this.chip.hidden = true;
+      this.key = "walk";
+      this.text = "";
+      this.sync();
+    }
+  }
+
+  /** Whether the walk prompt is up. */
+  get walking(): boolean {
+    return this.walkDir !== 0;
+  }
+
   update(goal: Goal | null): void {
     if (!goal) {
       this.key = "done";
@@ -142,6 +200,9 @@ export class ObjectiveBanner {
     }
     const text = this.tier === "sprout" ? goal.text : prettyFormula(goal.text);
     const steps = goal.steps ?? [];
+    // Sprout: the trap's fill bar inside the step fills as the gas collects.
+    const fill = `${Math.round(Math.max(0, Math.min(1, goal.meter ?? 0)) * 100)}%`;
+    for (const bar of this.trapFills) bar.style.width = fill;
     const stepKey = steps.map((s) => (s.done ? "1" : "0")).join("");
     const key = `${goal.room}:${goal.text}:${stepKey}`;
     if (key === this.key) return;
@@ -150,10 +211,15 @@ export class ObjectiveBanner {
     this.text = text;
     this.raw = goal.text;
     for (const pic of [this.bannerPic, this.chipPic]) pic.replaceChildren(icon(GOAL_ICON[goal.kind]));
-    this.bannerText.textContent = text;
-    this.chipText.textContent = text;
+    // Sprout reads pictures, not words: the words are spoken (and in the
+    // aria-label), never printed.
+    const shown = this.tier === "sprout" ? "" : text;
+    this.bannerText.textContent = shown;
+    this.chipText.textContent = shown;
+    this.bannerText.hidden = shown === "";
     // The chip is small: a goal in steps shows just its ticked steps.
-    this.chipText.hidden = (goal.steps ?? []).length > 0;
+    this.chipText.hidden = shown === "" || (goal.steps ?? []).length > 0;
+    this.trapFills = [];
     // A goal in steps: each step listed with a tick once it is done, so
     // "1. hedge out" visibly comes before "2. light the bowl".
     for (const box of [this.bannerSteps, this.chipSteps]) {
@@ -164,8 +230,12 @@ export class ObjectiveBanner {
           const mark = document.createElement("span");
           mark.className = "step-mark";
           mark.textContent = s.done ? "✓" : "○";
+          if (this.tier === "sprout") {
+            el.append(mark, this.stepPicture(s.pic, fill));
+            return el;
+          }
           const words = document.createElement("span");
-          words.textContent = this.tier === "sprout" ? s.text : prettyFormula(s.text);
+          words.textContent = prettyFormula(s.text);
           el.append(mark, words);
           return el;
         }),
@@ -186,6 +256,27 @@ export class ObjectiveBanner {
     }
     // Not spoken here: each room already speaks its own entry line.
     this.show();
+  }
+
+  /** Fill bars of the "trap" step pictures, kept in step with the meter. */
+  private trapFills: HTMLElement[] = [];
+
+  /** A step as a picture: an icon, or for the trap a bar that fills. */
+  private stepPicture(pic: string, fill: string): HTMLElement {
+    const wrap = document.createElement("span");
+    wrap.className = "step-pic";
+    if (pic === "trap") {
+      const bar = document.createElement("span");
+      bar.className = "step-bar";
+      const f = document.createElement("span");
+      f.style.width = fill;
+      bar.append(f);
+      this.trapFills.push(f);
+      wrap.append(bar);
+    } else {
+      wrap.append(icon(STEP_ICON[pic] ?? "star"));
+    }
+    return wrap;
   }
 
   /** Keeps the big banner back for a moment (a room-clear stamp is showing). */

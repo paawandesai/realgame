@@ -61,7 +61,7 @@ export interface Goal {
   /** Where to label the crystal battery (top centre), in room 3. */
   battery: [number, number] | null;
   /** The goal in ordered steps, each ticked when done (rooms 3 and 4). */
-  steps: { text: string; done: boolean }[] | null;
+  steps: { text: string; done: boolean; pic: "bubbles" | "trap" | "boom" | "fire" | "bowl" }[] | null;
 }
 
 export interface TorchView {
