@@ -24,6 +24,8 @@
     { "equation": "Zn + 2HCl -> ZnCl2 + H2", "name": "Zinc dissolves in acid and gives hydrogen", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 29" },
     { "equation": "2K + 2H2O -> 2KOH + H2", "name": "Potassium meets water", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 4" },
     { "equation": "2Na + 2H2O -> 2NaOH + H2", "name": "Sodium meets water", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 4" },
-    { "equation": "Xe + F2 -> XeF2", "name": "Xenon difluoride, a noble gas compound", "source": "Hoppe et al., Angew. Chem. 74, 903 (1962); Greenwood & Earnshaw, ch. 18" }
+    { "equation": "Xe + F2 -> XeF2", "name": "Xenon difluoride, a noble gas compound", "source": "Hoppe et al., Angew. Chem. 74, 903 (1962); Greenwood & Earnshaw, ch. 18" },
+    { "equation": "Kr + F2 -> KrF2", "name": "Krypton difluoride, made in the cold with electric discharge or UV", "source": "Greenwood & Earnshaw, Chemistry of the Elements, 2nd ed., ch. 18" },
+    { "equation": "Xe + 2F2 -> XeF4", "name": "Xenon tetrafluoride", "source": "Claassen, Selig & Malm, J. Am. Chem. Soc. 84, 3593 (1962); Greenwood & Earnshaw, ch. 18" }
   ]
 }

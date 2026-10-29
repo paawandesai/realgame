@@ -421,7 +421,7 @@ impl Game {
             2 => self.line(
                 "Make bubbles, then boom!",
                 "Split water, trap the gas, light it.",
-                "Split pool water into its two gases with the crystal's power, trap them under the stone roof, then light them.",
+                "Split pool water with the crystal's power; the hydrogen rises and is trapped under the stone roof. Light it.",
             ),
             _ => self.line(
                 "Water hedge, light bowl!",
@@ -1061,7 +1061,7 @@ impl Game {
                 let line = self.line(
                     "Bang! The door opened!",
                     "Bang! Trapped hydrogen burned. The door opened!",
-                    "Bang! The trapped hydrogen burned with the oxygen back into water and blew the door open.",
+                    "Bang! The trapped hydrogen burned with oxygen (from the air) into water and blew the door open.",
                 );
                 self.say(line);
             }
@@ -1457,7 +1457,7 @@ impl Game {
                         text: self.line(
                             "Gas trapped!",
                             "2. Trap the gas.",
-                            "2. Let H2 and O2 collect under the roof.",
+                            "2. Hydrogen is lighter than air: let it rise and collect under the roof (oxygen is slightly denser and drifts down).",
                         ),
                         done: self.trap_ready() || r.gates_open[2],
                         pic: "trap",
@@ -2930,7 +2930,7 @@ mod restart_tests {
         let g = Game::new(Tier::Apprentice, 42);
         assert_eq!(
             g.goals()[2].text,
-            "Split pool water into its two gases with the crystal's power, trap them under the stone roof, then light them."
+            "Split pool water with the crystal's power; the hydrogen rises and is trapped under the stone roof. Light it."
         );
     }
 

@@ -1622,7 +1622,12 @@ impl Game {
                     "Xe" => "Xenon",
                     _ => "Radon",
                 };
-                format!("{name} doesn't react.")
+                if matches!(g.as_str(), "He" | "Ne" | "Ar") {
+                    format!("{name} doesn't react.")
+                } else {
+                    // Kr, Xe and Rn do form fluorides (Greenwood & Earnshaw, ch. 18).
+                    format!("{name} almost never reacts: only with fluorine, in special labs. Not in this trial.")
+                }
             }
             Rejection::NotInWorld {
                 balanced: false, ..
@@ -3437,6 +3442,21 @@ mod tests {
             let r = g.cast("He + O2 -> HeO2");
             assert_eq!(r.reason, Some("noble_gas"));
             assert_eq!(r.label, "Helium doesn't react.");
+            // Krypton and xenon fluorides are real, so never say "doesn't react".
+            for text in ["Kr + O2 -> KrO2", "Xe + O2 -> XeO2", "Xe"] {
+                let r = g.cast(text);
+                assert_eq!(r.reason, Some("noble_gas"), "{text}");
+                assert!(
+                    r.label.contains("almost never reacts"),
+                    "{text}: {}",
+                    r.label
+                );
+            }
+            for text in ["Kr + F2 -> KrF2", "Xe + 2F2 -> XeF4", "Xe + F2 -> XeF2"] {
+                let r = g.cast(text);
+                assert!(r.label.contains("eal"), "{text}: {}", r.label);
+                assert!(!r.label.contains("react"), "{text}: {}", r.label);
+            }
             // Round 4: balanced but unknown is neutral ("in my book yet").
             let r = g.cast("O2 + O2 -> O4");
             assert!(r.label.contains("in my book yet"), "{}", r.label);
