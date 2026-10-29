@@ -27,6 +27,15 @@ pub const WATER_CP_J_PER_MOL_K: f32 = 75.3;
 /// (carbon burned); flames below it leave plain air (hydrogen burned).
 const FLAME_LEAVES_CO2: i16 = 1000;
 
+/// Densities at 0 C and 1 atm, g/L (CRC Handbook of Chemistry and Physics):
+/// carbon dioxide 1.977, dry air 1.293. CO2 is about 1.53 times as dense as
+/// air, so it sinks, pools on the floor and pushes the air (and its oxygen) up.
+pub const CO2_DENSITY_G_PER_L: f32 = 1.977;
+pub const AIR_DENSITY_G_PER_L: f32 = 1.293;
+/// How eagerly a denser-than-air gas sinks, per unit of excess relative density
+/// (a tuning value: CO2 sinks about 0.8 cells per tick through still air).
+const SINK_GAIN: f32 = 1.5;
+
 /// Air cooler than this is the background medium and only moves when displaced.
 const STILL_AIR_BELOW_C: f32 = 60.0;
 
@@ -59,6 +68,9 @@ pub struct Grid {
     rng: u64,
     boil_buffer: f32,
     melt_buffer: f32,
+    /// Chance per tick that hot wood with pure oxygen beside it puts out a
+    /// flame (scaled down for air). Rooms tune this to keep fires bounded.
+    pub wood_flame_chance: f32,
 }
 
 impl Grid {
@@ -76,6 +88,7 @@ impl Grid {
             rng: seed.max(1),
             boil_buffer: boil_kj * 1000.0 / WATER_CP_J_PER_MOL_K,
             melt_buffer: melt_kj * 1000.0 / WATER_CP_J_PER_MOL_K,
+            wood_flame_chance: 0.25,
         }
     }
 
@@ -228,6 +241,17 @@ impl Grid {
         s.props().molar_mass * 293.15 / kelvin
     }
 
+    /// Density relative to room-temperature air. Ideal gas from molar mass,
+    /// except CO2, which uses its measured density (see `CO2_DENSITY_G_PER_L`).
+    fn relative_density(&self, s: Species, t: f32) -> f32 {
+        if s == Species::CO2 {
+            let kelvin = (t + 273.15).max(1.0);
+            CO2_DENSITY_G_PER_L / AIR_DENSITY_G_PER_L * 293.15 / kelvin
+        } else {
+            self.buoyant_mass(s, t) / AIR_MOLAR_MASS
+        }
+    }
+
     fn move_gas(&mut self, x: i32, y: i32) {
         let i = self.idx(x as usize, y as usize);
         let s = self.cells[i];
@@ -237,6 +261,7 @@ impl Grid {
             return;
         }
         let m = self.buoyant_mass(s, t);
+        let rel = self.relative_density(s, t);
         let dir = if m < AIR_MOLAR_MASS - 1.0 {
             -1
         } else if m > AIR_MOLAR_MASS + 1.0 {
@@ -245,7 +270,11 @@ impl Grid {
             0
         };
         let side = if self.rand_u32() & 1 == 0 { 1 } else { -1 };
-        let urge = if dir < 0 { 0.7 } else { 0.25 };
+        let urge = if dir < 0 {
+            0.7
+        } else {
+            ((rel - 1.0) * SINK_GAIN).clamp(0.1, 0.9)
+        };
         if dir != 0 && self.chance(urge) {
             for (dx, dy) in [(0, dir), (side, dir), (-side, dir)] {
                 let (nx, ny) = (x + dx, y + dy);
@@ -266,8 +295,10 @@ impl Grid {
                 }
             }
         }
-        // Diffusion: gases slowly mix with neighbouring gases.
-        if self.chance(0.5) {
+        // Diffusion: gases slowly mix with neighbouring gases. Heavy gases
+        // mix more slowly, so a CO2 pool stays a pool for a while.
+        let mixing = if dir > 0 { 0.2 } else { 0.5 };
+        if self.chance(mixing) {
             let (dx, dy) = NEIGHBORS[(self.rand_u32() % 4) as usize];
             let (nx, ny) = (x + dx, y + dy);
             if self.in_bounds(nx, ny) {
@@ -442,9 +473,19 @@ impl Grid {
             return;
         }
         let Some((ox, oy, oxidiser)) = self.oxidiser_near(x, y) else {
+            // Smothered (gas touching it, but none with oxygen, such as a CO2
+            // blanket): nothing burns, so no heat is released and the wood
+            // slowly cools. Simplification: the loss stands in for heat soaking
+            // into the ground and the gas around it.
+            if NEIGHBORS
+                .iter()
+                .any(|(dx, dy)| self.get(x + dx, y + dy).is_gas())
+            {
+                self.temp[i] -= (self.temp[i] - AMBIENT_C) * 0.01;
+            }
             return;
         };
-        if self.chance(0.25 * oxidiser.oxidiser_strength()) {
+        if self.chance(self.wood_flame_chance * oxidiser.oxidiser_strength()) {
             let life = 20 + (self.rand_u32() % 20) as i16;
             // A flame cell is mostly the air it burned in. Air is 21% O2, so only
             // about that share of air-fed flames leaves a whole cell of CO2.

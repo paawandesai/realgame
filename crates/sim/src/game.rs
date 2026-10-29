@@ -9,6 +9,9 @@ use crate::spell::{self, Outcome, Plan, Resolution, Stock};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
+mod rooms;
+pub use rooms::{Goal, Rect, TorchView};
+
 /// The world is four 320-cell rooms side by side; the camera shows one room's width.
 pub const ROOM_W: usize = 320;
 pub const ROOMS: usize = 4;
@@ -38,8 +41,12 @@ const CRYSTAL_SPLITS: f32 = 10.0;
 const CRYSTAL_RECHARGE_KJ_PER_TICK: f32 = 1.0;
 /// One water cast becomes a stream this many cells big...
 const WATER_CELLS_PER_MOL: u32 = 40;
-/// ...that cools everything within this radius of where it lands.
+/// ...that cools everything within this radius of where it lands...
 const WATER_COOL_RADIUS: i32 = 6;
+/// ...and soaks through this many burning cells of a hedge it hits.
+const SOAK_CELLS_PER_MOL: u32 = 160;
+/// One mole of the cloud spell is this many cells of CO2.
+const CO2_CELLS_PER_MOL: u32 = 40;
 /// Gas spells and gathering: cells per mole of gas.
 const GAS_CELLS_PER_MOL: u32 = 3;
 /// Gathering: cells of water per mole, and how far (cells) the suit can pull from.
@@ -187,6 +194,12 @@ pub struct State {
     pub aim_y: i32,
     /// Left edge of the camera, in world cells.
     pub view_x: i32,
+    /// The room the player is in (0-based) and which gates are open.
+    pub room: u8,
+    pub gates_open: [bool; ROOMS],
+    /// Each room's target, for goal icons and fire meters.
+    pub goals: Vec<Goal>,
+    pub torch: TorchView,
 }
 
 pub struct Player {
@@ -240,13 +253,11 @@ pub struct Game {
     pub discovered: Vec<String>,
     misses_in_a_row: u32,
     next_cast_id: u32,
-    gathered_water: u32,
-    electrolysis_casts: u32,
     torch_lit: bool,
+    pub rooms: rooms::Rooms,
     met_crystal: bool,
     gather_target: Option<Species>,
     bolts: Vec<Bolt>,
-    announced_complete: bool,
     state_version: u64,
     state_sig: u64,
 }
@@ -314,17 +325,15 @@ impl Game {
             discovered: vec![],
             misses_in_a_row: 0,
             next_cast_id: 1,
-            gathered_water: 0,
-            electrolysis_casts: 0,
             torch_lit: false,
+            rooms: rooms::Rooms::new(),
             met_crystal: false,
             gather_target: None,
             bolts: vec![],
-            announced_complete: false,
             state_version: 1,
             state_sig: 0,
         };
-        game.build_trial();
+        game.build_level();
         game.snap_camera();
         game
     }
@@ -362,94 +371,6 @@ impl Game {
         std::mem::take(&mut self.fx)
     }
 
-    // -------------------------------------------------------------- the level
-
-    /// The first breakthrough trial: a stream, a spreading fire, a charged
-    /// crystal and a sealed door with a torch beside it.
-    fn build_trial(&mut self) {
-        let g = &mut self.grid;
-        g.fill_rect(0, 150, WORLD_W as i32, HEIGHT as i32, Species::Stone);
-        // Gentle bumps in the ground so it doesn't look ruled.
-        for x in 0..WORLD_W as i32 {
-            let bump = ((x as f32 * 0.11).sin() * 1.5 + (x as f32 * 0.037).cos() * 1.5) as i32;
-            g.fill_rect(x, 148 - bump.max(-1), x + 1, 150, Species::Stone);
-        }
-        // The stream: a pool dug into the ground.
-        g.fill_rect(30, 146, 96, 162, Species::Air);
-        g.fill_rect(30, 162, 96, 166, Species::Stone);
-        g.fill_rect(30, 150, 96, 162, Species::Water);
-        // A small wood: trunks and canopies.
-        for (tx, h) in [(112, 14), (124, 18), (137, 12), (150, 16), (163, 13)] {
-            let top = 147 - h;
-            g.fill_rect(tx, top, tx + 2, 148, Species::Wood);
-            g.fill_rect(tx - 4, top - 6, tx + 6, top + 1, Species::Wood);
-        }
-        // The first tree is already burning.
-        for y in 120..148 {
-            for x in 104..120 {
-                if g.get(x, y) == Species::Wood {
-                    let i = g.idx(x as usize, y as usize);
-                    g.temp[i] = 650.0;
-                }
-            }
-        }
-        // The crystal pillar.
-        g.fill_rect(190, 136, 195, 148, Species::Crystal);
-        // The wall, its door and the torch on a ledge.
-        g.fill_rect(236, 0, 242, 128, Species::Stone);
-        g.fill_rect(236, 128, 242, 148, Species::Door);
-        g.fill_rect(220, 118, 236, 121, Species::Stone);
-        g.fill_rect(226, 111, 230, 118, Species::Wood);
-
-        // Rooms 2-4 are placeholders until their content lands: a stone arch
-        // marking each room boundary and a few boulders, all walkable.
-        for room in 1..ROOMS as i32 {
-            let x0 = room * ROOM_W as i32;
-            g.fill_rect(x0 - 4, 0, x0 + 4, 96, Species::Stone);
-            g.fill_rect(x0 - 10, 90, x0 + 10, 96, Species::Stone);
-            // Mounds slope one cell per column, so walking steps over them.
-            for (dx, w, h) in [(70, 14, 4), (150, 8, 2), (230, 18, 5)] {
-                for c in 0..w {
-                    let x = x0 + dx + c;
-                    let ground = (0..HEIGHT as i32)
-                        .find(|&y| g.get(x, y) == Species::Stone && y > 100)
-                        .unwrap_or(148);
-                    let top = ground - (c + 1).min(w - c).min(h);
-                    g.fill_rect(x, top, x + 1, ground, Species::Stone);
-                }
-            }
-        }
-
-        self.objectives = vec![
-            Objective {
-                id: "gather",
-                text: "Top up your water at the stream (hold G)".into(),
-                done: false,
-            },
-            Objective {
-                id: "fire",
-                text: "Put out the fire: aim right at the flames and cast H2O".into(),
-                done: false,
-            },
-            Objective {
-                id: "split",
-                text: "Split water into hydrogen and oxygen: 2H2O -> 2H2 + O2".into(),
-                done: false,
-            },
-            Objective {
-                id: "torch",
-                text: "Light the torch by the door: 2H2 + O2 -> 2H2O".into(),
-                done: false,
-            },
-            Objective {
-                id: "exit",
-                text: "Walk through the open door".into(),
-                done: false,
-            },
-        ];
-        self.say("Fire! Your suit is full of water. Aim at the flames and cast H2O.");
-    }
-
     // ----------------------------------------------------------------- update
 
     pub fn tick(&mut self, input: u32) {
@@ -465,7 +386,7 @@ impl Game {
         self.grid
             .step_columns(vx.saturating_sub(VIEW_W), vx + 2 * VIEW_W);
         self.suit_tick();
-        self.check_objectives();
+        self.update_rooms(input & INPUT_GATHER != 0);
         self.refresh_version();
     }
 
@@ -496,10 +417,11 @@ impl Game {
         self.view_x = Self::camera_bounds(self.view_x + (target - self.view_x) * CAMERA_LERP);
     }
 
-    /// Trees are scenery the player walks in front of; everything else solid blocks.
+    /// Cool trees are scenery the player walks in front of; burning wood and
+    /// everything else solid blocks.
     fn solid_at(&self, x: f32, y: f32) -> bool {
-        let s = self.grid.get(x.floor() as i32, y.floor() as i32);
-        s.is_solid() && s != Species::Wood
+        let (cx, cy) = (x.floor() as i32, y.floor() as i32);
+        rooms::blocks_player(self.grid.get(cx, cy), self.grid.temp_at(cx, cy))
     }
 
     /// Whether the player's box at (x, y) overlaps any blocking cell.
@@ -738,9 +660,6 @@ impl Game {
         };
         for (x, y) in picked {
             self.grid.set(x, y, Species::Air, AMBIENT_C);
-            if jar == "H2O" {
-                self.gathered_water += 1;
-            }
             self.gather_cells += 1;
             if self.gather_cells >= per_mol {
                 self.gather_cells = 0;
@@ -837,89 +756,6 @@ impl Game {
                 id: 0,
                 power: 1.0,
             });
-        }
-    }
-
-    fn region_has(&self, x0: i32, x1: i32, pred: impl Fn(Species, f32) -> bool) -> bool {
-        (0..HEIGHT as i32)
-            .any(|y| (x0..x1).any(|x| pred(self.grid.get(x, y), self.grid.temp_at(x, y))))
-    }
-
-    fn complete(&mut self, id: &str, next_hint: &str) {
-        if let Some(o) = self.objectives.iter_mut().find(|o| o.id == id && !o.done) {
-            o.done = true;
-            let hint = next_hint.to_string();
-            self.say(hint);
-        }
-    }
-
-    fn check_objectives(&mut self) {
-        if self.gathered_water >= 20 {
-            self.complete("gather", "Good. Matter is made of tiny pieces, and you're carrying them. Now aim right at the flames and cast H2O. Keep going until every flame is out.");
-        }
-        if self.grid.frame > 30 {
-            // Still burning: any flame, or hot wood that air can reach.
-            let burning = self.region_has(96, 180, |s, _| s == Species::Flame)
-                || (96..180).any(|x| {
-                    (100..150).any(|y| {
-                        self.grid.get(x, y) == Species::Wood
-                            && self.grid.temp_at(x, y) >= WOOD_IGNITION_C
-                            && [(0, 1), (0, -1), (1, 0), (-1, 0)].iter().any(|(dx, dy)| {
-                                self.grid.get(x + dx, y + dy).oxidiser_strength() > 0.0
-                            })
-                    })
-                });
-            if !burning {
-                self.complete("fire", "Fire needs fuel, oxygen and heat. Water took the heat away. The crystal ahead holds electricity.");
-            }
-        }
-        if self.electrolysis_casts > 0 {
-            self.complete("split", "You split water into hydrogen and oxygen. Now put them back together at the torch: 2H2 + O2 -> 2H2O.");
-        }
-        if !self.torch_lit {
-            let lit = (224..232).any(|x| {
-                (108..119).any(|y| {
-                    self.grid.get(x, y) == Species::Flame
-                        || (self.grid.get(x, y) == Species::Wood
-                            && self.grid.temp_at(x, y) >= 300.0)
-                })
-            });
-            if lit {
-                self.torch_lit = true;
-                for y in 128..148 {
-                    for x in 236..242 {
-                        if self.grid.get(x, y) == Species::Door {
-                            self.grid.set(x, y, Species::Air, AMBIENT_C);
-                        }
-                    }
-                }
-                self.complete(
-                    "torch",
-                    "The torch is lit and the door is open. You balanced your first equation!",
-                );
-            }
-        }
-        if self.player.x > 280.0 && self.torch_lit {
-            let others_done = self
-                .objectives
-                .iter()
-                .filter(|o| o.id != "exit")
-                .all(|o| o.done);
-            let hint = if others_done {
-                "Trial complete. You broke through to the next realm."
-            } else {
-                "You made it through the door! Go back and finish the goals that are still open."
-            };
-            self.complete("exit", hint);
-        }
-        // Finishing the last open goal after walking through also completes the trial.
-        if self.objectives.iter().all(|o| o.done) && !self.announced_complete {
-            self.announced_complete = true;
-            if self.messages.last().map(String::as_str)
-                != Some("Trial complete. You broke through to the next realm.")
-            {
-                self.say("Trial complete. You broke through to the next realm.");
-            }
         }
     }
 
@@ -1021,9 +857,6 @@ impl Game {
         if spell == "split" && res.units > 0 && self.nearest_crystal().is_some() {
             let cost = self.split_kj * res.units as f32;
             self.crystal_kj = (self.crystal_kj - cost).max(0.0);
-        }
-        if spell == "split" && res.units > 0 {
-            self.electrolysis_casts += 1;
         }
 
         // Unbalanced or empty casts count as misses; a fix is offered to
@@ -1318,35 +1151,43 @@ impl Game {
         }
         let douse =
             matches!(plan, Plan::Release { formula, .. } if formula == "H2O" || formula == "CO2");
-        let heat =
-            matches!(plan, Plan::React { reaction_id, .. } if reaction_id != "electrolysis_water");
-        let torch_lit = self.torch_lit;
-        let wanted = |g: &Grid, x: i32, y: i32| -> bool {
-            let s = g.get(x, y);
-            if douse {
-                s == Species::Flame || (s == Species::Wood && g.temp_at(x, y) >= WOOD_IGNITION_C)
-            } else if heat {
-                s == Species::Ice
-                    || (!torch_lit
-                        && s == Species::Wood
-                        && (224..232).contains(&x)
-                        && (108..119).contains(&y))
-            } else {
-                false
-            }
-        };
-        if !douse && !heat {
+        let split =
+            matches!(plan, Plan::React { reaction_id, .. } if reaction_id == "electrolysis_water");
+        let heat = matches!(plan, Plan::React { .. }) && !split;
+        if !douse && !heat && !split {
             return;
         }
         let (hx, hy) = self.hand();
+        let in_reach =
+            |p: (i32, i32)| ((p.0 as f32 - hx).powi(2) + (p.1 as f32 - hy).powi(2)).sqrt() <= REACH;
         let mut found = None;
-        Self::rings(hx as i32, hy as i32, REACH as i32, |x, y| {
-            let hit = self.grid.in_bounds(x, y) && wanted(&self.grid, x, y);
-            if hit {
-                found = Some((x, y));
-            }
-            hit
-        });
+        if douse || heat {
+            Self::rings(hx as i32, hy as i32, REACH as i32, |x, y| {
+                let g = &self.grid;
+                let s = g.get(x, y);
+                let hit = g.in_bounds(x, y)
+                    && if douse {
+                        s == Species::Flame
+                            || (s == Species::Wood && g.temp_at(x, y) >= WOOD_IGNITION_C)
+                    } else {
+                        self.heat_target(x, y)
+                    };
+                if hit {
+                    found = Some((x, y));
+                }
+                hit
+            });
+        }
+        // Nothing burning: water goes to the crystal pool, where it splits
+        // into bubbles. The split spell goes under the stone overhang.
+        let pool = (rooms::POOL.centre().0, rooms::POOL.y0);
+        let trap = rooms::TRAP.centre();
+        if found.is_none() && plan_is_water(plan) && in_reach(pool) {
+            found = Some(pool);
+        }
+        if split && in_reach(trap) {
+            found = Some(trap);
+        }
         if let Some(p) = found {
             self.aim = p;
         }
@@ -1448,16 +1289,22 @@ impl Game {
         let mut extra: Vec<&'static str> = vec![];
         match shot.spell {
             "water" => {
-                let doused = self.cool_area(at, WATER_COOL_RADIUS);
+                let mut doused = self.cool_area(at, WATER_COOL_RADIUS);
+                doused += self.soak(at, n("H2O") * SOAK_CELLS_PER_MOL);
+                self.note_douse(at);
                 let cells = (n("H2O") * WATER_CELLS_PER_MOL).min(4 * WATER_CELLS_PER_MOL);
                 self.spawn_blob_at(at, Species::Water, cells, AMBIENT_C);
                 extra.push("splash");
                 if doused > 0 {
                     extra.push("hiss");
                 }
+                if self.pool_electrolysis(at, n("H2O")) > 0 {
+                    extra.push("bubble");
+                }
             }
             "cloud" => {
-                self.spawn_blob_at(at, Species::CO2, n("CO2") * 10 * GAS_CELLS_PER_MOL, 10.0);
+                self.note_douse(at);
+                self.spawn_blob_at(at, Species::CO2, n("CO2") * CO2_CELLS_PER_MOL, 10.0);
                 extra.push("bubble");
             }
             "gas" => {
@@ -1483,6 +1330,10 @@ impl Game {
                     _ => 900.0,
                 };
                 let melted = self.melt_ice(at, radius);
+                self.rooms.last_heat = Some((self.ticks, at.0, at.1));
+                if melted > 0 || rooms::ICE.grow(radius + 4).contains(at.0, at.1) {
+                    self.rooms.ice_heated = true;
+                }
                 self.heat_burst(at, radius, peak * (0.5 + 0.5 * shot.power));
                 self.spawn_blob_at(at, Species::Steam, n("H2O") * 4, 300.0);
                 self.spawn_blob_at(at, Species::CO2, n("CO2") * 4, 300.0);
@@ -1569,7 +1420,7 @@ impl Game {
         *v = (*v + n).min(cap);
     }
 
-    /// Puts `n` cells of `s` into open space around `at`, nearest first.
+    /// Puts `n` cells of `s` into the air around `at`, nearest first.
     fn spawn_blob_at(&mut self, at: (i32, i32), s: Species, n: u32, t: f32) -> u32 {
         let (ax, ay) = at;
         let mut placed = 0;
@@ -1586,7 +1437,9 @@ impl Game {
                         continue;
                     }
                     let (x, y) = (ax + dx, ay + dy);
-                    if self.grid.in_bounds(x, y) && self.grid.get(x, y).is_gas() {
+                    // Only air makes way: a second blob never overwrites
+                    // the first (split's O2 must not replace its H2).
+                    if self.grid.in_bounds(x, y) && self.grid.get(x, y) == Species::Air {
                         self.grid.set(x, y, s, t);
                         placed += 1;
                     }
@@ -1642,6 +1495,12 @@ impl Game {
         (self.grid.get(ax, ay) as u8).hash(&mut h);
         (self.grid.temp_at(ax, ay) as i32).hash(&mut h);
         self.nearest_crystal().is_some().hash(&mut h);
+        self.rooms.gates_open.hash(&mut h);
+        self.room().hash(&mut h);
+        for hedge in &self.rooms.hedges {
+            ((hedge.meter() * 20.0) as u32).hash(&mut h);
+        }
+        (self.rooms.torch.lit, self.rooms.torch.carried).hash(&mut h);
         let sig = h.finish();
         if sig != self.state_sig {
             self.state_sig = sig;
@@ -1673,14 +1532,27 @@ impl Game {
             player_x: self.player.x,
             player_y: self.player.y,
             discovered: self.discovered.clone(),
-            trial_complete: self.objectives.iter().all(|o| o.done),
+            trial_complete: self.rooms.brazier_lit,
             aim_temp_c: self.grid.temp_at(ax, ay),
             aim_substance: s.props().name.to_string(),
             aim_x: ax,
             aim_y: ay,
             view_x: self.view_x.round() as i32,
+            room: self.room() as u8,
+            gates_open: self.rooms.gates_open,
+            goals: self.goals(),
+            torch: self.torch_view(),
         }
     }
+
+    /// True once the brazier is lit and the last door has opened.
+    pub fn trial_complete(&self) -> bool {
+        self.rooms.brazier_lit
+    }
+}
+
+fn plan_is_water(plan: &Plan) -> bool {
+    matches!(plan, Plan::Release { formula, .. } if formula == "H2O")
 }
 
 /// A resolved spell on its way to where it lands.
@@ -1852,7 +1724,7 @@ mod tests {
         );
         assert_eq!(out.delta_h_kj, Some(571.7));
         // Beside the crystal, the crystal pays the sourced +571.7 kJ per 2 H2O.
-        g.player.x = 184.0;
+        g.player.x = 680.0;
         g.player.y = 136.0;
         assert!(g.nearest_crystal().is_some());
         let kj = g.crystal_kj;
@@ -1984,7 +1856,7 @@ mod tests {
         // Beside it: fast, still 2:1, and the crystal pays for each split.
         g.jars.insert("H2".into(), 0);
         g.jars.insert("O2".into(), 0);
-        g.player.x = 184.0;
+        g.player.x = 680.0;
         g.player.y = 136.0;
         g.crystal_kj = g.crystal_max_kj - 1000.0;
         let kj = g.crystal_kj;
@@ -2021,102 +1893,6 @@ mod tests {
         g.cast("water");
         assert!(g.state_version() > v, "the water gauge dropped");
     }
-
-    #[test]
-    fn the_trial_can_be_finished() {
-        let mut g = game(Tier::Apprentice);
-        // Put the fire out by flooding the wood.
-        settle(&mut g, 30);
-        for x in 100..175 {
-            for y in 100..148 {
-                if g.grid.get(x, y) == Species::Flame {
-                    g.grid.set(x, y, Species::Air, AMBIENT_C);
-                }
-                if g.grid.get(x, y) == Species::Wood {
-                    let i = g.grid.idx(x as usize, y as usize);
-                    g.grid.temp[i] = AMBIENT_C;
-                }
-            }
-        }
-        g.gathered_water = 20;
-        g.player.x = 200.0;
-        g.aim = (228, 108);
-        assert_ne!(g.cast("2H2O -> 2H2 + O2").outcome, Outcome::Fizzle);
-        settle(&mut g, 10);
-        assert_eq!(g.cast("2H2 + O2 -> 2H2O").outcome, Outcome::Full);
-        settle(&mut g, 120);
-        assert!(g.torch_lit, "torch should catch fire from the hydrogen pop");
-        g.player.x = 285.0;
-        g.tick(0);
-        let st = g.state();
-        assert!(st.trial_complete, "{:?}", st.objectives);
-    }
-}
-
-#[cfg(test)]
-mod balance {
-    use super::*;
-
-    fn burning_wood(g: &Game) -> usize {
-        (96..180)
-            .flat_map(|x| (100..150).map(move |y| (x, y)))
-            .filter(|&(x, y)| {
-                g.grid.get(x, y) == Species::Wood && g.grid.temp_at(x, y) >= WOOD_IGNITION_C
-            })
-            .count()
-    }
-
-    #[test]
-    fn the_fire_spreads_if_ignored() {
-        let mut g = Game::new(Tier::Seedling, 42);
-        for _ in 0..60 {
-            g.tick(0);
-        }
-        let early = burning_wood(&g);
-        for _ in 0..900 {
-            g.tick(0);
-        }
-        assert!(burning_wood(&g) > early, "fire should be a real threat");
-        assert!(!g.objectives[1].done);
-    }
-
-    #[test]
-    fn aiming_water_at_the_fire_puts_it_out() {
-        let mut g = Game::new(Tier::Seedling, 42);
-        for _ in 0..30 {
-            g.tick(0);
-        }
-        g.player.x = 60.0;
-        let mut casts = 0;
-        for _ in 0..10 {
-            // Aim at burning wood, like a player chasing the fire.
-            let target = (96..180)
-                .flat_map(|x| (100..150).map(move |y| (x, y)))
-                .find(|&(x, y)| {
-                    g.grid.get(x, y) == Species::Flame
-                        || (g.grid.get(x, y) == Species::Wood
-                            && g.grid.temp_at(x, y) >= WOOD_IGNITION_C)
-                });
-            let Some(aim) = target else { break };
-            g.set_aim(aim.0, aim.1, true);
-            assert_eq!(g.cast("H2O").outcome, Outcome::Full);
-            casts += 1;
-            for _ in 0..30 {
-                g.tick(0);
-            }
-        }
-        for _ in 0..120 {
-            g.tick(0);
-        }
-        assert!(
-            g.objectives[1].done,
-            "fire still burning after {casts} casts: {} hot wood",
-            burning_wood(&g)
-        );
-        // The v1 forest still spreads freely; the bounded-fuel hedge in the
-        // room redesign is what brings this down to 3 casts.
-        assert!(casts <= 10, "took {casts} aimed casts");
-    }
 }
 
 #[cfg(test)]
@@ -2126,13 +1902,28 @@ mod world {
     #[test]
     fn walking_right_crosses_rooms_and_the_camera_follows() {
         let mut g = Game::new(Tier::Seedling, 42);
-        // Past the stream and the crystal, with room 1's door already open.
-        g.grid.fill_rect(236, 128, 242, 148, Species::Air);
-        g.player.x = 200.0;
+        // Past the burning hedge, with the gates open and the ice gone.
+        for k in 0..ROOMS {
+            g.open_gate(k);
+        }
+        g.grid.fill_rect(
+            rooms::ICE.x0,
+            rooms::ICE.y0,
+            rooms::ICE.x1,
+            rooms::ICE.y1,
+            Species::Air,
+        );
+        g.player.x = 270.0;
         g.player.y = 120.0;
         g.snap_camera();
-        for _ in 0..1200 {
-            g.tick(INPUT_RIGHT);
+        for t in 0..1200u32 {
+            // Hold right; hop now and then to climb out of the pit.
+            let hop = if g.player.vx.abs() < 0.5 && t % 20 < 12 {
+                INPUT_JUMP
+            } else {
+                0
+            };
+            g.tick(INPUT_RIGHT | hop);
             let screen_x = g.player.x - g.view_x;
             assert!(
                 screen_x >= 0.0 && screen_x + PLAYER_W <= VIEW_W as f32,
@@ -2292,11 +2083,11 @@ mod feel {
 mod bolts {
     use super::*;
 
-    /// A flat, empty stretch of room 3 with the player standing on it.
+    /// A flat, empty stretch of room 3 (right of its crystal) with the player standing on it.
     fn arena() -> Game {
         let mut g = Game::new(Tier::Apprentice, 42);
-        g.grid.fill_rect(660, 0, 980, 150, Species::Air);
-        g.grid.fill_rect(660, 150, 980, 180, Species::Stone);
+        g.grid.fill_rect(680, 0, 980, 150, Species::Air);
+        g.grid.fill_rect(680, 150, 980, 180, Species::Stone);
         g.player.x = 700.0;
         g.player.y = 150.0 - PLAYER_H;
         g.snap_camera();
@@ -2415,12 +2206,13 @@ mod bolts {
         for _ in 0..30 {
             g.tick(0);
         }
-        g.player.x = 90.0;
+        g.player.x = 150.0;
         g.player.y = 130.0;
         let out = g.cast("water");
         assert_eq!(out.outcome, Outcome::Full);
         let (ax, _) = g.aim;
-        assert!((96..180).contains(&ax), "aimed at {ax}");
+        let zone = g.rooms.hedges[0].zone();
+        assert!((zone.x0..zone.x1).contains(&ax), "aimed at {ax}");
     }
 }
 
