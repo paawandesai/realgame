@@ -9,6 +9,14 @@ import { parseSpell, sideAtoms } from "./tray";
 import { prettyFormula, type CastOutcome, type Fx, type Tier } from "./types";
 
 const POOL_SIZE = 512;
+/** Live particles at most (at full quality): a burst past it recycles the
+ * oldest, so spam never piles up overdraw. */
+export const MAX_LIVE_PARTICLES = 160;
+/** Gas beads drawn at most per frame (evenly sampled past it). */
+const MAX_GAS_BEADS = 140;
+/** Gas beads fade out over this many cells under the top of the world, so
+ * escaped gas never leaves a band of bubbles along the sky. */
+const GAS_CEILING_FADE = 14;
 /** Bolts fly 6 cells per tick in the sim; 60 ticks a second. */
 const BOLT_CELLS_PER_MS = (6 * 60) / 1000;
 const CHARGE_MS = 150;
@@ -140,6 +148,10 @@ interface Label {
   y: number;
   born: number;
   life: number;
+  /** When it was last docked (layout reads are throttled). */
+  placed?: number;
+  /** The opacity last written, so unchanged frames write nothing. */
+  shownAlpha?: string;
 }
 
 /** The overlay never needs more than this many backing pixels per world cell:
@@ -180,6 +192,10 @@ export class FxLayer {
   private readonly glowCtx: CanvasRenderingContext2D;
   private glowDrawn = false;
   private overlayDrawn = true;
+  /** When the overlay was last redrawn. */
+  private overlayAt = -Infinity;
+  /** When the glow layer was last redrawn. */
+  private glowAt = -Infinity;
   private readonly pool: Particle[] = [];
   private bolts: Bolt[] = [];
   private charges: Timed[] = [];
@@ -297,6 +313,9 @@ export class FxLayer {
   /** Prebaked glowing bubbles: index 1 hydrogen (light blue), 2 oxygen (orange). */
   private readonly gasSprites: (HTMLCanvasElement | null)[] = [null, bakeBubble("150,210,255"), bakeBubble("255,160,70")];
 
+  /** Gas beads drawn last frame (for automated checks). */
+  private gasDrawn = 0;
+
   setGas(entries: Float32Array): void {
     this.gas = entries;
   }
@@ -309,16 +328,26 @@ export class FxLayer {
     const ctx = this.ctx;
     const k = this.scale;
     const calm = this.reducedMotion;
-    for (let i = 0; i + 2 < g.length; i += 3) {
+    const beads = Math.floor(g.length / 3);
+    // Past the cap, every n-th bead stands for its neighbours.
+    const step = beads > MAX_GAS_BEADS ? beads / MAX_GAS_BEADS : 1;
+    this.gasDrawn = 0;
+    for (let b = 0; b < beads; b += step) {
+      const i = Math.floor(b) * 3;
       const sprite = this.gasSprites[g[i + 2]!];
       if (!sprite) continue;
       const x = g[i]!;
       const y = g[i + 1]!;
+      const fade = Math.min(1, y / GAS_CEILING_FADE);
+      if (fade <= 0.05) continue;
       const seed = (x + this.viewX) * 12.9898 + y * 78.233;
       const wob = calm ? 0 : Math.sin(now / 420 + seed) * 0.6;
       const r = (3.6 + 0.7 * Math.sin(seed)) * k;
+      ctx.globalAlpha = fade;
       ctx.drawImage(sprite, (x + 0.5 + wob) * k - r, (y + 0.5) * k - r, r * 2, r * 2);
+      this.gasDrawn++;
     }
+    ctx.globalAlpha = 1;
   }
 
   /** Whether the 2D glow layer is drawn (off when WebGL draws bloom instead). */
@@ -337,6 +366,10 @@ export class FxLayer {
       this.glowDrawn = false;
       return;
     }
+    // Soft light flickers slowly: about 30 Hz is enough, and halves the
+    // canvas commits.
+    if (this.glowDrawn && now - this.glowAt < 30) return;
+    this.glowAt = now;
     ctx.clearRect(0, 0, this.glowCanvas.width, this.glowCanvas.height);
     this.glowDrawn = true;
     const k = GLOW_PX_PER_CELL;
@@ -377,6 +410,8 @@ export class FxLayer {
   private spriteKey = "";
   /** Last drawn player box on the player layer, in canvas px (to clear). */
   private playerBox: [number, number, number, number] | null = null;
+  /** CSS px per overlay canvas px. */
+  private cssPerPx = 1;
   /** For automated checks: the player's drawn box in CSS px relative to the stage. */
   playerScreenBox: { x: number; y: number; w: number; h: number } | null = null;
 
@@ -387,15 +422,16 @@ export class FxLayer {
   drawPlayer(sprite: Int32Array, viewX: number): void {
     const ctx = this.playerCtx;
     const k = this.scale;
-    if (this.playerBox) {
-      const [x, y, w, h] = this.playerBox;
-      ctx.clearRect(x, y, w, h);
-      this.playerBox = null;
-    }
     const sc = this.spriteCtx;
-    if (!sc || sprite.length < 5) return;
+    if (!sc || sprite.length < 5) {
+      this.playerCanvas.hidden = true;
+      return;
+    }
+    this.playerCanvas.hidden = false;
     let key = "";
     for (let i = 2; i < sprite.length; i++) key += sprite[i]!.toString(36) + ",";
+    // The small player canvas is redrawn only when the sprite changes.
+    const redraw = key !== this.spriteKey || this.playerBox === null;
     if (key !== this.spriteKey) {
       this.spriteKey = key;
       sc.clearRect(0, 0, SPRITE_BOX_W, SPRITE_BOX_H);
@@ -421,15 +457,33 @@ export class FxLayer {
     const footY = (sprite[1]! + 12) * k;
     const x = Math.round(footX - w / 2);
     const y = Math.round(footY + cell - h);
-    ctx.imageSmoothingEnabled = false;
-    ctx.save();
-    ctx.shadowColor = HALO;
-    ctx.shadowBlur = Math.max(2, k * 1.5);
-    ctx.drawImage(this.spriteCanvas, x, y, w, h);
-    ctx.restore();
+    // The player has its own canvas just big enough for the sprite, its
+    // outline and halo, moved with the CSS translate property (the shake
+    // uses transform), so a frame commits a few hundred pixels, not a
+    // full-stage layer.
     const pad = Math.ceil(k * 3);
-    this.playerBox = [x - pad, y - pad, w + pad * 2, h + pad * 2];
-    const css = this.stage.clientWidth / this.playerCanvas.width;
+    const bw = Math.ceil(w) + pad * 2;
+    const bh = Math.ceil(h) + pad * 2;
+    const css = this.cssPerPx;
+    if (this.playerCanvas.width !== bw || this.playerCanvas.height !== bh) {
+      this.playerCanvas.width = bw;
+      this.playerCanvas.height = bh;
+      this.playerCanvas.style.width = `${(bw * css).toFixed(2)}px`;
+      this.playerCanvas.style.height = `${(bh * css).toFixed(2)}px`;
+      this.playerBox = null;
+    }
+    if (redraw || this.playerBox === null) {
+      ctx.clearRect(0, 0, bw, bh);
+      ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      ctx.shadowColor = HALO;
+      ctx.shadowBlur = Math.max(2, k * 1.5);
+      ctx.drawImage(this.spriteCanvas, pad, pad, w, h);
+      ctx.restore();
+    }
+    this.playerBox = [x - pad, y - pad, bw, bh];
+    const at = `${((x - pad) * css).toFixed(1)}px ${((y - pad) * css).toFixed(1)}px`;
+    if (this.playerCanvas.style.translate !== at) this.playerCanvas.style.translate = at;
     this.playerScreenBox = { x: x * css, y: y * css, w: w * css, h: h * css };
   }
 
@@ -440,8 +494,9 @@ export class FxLayer {
     this.canvas.width = Math.max(1, Math.round(this.viewW * k));
     this.canvas.height = Math.max(1, Math.round(this.viewH * k));
     this.scale = this.canvas.width / this.viewW;
-    this.playerCanvas.width = this.canvas.width;
-    this.playerCanvas.height = this.canvas.height;
+    this.cssPerPx = r.width > 0 ? r.width / this.canvas.width : 1;
+    // The player canvas is sized on its next draw (to the sprite box).
+    this.playerCanvas.width = 0;
     this.playerBox = null;
   }
 
@@ -457,19 +512,25 @@ export class FxLayer {
   // ------------------------------------------------------------ particles
 
   private spawn(n: number, init: (p: Particle, i: number) => void): void {
-    const count = Math.round((this.reducedMotion ? n * 0.3 : n) * this.quality);
-    let live = 0;
-    for (const p of this.pool) if (p.alive) live++;
-    const room = Math.max(0, this.liveCap - live);
-    let made = 0;
-    for (const p of this.pool) {
-      if (made >= count || made >= room) break;
-      if (p.alive) continue;
+    const cap = this.liveCap;
+    const count = Math.min(cap, Math.round((this.reducedMotion ? n * 0.3 : n) * this.quality));
+    if (count <= 0) return;
+    const free: Particle[] = [];
+    const live: Particle[] = [];
+    for (const p of this.pool) (p.alive ? live : free).push(p);
+    // Past the cap, the oldest particles make way for the new burst.
+    const recycle = Math.max(0, live.length + count - cap);
+    if (recycle > 0) {
+      live.sort((a, b) => a.born - b.born);
+      for (let i = 0; i < recycle; i++) live[i]!.alive = false;
+    }
+    const slots = recycle > 0 ? [...live.slice(0, recycle), ...free] : free;
+    for (let i = 0; i < count && i < slots.length; i++) {
+      const p = slots[i]!;
       p.alive = true;
       p.ring = false;
       p.g = 0;
-      init(p, made);
-      made++;
+      init(p, i);
     }
   }
 
@@ -690,20 +751,25 @@ export class FxLayer {
    */
   private quality = 1;
   /** Live particles at most, scaled with `quality`. */
-  private liveCap = POOL_SIZE;
-  setLoad(frameMs: number, now = performance.now()): void {
+  private liveCap = MAX_LIVE_PARTICLES;
+  /**
+   * `frameMs` is the smoothed work per frame; `p95Ms` (when known) the 95th
+   * percentile of recent frame-to-frame times.
+   */
+  setLoad(frameMs: number, now = performance.now(), p95Ms = 0): void {
     const want = frameMs > 12 ? Math.max(0.3, this.quality - 0.05) : frameMs < 8 ? Math.min(1, this.quality + 0.02) : this.quality;
     this.quality = want;
-    this.liveCap = Math.round(POOL_SIZE * want);
-    // Still slow with the fewest particles: the overlay and player layers
-    // drop to half resolution (a quarter of the pixels to clear, draw and
-    // composite every frame). Back to full only after 10 s of fast frames.
-    if (this.pxCap === MAX_PX_PER_CELL && want <= 0.3 && frameMs > 12) {
+    this.liveCap = Math.max(16, Math.round(MAX_LIVE_PARTICLES * want));
+    // Slow frames (p95 over 25 ms), or still slow with the fewest particles:
+    // the overlay and player layers drop to half resolution (a quarter of
+    // the pixels to clear, draw and composite every frame). Back to full
+    // only after 10 s of fast frames.
+    if (this.pxCap === MAX_PX_PER_CELL && (p95Ms > 25 || (want <= 0.3 && frameMs > 12))) {
       this.pxCap = LOW_PX_PER_CELL;
       this.fastSince = -1;
       this.resize();
     } else if (this.pxCap === LOW_PX_PER_CELL) {
-      if (frameMs >= 4) this.fastSince = -1;
+      if (frameMs >= 4 || p95Ms > 20) this.fastSince = -1;
       else if (this.fastSince < 0) this.fastSince = now;
       else if (now - this.fastSince > 10000) {
         this.pxCap = MAX_PX_PER_CELL;
@@ -795,7 +861,11 @@ export class FxLayer {
   private label(out: CastOutcome, x: number, y: number): void {
     // A newer cast's label (such as a fizzle hint) is never covered by an older one.
     if (this.labels.some((l) => Number(l.el.dataset.cast) > out.id)) return;
-    const el = document.createElement("div");
+    // One card element, refilled for each cast instead of rebuilt.
+    const el = this.cardEl ?? document.createElement("div");
+    this.cardEl = el;
+    el.replaceChildren();
+    el.removeAttribute("style");
     el.className = `fx-label cast-card ${out.outcome}`;
     el.dataset.cast = String(out.id);
     // Sprout's card is a picture and a few words: no equation row.
@@ -810,9 +880,9 @@ export class FxLayer {
     // (the equation, the counts, what reacted) waits behind "Why?".
     if (this.tier === "seedling" && out.imbalance.length > 0) {
       this.seedlingCard(el, out);
-      for (const l of this.labels) l.el.remove();
+      for (const l of this.labels) if (l.el !== el) l.el.remove();
       this.labels = [{ el, x, y, born: performance.now(), life: LABEL_FIX_MS }];
-      this.stage.append(el);
+      if (el.parentNode !== this.stage) this.stage.append(el);
       this.placeLabel(this.labels[0]!);
       return;
     }
@@ -863,7 +933,9 @@ export class FxLayer {
       if (this.tier === "sprout") {
         const sb = document.createElement("div");
         sb.className = "fx-standback";
-        sb.append(icon("boom"), icon("left"), "Stand back!");
+        // Pictures only: the boom, and an arrow pointing away from it.
+        sb.append(icon("boom"), icon("left"));
+        sb.setAttribute("aria-label", "Stand back");
         el.append(sb);
       } else {
         const note = document.createElement("div");
@@ -892,9 +964,9 @@ export class FxLayer {
       life = LABEL_FIX_MS;
     }
     // One label at a time keeps the scene readable.
-    for (const l of this.labels) l.el.remove();
+    for (const l of this.labels) if (l.el !== el) l.el.remove();
     this.labels = [{ el, x, y, born: performance.now(), life }];
-    this.stage.append(el);
+    if (el.parentNode !== this.stage) this.stage.append(el);
     this.placeLabel(this.labels[0]!);
   }
 
@@ -948,8 +1020,12 @@ export class FxLayer {
   }
 
   private placeLabel(l: Label): void {
+    l.placed = performance.now();
     this.dockEl(l.el);
   }
+
+  /** The cast card's element, reused from cast to cast. */
+  private cardEl: HTMLElement | null = null;
 
   /** Where the last docked card went, so it stays put while it still fits. */
   private docked = new WeakMap<HTMLElement, { x: number; y: number; top: number }>();
@@ -1038,6 +1114,14 @@ export class FxLayer {
       this.applyShake(now);
       return;
     }
+    // Only gas beads on the overlay: they wobble slowly, so redrawing (and
+    // committing the whole canvas) at about 30 Hz is plenty.
+    if (busy && this.overlayDrawn && now - this.overlayAt < 30 && !this.busyBesidesGas(now)) {
+      this.placeLabels(now);
+      this.applyShake(now);
+      return;
+    }
+    this.overlayAt = now;
     this.overlayDrawn = busy;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -1279,11 +1363,25 @@ export class FxLayer {
   }
 
   /** Counts of what is on screen right now (for automated checks). */
-  stats(): { particles: number; bolts: number; ghosts: number; flashes: number; labels: number; waves: number; quality: number; pxPerCell: number; knocks: number } {
+  stats(): {
+    particles: number;
+    cap: number;
+    gas: number;
+    bolts: number;
+    ghosts: number;
+    flashes: number;
+    labels: number;
+    waves: number;
+    quality: number;
+    pxPerCell: number;
+    knocks: number;
+  } {
     let particles = 0;
     for (const p of this.pool) if (p.alive) particles++;
     return {
       particles,
+      cap: this.liveCap,
+      gas: this.gasDrawn,
       quality: this.quality,
       pxPerCell: this.scale,
       knocks: this.knocks,
@@ -1297,11 +1395,15 @@ export class FxLayer {
 
   /** Whether anything is drawn on the overlay canvas this frame. */
   private busy(now: number): boolean {
+    return this.gas.length > 0 || this.busyBesidesGas(now);
+  }
+
+  /** Whether anything but the slow gas beads is on the overlay. */
+  private busyBesidesGas(now: number): boolean {
     if (this.beams.length || this.charges.length || this.bolts.length || this.flashes.length || this.orbs.length || this.ghosts.length || this.waves.length || this.pending.length) {
       return true;
     }
     if (now - this.frostBorn < 700 || now - this.bloom.born < 220) return true;
-    if (this.gas.length) return true;
     for (const p of this.pool) if (p.alive) return true;
     return false;
   }
@@ -1314,8 +1416,14 @@ export class FxLayer {
         l.el.remove();
         return false;
       }
-      this.placeLabel(l);
-      l.el.style.opacity = age > l.life - 400 ? String((l.life - age) / 400) : "1";
+      // Docking reads layout: a few times a second is enough to follow
+      // the HUD, not every frame.
+      if (now - (l.placed ?? -Infinity) >= 250) this.placeLabel(l);
+      const alpha = age > l.life - 400 ? ((l.life - age) / 400).toFixed(2) : "1";
+      if (alpha !== l.shownAlpha) {
+        l.shownAlpha = alpha;
+        l.el.style.opacity = alpha;
+      }
       return true;
     });
   }

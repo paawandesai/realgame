@@ -442,8 +442,22 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   // ------------------------------------------------------------------ input
 
-  const toGrid = (clientX: number, clientY: number): [number, number] => {
-    const r = canvas.getBoundingClientRect();
+  /** The world canvas's page rect, re-read at most every 250 ms by the
+   * per-frame work (reading it forces a layout), and with the lift that was
+   * applied when it was read (to undo it). Input events read it fresh. */
+  let canvasRect = canvas.getBoundingClientRect();
+  let canvasRectLift = 0;
+  let canvasRectAt = -Infinity;
+  function cachedCanvasRect(now: number): DOMRect {
+    if (now - canvasRectAt > 250) {
+      canvasRectAt = now;
+      canvasRect = canvas.getBoundingClientRect();
+      canvasRectLift = fx.liftPx;
+    }
+    return canvasRect;
+  }
+  const toGrid = (clientX: number, clientY: number, cached = false): [number, number] => {
+    const r = cached ? cachedCanvasRect(performance.now()) : canvas.getBoundingClientRect();
     // The canvas shows the viewport; the camera's left edge turns it into world cells.
     return [
       game.view_x() + Math.floor(((clientX - r.left) / r.width) * w),
@@ -2269,7 +2283,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     fx.draw(now, viewX);
     fx.drawPlayer(game.player_sprite(alpha), viewX);
     const tFx = performance.now();
-    if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1]));
+    if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1], true));
     // Goals change every tick; a few polls a second is plenty.
     if (now - lastGoalsTime >= 200) {
       lastGoalsTime = now;
@@ -2298,7 +2312,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     popups.hold(fx.labelUp);
     const toast = popups.active;
     if (toast?.id === "discover") fx.dockEl(toast);
-    layoutTopHud();
+    // The top column reads layout: ten times a second is enough.
+    if (now - topHudAt >= 100) {
+      topHudAt = now;
+      layoutTopHud();
+    }
     updateSpots(now);
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
     updateLift(now, viewX);
@@ -2317,7 +2335,22 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const end = performance.now();
     // A slow device gets fewer particles while its frames run long.
     workEma = workEma * 0.9 + (end - now) * 0.1;
-    fx.setLoad(workEma);
+    // Frame-to-frame times (gaps over 100 ms, such as a hidden tab, are not
+    // frames); their p95 over the last 60 frames, refreshed every 30.
+    const gap = now - lastFrameAt;
+    lastFrameAt = now;
+    if (gap > 0 && gap < 100) {
+      frameGaps[frameGapAt] = gap;
+      frameGapAt = (frameGapAt + 1) % frameGaps.length;
+      if (++frameGapCount % 30 === 0 && frameGapCount >= frameGaps.length) {
+        const sorted = Float64Array.from(frameGaps).sort();
+        const p95 = sorted[Math.floor(sorted.length * 0.95)]!;
+        // Two windows in a row must agree, so one hitch never counts.
+        frameP95 = Math.min(p95, lastWindowP95);
+        lastWindowP95 = p95;
+      }
+    }
+    fx.setLoad(workEma, end, frameP95);
     frameWork.push(end - now);
     if (frameWork.length > 120) frameWork.shift();
     frameParts[0] = frameParts[0]! * 0.95 + (tSim - now) * 0.05;
@@ -2425,9 +2458,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       hudRectsAt = now;
       hudRects = bottomHudRects();
     }
-    const sr = canvas.getBoundingClientRect();
-    // The canvas rect already includes the current lift; undo it.
-    const top0 = sr.top + fx.liftPx;
+    const sr = cachedCanvasRect(now);
+    // The canvas rect already includes the lift it was read with; undo it.
+    const top0 = sr.top + canvasRectLift;
     const kx = sr.width / w;
     const ky = sr.height / h;
     const pl = sr.left + (game.player_x() - viewX) * kx;
@@ -2481,6 +2514,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const frameWork: number[] = [];
   /** Rolling (smoothed) ms of work per frame, for the particle budget. */
   let workEma = 0;
+  /** Recent frame-to-frame times, and their 95th percentile. */
+  const frameGaps = new Float64Array(60);
+  let frameGapAt = 0;
+  let frameGapCount = 0;
+  let frameP95 = 0;
+  let topHudAt = -Infinity;
+  let lastWindowP95 = 0;
+  let lastFrameAt = performance.now();
   /** Smoothed ms per frame for sim steps, world render, overlay, and HUD. */
   const frameParts = [0, 0, 0, 0];
 
