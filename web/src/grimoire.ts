@@ -110,18 +110,50 @@ export class Grimoire {
           ? "Gets hot!"
           : "Needs power"
         : `ΔH ${formatDh(r.delta_h_kj)}${r.delta_h_kj < 0 ? " · heat out" : " · energy in"}`;
-    li.append(eq, dh);
-    if (this.tier !== "sprout") {
-      const words = document.createElement("span");
-      words.className = "grim-words";
+    const words = document.createElement("span");
+    words.className = "grim-words";
+    const src = document.createElement("span");
+    src.className = "grim-src";
+    src.textContent = r.source.split(",")[0] ?? r.source;
+    if (this.tier === "sprout") {
+      words.textContent = r.short_sprout;
+      li.append(eq, dh, words);
+    } else if (this.tier === "seedling") {
+      // The face keeps it short; the numbers and their source wait behind
+      // "Why?" (tap the card, or press Enter on it).
+      words.textContent = r.short_seedling;
+      const why = document.createElement("span");
+      why.className = "grim-why";
+      why.textContent = "Why?";
+      const back = document.createElement("span");
+      back.className = "grim-back";
+      const concept = document.createElement("span");
+      concept.className = "grim-words";
+      concept.textContent = r.concept;
+      back.append(dh, concept, src);
+      li.append(eq, words, why, back);
+      li.setAttribute("aria-expanded", "false");
+      const turn = () => {
+        const open = li.classList.toggle("show-back");
+        li.setAttribute("aria-expanded", String(open));
+        why.textContent = open ? "Back" : "Why?";
+      };
+      li.addEventListener("click", turn);
+      li.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          turn();
+        }
+      });
+    } else {
       words.textContent = r.concept;
-      const src = document.createElement("span");
-      src.className = "grim-src";
-      src.textContent = r.source.split(",")[0] ?? r.source;
-      li.append(words, src);
+      li.append(eq, dh, words, src);
     }
     li.tabIndex = 0;
     li.setAttribute("aria-label", `${page.name}: ${r.equation}`);
+    // Seedling cards turn over to show the same details, so no pop-up too.
+    if (this.tier === "seedling") return li;
     this.hover.attach(li, () => ({
       title: `${page.name}: ${prettyFormula(r.equation)}`,
       lines: [`ΔH = ${formatDh(r.delta_h_kj)}`, r.concept, r.real_world],

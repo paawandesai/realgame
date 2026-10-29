@@ -18,6 +18,10 @@ pub struct Reaction {
     pub needs: String,
     pub tier_min: String,
     pub concept: String,
+    /// The same idea in six words or fewer, picture-first, for Sprout.
+    pub short_sprout: String,
+    /// The same idea in eight words or fewer, for Seedling.
+    pub short_seedling: String,
     pub real_world: String,
     pub source: String,
 }

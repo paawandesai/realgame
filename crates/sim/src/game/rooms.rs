@@ -332,7 +332,7 @@ impl Game {
                 "Trap the gas under the stone roof, then light it.",
             ),
             _ => self.line(
-                "Put out the fire, then light the bowl!",
+                "Fire out, then light the bowl!",
                 "Put out the hedge, light the brazier.",
                 "Put out the hedge with H2O or CO2, then light the brazier by the door.",
             ),
@@ -476,7 +476,7 @@ impl Game {
             })
             .collect();
         let intro = self.line(
-            "Fire! Tap the water drop to put it out!",
+            "Fire! Tap the water drop!",
             "Fire! Cast H2O at the flames.",
             "Fire in the garden. Your suit is full of water: cast H2O at the flames.",
         );
@@ -524,7 +524,7 @@ impl Game {
         if !h.out && out && h.hits == 0 && !h.said_self_out {
             h.said_self_out = true;
             let line = self.line(
-                "It burned out by itself. Splash the hot bits!",
+                "It burned out. Splash it!",
                 "It burned out by itself. Cool the embers.",
                 "It burned out by itself. Cast water on the embers to cool them, and the gate will open.",
             );
@@ -542,17 +542,17 @@ impl Game {
         self.rooms.entered[room] = true;
         let line = match room {
             1 => self.line(
-                "Ice! Hot things melt ice. Try the boom card!",
+                "Ice! Boom melts ice!",
                 "Ice wall! Heat melts ice. Balance the boom.",
                 "An ice wall. Heat melts ice: cast boom (2H2 + O2 -> 2H2O) at it, or light the torch and carry it there.",
             ),
             2 => self.line(
-                "A crystal pool! Splash it with water and watch the bubbles.",
+                "Splash the pool! Make bubbles!",
                 "Split water, trap the gas, then light it.",
                 "The crystal pool. Electricity splits water into two hydrogen for every oxygen. Trap the gas under the stone roof, then light it.",
             ),
             3 => self.line(
-                "Another fire! Put it out, then light the bowl by the door.",
+                "Fire! Then light the bowl!",
                 "Put out the hedge, then light the brazier.",
                 "The marsh bubbles methane. Put out the hedge with water or carbon dioxide, then light the brazier.",
             ),
@@ -602,8 +602,8 @@ impl Game {
                     // No Grimoire page: pages come only from spells the
                     // player casts (CH4 + 2O2 -> CO2 + 2H2O, typed, finds it).
                     let line = self.line(
-                        "The bubbles caught fire! Stand close to catch the gas.",
-                        "Methane burns into CO2. Stand close to catch it.",
+                        "Bubbles on fire! Stand close!",
+                        "Methane burns into CO2. Stand close.",
                         "The methane vent caught fire! Burning methane makes carbon dioxide: stand close and your suit will catch it.",
                     );
                     self.say(line);
@@ -702,7 +702,7 @@ impl Game {
                 "Your torch caught fire."
             } else {
                 self.line(
-                    "The torch is lit! Walk into it.",
+                    "Torch lit! Walk into it!",
                     "Torch lit! Walk into it to carry it.",
                     "The torch is lit! Walk into it to pick it up.",
                 )
@@ -716,7 +716,7 @@ impl Game {
         if !self.rooms.torch.carried && touching && (self.rooms.torch.lit || gather) {
             self.rooms.torch.carried = true;
             let line = self.line(
-                "You have the torch! Take it to the ice.",
+                "Got the torch! Go to ice!",
                 "Got the torch. Hold it to the ice.",
                 "You picked up the torch. Hold it against something to heat it.",
             );
@@ -744,7 +744,7 @@ impl Game {
             self.torch_lit = false;
             self.emit_at("hiss", tx as f32, ty as f32, 1.0);
             let line = self.line(
-                "Oh no, the water put the torch out!",
+                "Oh no! Torch went out!",
                 "Water put the torch out. Relight it.",
                 "Your torch went out in the water. Light it again with fire.",
             );
@@ -808,7 +808,7 @@ impl Game {
         if h.out && h.hits > 0 && self.open_gate(0) {
             self.crumble_hedge(0);
             let line = self.line(
-                "You put out the fire! The gate is open.",
+                "Fire out! Gate open!",
                 "Fire out! Cooling it stopped it. Gate open.",
                 "The fire is out. Fire needs fuel, oxygen and heat: you took away the heat. The gate is open.",
             );
@@ -830,7 +830,7 @@ impl Game {
             }
             self.rooms.ice_left = 0;
             let line = self.line(
-                "The ice melted! The gate is open.",
+                "Ice melted! Gate open!",
                 "Heat melted the ice into water. Gate open!",
                 "The ice melted into water. Heat changes ice to water, and water to steam. The gate is open.",
             );
@@ -847,7 +847,7 @@ impl Game {
             });
             if blast && self.open_gate(2) {
                 let line = self.line(
-                    "Bang! The bubbles went boom and the door opened!",
+                    "Bang! The door opened!",
                     "Bang! Trapped hydrogen burned. The door opened!",
                     "Bang! The trapped hydrogen burned with the oxygen and blew the door open. 2H2 + O2 -> 2H2O.",
                 );
@@ -880,7 +880,7 @@ impl Game {
                 self.rooms.brazier_lit = true;
                 self.open_gate(3);
                 let line = self.line(
-                    "The bowl is lit! You did it!",
+                    "Bowl lit! You did it!",
                     "Brazier lit! You broke through!",
                     "The brazier is lit and the last door is open. Trial complete: you broke through to the next realm!",
                 );
@@ -2037,7 +2037,7 @@ mod restart_tests {
     /// Plays the trial the way the hint ladder and go arrow suggest: stand at
     /// each goal's `stand_x` and cast its `need` with soft auto-aim (no
     /// aiming). Returns the game and every line said along the way.
-    fn play_by_goals(tier: Tier, seed: u64) -> (Game, Vec<String>, Vec<CastOutcome>) {
+    pub(super) fn play_by_goals(tier: Tier, seed: u64) -> (Game, Vec<String>, Vec<CastOutcome>) {
         let mut g = Game::new(tier, seed);
         let mut said = vec![];
         let mut outs = vec![];
@@ -2315,5 +2315,118 @@ mod path_tests {
         assert!(HEDGE1
             .cells()
             .all(|(x, y)| !blocks_player(g.grid.get(x, y), g.grid.temp_at(x, y))));
+    }
+}
+
+#[cfg(test)]
+mod copy_tests {
+    use super::script::*;
+    use super::*;
+
+    /// Every `line("sprout", "seedling", "apprentice")` call in the game's
+    /// source, read straight from the files so no line can be missed.
+    fn tier_lines() -> Vec<[String; 3]> {
+        let mut out = Vec::new();
+        for src in [include_str!("rooms.rs"), include_str!("../game.rs")] {
+            let mut rest = src;
+            while let Some(i) = rest.find("line(") {
+                rest = &rest[i + 5..];
+                let mut lits = Vec::new();
+                let mut s = rest.trim_start();
+                while lits.len() < 3 && s.starts_with('"') {
+                    let body = &s[1..];
+                    let end = body.find('"').expect("closed string");
+                    lits.push(body[..end].to_string());
+                    s = body[end + 1..]
+                        .trim_start()
+                        .trim_start_matches(',')
+                        .trim_start();
+                }
+                if let [a, b, c] = &lits[..] {
+                    out.push([a.clone(), b.clone(), c.clone()]);
+                }
+            }
+        }
+        out
+    }
+
+    fn words(s: &str) -> usize {
+        s.split_whitespace().count()
+    }
+
+    #[test]
+    fn found_every_tier_line() {
+        // Keeps the scanner honest: the game has well over a dozen of them.
+        assert!(tier_lines().len() >= 20, "{}", tier_lines().len());
+    }
+
+    #[test]
+    fn sprout_lines_are_six_words_or_fewer() {
+        let book = ReactionBook::load();
+        let mut lines: Vec<String> = tier_lines().into_iter().map(|[s, _, _]| s).collect();
+        lines.extend(book.reactions.iter().map(|(r, _)| r.short_sprout.clone()));
+        for line in lines {
+            assert!(
+                words(&line) <= 6,
+                "{} words for Sprout: {line}",
+                words(&line)
+            );
+        }
+    }
+
+    #[test]
+    fn seedling_lines_are_eight_words_or_fewer() {
+        let book = ReactionBook::load();
+        let mut lines: Vec<String> = tier_lines().into_iter().map(|[_, s, _]| s).collect();
+        lines.extend(book.reactions.iter().map(|(r, _)| r.short_seedling.clone()));
+        for line in lines {
+            assert!(
+                words(&line) <= 8,
+                "{} words for Seedling: {line}",
+                words(&line)
+            );
+        }
+    }
+
+    #[test]
+    fn sprout_cast_labels_are_six_words_or_fewer() {
+        let mut g = Game::new(Tier::Sprout, 42);
+        settle(&mut g, 30);
+        for spell in ["water", "boom", "split", "H2", "cloud", "xyz", "fireball"] {
+            let out = g.cast(spell);
+            assert!(words(&out.label) <= 6, "{spell}: {}", out.label);
+            land(&mut g);
+            settle(&mut g, 10);
+        }
+        // Everything Mote said in a full Sprout play-through, too.
+        let (_, said, _) = super::restart_tests::play_by_goals(Tier::Sprout, 42);
+        for line in said {
+            assert!(words(&line) <= 6, "Sprout heard: {line}");
+        }
+    }
+
+    #[test]
+    fn a_first_discovery_speaks_the_tier_line() {
+        let book = ReactionBook::load();
+        let (r, _) = book
+            .reactions
+            .iter()
+            .find(|(r, _)| r.id == "water_synthesis")
+            .unwrap();
+        for (tier, want) in [
+            (Tier::Sprout, &r.short_sprout),
+            (Tier::Seedling, &r.short_seedling),
+            (Tier::Apprentice, &r.concept),
+        ] {
+            let mut g = Game::new(tier, 42);
+            settle(&mut g, 30);
+            g.messages.clear();
+            let out = g.cast("2H2 + O2 -> 2H2O");
+            assert!(out.first_discovery, "{tier:?}");
+            assert!(
+                std::mem::take(&mut g.messages).contains(want),
+                "{tier:?} did not hear {want}"
+            );
+        }
     }
 }

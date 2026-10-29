@@ -11,6 +11,8 @@
       "needs": "spark",
       "tier_min": "sprout",
       "concept": "Synthesis: two gases join into water and release a lot of heat.",
+      "short_sprout": "Boom! Water!",
+      "short_seedling": "Two gases join and give off heat.",
       "real_world": "Hydrogen fuel cells and the main engines of the Space Shuttle used this reaction.",
       "source": "NIST Chemistry WebBook, standard enthalpy of formation of H2O(g)",
       "reviewed_by": null
@@ -24,6 +26,8 @@
       "needs": "electricity",
       "tier_min": "sprout",
       "concept": "Electricity can pull water apart into hydrogen and oxygen. It costs energy instead of releasing it.",
+      "short_sprout": "Zap! Water makes bubbles!",
+      "short_seedling": "Electricity splits water into two gases.",
       "real_world": "Green hydrogen plants split water with electricity from solar and wind.",
       "source": "NIST Chemistry WebBook, standard enthalpy of formation of H2O(l)",
       "reviewed_by": null
@@ -37,6 +41,8 @@
       "needs": "spark",
       "tier_min": "seedling",
       "concept": "Combustion: a fuel joins with oxygen and makes carbon dioxide, water and heat.",
+      "short_sprout": "Whoosh! A big fireball!",
+      "short_seedling": "Methane burns into CO2, water and heat.",
       "real_world": "This is the flame on a gas stove.",
       "source": "NIST Chemistry WebBook, standard enthalpies of formation of CH4, CO2 and H2O(g)",
       "reviewed_by": null
@@ -50,6 +56,8 @@
       "needs": "spark",
       "tier_min": "seedling",
       "concept": "Fire needs fuel, oxygen and heat. Take any one away and it goes out.",
+      "short_sprout": "Fire needs air!",
+      "short_seedling": "Fire needs fuel, oxygen and heat.",
       "real_world": "Wood is mostly carbon compounds; in the game it is simplified to pure carbon.",
       "source": "NIST Chemistry WebBook, standard enthalpy of formation of CO2(g)",
       "reviewed_by": null

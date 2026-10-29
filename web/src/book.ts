@@ -11,6 +11,10 @@ export interface BookReaction {
   equation: string;
   delta_h_kj: number;
   concept: string;
+  /** Six words or fewer, for Sprout. */
+  short_sprout: string;
+  /** Eight words or fewer, for Seedling. */
+  short_seedling: string;
   real_world: string;
   source: string;
 }

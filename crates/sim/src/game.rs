@@ -787,7 +787,7 @@ impl Game {
         if crystal.is_some() && !self.met_crystal {
             self.met_crystal = true;
             let line = self.line(
-                "A crystal battery! It helps your suit make bubbles.",
+                "A crystal! It powers bubbles!",
                 "The crystal powers splitting water. Stand close.",
                 "The crystal stores electricity. Your suit uses it to split water into hydrogen and oxygen, fast.",
             );
@@ -978,7 +978,14 @@ impl Game {
             .map(|(r, _)| r.clone());
         if first {
             if let Some(r) = &entry {
-                self.say(r.concept.clone());
+                // Short, picture-first words for the young tiers; the full
+                // sourced concept for Apprentice (and in every Grimoire).
+                let line = match self.tier {
+                    Tier::Sprout => r.short_sprout.clone(),
+                    Tier::Seedling => r.short_seedling.clone(),
+                    Tier::Apprentice => r.concept.clone(),
+                };
+                self.say(line);
             }
         }
         let show_numbers = self.tier >= Tier::Apprentice;
@@ -1021,7 +1028,8 @@ impl Game {
                         (l != r).then(|| format!("{el} {l} left, {r} right"))
                     })
                     .collect();
-                if !parts.is_empty() {
+                // Sprout sees the leftover orbs instead of an atom count.
+                if !parts.is_empty() && self.tier > Tier::Sprout {
                     label = format!("Not balanced: {}. {label}", parts.join("; "));
                 }
             } else if balanced
@@ -1178,9 +1186,9 @@ impl Game {
         let main = match (spell, young) {
             ("water", true) => "Splash!",
             ("water", false) => "Water stream",
-            ("boom", true) => "Boom! Hydrogen and oxygen made water",
+            ("boom", true) => "Boom! Water!",
             ("boom", false) => "Boom! Hydrogen burns into water",
-            ("split", true) => "Bubbles! Water split in two",
+            ("split", true) => "Bubbles! Water split!",
             ("split", false) => "Water split: 2 hydrogen for each oxygen",
             ("cloud", _) => "Carbon dioxide cloud",
             ("fireball", _) => "Fireball! Methane burns",
@@ -1195,7 +1203,8 @@ impl Game {
                 " (oxygen from the air: smaller flame)"
             });
         }
-        if !unreacted.is_empty() {
+        // Sprout sees leftovers as orbs drifting home, not as words.
+        if !unreacted.is_empty() && !young {
             text.push_str(&format!("  {} unreacted (excess)", unreacted.join(", ")));
         }
         text

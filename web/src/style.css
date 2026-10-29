@@ -2273,3 +2273,40 @@ body[data-motion="calm"] #moves button.hinting {
     animation: none;
   }
 }
+
+/* ---------------------------------- Seedling card: science behind "Why?" */
+
+.grim-why {
+  margin-top: 2px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid #f0c75e;
+  color: #f0c75e;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grim-back {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.grim-card.show-back .grim-back {
+  display: flex;
+}
+
+.grim-card.show-back > .grim-words {
+  display: none;
+}
+
+body[data-tier="seedling"] .grim-card.found {
+  cursor: pointer;
+}
+
+body[data-tier="seedling"] .grim-card > .grim-words,
+body[data-tier="sprout"] .grim-card > .grim-words {
+  font-size: 0.95rem;
+  color: var(--ink);
+}
