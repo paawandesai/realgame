@@ -55,8 +55,8 @@ python3 -m http.server 8080 --directory web/pkg-out
 
 Then open `http://localhost:8080/` in Chrome and click the courtyard.
 
-Native (for development): `cargo run --release` (add `-- --low`, `--sens=1.5` and so on). The
-HUD is web-only; natively, captions go to the log.
+Native (for development, not yet tested for this prototype): `cargo run --release` (add
+`-- --low`, `--sens=1.5` and so on). The HUD is web-only.
 
 ## Controls
 
@@ -91,7 +91,7 @@ joystick yet: on a touch screen you can tap targets to cast, but you cannot walk
 DevTools > Console. Every 2 seconds the game logs a line like:
 
 ```
-STATS fps=119.8 fps_p50=120.0 fps_p5=109.1 avg_ms=8.35 p50_ms=8.33 p95_ms=9.17 worst_ms=12.4 update_ms_p50=0.90 update_ms_p95=1.30 entities=770 burning=3 extinguished=0 wasm_mem_mb=34.9 heap_live_mb=24.3 heap_peak_mb=26.6 biggest_alloc_mb=4.0
+STATS fps=119.8 fps_p50=120.0 fps_p5=109.1 avg_ms=8.35 p50_ms=8.33 p95_ms=9.17 worst_ms=12.4 update_ms_p50=0.90 update_ms_p95=1.30 entities=770 burning=3 extinguished=0 wasm_mem_mb=34.9 heap_live_mb=24.3 heap_peak_mb=26.6 biggest_alloc_mb=4.0 winit_events=1
 CPUFRAME n=240 p50_ms=2.40 p95_ms=3.10 max_ms=4.20
 ```
 
@@ -101,6 +101,8 @@ CPUFRAME n=240 p50_ms=2.40 p95_ms=3.10 max_ms=4.20
   callback (Bevy's update and render both run inside it). Use this for CPU cost.
 - `entities`: all ECS entities (about 320 are the pooled particles).
 - `wasm_mem_mb`, `heap_*`: WebAssembly memory, live heap bytes, peak, biggest single allocation.
+- `winit_events`: window events Bevy buffered this frame (should stay small; see `web/hud.js`
+  for why pointer moves are kept away from winit while the pointer is locked).
 - `FIRST_FRAME t=...ms`: navigation start to the third frame (logged once).
 
 ## Test hook

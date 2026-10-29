@@ -103,6 +103,15 @@ export function startHud() {
     const cur = state ? state.spell : 0;
     cmd(`select ${((cur + (e.deltaY > 0 ? 1 : 3)) % 4) + 1}`);
   }, { passive: true });
+  // The game reads the mouse from the mousemove listener above (deltas while
+  // locked, position while free), never from Bevy's cursor events. So pointer
+  // moves are stopped before they reach winit's listeners on the canvas:
+  // headless Chromium was seen to deliver tens of thousands of coalesced
+  // moves per frame to them around pointer lock, growing the WebAssembly
+  // heap by hundreds of MB.
+  for (const t of ['pointermove', 'pointerrawupdate']) {
+    window.addEventListener(t, (e) => e.stopImmediatePropagation(), { capture: true });
+  }
   canvas.addEventListener('mouseleave', () => { input.px = -1; input.py = -1; });
   canvas.addEventListener('pointerdown', (e) => {
     canvas.focus();

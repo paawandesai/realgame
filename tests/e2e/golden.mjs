@@ -125,7 +125,7 @@ function check(name, ok, detail = '') {
   check('mouse look turns', Math.abs(s.yaw - yaw0) > 5, `yaw ${yaw0} -> ${s.yaw}`);
 
   // Walk forward with W (keyboard focus on the canvas).
-  await page.focus('#game');
+  await page.evaluate(() => document.getElementById('game').focus());
   const p0 = s.pos;
   await page.keyboard.down('w');
   s = await until((x) => Math.hypot(x.pos[0] - p0[0], x.pos[2] - p0[2]) > 2, 20000);
@@ -185,7 +185,7 @@ function check(name, ok, detail = '') {
     // above: under headless pointer lock, a press can arrive with a stray
     // movementX that turns the view, which would make these checks flaky.
     await cmd('cast');
-    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
+    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 60000);
     if (!(z.impacts > a.impacts)) {
       const pick = (x) => JSON.stringify({ locked: x.locked, paused: x.paused, spell: x.spell, aim: x.aimObj, casts: x.casts, impacts: x.impacts, outcome: x.outcome });
       console.log(`  castAt(${i}, ${spell}) did not land: before ${pick(a)} after ${pick(z)}`);

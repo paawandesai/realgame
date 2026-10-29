@@ -1237,7 +1237,13 @@ fn pct(v: &mut [f32], p: f32) -> f32 {
 }
 
 /// Logs a STATS line every 2 seconds.
-fn report(mut stats: ResMut<Stats>, entities: Query<Entity>, chem: Res<Chem>, game: Res<Game>) {
+fn report(
+    mut stats: ResMut<Stats>,
+    entities: Query<Entity>,
+    chem: Res<Chem>,
+    game: Res<Game>,
+    raw: Res<Messages<bevy::winit::RawWinitWindowEvent>>,
+) {
     let now = Instant::now();
     stats.frames += 1;
     if stats.frames == 3 {
@@ -1265,7 +1271,7 @@ fn report(mut stats: ResMut<Stats>, entities: Query<Entity>, chem: Res<Chem>, ga
         let cpu50 = pct(&mut cpu, 0.5);
         let cpu95 = pct(&mut cpu, 0.95);
         info!(
-            "STATS fps={:.1} fps_p50={:.1} fps_p5={:.1} avg_ms={:.2} p50_ms={:.2} p95_ms={:.2} worst_ms={:.1} update_ms_p50={:.2} update_ms_p95={:.2} entities={} burning={} extinguished={} wasm_mem_mb={:.1} heap_live_mb={:.1} heap_peak_mb={:.1} biggest_alloc_mb={:.1}",
+            "STATS fps={:.1} fps_p50={:.1} fps_p5={:.1} avg_ms={:.2} p50_ms={:.2} p95_ms={:.2} worst_ms={:.1} update_ms_p50={:.2} update_ms_p95={:.2} entities={} burning={} extinguished={} wasm_mem_mb={:.1} heap_live_mb={:.1} heap_peak_mb={:.1} biggest_alloc_mb={:.1} winit_events={}",
             n as f32 / span,
             1000.0 / p50.max(0.01),
             1000.0 / p95.max(0.01),
@@ -1282,8 +1288,10 @@ fn report(mut stats: ResMut<Stats>, entities: Query<Entity>, chem: Res<Chem>, ga
             heap::mb(&heap::LIVE),
             heap::mb(&heap::PEAK),
             heap::mb(&heap::BIGGEST),
+            raw.len(),
         );
         let _ = &game;
+
         stats.window_start = Some(now);
     }
 }
