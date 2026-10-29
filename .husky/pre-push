@@ -1,0 +1,19 @@
+# Everything CI gates on except the network audits (cargo-deny, npm audit),
+# which stay CI-only because they depend on live advisory databases.
+# Budget: under 60 s. Warm caches: a few seconds; fully cold: see PR numbers.
+set -eu
+for tool in cargo wasm-pack npm; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "pre-push: '$tool' not found; see README 'Run it locally'." >&2; exit 1; }
+done
+echo "pre-push: rustfmt"
+cargo fmt --all --check
+echo "pre-push: clippy (native)"
+cargo clippy --all-targets --locked --quiet -- -D warnings
+echo "pre-push: clippy (wasm32)"
+cargo clippy --target wasm32-unknown-unknown --locked --quiet -- -D warnings
+echo "pre-push: cargo test"
+cargo test --locked --quiet
+echo "pre-push: wasm-pack build, tsc, vite build"
+cd web
+[ -d node_modules ] || npm ci --no-audit --no-fund --silent
+npm run build --silent

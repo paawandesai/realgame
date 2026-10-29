@@ -1,0 +1,13 @@
+{
+  "name": "realgame-dev-hooks",
+  "private": true,
+  "description": "Git hooks for the whole repo (Rust + web). The game itself lives in crates/ and web/.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "lint-staged": "16.4.0"
+  }
+}

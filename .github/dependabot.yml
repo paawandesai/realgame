@@ -8,6 +8,11 @@ updates:
     directory: /web
     schedule:
       interval: weekly
+  # Repo tooling (git hooks: husky, lint-staged) at the root.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
   - package-ecosystem: github-actions
     directory: /
     schedule:

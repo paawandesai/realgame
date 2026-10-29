@@ -1,0 +1,55 @@
+name: Security (scheduled)
+
+# Full supply-chain scans, off the push path. Advisories are published every
+# day, so this re-checks main even when no code changed.
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: 0
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 2
+  NODE_OPTIONS: --max-old-space-size=1536
+
+jobs:
+  audit:
+    name: Full dependency scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-deny@0.20.2,cargo-audit@0.22.2
+      - name: Prepare report folder
+        run: mkdir -p reports
+      - name: cargo-deny (all checks)
+        run: cargo deny --locked --format json check 2> reports/cargo-deny.json
+      - name: cargo-audit (RustSec, including unmaintained and yanked warnings)
+        if: always()
+        run: cargo audit --json --deny warnings > reports/cargo-audit.json
+      - name: npm audit, web (every severity)
+        if: always()
+        working-directory: web
+        run: npm audit --json > ../reports/npm-audit-web.json
+      - name: npm audit, repo tooling (every severity)
+        if: always()
+        run: npm audit --json > reports/npm-audit-tooling.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: security-reports
+          path: reports
+          retention-days: 7

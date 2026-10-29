@@ -1,75 +1,283 @@
 name: CI
 
+# One run per push: pushes to main, plus pull requests (a feature branch with
+# an open PR runs once, as the PR).
 on:
   pull_request:
   push:
     branches: [main]
 
-# Least privilege: CI only needs to read the code.
+# Least privilege: CI only needs to read the code. Jobs that need more ask
+# for it themselves.
 permissions:
   contents: read
 
+# A newer push to the same PR cancels the stale run. Runs on main are never
+# cancelled, so every commit on main gets a full result.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  HUSKY: 0 # never run git hooks in CI
+  CARGO_TERM_COLOR: always
+  # Sized for a 2 vCPU / 2 GB runner so this also fits a small self-hosted one.
+  CARGO_BUILD_JOBS: 2
+  RUST_TEST_THREADS: 2
+  CARGO_INCREMENTAL: 0 # incremental artifacts only bloat the cache in CI
+  NODE_OPTIONS: --max-old-space-size=1536 # about 75% of 2 GB
 
 jobs:
-  rust:
-    name: Simulation (Rust)
+  # Decide what changed, so a docs-only change skips the heavy jobs. Skipped
+  # jobs count as passing for branch protection, and the `CI result` gate at
+  # the bottom is the one check to require.
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lists PR files through the API
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      web: ${{ steps.filter.outputs.web }}
+      deps: ${{ steps.filter.outputs.deps }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
-      - name: Format
-        run: cargo fmt --all --check
-      - name: Lint (warnings are errors)
-        run: cargo clippy --all-targets --locked -- -D warnings
-      - name: Lint the WebAssembly build
-        run: cargo clippy --target wasm32-unknown-unknown --locked -- -D warnings
-      - name: Test
-        run: cargo test --locked
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          # A change to this workflow re-runs everything.
+          filters: |
+            ci: &ci
+              - '.github/workflows/ci.yml'
+            rust:
+              - *ci
+              - 'crates/**'
+              - 'content/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain*'
+            web:
+              - *ci
+              - 'crates/**'
+              - 'content/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'web/**'
+            deps:
+              - *ci
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'crates/*/Cargo.toml'
+              - 'deny.toml'
+              - '**/package.json'
+              - '**/package-lock.json'
 
-  supply-chain:
-    name: Dependency audit
+  lint-rust:
+    name: Lint (rustfmt + clippy, native)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          command: check advisories bans licenses sources
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch as of 2026-10-29
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Format
+        run: cargo fmt --all --check
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Lint (warnings are errors)
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Peak memory (cgroup)
+        if: always()
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
+          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+
+  lint-wasm:
+    name: Lint (clippy, wasm32)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch as of 2026-10-29
+        with:
+          toolchain: stable
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Lint the WebAssembly build
+        run: cargo clippy --target wasm32-unknown-unknown --locked -- -D warnings
+      - name: Peak memory (cgroup)
+        if: always()
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
+          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+
+  test-rust:
+    name: Test (Rust)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch as of 2026-10-29
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Test
+        run: cargo test --locked
+      - name: Peak memory (cgroup)
+        if: always()
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
+          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+
+  # Build the WebAssembly package once and hand it to the web job.
+  build-wasm:
+    name: Build (wasm-pack)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch as of 2026-10-29
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      # Prebuilt binary in a few seconds, instead of `cargo install` (74 s).
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: wasm-pack@0.15.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-directories: ~/.cache/.wasm-pack # the wasm-bindgen CLI that wasm-pack downloads
+      - name: Build the simulation to WebAssembly
+        run: wasm-pack build crates/sim --target web --release --out-dir ../../web/src/pkg
+      - name: Package size
+        run: du -sh web/src/pkg && ls -l web/src/pkg
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wasm-pkg
+          path: web/src/pkg
+          if-no-files-found: error
+          retention-days: 1
+      - name: Peak memory (cgroup)
+        if: always()
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
+          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
   web:
-    name: Browser shell
+    name: Web (typecheck + bundle)
+    needs: [changes, build-wasm]
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          targets: wasm32-unknown-unknown
-      - uses: actions/setup-node@v4
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
       - name: Install exact dependencies from the lockfile
-        run: npm ci
-      - name: Audit npm dependencies
-        run: npm audit --audit-level=high
-      - name: Build (compiles Rust to WebAssembly, type-checks, bundles)
-        run: npm run build
+        run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wasm-pkg
+          path: web/src/pkg
+      - name: Typecheck
+        run: npx --no-install tsc --noEmit
+      - name: Bundle
+        run: npx --no-install vite build
       - name: Check download size budget (school networks)
         run: |
           total=$(du -sk dist | cut -f1)
           echo "dist is ${total} KB"
           test "$total" -lt 2048
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-dist
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 1
+      - name: Peak memory (cgroup)
+        if: always()
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
+          awk '{printf "peak %.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+
+  supply-chain:
+    name: Dependency audit
+    needs: changes
+    # Any code or dependency change; a docs-only change skips it (the nightly
+    # Security workflow still audits every day).
+    if: needs.changes.outputs.deps == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      # Prebuilt binary: the same checks cargo-deny-action ran, without its
+      # 12 s Docker image build.
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-deny@0.20.2
+      - name: cargo-deny (advisories, bans, licenses, sources)
+        run: cargo deny --locked check advisories bans licenses sources
+      # npm audit reads the lockfile; no install needed.
+      - name: Audit npm dependencies (web)
+        working-directory: web
+        run: npm audit --audit-level=high
+      - name: Audit npm dependencies (repo tooling)
+        run: npm audit --audit-level=high
+
+  # The single check to require on main. It passes when every job above
+  # passed or was skipped because its code did not change, and fails if any
+  # failed or was cancelled.
+  ci-ok:
+    name: CI result
+    needs: [changes, lint-rust, lint-wasm, test-rust, build-wasm, web, supply-chain]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail if any job failed or was cancelled
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "*|*" cancelled "*) exit 1 ;;
+          esac

@@ -1,0 +1,2 @@
+# Staged files only; budget under 10 s. See lint-staged.config.mjs.
+npx --no-install lint-staged
