@@ -102,7 +102,9 @@ void main() {
     if (u_lens > 0.5) {
       vec3 heat = texture2D(u_lut, vec2(d.r * (255.0 / 256.0) + 0.5 / 256.0, 0.5)).rgb;
       // Solids keep their hue but darker, so shapes stay readable (palette::lens_solid).
-      bool solid = s == 1.0 || s == 2.0 || s == 4.0 || s == 12.0 || s == CRYSTAL;
+      // v3 solids: Mg 14, MgO 15, Sand 16, Foam 18, Chalk 21 (species.rs gpu_ids test).
+      bool solid = s == 1.0 || s == 2.0 || s == 4.0 || s == 12.0 || s == CRYSTAL
+        || s == 14.0 || s == 15.0 || s == 16.0 || s == 18.0 || s == 21.0;
       c = solid ? mix(heat, vec3(0.039, 0.047, 0.078), 0.62) : heat;
     } else if (s == FLAME) {
       // Flicker: each cell picks a new brightness about six times a second.

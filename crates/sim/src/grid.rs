@@ -5,6 +5,7 @@
 //! (phase changes and combustion) and heat conduction. Steps are deterministic
 //! for a given seed, so a server can replay what a client predicted.
 
+use crate::events::{ChemEvent, MAX_PENDING_EVENTS};
 use crate::species::{Phase, Species, AIR_MOLAR_MASS};
 
 pub const AMBIENT_C: f32 = 20.0;
@@ -68,6 +69,13 @@ pub struct Grid {
     /// Per-cell scratch: latent heat progress for water, fuel burned for wood,
     /// oxygen used for O2 and CH4, remaining life for flames.
     pub aux: Vec<i16>,
+    /// Per-cell tag (v3): the `Emitter` colouring a Flame cell. Zero means
+    /// none; the story never sets it, and `content_hash` skips zero tags so
+    /// story hashes are unchanged. Travels with the cell like `aux`.
+    pub tag: Vec<u8>,
+    /// Presentation events raised during `step` (see `events.rs`); the game
+    /// drains them with `take_events`.
+    pub events: Vec<ChemEvent>,
     moved: Vec<u32>,
     reacted: Vec<u32>,
     pub frame: u32,
@@ -124,6 +132,8 @@ impl Grid {
             cells: vec![Species::Air; n],
             temp: vec![AMBIENT_C; n],
             aux: vec![0; n],
+            tag: vec![0; n],
+            events: vec![],
             moved: vec![0; n],
             reacted: vec![0; n],
             frame: 0,
@@ -169,7 +179,47 @@ impl Grid {
             self.cells[i] = s;
             self.temp[i] = t;
             self.aux[i] = 0;
+            self.tag[i] = 0;
         }
+    }
+
+    /// Raises a presentation event (bounded; extra events are dropped).
+    pub fn event(&mut self, ev: ChemEvent) {
+        if self.events.len() < MAX_PENDING_EVENTS {
+            self.events.push(ev);
+        }
+    }
+
+    /// Drains the events raised since the last call.
+    pub fn take_events(&mut self) -> Vec<ChemEvent> {
+        std::mem::take(&mut self.events)
+    }
+
+    /// A stable FNV-1a hash of the world: species, temperature bits and `aux`
+    /// of every cell, plus `tag` only where it is non-zero (so a grid that
+    /// never sets a tag hashes exactly as it did before tags existed).
+    /// `crates/sim/tests/story_hash.rs` pins the v2 story with it.
+    pub fn content_hash(&self) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut eat = |b: u8| {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        };
+        for i in 0..self.cells.len() {
+            eat(self.cells[i] as u8);
+            self.temp[i]
+                .to_bits()
+                .to_le_bytes()
+                .into_iter()
+                .for_each(&mut eat);
+            self.aux[i].to_le_bytes().into_iter().for_each(&mut eat);
+            if self.tag[i] != 0 {
+                eat(0xff);
+                (i as u32).to_le_bytes().into_iter().for_each(&mut eat);
+                eat(self.tag[i]);
+            }
+        }
+        h
     }
 
     /// Copies columns `x0..x1` (cells, temperatures and per-cell state) from
@@ -182,6 +232,7 @@ impl Grid {
             self.cells[a..b].copy_from_slice(&from.cells[a..b]);
             self.temp[a..b].copy_from_slice(&from.temp[a..b]);
             self.aux[a..b].copy_from_slice(&from.aux[a..b]);
+            self.tag[a..b].copy_from_slice(&from.tag[a..b]);
         }
     }
 
@@ -213,6 +264,7 @@ impl Grid {
         self.cells.swap(i, j);
         self.temp.swap(i, j);
         self.aux.swap(i, j);
+        self.tag.swap(i, j);
         self.moved[j] = self.frame;
         self.moved[i] = self.frame;
     }
@@ -415,6 +467,7 @@ impl Grid {
         self.cells[i] = s;
         self.temp[i] = t;
         self.aux[i] = aux;
+        self.tag[i] = 0;
         self.reacted[i] = self.frame;
     }
 
@@ -436,7 +489,8 @@ impl Grid {
                 let s = self.cells[i];
                 // Most cells (air, stone, crystal, settled gases) never react
                 // on their own; test the species before touching `reacted`.
-                if !s.reacts_alone() || self.reacted[i] == self.frame {
+                // v3 species go to `chem::grid_rules` (the story has none).
+                if !(s.reacts_alone() || s.is_v3()) || self.reacted[i] == self.frame {
                     continue;
                 }
                 match s {
@@ -447,7 +501,7 @@ impl Grid {
                     Species::H2 => self.hydrogen(x, y, i),
                     Species::CH4 => self.methane(x, y, i),
                     Species::Flame => self.flame(x, y, i),
-                    _ => {}
+                    _ => crate::chem::grid_rules(self, x, y),
                 }
             }
         }

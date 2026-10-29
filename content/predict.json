@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "notes": "Predict-then-cast cards (DESIGN_V3 §7). Track D owns this file and writes at least 10 cards. Each card pauses the sim when the player enters its room or Trial, can be skipped, and is never shown twice in a session. Every 'why' must be accurate and carry a source; each card needs a reviewer before classroom launch.",
+  "schema": {
+    "cards": "object keyed by 'story:1'..'story:4' or 'trial:T1'..'trial:T7'",
+    "card.prompt": "string: the question, plain words (Seedling level)",
+    "card.prompt_tier": "optional {sprout?, apprentice?}: replaces prompt for that tier",
+    "card.options": "2-4 options, each {picture, text, tier_text?}",
+    "option.picture": "an IconName from web/src/icons.ts (Sprout sees the picture and hears the text)",
+    "option.text": "string, a few words",
+    "option.tier_text": "optional {sprout?, seedling?, apprentice?}: replaces text for that tier (Apprentice numeric options go here)",
+    "card.answer": "0-based index into options",
+    "card.why": "one or two sentences shown at the reveal: 'You guessed X. Here's why it was Y.'",
+    "card.source": "where the fact comes from",
+    "card.key_cast": "the CastOutcome.spell (or reaction_id) whose cast triggers the reveal",
+    "card.reviewed_by": "null until the chemistry reviewer signs"
+  },
+  "cards": {
+    "story:3": {
+      "prompt": "When we split water, which gas makes more bubbles?",
+      "options": [
+        { "picture": "bubbles", "text": "Hydrogen", "tier_text": { "apprentice": "H2: twice as much as O2" } },
+        { "picture": "bubbles", "text": "Oxygen", "tier_text": { "apprentice": "O2: twice as much as H2" } },
+        { "picture": "bubbles", "text": "The same", "tier_text": { "apprentice": "Equal amounts, 1:1" } }
+      ],
+      "answer": 0,
+      "why": "Water is H2O: two hydrogen atoms for every oxygen atom. So 2H2O -> 2H2 + O2 gives two hydrogen molecules for each oxygen molecule, and twice the volume of gas.",
+      "source": "Balanced equation 2H2O -> 2H2 + O2; Avogadro's law (equal volumes of gas hold equal numbers of molecules), as shown in a Hofmann voltameter",
+      "key_cast": "split",
+      "reviewed_by": null
+    }
+  }
+}

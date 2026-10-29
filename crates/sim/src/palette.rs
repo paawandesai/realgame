@@ -83,6 +83,15 @@ pub fn look(s: Species) -> Look {
         Species::Flame => l(ORANGE, 0.0, YELLOW, Flicker),
         Species::Door => l([78, 70, 88], 0.0, [56, 50, 64], Grain),
         Species::Crystal => l(REDDISH_PURPLE, 0.0, [248, 226, 240], Sparkle),
+        // v3 placeholders (Track A owns the final looks and their CVD tests).
+        Species::Mg => l([176, 180, 186], 0.0, [228, 232, 236], Stripes),
+        Species::MgO => l([236, 236, 230], 0.0, [255, 255, 255], Grain),
+        Species::Sand => l([214, 184, 120], 0.0, [176, 146, 88], Grain),
+        Species::H2O2 => l([150, 200, 230], 0.0, [220, 240, 250], Ripple),
+        Species::Foam => l([246, 246, 240], 0.0, [255, 255, 255], SparseDots),
+        Species::Indicator => l([128, 72, 160], 0.0, [170, 120, 200], Ripple),
+        Species::Limewater => l([200, 220, 214], 0.0, [240, 248, 246], Ripple),
+        Species::Chalk => l([244, 244, 238], 0.0, [255, 255, 255], DenseDots),
     }
 }
 

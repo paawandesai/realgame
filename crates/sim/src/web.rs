@@ -1,6 +1,7 @@
 //! The browser-facing API, exported to JavaScript with wasm-bindgen, and the
 //! renderer that turns the grid into pixels.
 
+use crate::game::levels::{self, LevelSpec};
 use crate::game::{Game, Tier, DOOR_TOP, GATE_W, GATE_X, HEIGHT, VIEW_W, WORLD_W};
 use crate::palette::{self, glow_of, hash, heat_color, mix, temp_byte, Around, GlowMap};
 use crate::species::Species;
@@ -23,6 +24,11 @@ pub struct WebGame {
     /// Whether the frame includes the white crosshair (Sprout shows a single
     /// bullseye in the page instead).
     crosshair: bool,
+    /// v3 Lab/Predict controls: `tick` does nothing while paused, and runs
+    /// `speed` ticks per call on average (0.25, 1 or 2; 1 is exactly one).
+    paused: bool,
+    speed: f32,
+    speed_acc: f32,
 }
 
 #[wasm_bindgen]
@@ -37,7 +43,107 @@ impl WebGame {
             glow: GlowMap::default(),
             drawn_view_x: 0,
             crosshair: true,
+            paused: false,
+            speed: 1.0,
+            speed_acc: 0.0,
         }
+    }
+
+    // ------------------------------------------------------------ v3 levels
+    // DESIGN_V3 §12.4. These swap the game inside this WebGame, so the page
+    // keeps one object (and its render buffers) across story, Trials and Lab.
+
+    /// Starts Trial `id` ("T1".."T7") at `tier`. False (and nothing changes)
+    /// if the id is unknown or the tier does not see that Trial.
+    pub fn new_trial(&mut self, tier: &str, id: &str, seed: u32) -> bool {
+        let tier = Tier::parse(tier);
+        match LevelSpec::trial(id).filter(|s| s.for_tier(tier)) {
+            Some(spec) => {
+                self.game = Game::new_level(tier, spec, seed as u64 + 1);
+                self.after_swap();
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Starts the Lab at `tier`.
+    pub fn new_lab(&mut self, tier: &str, seed: u32) {
+        self.game = Game::new_level(Tier::parse(tier), LevelSpec::lab(), seed as u64 + 1);
+        self.after_swap();
+    }
+
+    /// Back to a fresh v2 story (the same as constructing a new WebGame).
+    pub fn new_story(&mut self, tier: &str, seed: u32) {
+        self.game = Game::new(Tier::parse(tier), seed as u64 + 1);
+        self.after_swap();
+    }
+
+    /// JSON array of the `LevelSpec`s a tier sees, in menu order:
+    /// `[{"id":"T1","kind":"trial","title":"Foam Bridge","goal":"...",
+    /// "tiers":["sprout",...],"par_casts":0}, ...]`.
+    pub fn trial_list(&self, tier: &str) -> String {
+        serde_json::to_string(&levels::trial_list(Tier::parse(tier))).unwrap_or_default()
+    }
+
+    /// JSON `TrialResult` for the current Trial (`{"id","solved","casts",
+    /// "hints_used","balanced_all","atoms_wasted","kj_net","sig","stars"}`),
+    /// or `null` in the story.
+    pub fn trial_result(&self) -> String {
+        serde_json::to_string(&self.game.trial_result()).unwrap_or_default()
+    }
+
+    /// Lab: paints species id `species` (`Species as u8`) in a disc of
+    /// radius `r` at world cell (x, y). Ignored in the story.
+    pub fn paint(&mut self, x: i32, y: i32, species: u8, r: i32) {
+        self.game.paint(x, y, Species::from_u8(species), r);
+    }
+
+    /// Lab: erases (paints air) in a disc of radius `r`.
+    pub fn erase(&mut self, x: i32, y: i32, r: i32) {
+        self.game.erase(x, y, r);
+    }
+
+    /// Pauses or resumes the sim (Predict cards, Lab, Demo freeze).
+    pub fn set_paused(&mut self, paused: bool) {
+        self.paused = paused;
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
+
+    /// Runs exactly one tick with no input, even while paused (Lab "step").
+    pub fn step_once(&mut self) {
+        self.game.tick(0);
+    }
+
+    /// Sim speed multiplier for `tick`, clamped to 0..=4 (Lab and Demo use
+    /// 0.25, 1 and 2). Independent of the page's own speed preference.
+    pub fn set_speed(&mut self, speed: f32) {
+        self.speed = if speed.is_finite() {
+            speed.clamp(0.0, 4.0)
+        } else {
+            1.0
+        };
+    }
+
+    /// True in the v2 story (and free play), false in a Trial or the Lab.
+    pub fn is_story(&self) -> bool {
+        self.game.is_story()
+    }
+
+    /// The current level's id ("T1".."T7" or "lab"), or "" in the story.
+    pub fn level_id(&self) -> String {
+        self.game
+            .level
+            .as_ref()
+            .map_or(String::new(), |l| l.spec.id.to_string())
+    }
+
+    fn after_swap(&mut self) {
+        self.speed_acc = 0.0;
+        self.drawn_view_x = self.game.view_x.round() as i32;
     }
 
     /// Width of the viewport (and of the rendered frame) in cells.
@@ -90,7 +196,14 @@ impl WebGame {
     }
 
     pub fn tick(&mut self, input: u32) {
-        self.game.tick(input);
+        if self.paused {
+            return;
+        }
+        self.speed_acc += self.speed;
+        while self.speed_acc >= 1.0 {
+            self.speed_acc -= 1.0;
+            self.game.tick(input);
+        }
     }
 
     /// The player pointed somewhere on purpose.
@@ -151,6 +264,10 @@ impl WebGame {
     /// Returns a JSON array of `Goal`s (icon positions and fire meters). Cheap;
     /// the overlay polls it a few times a second.
     pub fn goals(&self) -> String {
+        if !self.game.is_story() {
+            // Trial goals arrive with Track B's level layouts.
+            return "[]".to_string();
+        }
         serde_json::to_string(&self.game.goals()).unwrap_or_default()
     }
 
@@ -162,11 +279,21 @@ impl WebGame {
     /// Starts the room the player is in again (earlier rooms stay solved).
     /// Returns the room, 0-based.
     pub fn restart_room(&mut self) -> u32 {
+        if !self.game.is_story() {
+            self.restart();
+            return 0;
+        }
         self.game.restart_room() as u32
     }
 
     /// Starts the whole trial again.
     pub fn restart(&mut self) {
+        if let Some(l) = &self.game.level {
+            let (spec, seed) = (l.spec.clone(), l.seed);
+            self.game = Game::new_level(self.game.tier, spec, seed);
+            self.after_swap();
+            return;
+        }
         self.game.restart();
     }
 
@@ -546,6 +673,49 @@ pub fn heat_lut() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v3_level_exports_swap_the_game_and_control_time() {
+        let mut w = WebGame::new("seedling", 1);
+        assert!(w.is_story());
+        assert!(!w.new_trial("seedling", "T7", 1), "T7 is Apprentice only");
+        assert!(w.is_story());
+        assert!(w.new_trial("seedling", "T1", 1));
+        assert!(!w.is_story());
+        assert_eq!(w.level_id(), "T1");
+        assert!(w.trial_result().contains("\"id\":\"T1\""));
+        assert_eq!(w.goals(), "[]");
+        let list: serde_json::Value = serde_json::from_str(&w.trial_list("sprout")).unwrap();
+        assert_eq!(list.as_array().unwrap().len(), 5);
+
+        w.new_lab("sprout", 2);
+        assert_eq!(w.level_id(), "lab");
+        w.paint(100, 100, Species::Sand as u8, 2);
+        assert_eq!(w.game.grid.get(100, 100), Species::Sand);
+        w.erase(100, 100, 2);
+        assert_eq!(w.game.grid.get(100, 100), Species::Air);
+
+        let t0 = w.game.ticks;
+        w.set_paused(true);
+        w.tick(0);
+        assert_eq!(w.game.ticks, t0, "paused");
+        w.step_once();
+        assert_eq!(w.game.ticks, t0 + 1, "step works while paused");
+        w.set_paused(false);
+        w.set_speed(0.25);
+        for _ in 0..8 {
+            w.tick(0);
+        }
+        assert_eq!(w.game.ticks, t0 + 3);
+        w.set_speed(2.0);
+        w.tick(0);
+        assert_eq!(w.game.ticks, t0 + 5);
+        w.restart();
+        assert_eq!(w.level_id(), "lab");
+        w.new_story("seedling", 1);
+        assert!(w.is_story());
+        assert_eq!(w.trial_result(), "null");
+    }
 
     /// The WebGL renderer's per-pixel data matches the grid it was drawn
     /// from, and marks the player's pixels as sprite so the GPU draws them

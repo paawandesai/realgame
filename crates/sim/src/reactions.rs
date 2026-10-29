@@ -6,6 +6,44 @@
 use crate::formula::{parse_equation, Equation};
 use serde::Deserialize;
 
+/// Reaction and Grimoire card ids added in v3 (DESIGN_V3 §4.2). Track A adds
+/// each to `content/reactions.json` (with a source and `reviewed_by: null`)
+/// when it implements it; the web shell keys Grimoire cards on these strings.
+pub mod ids {
+    pub const MG_COMBUSTION: &str = "mg_combustion";
+    pub const MG_CO2: &str = "mg_co2";
+    pub const MG_STEAM: &str = "mg_steam";
+    pub const H2O2_DECOMP: &str = "h2o2_decomp";
+    pub const NEUTRALISATION: &str = "neutralisation";
+    pub const CO2_DISSOLVES: &str = "co2_dissolves";
+    pub const LIMEWATER_TEST: &str = "limewater_test";
+    /// Light cards: atomic emission, not reactions (one per `Emitter` salt).
+    pub const FLAME_TEST_NA: &str = "flame_test_na";
+    pub const FLAME_TEST_LI: &str = "flame_test_li";
+    pub const FLAME_TEST_K: &str = "flame_test_k";
+    pub const FLAME_TEST_CU: &str = "flame_test_cu";
+    pub const FLAME_TEST_SR: &str = "flame_test_sr";
+
+    /// The seven v3 reactions, in §4.2 order.
+    pub const V3_REACTIONS: [&str; 7] = [
+        MG_COMBUSTION,
+        MG_CO2,
+        MG_STEAM,
+        H2O2_DECOMP,
+        NEUTRALISATION,
+        CO2_DISSOLVES,
+        LIMEWATER_TEST,
+    ];
+    /// The five light cards.
+    pub const LIGHT_CARDS: [&str; 5] = [
+        FLAME_TEST_NA,
+        FLAME_TEST_LI,
+        FLAME_TEST_K,
+        FLAME_TEST_CU,
+        FLAME_TEST_SR,
+    ];
+}
+
 pub const REACTIONS_JSON: &str = include_str!("../../../content/reactions.json");
 /// Real reactions this trial cannot cast, so the game only calls a typed
 /// equation "real chemistry" when it really is.

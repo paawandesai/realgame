@@ -5,6 +5,8 @@
 
 #![deny(unsafe_code)]
 
+pub mod chem;
+pub mod events;
 pub mod formula;
 pub mod game;
 pub mod grid;

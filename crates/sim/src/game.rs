@@ -10,8 +10,13 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 mod free;
+mod lab;
+pub mod levels;
 mod rooms;
+pub mod score;
+mod trials;
 pub use free::Challenge;
+pub use levels::{LevelKind, LevelSpec, TrialResult};
 pub use rooms::{Goal, Rect, TorchView, DOOR_TOP, GATE_W, GATE_X, GROUND_Y};
 
 /// The world is four 320-cell rooms side by side; the camera shows one room's width.
@@ -277,6 +282,73 @@ pub struct Fx {
     pub power: f32,
 }
 
+impl Fx {
+    /// A simple event with no reaction or cast attached (v3 hooks build on it).
+    pub fn at(kind: &'static str, x: f32, y: f32, power: f32) -> Fx {
+        Fx {
+            kind,
+            x,
+            y,
+            tx: x,
+            ty: y,
+            dh_kj: 0.0,
+            outcome: None,
+            leftovers: Atoms::new(),
+            reaction_id: None,
+            id: 0,
+            power,
+        }
+    }
+}
+
+impl CastOutcome {
+    /// An outcome with every optional field empty, for `chem::cast_extra`
+    /// to fill in. `label` is the floating line the player sees.
+    pub fn new(
+        id: u32,
+        input: &str,
+        outcome: Outcome,
+        spell: &'static str,
+        label: impl Into<String>,
+    ) -> CastOutcome {
+        CastOutcome {
+            id,
+            outcome,
+            spell,
+            input: input.to_string(),
+            equation: input.trim().to_string(),
+            reaction_id: None,
+            consumed: Atoms::new(),
+            from_air: Atoms::new(),
+            products: Stock::new(),
+            leftovers: Atoms::new(),
+            missing: vec![],
+            source_x: None,
+            source_y: None,
+            power: 0.0,
+            dh_kj: 0.0,
+            label: label.into(),
+            suggestion: None,
+            imbalance: vec![],
+            unreacted: vec![],
+            reacted: None,
+            ledger: None,
+            went: None,
+            canonical: None,
+            multiple: 1,
+            concept: None,
+            real_world: None,
+            safety: None,
+            delta_h_kj: None,
+            source: None,
+            first_discovery: false,
+            reason: None,
+            equation_states: None,
+            note: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct State {
     pub tier: Tier,
@@ -411,6 +483,8 @@ pub struct Game {
     /// Multiplies walking speed, acceleration and air speed
     /// (`Tier::walk_scale`; 1.0 is the base tuning).
     pub walk_scale: f32,
+    /// A Trial or the Lab (v3, `levels.rs`); None for the story.
+    pub level: Option<levels::Level>,
 }
 
 impl Game {
@@ -498,6 +572,7 @@ impl Game {
             state_version: 1,
             state_sig: 0,
             seed,
+            level: None,
         };
         game.build_level();
         game.snap_camera();
@@ -532,6 +607,16 @@ impl Game {
         });
     }
 
+    /// Turns the grid's v3 presentation events (`events.rs`) into `Fx`.
+    /// The story raises none, so this is a no-op there.
+    fn drain_grid_events(&mut self) {
+        for ev in self.grid.take_events() {
+            let mut fx = Fx::at(ev.kind, ev.x as f32, ev.y as f32, ev.value);
+            fx.reaction_id = ev.reaction_id.map(str::to_string);
+            self.emit(fx);
+        }
+    }
+
     /// Drains the presentation events since the last call.
     pub fn take_fx(&mut self) -> Vec<Fx> {
         std::mem::take(&mut self.fx)
@@ -555,9 +640,12 @@ impl Game {
             self.grid
                 .step_columns(vx.saturating_sub(ACTIVE_BEHIND), vx + ACTIVE_AHEAD);
         }
+        self.drain_grid_events();
         self.suit_tick();
-        self.update_rooms(input & INPUT_GATHER != 0);
-        self.free_tick();
+        if self.level.is_none() {
+            self.update_rooms(input & INPUT_GATHER != 0);
+            self.free_tick();
+        }
         self.refresh_version();
     }
 
@@ -1193,6 +1281,9 @@ impl Game {
         let id = self.next_cast_id;
         self.next_cast_id += 1;
         let input: String = text.chars().take(crate::formula::MAX_INPUT_LEN).collect();
+        if let Some(out) = self.cast_extra(id, &input) {
+            return out;
+        }
         let plan = spell::plan(&self.book, &input, self.tier == Tier::Sprout);
         self.soft_auto_aim(&plan);
         // Turn to face where the spell goes.
@@ -1536,6 +1627,7 @@ impl Game {
             reaction_id,
             first,
             crystal_cost_kj,
+            extra: None,
         };
         if outcome == Outcome::Fizzle {
             // Nothing reacts and nothing in the world changes: one grey puff
@@ -1561,6 +1653,53 @@ impl Game {
         }
         self.refresh_version();
         out
+    }
+
+    /// The v3 chemistry hook (`chem::cast_extra`, Track A). None leaves the
+    /// cast to the v2 pipeline unchanged.
+    fn cast_extra(&mut self, id: u32, input: &str) -> Option<CastOutcome> {
+        let hand = self.hand();
+        let mut ctx = crate::chem::CastCtx {
+            id,
+            tier: self.tier,
+            book: &self.book,
+            grid: &mut self.grid,
+            jars: &mut self.jars,
+            hand,
+            aim: self.aim,
+            ticks: self.ticks,
+            discovered: &self.discovered,
+            fx: vec![],
+            launch: None,
+        };
+        let out = crate::chem::cast_extra(&mut ctx, input)?;
+        let (fx, launch) = (std::mem::take(&mut ctx.fx), ctx.launch.take());
+        for f in fx {
+            self.emit(f);
+        }
+        if let Some(extra) = launch {
+            if let Some(r) = &extra.reaction_id {
+                if extra.first && !self.discovered.contains(r) {
+                    self.discovered.push(r.clone());
+                }
+            }
+            self.suit_paused_until = self.ticks + SUIT_PAUSE_TICKS;
+            self.launch(Shot {
+                id,
+                spell: extra.spell,
+                outcome: extra.outcome,
+                products: Stock::new(),
+                power: extra.power,
+                dh_kj: extra.dh_kj,
+                leftovers: Atoms::new(),
+                reaction_id: extra.reaction_id.clone(),
+                first: extra.first,
+                crystal_cost_kj: 0.0,
+                extra: Some(extra),
+            });
+        }
+        self.refresh_version();
+        Some(out)
     }
 
     fn unknown_outcome(
@@ -2295,6 +2434,25 @@ impl Game {
             power: shot.power,
         };
         self.emit(base.clone());
+        if let Some(extra) = &shot.extra {
+            let hand = self.hand();
+            let mut ctx = crate::chem::ImpactCtx {
+                id: shot.id,
+                tier: self.tier,
+                book: &self.book,
+                grid: &mut self.grid,
+                hand,
+                ticks: self.ticks,
+            };
+            crate::chem::impact_extra(&mut ctx, extra, at);
+            if shot.first {
+                self.emit(Fx {
+                    kind: crate::events::fx_kind::DISCOVER,
+                    ..base
+                });
+            }
+            return;
+        }
         let n = |f: &str| shot.products.get(f).copied().unwrap_or(0);
         let mut extra: Vec<&'static str> = vec![];
         match shot.spell {
@@ -2784,6 +2942,8 @@ struct Shot {
     first: bool,
     /// What the crystal pays for a split, charged when it lands.
     crystal_cost_kj: f32,
+    /// A v3 spell from `chem::cast_extra`: lands through `chem::impact_extra`.
+    extra: Option<crate::chem::ExtraShot>,
 }
 
 /// How far a spell flies before it lands on its own, in cells...
