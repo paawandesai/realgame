@@ -541,7 +541,8 @@ fn control(
             game.spell = k;
         }
     }
-    if game.locked && scroll.delta.y != 0.0 {
+    // On the web the wheel arrives as a `select` command from hud.js.
+    if cfg!(not(target_arch = "wasm32")) && game.locked && scroll.delta.y != 0.0 {
         let step = if scroll.delta.y < 0.0 { 1 } else { 3 };
         game.spell = (game.spell + step) % 4;
     }
@@ -755,7 +756,14 @@ fn aim_and_cast(
             }
         }
     }
-    if game.locked && !game.paused && mouse.pressed(MouseButton::Left) && game.cooldown <= 0.0 {
+    #[cfg(target_arch = "wasm32")]
+    let firing = {
+        let _ = &mouse;
+        web.fire
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    let firing = mouse.pressed(MouseButton::Left);
+    if game.locked && !game.paused && firing && game.cooldown <= 0.0 {
         casts.push(game.aim);
     }
     let ended = chem.world.outcome() != Outcome::Playing;

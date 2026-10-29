@@ -14,7 +14,7 @@ const params = new URLSearchParams(location.search);
 
 export function startHud() {
   const canvas = $('game');
-  const input = { dx: 0, dy: 0, locked: false, paused: false, px: -1, py: -1, cmds: [] };
+  const input = { dx: 0, dy: 0, locked: false, paused: false, fire: false, px: -1, py: -1, cmds: [] };
   window.__gameIn = input;
   let state = null;
   let lastRaw = '';
@@ -62,6 +62,7 @@ export function startHud() {
     const locked = document.pointerLockElement === canvas;
     if (locked === input.locked) return;
     input.locked = locked;
+    input.fire = false;
     if (locked) {
       everLocked = true;
       showPause(false);
@@ -84,6 +85,15 @@ export function startHud() {
       [input.px, input.py] = local(e);
     }
   });
+  // While locked, buttons and the wheel are read here (not through winit) so
+  // casting never depends on how the browser routes a locked pointer's events.
+  document.addEventListener('pointerdown', (e) => { if (input.locked && e.button === 0) input.fire = true; });
+  document.addEventListener('pointerup', (e) => { if (e.button === 0) input.fire = false; });
+  document.addEventListener('wheel', (e) => {
+    if (!input.locked || e.deltaY === 0) return;
+    const cur = state ? state.spell : 0;
+    cmd(`select ${((cur + (e.deltaY > 0 ? 1 : 3)) % 4) + 1}`);
+  }, { passive: true });
   canvas.addEventListener('mouseleave', () => { input.px = -1; input.py = -1; });
   canvas.addEventListener('pointerdown', (e) => {
     canvas.focus();

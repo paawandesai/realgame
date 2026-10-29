@@ -1,6 +1,7 @@
 //! The link between the game and the page's JavaScript (`web/hud.js`).
 //!
-//! JS writes `window.__gameIn = { dx, dy, locked, paused, px, py, cmds: [] }`: raw
+//! JS writes `window.__gameIn = { dx, dy, locked, paused, fire, px, py, cmds: [] }`:
+//! raw
 //! pointer-lock mouse deltas (from `movementX/Y`), whether the pointer is
 //! locked, whether the pause overlay is up, the free pointer's position over
 //! the canvas (-1 when away), and text commands (taps,
@@ -20,6 +21,8 @@ pub struct WebIn {
     pub dy: f32,
     pub locked: bool,
     pub paused: bool,
+    /// Left button held while the pointer is locked.
+    pub fire: bool,
     /// Pointer position over the canvas (CSS pixels), when not locked.
     pub pointer: Option<(f32, f32)>,
     pub cmds: Vec<String>,
@@ -50,6 +53,7 @@ mod imp {
         let _ = Reflect::set(&gi, &"dy".into(), &0.0.into());
         input.locked = get(&gi, "locked").as_bool().unwrap_or(false);
         input.paused = get(&gi, "paused").as_bool().unwrap_or(false);
+        input.fire = get(&gi, "fire").as_bool().unwrap_or(false);
         input.pointer = match (get(&gi, "px").as_f64(), get(&gi, "py").as_f64()) {
             (Some(x), Some(y)) if x >= 0.0 && y >= 0.0 => Some((x as f32, y as f32)),
             _ => None,
