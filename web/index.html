@@ -57,6 +57,13 @@
           <div class="hud-buttons">
             <button id="lens-btn" type="button" aria-pressed="false">Insight lens <kbd>Tab</kbd></button>
             <button id="notebook-btn" type="button">Notebook <kbd>N</kbd></button>
+            <label class="speed">Speed
+              <select id="speed" aria-label="Game speed">
+                <option value="0.5">Slow</option>
+                <option value="0.75">Steady</option>
+                <option value="1">Normal</option>
+              </select>
+            </label>
           </div>
         </section>
 
@@ -76,8 +83,8 @@
         </div>
       </div>
       <p id="help" class="small">
-        Move <kbd>A</kbd><kbd>D</kbd> · Jump <kbd>Space</kbd> · Aim with the mouse · Gather: hold right-click or <kbd>G</kbd> ·
-        Formula ring <kbd>Q</kbd> · Cast: left-click or <kbd>Enter</kbd> · Saved spells <kbd>1</kbd>–<kbd>5</kbd>
+        Move <kbd>A</kbd><kbd>D</kbd> · Jump <kbd>Space</kbd> · Point to aim · Gather: hold <kbd>G</kbd> ·
+        Formula ring <kbd>Q</kbd> · Cast <kbd>Enter</kbd> · Saved spells <kbd>1</kbd>–<kbd>5</kbd>
       </p>
     </main>
     <script type="module" src="/src/main.ts"></script>

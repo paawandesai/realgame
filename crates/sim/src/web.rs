@@ -48,9 +48,10 @@ impl WebGame {
     }
 
     /// Draws the frame and returns a pointer to WIDTH * HEIGHT RGBA bytes in
-    /// WebAssembly memory. `lens` switches to the temperature view.
-    pub fn render(&mut self, lens: bool) -> *const u8 {
-        render(&self.game, &mut self.pixels, lens);
+    /// WebAssembly memory. `lens` switches to the temperature view; `alpha`
+    /// (0..=1) is how far the display is between the last two ticks.
+    pub fn render(&mut self, lens: bool, alpha: f32) -> *const u8 {
+        render(&self.game, &mut self.pixels, lens, alpha.clamp(0.0, 1.0));
         self.pixels.as_ptr()
     }
 }
@@ -94,7 +95,7 @@ fn heat_color(t: f32) -> [u8; 3] {
     stops[6].1
 }
 
-fn render(game: &Game, out: &mut [u8], lens: bool) {
+fn render(game: &Game, out: &mut [u8], lens: bool, alpha: f32) {
     let g = &game.grid;
     for y in 0..g.h {
         for x in 0..g.w {
@@ -140,7 +141,7 @@ fn render(game: &Game, out: &mut [u8], lens: bool) {
             out[i * 4..i * 4 + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
         }
     }
-    draw_player(game, out);
+    draw_player(game, out, alpha);
     draw_aim(game, out);
 }
 
@@ -151,8 +152,13 @@ fn put(out: &mut [u8], x: i32, y: i32, c: [u8; 3]) {
     }
 }
 
-fn draw_player(game: &Game, out: &mut [u8]) {
-    let (px, py) = (game.player.x.round() as i32, game.player.y.round() as i32);
+fn draw_player(game: &Game, out: &mut [u8], alpha: f32) {
+    let p = &game.player;
+    let lerp = |a: f32, b: f32| a + (b - a) * alpha;
+    let (px, py) = (
+        lerp(p.prev_x, p.x).round() as i32,
+        lerp(p.prev_y, p.y).round() as i32,
+    );
     let skin = [240, 196, 160];
     let suit = [30, 150, 140];
     let trim = [250, 210, 80];

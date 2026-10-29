@@ -86,6 +86,9 @@ pub struct State {
 pub struct Player {
     pub x: f32,
     pub y: f32,
+    /// Position at the start of the last tick, so the renderer can interpolate.
+    pub prev_x: f32,
+    pub prev_y: f32,
     vx: f32,
     vy: f32,
     pub facing: i32,
@@ -126,6 +129,8 @@ impl Game {
             player: Player {
                 x: 12.0,
                 y: 130.0,
+                prev_x: 12.0,
+                prev_y: 130.0,
                 vx: 0.0,
                 vy: 0.0,
                 facing: 1,
@@ -229,6 +234,8 @@ impl Game {
     // ----------------------------------------------------------------- update
 
     pub fn tick(&mut self, input: u32) {
+        self.player.prev_x = self.player.x;
+        self.player.prev_y = self.player.y;
         self.move_player(input);
         if input & INPUT_GATHER != 0 {
             // Lock onto what was under the cursor when gathering started.
@@ -1011,5 +1018,54 @@ mod balance {
             "fire still burning: {} hot wood",
             burning_wood(&g)
         );
+    }
+}
+
+#[cfg(test)]
+mod perf {
+    use super::*;
+    use std::hash::{Hash, Hasher};
+
+    fn grid_hash(g: &Game) -> u64 {
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for (i, c) in g.grid.cells.iter().enumerate() {
+            (*c as u8).hash(&mut h);
+            g.grid.temp[i].to_bits().hash(&mut h);
+            g.grid.aux[i].hash(&mut h);
+        }
+        h.finish()
+    }
+
+    fn run(seed: u64, ticks: u32) -> Game {
+        let mut g = Game::new(Tier::Seedling, seed);
+        for t in 0..ticks {
+            // Walk right for a while so the player and camera move too.
+            g.tick(if t < 300 { INPUT_RIGHT } else { 0 });
+        }
+        g
+    }
+
+    #[test]
+    fn same_seed_gives_identical_grid_after_600_ticks() {
+        assert_eq!(grid_hash(&run(7, 600)), grid_hash(&run(7, 600)));
+        assert_ne!(
+            grid_hash(&run(7, 600)),
+            grid_hash(&run(8, 600)),
+            "different seeds should diverge"
+        );
+    }
+
+    /// Reports ms/step; run with `cargo test --release bench_600_ticks -- --nocapture`.
+    /// It only asserts a very generous ceiling so it never flakes on slow CI machines.
+    #[test]
+    fn bench_600_ticks() {
+        let mut g = Game::new(Tier::Seedling, 42);
+        let start = std::time::Instant::now();
+        for _ in 0..600 {
+            g.tick(0);
+        }
+        let ms = start.elapsed().as_secs_f64() * 1000.0 / 600.0;
+        println!("bench_600_ticks: {ms:.3} ms/step");
+        assert!(ms < 250.0, "{ms} ms/step");
     }
 }

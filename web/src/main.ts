@@ -6,8 +6,13 @@ import { FormulaRing, byId } from "./ring";
 import { prettyFormula, type CastResult, type GameState, type Tier } from "./types";
 
 const INPUT = { left: 1, right: 2, jump: 4, gather: 8 } as const;
-const SLOW_MOTION_EVERY = 5; // While the ring is open, time runs at 1/5 speed.
 const MAX_SLOTS = 5;
+/** The simulation always advances in fixed 60 Hz steps, whatever the display rate. */
+const STEP_MS = 1000 / 60;
+/** At most this many steps per frame; anything beyond is dropped so a slow
+ * device slows the game down instead of spiralling. */
+const MAX_STEPS_PER_FRAME = 4;
+const SPEEDS = [0.5, 0.75, 1] as const;
 
 const REALM_NAMES: Record<Tier, string> = {
   sprout: "Sprout",
@@ -67,18 +72,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const canvas = byId<HTMLCanvasElement>("world");
   const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) throw new Error("Canvas 2D is not available");
-  const image = ctx.createImageData(w, h);
 
   const keys = new Set<string>();
-  let gatherHeld = false;
   let lens = false;
-  let frame = 0;
+  // Game speed (menu setting for younger or motor-impaired players).
+  let speed = Number(storageGet("speed"));
+  if (!SPEEDS.includes(speed as (typeof SPEEDS)[number])) speed = 1;
   let lastCast = "";
   const slots: string[] = [];
   const notebook = new Map<string, NotebookEntry>();
   let state: GameState | null = null;
 
-  const ring = new FormulaRing(tier, (formula) => doCast(formula));
+  const ring = new FormulaRing(tier, (formula) => requestCast(formula));
 
   // ------------------------------------------------------------------ input
 
@@ -87,24 +92,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     return [Math.floor(((clientX - r.left) / r.width) * w), Math.floor(((clientY - r.top) / r.height) * h)];
   };
 
+  // Pointing at the world only ever aims. Casting is a separate, deliberate action.
   canvas.addEventListener("pointermove", (e) => game.set_aim(...toGrid(e.clientX, e.clientY)));
-  canvas.addEventListener("pointerdown", (e) => {
-    game.set_aim(...toGrid(e.clientX, e.clientY));
-    if (e.button === 2) {
-      gatherHeld = true;
-    } else if (e.button === 0) {
-      const f = ring.isOpen ? ring.text() : lastCast;
-      if (f) doCast(f);
-      else ring.toggle(true);
-    }
-  });
-  window.addEventListener("pointerup", (e) => {
-    if (e.button === 2) gatherHeld = false;
-  });
+  canvas.addEventListener("pointerdown", (e) => game.set_aim(...toGrid(e.clientX, e.clientY)));
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  /** Buttons, inputs and selects handle Enter and Space themselves. */
+  const isControl = (t: EventTarget | null): boolean =>
+    t instanceof HTMLElement && t.closest("button, input, select, textarea, [contenteditable]") !== null;
 
   window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
+    if ((k === "enter" || k === " ") && isControl(e.target)) return;
     if (k === "tab") {
       e.preventDefault();
       setLens(true);
@@ -113,10 +112,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (k === "q") ring.toggle();
     else if (k === "escape") ring.toggle(false);
     else if (k === "n") toggleNotebook();
-    else if (k === "enter" && ring.isOpen) ring.cast();
-    else if (/^[1-5]$/.test(k)) {
+    else if (k === "enter") {
+      e.preventDefault();
+      if (!e.repeat) requestCast();
+    } else if (/^[1-5]$/.test(k)) {
       const f = slots[Number(k) - 1];
-      if (f) doCast(f);
+      if (f && !e.repeat) requestCast(f);
     } else if (k === " ") e.preventDefault();
     keys.add(k);
   });
@@ -125,10 +126,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (k === "tab") setLens(false);
     keys.delete(k);
   });
-  window.addEventListener("blur", () => {
-    keys.clear();
-    gatherHeld = false;
-  });
+  window.addEventListener("blur", () => keys.clear());
 
   // On-screen buttons for tablets.
   const touchHeld = new Set<string>();
@@ -145,6 +143,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   byId("lens-btn").addEventListener("click", () => setLens(!lens));
+  const speedSelect = byId<HTMLSelectElement>("speed");
+  speedSelect.value = String(speed);
+  speedSelect.addEventListener("change", () => {
+    speed = Number(speedSelect.value) || 1;
+    storageSet("speed", String(speed));
+  });
   byId("notebook-btn").addEventListener("click", toggleNotebook);
   byId("notebook-close").addEventListener("click", toggleNotebook);
 
@@ -163,11 +167,26 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (keys.has("a") || keys.has("arrowleft") || touchHeld.has("left")) bits |= INPUT.left;
     if (keys.has("d") || keys.has("arrowright") || touchHeld.has("right")) bits |= INPUT.right;
     if (keys.has(" ") || keys.has("w") || keys.has("arrowup") || touchHeld.has("jump")) bits |= INPUT.jump;
-    if (gatherHeld || keys.has("g") || touchHeld.has("gather")) bits |= INPUT.gather;
+    if (keys.has("g") || touchHeld.has("gather")) bits |= INPUT.gather;
     return bits;
   }
 
   // ---------------------------------------------------------------- casting
+
+  /**
+   * The one way a spell gets cast: keyboard, Cast button, quick slots and the
+   * ring all come here. With no formula it casts what the ring holds (or the
+   * last spell), and opens the ring if there is nothing to cast yet.
+   */
+  function requestCast(formula?: string): void {
+    const f = (formula ?? (ring.isOpen ? ring.text() : lastCast)).trim();
+    if (!f) {
+      ring.toggle(true);
+      return;
+    }
+    doCast(f);
+    ring.toggle(false);
+  }
 
   function doCast(formula: string): void {
     const result = JSON.parse(game.cast(formula)) as CastResult;
@@ -252,7 +271,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const label = document.createElement("span");
       label.textContent = f ? prettyFormula(f) : "";
       b.append(n, label);
-      if (f) b.addEventListener("click", () => doCast(f));
+      if (f) b.addEventListener("click", () => requestCast(f));
       el.append(b);
     }
   }
@@ -353,18 +372,50 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   // ------------------------------------------------------------------- loop
 
-  const pixels = () => new Uint8ClampedArray(memory.buffer, game.render(lens), w * h * 4);
+  // The frame is drawn straight from WebAssembly memory. The view is rebuilt
+  // only when memory grows (which detaches the old buffer) or the pointer moves.
+  let frameImage: ImageData | null = null;
+  let frameBuffer: ArrayBuffer | null = null;
+  let framePtr = -1;
+  function frameFor(ptr: number): ImageData {
+    if (frameImage === null || frameBuffer !== memory.buffer || framePtr !== ptr) {
+      frameBuffer = memory.buffer;
+      framePtr = ptr;
+      frameImage = new ImageData(new Uint8ClampedArray(memory.buffer, ptr, w * h * 4), w, h);
+    }
+    return frameImage;
+  }
+
+  let accumulator = 0;
+  let lastTime = performance.now();
+  let lastHudTime = -Infinity;
 
   function loop(): void {
-    frame++;
-    if (!ring.isOpen || frame % SLOW_MOTION_EVERY === 0) game.tick(inputBits());
-    image.data.set(pixels());
-    ctx!.putImageData(image, 0, 0);
-    if (frame % 6 === 0 || state === null) {
+    const now = performance.now();
+    // Clamp long gaps (a hidden tab) so the game doesn't fast-forward.
+    accumulator += Math.min(now - lastTime, 250) * speed;
+    lastTime = now;
+    let steps = 0;
+    while (accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
+      game.tick(inputBits());
+      accumulator -= STEP_MS;
+      steps++;
+    }
+    if (accumulator >= STEP_MS) accumulator = 0;
+    const alpha = accumulator / STEP_MS;
+    ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
+    if (now - lastHudTime >= 100 || state === null) {
+      lastHudTime = now;
       state = JSON.parse(game.state()) as GameState;
       renderHud(state);
     }
     requestAnimationFrame(loop);
+  }
+
+  // Automated browser tests read the HUD state through this hook. It exposes
+  // nothing that isn't already on screen and only exists with ?debug.
+  if (new URLSearchParams(window.location.search).has("debug")) {
+    (window as unknown as { realgame: unknown }).realgame = { state: () => state };
   }
 
   renderSlots();
