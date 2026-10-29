@@ -289,10 +289,14 @@ kbd {
 
 #ring {
   left: 50%;
-  top: 22%;
+  top: 8px;
   transform: translateX(-50%);
   width: min(560px, 92%);
-  padding: 14px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  z-index: 8;
+  padding: 12px;
   border: 1px solid #3a4b5c;
 }
 
@@ -312,8 +316,21 @@ kbd {
   font-weight: 600;
 }
 
+.tile {
+  max-width: 96px;
+}
+
 .tile .pic {
   font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+}
+
+.tile .pic svg {
+  width: 40px;
+  height: 40px;
 }
 
 #builder {

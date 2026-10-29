@@ -70,6 +70,10 @@ export class FormulaRing {
         this.cast();
       } else if (e.key === "Escape") {
         this.toggle(false);
+      } else if (e.key.toLowerCase() === "q" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // No element symbol has a Q, so Q here can only mean "close the ring".
+        e.preventDefault();
+        if (!e.repeat) this.toggle(false);
       }
       // Typing letters like Q or N must not trigger game shortcuts.
       e.stopPropagation();
@@ -89,8 +93,12 @@ export class FormulaRing {
 
   toggle(open = !this.isOpen): void {
     this.root.hidden = !open;
-    if (open && !this.input.hidden) this.input.focus();
+    // preventScroll: the stage clips its children, and a focus scroll would
+    // slide the whole game world out of view.
+    if (open && !this.input.hidden) this.input.focus({ preventScroll: true });
     if (!open) this.input.blur();
+    const stage = this.root.parentElement;
+    if (stage) stage.scrollTop = 0;
   }
 
   text(): string {

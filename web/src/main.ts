@@ -325,6 +325,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const isControl = (t: EventTarget | null): boolean =>
     t instanceof HTMLElement && t.closest("button, input, select, textarea, [contenteditable]") !== null;
 
+  /** Text boxes where every letter is part of a spell, not a hotkey. */
+  const isTyping = (t: EventTarget | null): boolean =>
+    t instanceof HTMLElement && t.closest("input, textarea, [contenteditable]") !== null;
+
   window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
     if (k === "escape") {
@@ -348,8 +352,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       setLens(!lens);
       remember(e, () => setLens(!lens));
     } else if (k === "q" && tier !== "sprout") {
+      // Q toggles the compact formula overlay. Never while typing a spell, and
+      // never let the key itself land in the box the ring focuses.
+      if (isTyping(e.target)) return;
+      e.preventDefault();
+      if (e.repeat) return;
       ring.toggle();
       remember(e, () => ring.toggle(false));
+      return;
     } else if (k === "b" || k === "n") {
       const was = !grimPanel.hidden;
       toggleGrimoire();
