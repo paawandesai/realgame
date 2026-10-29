@@ -122,6 +122,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
 Free play is not counted as rooms or trials, since those calls sit behind the existing `!freePlay` checks.
 
+Merging this branch with `claude/playable-v2` conflicts in one place only: the import block at the top of `web/src/main.ts` (checked with `git merge-tree`). Keep the rewrite's imports, add the analytics import line above, then add the calls in the table.
+
 ## Changing what is collected
 
 Every new field needs a written purpose and a deletion date before it ships (`docs/ENGINEERING.md`). To add one: add a migration (never edit `0001_events.sql` once deployed), extend `validateEvent` and its tests, update this file and `SECURITY.md`, and deploy (`npm run deploy` applies new migrations first).
