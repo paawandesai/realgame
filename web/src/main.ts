@@ -345,7 +345,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const keysLine: [string, string[]][] = [
       ["Move", ["A", "D"]],
       ["Jump", ["Space"]],
-      ["Point to aim", []],
+      ["Point to aim, or", ["T"]],
       // A key picture, not a word: Seedling casts from the Cast button and
       // never needs the Apprentice "type, then Enter" words.
       ["Cast", ["↵"]],
@@ -409,6 +409,13 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const isTyping = (t: EventTarget | null): boolean =>
     t instanceof HTMLElement && t.closest("input, textarea, [contenteditable]") !== null;
 
+  /** Shift + arrow: how far each press moves the reticle, in cells. */
+  const AIM_NUDGE: Record<string, [number, number]> = {
+    arrowleft: [-6, 0],
+    arrowright: [6, 0],
+    arrowup: [0, -6],
+    arrowdown: [0, 6],
+  };
   window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
     if (k === "escape") {
@@ -429,7 +436,20 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       if (now - typed.at > TYPE_GAP_MS) typed.keys = [];
       typed.at = now;
     }
-    if (k === "l") {
+    if (e.shiftKey && AIM_NUDGE[k]) {
+      // Keyboard aiming: Shift + arrows nudge the reticle from where it is.
+      e.preventDefault();
+      const [ax, ay] = Array.from(game.shown_aim());
+      const [dx, dy] = AIM_NUDGE[k]!;
+      game.set_aim(ax! + dx, ay! + dy);
+      return;
+    }
+    if (k === "t") {
+      // T points at the room's goal (keyboard players have no pointer).
+      if (!e.repeat && !game.aim_at_goal()) speech.say(words("Walk closer to the goal first."));
+      remember(e, null);
+      return;
+    } else if (k === "l") {
       setLens(!lens);
       remember(e, () => setLens(!lens));
     } else if (k === "q" && tier !== "sprout") {
@@ -699,7 +719,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   // ---------------------------------------------------- Apprentice spell box
 
   /** Keys the game uses itself; any other letter starts typing a spell. */
-  const GAME_KEYS = new Set(["a", "d", "w", "g", "l", "q", "b", "n"]);
+  const GAME_KEYS = new Set(["a", "d", "w", "g", "l", "q", "b", "n", "t"]);
   const castInput = tier === "apprentice" ? byId<HTMLInputElement>("cast-input") : null;
   /** Where Tab is in the spell list (-1: not cycling yet). */
   let cycleAt = -1;

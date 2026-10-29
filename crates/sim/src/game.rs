@@ -707,6 +707,36 @@ impl Game {
         self.aim = aim;
     }
 
+    /// The room goal's target, when the bolt can reach it from the hand.
+    fn goal_in_range(&self) -> Option<(i32, i32)> {
+        let (hx, hy) = self.hand();
+        self.goal_aim_point().filter(|&(x, y)| {
+            ((x as f32 - hx).powi(2) + (y as f32 - hy).powi(2)).sqrt() <= BOLT_RANGE
+        })
+    }
+
+    /// Where the reticle is drawn: the aim, or, before the player has
+    /// pointed anywhere, the goal a typed spell will fly at.
+    pub fn shown_aim(&self) -> (i32, i32) {
+        if self.aim_tick == 0 {
+            self.goal_in_range().unwrap_or(self.aim)
+        } else {
+            self.aim
+        }
+    }
+
+    /// Keyboard aiming: points at the current room's goal on purpose.
+    /// Returns false (and leaves the aim) when there is no goal in range.
+    pub fn aim_at_goal(&mut self) -> bool {
+        match self.goal_in_range() {
+            Some((x, y)) => {
+                self.set_aim(x, y, true);
+                true
+            }
+            None => false,
+        }
+    }
+
     pub fn jar_cap(formula: &str) -> u32 {
         match formula {
             "H2O" => H2O_CAP,
@@ -1706,7 +1736,9 @@ impl Game {
 
     /// Sprout and Seedling: if the player has not aimed in the last 3 s, the
     /// spell goes to the obvious target (fire for water, ice or the torch for
-    /// heat) when one is in reach.
+    /// heat) when one is in reach. At every tier, a player who has never
+    /// pointed anywhere (keyboard only) gets the same help, so a typed spell
+    /// flies at the current goal instead of a spot just ahead.
     fn soft_auto_aim(&mut self, plan: &Plan) {
         let never_aimed = self.aim_tick == 0;
         if never_aimed {
@@ -1718,7 +1750,7 @@ impl Game {
                 (hy as i32).min(HEIGHT as i32 - 1),
             );
         }
-        if !self.aim_on_goal_marker() {
+        if !never_aimed && !self.aim_on_goal_marker() {
             if self.tier > Tier::Seedling {
                 return;
             }
@@ -1769,9 +1801,7 @@ impl Game {
         // tapped card always goes somewhere that teaches something (water
         // on the ice says "too slow, try boom").
         if found.is_none() {
-            found = self.goal_aim_point().filter(|&(x, y)| {
-                ((x as f32 - hx).powi(2) + (y as f32 - hy).powi(2)).sqrt() <= BOLT_RANGE
-            });
+            found = self.goal_in_range();
         }
         // Trapped hydrogen hugs the roof; aim into the middle of the pocket so
         // the bolt clears the overhang's lip and the fireball reaches the gas.
@@ -3488,6 +3518,46 @@ mod bolts {
                 );
             }
         }
+    }
+
+    #[test]
+    fn apprentice_who_never_aimed_puts_out_hedge_one_with_typed_water() {
+        // Keyboard only: no set_aim or track_aim call at all.
+        for seed in [1, 7, 42] {
+            let mut g = Game::new(Tier::Apprentice, seed);
+            for _ in 0..30 {
+                g.tick(0);
+            }
+            assert_eq!(g.aim_tick, 0);
+            let mut t = 0;
+            while !g.rooms.gates_open[0] && t < 120 {
+                if t % 40 == 0 {
+                    assert_eq!(g.cast("water").outcome, Outcome::Full);
+                }
+                g.tick(0);
+                t += 1;
+            }
+            assert!(g.rooms.hedges[0].hits > 0, "seed {seed}: missed");
+            assert!(
+                g.rooms.gates_open[0],
+                "seed {seed}: still burning after 3 s"
+            );
+        }
+    }
+
+    #[test]
+    fn reticle_shows_the_goal_until_the_player_aims_and_t_aims_there() {
+        let mut g = Game::new(Tier::Apprentice, 3);
+        for _ in 0..30 {
+            g.tick(0);
+        }
+        let goal = g.goal_aim_point().unwrap();
+        assert_eq!(g.shown_aim(), goal);
+        g.set_aim(10, 10, true);
+        assert_eq!(g.shown_aim(), (10, 10));
+        assert!(g.aim_at_goal());
+        assert_eq!(g.aim, goal);
+        assert_eq!(g.shown_aim(), goal);
     }
 
     #[test]

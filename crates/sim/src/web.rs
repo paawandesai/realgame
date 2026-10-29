@@ -74,6 +74,17 @@ impl WebGame {
         self.game.set_aim(x, y, true);
     }
 
+    /// Where the reticle is (the goal a spell will fly at before any aiming).
+    pub fn shown_aim(&self) -> Vec<i32> {
+        let (x, y) = self.game.shown_aim();
+        vec![x, y]
+    }
+
+    /// Keyboard aiming (T): points at the room's goal. False if none in range.
+    pub fn aim_at_goal(&mut self) -> bool {
+        self.game.aim_at_goal()
+    }
+
     /// Keeps the aim under a resting pointer while the camera scrolls; does
     /// not count as aiming on purpose (so soft auto-aim can still help).
     pub fn track_aim(&mut self, x: i32, y: i32) {
@@ -394,9 +405,18 @@ fn draw_player(game: &Game, out: &mut Frame, alpha: f32, view_x: i32) {
 }
 
 fn draw_aim(game: &Game, out: &mut Frame, view_x: i32) {
-    let (ax, ay) = (game.aim.0 - view_x, game.aim.1);
-    let c = [255, 255, 255];
-    for d in [2, 3] {
+    let (x, y) = game.shown_aim();
+    let (ax, ay) = (x - view_x, y);
+    // A dark outline under white ticks, so the reticle reads on sky, fire and snow.
+    let (c, edge) = ([255, 255, 255], [20, 24, 32]);
+    for d in 2..=5i32 {
+        for (dx, dy) in [(d, 0), (-d, 0), (0, d), (0, -d)] {
+            let (ox, oy) = (dy.signum(), dx.signum());
+            put(out, ax + dx + ox, ay + dy + oy, edge);
+            put(out, ax + dx - ox, ay + dy - oy, edge);
+        }
+    }
+    for d in 2..=5 {
         put(out, ax + d, ay, c);
         put(out, ax - d, ay, c);
         put(out, ax, ay + d, c);
