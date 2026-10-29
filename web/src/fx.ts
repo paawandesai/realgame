@@ -3,6 +3,7 @@
 // labels and screen shake. Presentation only: nothing here feeds back into
 // the simulation. Strength comes from the sourced enthalpy on each event.
 
+import { words } from "./device";
 import { equationBalls } from "./icons";
 import { prettyFormula, type CastOutcome, type Fx, type Tier } from "./types";
 
@@ -63,6 +64,7 @@ const ICONS: Record<string, string> = {
   CO2: "☁️",
   CH4: "💨",
   C: "🪵",
+  "⚡": "⚡",
 };
 
 interface Particle {
@@ -629,12 +631,17 @@ export class FxLayer {
       else eq.textContent = prettyFormula(out.equation_states ?? out.equation);
       el.append(eq);
     }
-    const text = document.createElement("div");
-    text.textContent = out.label;
-    el.append(text);
+    // The sim writes short lines; each gets its own row so nothing runs on.
+    for (const line of words(out.label).split("\n")) {
+      const text = document.createElement("div");
+      text.textContent = this.tier === "sprout" ? line : prettyFormula(line);
+      el.append(text);
+    }
+    const unbalanced = out.imbalance.length > 0;
     // What this cast spent and made, from its own coefficients, and where
     // the products went (the suit's own refills show apart, by the gauges).
-    if (this.tier !== "sprout" && out.ledger && out.outcome !== "fizzle" && out.outcome !== "unknown") {
+    // An unbalanced cast already says what reacted.
+    if (this.tier !== "sprout" && !unbalanced && out.ledger && out.outcome !== "fizzle" && out.outcome !== "unknown") {
       const ledger = document.createElement("div");
       ledger.className = "fx-ledger";
       ledger.textContent = prettyFormula(out.ledger);
@@ -646,11 +653,15 @@ export class FxLayer {
         el.append(went);
       }
     }
-    if (this.tier === "apprentice" && out.delta_h_kj !== null && out.delta_h_kj !== 0) {
+    // ΔH always belongs to an equation it matches: the one cast, or (when
+    // only part of it ran) the one that actually reacted.
+    if (this.tier === "apprentice" && !unbalanced && out.delta_h_kj !== null && out.delta_h_kj !== 0) {
       const dh = document.createElement("div");
       dh.className = "fx-dh";
       const sign = out.delta_h_kj < 0 ? "−" : "+";
-      dh.textContent = `ΔH = ${sign}${Math.abs(out.delta_h_kj).toFixed(1)} kJ (${out.source?.split(",")[0] ?? ""})`;
+      const same = out.reacted === null || out.reacted === out.equation || out.reacted === out.canonical;
+      const what = same ? "" : ` for ${prettyFormula(out.reacted ?? "")}`;
+      dh.textContent = `ΔH = ${sign}${Math.abs(out.delta_h_kj).toFixed(1)} kJ${what} (${out.source?.split(",")[0] ?? ""})`;
       el.append(dh);
     }
     let life = LABEL_MS;
@@ -693,6 +704,9 @@ export class FxLayer {
       tx = Math.max(half, Math.min(sw - half, tx));
     }
     [tx, ty] = this.clearOfPopups(tx, ty, lw, lh, sw, sh);
+    // Never past the stage's edges, whatever the steering above did.
+    tx = Math.max(lw / 2 + 4, Math.min(sw - lw / 2 - 4, tx));
+    ty = Math.max(4, Math.min(sh - lh - 4, ty));
     l.el.style.left = `${tx}px`;
     l.el.style.top = `${ty}px`;
   }

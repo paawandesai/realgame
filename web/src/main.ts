@@ -893,7 +893,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     handleFx(JSON.parse(game.take_fx()) as Fx[]);
     castCount++;
     // Apprentices read the floating label; the caption would only repeat it.
-    if (tier !== "apprentice") speech.say(result.label, outcomeSpeech(result));
+    if (tier !== "apprentice") speech.say(words(result.label).replace(/\n/g, " "), outcomeSpeech(result));
     hintOnCast(result);
     scoreCast(result);
     afterCastNudges(result);
@@ -938,9 +938,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   /** What gets read aloud for a cast: the label, plus a nudge on a miss. */
   function outcomeSpeech(r: CastOutcome): string {
-    let line = r.label;
+    let line = words(r.label).replace(/\n/g, " ");
     if (r.outcome === "unknown" && tier === "sprout") line = "Hmm, that one is not a spell yet.";
-    if (r.outcome === "fizzle" && tier === "sprout") line = `${r.label} Wait a moment for your suit to fill up.`;
     return speakable(line);
   }
 

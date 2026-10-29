@@ -470,9 +470,19 @@ pub fn resolve_release(formula: &str, coef: u32, stock: &Stock) -> Resolution {
     r
 }
 
+/// The most times an unbalanced spell's amounts are taken together to make
+/// one whole set of products (CH4 + O2 is short of oxygen for one CO2 +
+/// 2H2O, so it is drawn twice: 2CH4 + 2O2, and one CH4 is left over).
+const MAX_SPUTTER_REPEAT: u32 = 4;
+
 /// Runs a reaction from the book on the reagents the player asked for, as far
 /// as the limiting reagent allows. Products always follow the book's (balanced)
 /// ratio; the typed coefficients only decide how much is drawn.
+///
+/// One rule for every unbalanced spell: only the amounts that pair up react
+/// (a weaker "sputter", at most half power), the rest is left over. When the
+/// typed amounts are too few to pair up even once, they are drawn again (up
+/// to `MAX_SPUTTER_REPEAT` times) if the suit holds them all.
 pub fn resolve_reaction(
     reaction: &Reaction,
     known: &Equation,
@@ -480,6 +490,26 @@ pub fn resolve_reaction(
     balanced: bool,
     air_o2: bool,
     stock: &Stock,
+) -> Resolution {
+    let first = resolve_times(reaction, known, typed, balanced, air_o2, stock, 1);
+    if balanced || first.units > 0 || !first.missing.is_empty() {
+        return first;
+    }
+    (2..=MAX_SPUTTER_REPEAT)
+        .map(|k| resolve_times(reaction, known, typed, balanced, air_o2, stock, k))
+        .find(|r| r.units > 0 && r.missing.is_empty())
+        .unwrap_or(first)
+}
+
+/// `resolve_reaction` with the typed amounts taken `times` times.
+fn resolve_times(
+    reaction: &Reaction,
+    known: &Equation,
+    typed: &Equation,
+    balanced: bool,
+    air_o2: bool,
+    stock: &Stock,
+    times: u32,
 ) -> Resolution {
     let mut r = Resolution::default();
     // The smallest whole set of products: 2H2O -> H2O, CO2 + 2H2O stays.
@@ -499,16 +529,17 @@ pub fn resolve_reaction(
     let mut available = Atoms::new();
     let mut requested_atoms = Atoms::new();
     for t in &typed.reactants {
+        let want = t.coef * times;
         let have = stock.get(&t.formula).copied().unwrap_or(0);
-        let n = t.coef.min(have);
-        if n < t.coef {
+        let n = want.min(have);
+        if n < want {
             r.missing.push(t.formula.clone());
         }
         if n > 0 {
             *r.drawn.entry(t.formula.clone()).or_insert(0) += n;
             add_atoms(&mut available, &t.atoms, n);
         }
-        add_atoms(&mut requested_atoms, &t.atoms, t.coef);
+        add_atoms(&mut requested_atoms, &t.atoms, want);
     }
     if air_o2 {
         // Air brings exactly the oxygen atoms the hydrogen can use.
@@ -574,6 +605,10 @@ pub fn resolve_reaction(
         // Air is only about 21% oxygen: a smaller, slower flame.
         power *= 0.5;
     }
+    if !balanced {
+        // An unbalanced spell sputters: only what pairs up reacts, weakly.
+        power = power.min(0.5);
+    }
     r.power = power.clamp(0.0, 1.0);
     if units == 0 {
         // A fizzle draws nothing: a missing reactant leaves the suit exactly
@@ -605,7 +640,7 @@ pub fn stock_atoms(stock: &Stock) -> Atoms {
     a
 }
 
-/// What did not react, as whole reagent molecules: "1 H2", or "½ O2" when
+/// What did not react, as whole reagent molecules: "1 H2", or "1/2 O2" when
 /// an odd oxygen atom is left (half a mole of O2, never a lone "O").
 pub fn unreacted(returned: &Stock, loose: &Atoms, reactants: &[Term]) -> Vec<String> {
     let mut out = vec![];
@@ -626,8 +661,6 @@ pub fn unreacted(returned: &Stock, loose: &Atoms, reactants: &[Term]) -> Vec<Str
         let text = match (whole, rem, per) {
             (0, 0, _) => continue,
             (w, 0, _) => format!("{w}"),
-            (0, 1, 2) => "½".to_string(),
-            (w, 1, 2) => format!("{w}½"),
             (0, r, p) => format!("{r}/{p}"),
             (w, r, p) => format!("{w} {r}/{p}"),
         };

@@ -3259,3 +3259,18 @@ body[data-motion="calm"] .suit-tick {
   animation: none;
   opacity: 0.9;
 }
+
+/* Short screens: the cast card stays small enough to leave the scene visible. */
+@media (max-height: 500px) {
+  .fx-label,
+  body[data-tier="sprout"] .fx-label,
+  body[data-tier="seedling"] .fx-label {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    max-width: min(360px, calc(100% - 16px));
+  }
+  .fx-label button {
+    min-height: 36px;
+    margin-top: 3px;
+  }
+}
