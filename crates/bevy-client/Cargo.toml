@@ -1,0 +1,62 @@
+[package]
+name = "realgame-bevy-client"
+version = "0.1.0"
+edition = "2021"
+description = "Spike: the current 2D simulation rendered as a 3D voxel slab with Bevy"
+publish = false
+
+# Its own workspace, so Bevy's large dependency tree stays out of the main
+# workspace's lockfile, `cargo clippy --all-targets` and CI.
+[workspace]
+
+[[bin]]
+name = "bevy-client"
+path = "src/main.rs"
+
+[dependencies]
+realgame-sim = { path = "../sim" }
+bevy = { version = "0.20.1", default-features = false, features = [
+    "std",
+    "bevy_winit",
+    "bevy_window",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_light",
+    "bevy_mesh",
+    "bevy_camera",
+    "bevy_color",
+    "keyboard",
+] }
+
+[features]
+default = ["bloom", "webgl2"]
+# The web graphics API is chosen at build time: Bevy's `webgpu` overrides
+# `webgl2`, so a site that wants both ships two .wasm files and picks one in
+# JavaScript (`navigator.gpu`). Ignored on native.
+webgl2 = ["bevy/webgl2"]
+webgpu = ["bevy/webgpu"]
+# HDR bloom and the default (LUT-based) tonemapper. Without it the build is
+# smaller and uses the Reinhard tonemapper (`--no-default-features`).
+bloom = ["bevy/bevy_post_process", "bevy/tonemapping_luts", "bevy/ktx2", "bevy/zstd_rust"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bevy = { version = "0.20.1", default-features = false, features = ["web"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "Performance"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Same as release but speed-optimised, to compare size against opt-level z.
+[profile.release-speed]
+inherits = "release"
+opt-level = 3
