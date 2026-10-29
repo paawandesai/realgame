@@ -45,6 +45,9 @@ const GAS_CELLS_PER_MOL: u32 = 3;
 /// Gathering: cells of water per mole, and how far (cells) the suit can pull from.
 const WATER_GATHER_CELLS_PER_MOL: u32 = 4;
 const GATHER_RADIUS: i32 = 48;
+/// Sprout and Seedling aim at the obvious target when the player has not
+/// aimed on purpose for this long (3 s).
+const AUTO_AIM_TICKS: u64 = 180;
 pub const PLAYER_W: f32 = 6.0;
 pub const PLAYER_H: f32 = 12.0;
 /// Movement tuning, in cells and ticks (60 ticks a second).
@@ -242,6 +245,7 @@ pub struct Game {
     torch_lit: bool,
     met_crystal: bool,
     gather_target: Option<Species>,
+    bolts: Vec<Bolt>,
     announced_complete: bool,
     state_version: u64,
     state_sig: u64,
@@ -315,6 +319,7 @@ impl Game {
             torch_lit: false,
             met_crystal: false,
             gather_target: None,
+            bolts: vec![],
             announced_complete: false,
             state_version: 1,
             state_sig: 0,
@@ -454,6 +459,7 @@ impl Game {
         self.move_player(input);
         self.update_camera();
         self.gather_tick(input & INPUT_GATHER != 0);
+        self.advance_bolts();
         // Only the area around the camera is simulated; distant rooms wait.
         let vx = self.view_x.round() as usize;
         self.grid
@@ -927,6 +933,12 @@ impl Game {
         self.next_cast_id += 1;
         let input: String = text.chars().take(crate::formula::MAX_INPUT_LEN).collect();
         let plan = spell::plan(&self.book, &input, self.tier == Tier::Sprout);
+        self.soft_auto_aim(&plan);
+        // Turn to face where the spell goes.
+        let cx = self.player.x + PLAYER_W / 2.0;
+        if (self.aim.0 as f32 - cx).abs() > 1.0 {
+            self.player.facing = if (self.aim.0 as f32) < cx { -1 } else { 1 };
+        }
         let (hx, hy) = self.hand();
 
         let (res, spell, equation, reaction_id, balanced) = match &plan {
@@ -1284,23 +1296,125 @@ impl Game {
         !s.is_gas()
     }
 
+    /// Sprout and Seedling: if the player has not aimed in the last 3 s, the
+    /// spell goes to the obvious target (fire for water, ice or the torch for
+    /// heat) when one is in reach.
+    fn soft_auto_aim(&mut self, plan: &Plan) {
+        if self.tier > Tier::Seedling {
+            return;
+        }
+        if self.aim_tick != 0 && self.ticks.saturating_sub(self.aim_tick) <= AUTO_AIM_TICKS {
+            return;
+        }
+        let douse =
+            matches!(plan, Plan::Release { formula, .. } if formula == "H2O" || formula == "CO2");
+        let heat =
+            matches!(plan, Plan::React { reaction_id, .. } if reaction_id != "electrolysis_water");
+        let torch_lit = self.torch_lit;
+        let wanted = |g: &Grid, x: i32, y: i32| -> bool {
+            let s = g.get(x, y);
+            if douse {
+                s == Species::Flame || (s == Species::Wood && g.temp_at(x, y) >= WOOD_IGNITION_C)
+            } else if heat {
+                s == Species::Ice
+                    || (!torch_lit
+                        && s == Species::Wood
+                        && (224..232).contains(&x)
+                        && (108..119).contains(&y))
+            } else {
+                false
+            }
+        };
+        if !douse && !heat {
+            return;
+        }
+        let (hx, hy) = self.hand();
+        let mut found = None;
+        Self::rings(hx as i32, hy as i32, REACH as i32, |x, y| {
+            let hit = self.grid.in_bounds(x, y) && wanted(&self.grid, x, y);
+            if hit {
+                found = Some((x, y));
+            }
+            hit
+        });
+        if let Some(p) = found {
+            self.aim = p;
+        }
+    }
+
+    /// Sends a resolved spell flying from the hand toward the aim.
     fn launch(&mut self, shot: Shot) {
         let (hx, hy) = self.hand();
-        self.emit(Fx {
+        let lands = self.trace((hx, hy), self.aim);
+        let fx = Fx {
             kind: "charge",
             x: hx,
             y: hy,
-            tx: self.aim.0 as f32,
-            ty: self.aim.1 as f32,
+            tx: lands.0 as f32,
+            ty: lands.1 as f32,
             dh_kj: shot.dh_kj,
             outcome: Some(shot.outcome),
             leftovers: Atoms::new(),
             reaction_id: shot.reaction_id.clone(),
             id: shot.id,
             power: shot.power,
+        };
+        self.emit(fx.clone());
+        self.emit(Fx { kind: "bolt", ..fx });
+        let (dx, dy) = (self.aim.0 as f32 + 0.5 - hx, self.aim.1 as f32 + 0.5 - hy);
+        let len = (dx * dx + dy * dy).sqrt();
+        let (ux, uy) = if len > 0.01 {
+            (dx / len, dy / len)
+        } else {
+            (self.player.facing as f32, 0.0)
+        };
+        let start = self.grid.get(hx.floor() as i32, hy.floor() as i32);
+        self.bolts.push(Bolt {
+            x: hx,
+            y: hy,
+            ux,
+            uy,
+            left: len.min(BOLT_RANGE),
+            leaving_liquid: start.phase() == Phase::Liquid,
+            shot,
         });
-        let at = self.trace((hx, hy), self.aim);
-        self.impact(&shot, at);
+    }
+
+    /// Moves every spell in flight about 6 cells, one cell at a time, and
+    /// lands it at the first solid, liquid or burning cell, or at its aim.
+    fn advance_bolts(&mut self) {
+        let mut bolts = std::mem::take(&mut self.bolts);
+        bolts.retain_mut(|b| {
+            for _ in 0..BOLT_SPEED {
+                let step = b.left.min(1.0);
+                b.x += b.ux * step;
+                b.y += b.uy * step;
+                b.left -= step;
+                let (cx, cy) = (b.x.floor() as i32, b.y.floor() as i32);
+                let s = self.grid.get(cx, cy);
+                let in_start_liquid = b.leaving_liquid && s.phase() == Phase::Liquid;
+                if !in_start_liquid {
+                    b.leaving_liquid = false;
+                }
+                let blocked = !in_start_liquid && Self::stops_bolt(s);
+                if blocked || b.left <= 0.0 {
+                    let at = (
+                        cx.clamp(0, WORLD_W as i32 - 1),
+                        cy.clamp(0, HEIGHT as i32 - 1),
+                    );
+                    let shot = b.shot.clone();
+                    self.impact(&shot, at);
+                    return false;
+                }
+            }
+            true
+        });
+        self.bolts = bolts;
+    }
+
+    /// Spells still in flight.
+    pub fn bolts_in_flight(&self) -> usize {
+        self.bolts.len()
     }
 
     /// The spell lands: the reaction changes the world around `at`.
@@ -1573,8 +1687,24 @@ struct Shot {
     first: bool,
 }
 
-/// How far a spell flies before it lands on its own, in cells.
+/// How far a spell flies before it lands on its own, in cells...
 const BOLT_RANGE: f32 = 200.0;
+/// ...and how fast, in cells per tick.
+const BOLT_SPEED: u32 = 6;
+
+/// A spell in flight. Deterministic: it moves a fixed distance each tick.
+#[derive(Debug, Clone)]
+struct Bolt {
+    x: f32,
+    y: f32,
+    ux: f32,
+    uy: f32,
+    /// Cells left before it reaches the aim point.
+    left: f32,
+    /// Cast while swimming: passes out of the water it started in.
+    leaving_liquid: bool,
+    shot: Shot,
+}
 
 #[cfg(test)]
 mod tests {
@@ -1582,7 +1712,7 @@ mod tests {
 
     fn game(tier: Tier) -> Game {
         let mut g = Game::new(tier, 42);
-        g.aim = (20, 140);
+        g.set_aim(20, 140, true);
         g
     }
 
@@ -1798,7 +1928,7 @@ mod tests {
     #[test]
     fn water_cast_pours_a_stream_into_the_world() {
         let mut g = game(Tier::Sprout);
-        g.aim = (60, 100);
+        g.set_aim(60, 100, true);
         let before = g.grid.count(Species::Water);
         let r = g.cast("H2O");
         assert_eq!(r.outcome, Outcome::Full);
@@ -1958,7 +2088,7 @@ mod balance {
                             && g.grid.temp_at(x, y) >= WOOD_IGNITION_C)
                 });
             let Some(aim) = target else { break };
-            g.aim = aim;
+            g.set_aim(aim.0, aim.1, true);
             assert_eq!(g.cast("H2O").outcome, Outcome::Full);
             casts += 1;
             for _ in 0..30 {
@@ -1973,6 +2103,9 @@ mod balance {
             "fire still burning after {casts} casts: {} hot wood",
             burning_wood(&g)
         );
+        // The v1 forest still spreads freely; the bounded-fuel hedge in the
+        // room redesign is what brings this down to 3 casts.
+        assert!(casts <= 10, "took {casts} aimed casts");
     }
 }
 
@@ -2146,6 +2279,142 @@ mod feel {
 }
 
 #[cfg(test)]
+mod bolts {
+    use super::*;
+
+    /// A flat, empty stretch of room 3 with the player standing on it.
+    fn arena() -> Game {
+        let mut g = Game::new(Tier::Apprentice, 42);
+        g.grid.fill_rect(660, 0, 980, 150, Species::Air);
+        g.grid.fill_rect(660, 150, 980, 180, Species::Stone);
+        g.player.x = 700.0;
+        g.player.y = 150.0 - PLAYER_H;
+        g.snap_camera();
+        g.tick(0);
+        g.take_fx();
+        g
+    }
+
+    fn snapshot(g: &Game) -> Vec<(Species, u32)> {
+        g.grid
+            .cells
+            .iter()
+            .zip(&g.grid.temp)
+            .map(|(c, t)| (*c, t.to_bits()))
+            .collect()
+    }
+
+    #[test]
+    fn water_bolt_lands_on_a_distant_fire_and_leaves_the_player_alone() {
+        let mut g = arena();
+        // A burning post about 80 cells away.
+        g.grid.fill_rect(782, 120, 786, 150, Species::Wood);
+        for y in 120..150 {
+            for x in 782..786 {
+                let i = g.grid.idx(x, y);
+                g.grid.temp[i] = 650.0;
+            }
+            g.grid.spawn_flame(781, y as i32, 100, true, 1100.0);
+        }
+        let (hx, hy) = g.hand();
+        g.set_aim(783, 140, true);
+        let before = snapshot(&g);
+        let out = g.cast("H2O");
+        assert_eq!(out.outcome, Outcome::Full);
+        assert_eq!(snapshot(&g), before, "nothing happens until the bolt lands");
+        let mut landed = None;
+        for _ in 0..30 {
+            g.tick(0);
+            if let Some(f) = g
+                .take_fx()
+                .into_iter()
+                .find(|f| f.kind == "impact" && f.id == out.id)
+            {
+                landed = Some((f.x, f.y));
+                break;
+            }
+        }
+        let (ix, iy) = landed.expect("the bolt should land within 30 ticks");
+        assert!(
+            (ix - 781.0).abs() <= 2.0 && (iy - 140.0).abs() <= 3.0,
+            "landed at {ix},{iy}"
+        );
+        let after = snapshot(&g);
+        let changed_near = |cx: f32, cy: f32, r: f32| {
+            (0..g.grid.cells.len())
+                .filter(|&i| before[i].0 != after[i].0)
+                .filter(|&i| {
+                    let (x, y) = ((i % g.grid.w) as f32, (i / g.grid.w) as f32);
+                    (x - cx).powi(2) + (y - cy).powi(2) <= r * r
+                })
+                .count()
+        };
+        assert!(
+            changed_near(ix, iy, 14.0) >= 40,
+            "only {} cells changed",
+            changed_near(ix, iy, 14.0)
+        );
+        assert_eq!(
+            changed_near(hx, hy, 12.0),
+            0,
+            "nothing changes near the player"
+        );
+    }
+
+    #[test]
+    fn a_fizzle_is_one_fx_and_no_grid_change() {
+        let mut g = arena();
+        g.jars.insert("H2".into(), 0);
+        g.jars.insert("O2".into(), 0);
+        g.set_aim(760, 140, true);
+        let before = snapshot(&g);
+        let out = g.cast("boom");
+        assert_eq!(out.outcome, Outcome::Fizzle);
+        let fx = g.take_fx();
+        assert_eq!(fx.len(), 1, "{fx:?}");
+        assert_eq!(fx[0].kind, "fizzle");
+        assert_eq!(g.bolts_in_flight(), 0);
+        assert_eq!(snapshot(&g), before);
+        // It points at the nearest crystal, where gas comes from.
+        assert!(out.source_x.is_some());
+        assert_eq!(
+            (fx[0].tx, fx[0].ty),
+            (out.source_x.unwrap() as f32, out.source_y.unwrap() as f32)
+        );
+    }
+
+    #[test]
+    fn boom_heat_scales_with_enthalpy() {
+        let mut g = arena();
+        g.set_aim(760, 140, true);
+        let out = g.cast("boom");
+        assert!((out.dh_kj + 483.6).abs() < 0.01);
+        for _ in 0..12 {
+            g.tick(0);
+        }
+        let hot = (740..780)
+            .flat_map(|x| (120..150).map(move |y| (x, y)))
+            .filter(|&(x, y)| g.grid.temp_at(x, y) > 200.0)
+            .count();
+        assert!(hot > 50, "only {hot} hot cells");
+    }
+
+    #[test]
+    fn sprout_water_auto_aims_at_the_fire() {
+        let mut g = Game::new(Tier::Sprout, 42);
+        for _ in 0..30 {
+            g.tick(0);
+        }
+        g.player.x = 90.0;
+        g.player.y = 130.0;
+        let out = g.cast("water");
+        assert_eq!(out.outcome, Outcome::Full);
+        let (ax, _) = g.aim;
+        assert!((96..180).contains(&ax), "aimed at {ax}");
+    }
+}
+
+#[cfg(test)]
 mod perf {
     use super::*;
     use std::hash::{Hash, Hasher};
@@ -2163,8 +2432,27 @@ mod perf {
     fn run(seed: u64, ticks: u32) -> Game {
         let mut g = Game::new(Tier::Seedling, seed);
         for t in 0..ticks {
+            // Cast now and then, so spells are in flight across ticks.
+            match t {
+                5 => {
+                    g.set_aim(120, 120, true);
+                    g.cast("water");
+                }
+                40 => {
+                    g.cast("boom");
+                    assert!(g.bolts_in_flight() > 0);
+                }
+                41 => {
+                    g.cast("split");
+                }
+                _ => {}
+            }
             // Walk right for a while so the player and camera move too.
-            g.tick(if t < 300 { INPUT_RIGHT } else { 0 });
+            g.tick(if (60..300).contains(&t) {
+                INPUT_RIGHT
+            } else {
+                0
+            });
         }
         g
     }
