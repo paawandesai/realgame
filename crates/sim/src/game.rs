@@ -163,6 +163,14 @@ pub struct CastOutcome {
     /// A corrected equation the UI can offer as a one-tap fix.
     pub suggestion: Option<String>,
     pub imbalance: Vec<String>,
+    /// Reagent molecules that did not react ("1 H2", "½ O2").
+    pub unreacted: Vec<String>,
+    /// The spell in its simplest balanced form ("2H2 + O2 -> 2H2O" for
+    /// "4H2 + 2O2 -> 4H2O"), or the substance for a pour. None when the
+    /// cast is not balanced: only balanced spells are kept as hotkeys.
+    pub canonical: Option<String>,
+    /// How many times the simplest form the player cast (2 for 4H2 + 2O2).
+    pub multiple: u32,
     pub concept: Option<String>,
     pub real_world: Option<String>,
     /// Shown at Apprentice tier and above, with its source.
@@ -923,8 +931,9 @@ impl Game {
             self.misses_in_a_row = 0;
         } else {
             self.misses_in_a_row += 1;
-            let offer = self.tier == Tier::Seedling || self.misses_in_a_row >= 3;
-            if offer && !balanced {
+            // An unbalanced cast gets its fix at once (Sprouts never see one:
+            // their spells are balanced for them).
+            if !balanced {
                 if let Plan::React {
                     typed, reaction_id, ..
                 } = &plan
@@ -937,8 +946,10 @@ impl Game {
             }
         }
 
+        // A Grimoire page is earned by a balanced spell that ran, never by a
+        // lopsided one that only half worked.
         let first = match &reaction_id {
-            Some(rid) if res.units > 0 && !self.discovered.contains(rid) => {
+            Some(rid) if balanced && res.units > 0 && !self.discovered.contains(rid) => {
                 self.discovered.push(rid.clone());
                 true
             }
@@ -962,7 +973,52 @@ impl Game {
             }
             c
         };
-        let mut label = self.label(spell, outcome, &res);
+        let (unreacted, canonical, multiple) = match &plan {
+            Plan::React { typed, .. } => {
+                let (simple, k) = typed.simplest();
+                (
+                    spell::unreacted(&res.returned, &res.loose, &typed.reactants),
+                    balanced.then(|| simple.to_string()),
+                    k,
+                )
+            }
+            Plan::Release { formula, .. } => (vec![], Some(formula.clone()), 1),
+            Plan::Unknown { .. } => (vec![], None, 1),
+        };
+        let mut label = self.label(spell, outcome, &res, &unreacted);
+        if let Plan::React { typed, .. } = &plan {
+            if !balanced && outcome != Outcome::Fizzle {
+                // Name the imbalance per element: "O 2 left, 1 right".
+                let left = crate::formula::side_atoms(&typed.reactants);
+                let right = crate::formula::side_atoms(&typed.products);
+                let mut els: Vec<&String> = left.keys().chain(right.keys()).collect();
+                els.sort();
+                els.dedup();
+                let parts: Vec<String> = els
+                    .into_iter()
+                    .filter_map(|el| {
+                        let (l, r) = (
+                            left.get(el).copied().unwrap_or(0),
+                            right.get(el).copied().unwrap_or(0),
+                        );
+                        (l != r).then(|| format!("{el} {l} left, {r} right"))
+                    })
+                    .collect();
+                if !parts.is_empty() {
+                    label = format!("Not balanced: {}. {label}", parts.join("; "));
+                }
+            } else if balanced
+                && multiple > 1
+                && outcome == Outcome::Full
+                && self.tier > Tier::Sprout
+            {
+                label.push_str(&if multiple == 2 {
+                    "  (double the amount, double the ΔH)".to_string()
+                } else {
+                    format!("  ({multiple}× the amount, {multiple}× the ΔH)")
+                });
+            }
+        }
         // Water thrown at the ice wall: it can't melt it, and the label says
         // what will (the impact shows a frost puff).
         if spell == "water" && outcome != Outcome::Fizzle && self.lands_on_ice((hx, hy)) {
@@ -993,6 +1049,9 @@ impl Game {
             label,
             suggestion,
             imbalance,
+            unreacted,
+            canonical,
+            multiple,
             concept: entry.as_ref().map(|r| r.concept.clone()),
             real_world: entry.as_ref().map(|r| r.real_world.clone()),
             delta_h_kj: entry.as_ref().filter(|_| show_numbers).map(|_| res.dh_kj),
@@ -1063,6 +1122,9 @@ impl Game {
             },
             suggestion,
             imbalance: vec![],
+            unreacted: vec![],
+            canonical: None,
+            multiple: 1,
             concept: None,
             real_world: None,
             delta_h_kj: None,
@@ -1072,7 +1134,13 @@ impl Game {
     }
 
     /// A short line for the floating label at the impact point.
-    fn label(&self, spell: &str, outcome: Outcome, res: &Resolution) -> String {
+    fn label(
+        &self,
+        spell: &str,
+        outcome: Outcome,
+        res: &Resolution,
+        unreacted: &[String],
+    ) -> String {
         let young = self.tier == Tier::Sprout;
         if outcome == Outcome::Fizzle {
             let what = res.missing.first().map(String::as_str).unwrap_or("");
@@ -1110,11 +1178,8 @@ impl Game {
                 " (oxygen from the air: smaller flame)"
             });
         }
-        if !res.leftovers.is_empty() {
-            text.push_str(&format!(
-                "  {} left over",
-                spell::leftover_label(&res.leftovers)
-            ));
+        if !unreacted.is_empty() {
+            text.push_str(&format!("  {} unreacted (excess)", unreacted.join(", ")));
         }
         text
     }
@@ -1827,13 +1892,66 @@ mod tests {
     }
 
     #[test]
-    fn unbalanced_hydrogen_is_partial_with_one_oxygen_left() {
+    fn unbalanced_hydrogen_is_partial_names_the_imbalance_and_finds_no_page() {
         let mut g = game(Tier::Apprentice);
+        let before = g.discovered.clone();
         let out = g.cast("H2 + O2 -> H2O");
         assert_eq!(out.outcome, Outcome::Partial);
-        assert_eq!(out.leftovers, [("O".to_string(), 1)].into_iter().collect());
+        assert!(!out.first_discovery, "a lopsided spell earns no page");
+        assert_eq!(g.discovered, before);
+        assert!(
+            out.label.contains("Not balanced: O 2 left, 1 right"),
+            "{}",
+            out.label
+        );
+        assert!(!out.label.contains("left over"), "{}", out.label);
+        assert!(!out.label.contains("+1 O"), "{}", out.label);
+        // The smaller limiting-reagent effect still happens, atoms conserved.
         assert_eq!(out.products, [("H2O".to_string(), 1)].into_iter().collect());
+        assert_eq!(out.leftovers, [("O".to_string(), 1)].into_iter().collect());
+        assert_eq!(out.unreacted, ["½ O2"]);
+        assert!(
+            out.label.contains("½ O2 unreacted (excess)"),
+            "{}",
+            out.label
+        );
+        assert_eq!(out.canonical, None, "not kept as a hotkey");
         assert_eq!(g.loose.get("O"), Some(&1), "the stray O waits in the suit");
+        // Balancing it earns the page.
+        let out = g.cast("2H2 + O2 -> 2H2O");
+        assert_eq!(out.outcome, Outcome::Full);
+        assert!(out.first_discovery);
+        assert_eq!(g.discovered, ["water_synthesis"]);
+    }
+
+    #[test]
+    fn excess_reagent_is_named_as_whole_molecules() {
+        let mut g = game(Tier::Apprentice);
+        let out = g.cast("3H2 + O2 -> 2H2O");
+        assert_eq!(out.outcome, Outcome::Partial);
+        assert_eq!(out.unreacted, ["1 H2"]);
+        assert!(
+            out.label.contains("1 H2 unreacted (excess)"),
+            "{}",
+            out.label
+        );
+        assert!(out.label.contains("H 6 left, 4 right"), "{}", out.label);
+    }
+
+    #[test]
+    fn a_multiple_of_a_spell_is_the_same_spell_with_double_the_heat() {
+        let mut g = game(Tier::Apprentice);
+        let one = g.cast("2H2 + O2 -> 2H2O");
+        g.jars.insert("H2".into(), 4);
+        g.jars.insert("O2".into(), 2);
+        let two = g.cast("4H2 + 2O2 -> 4H2O");
+        assert_eq!(two.outcome, Outcome::Full);
+        assert_eq!(two.canonical, one.canonical);
+        assert_eq!(two.canonical.as_deref(), Some("2H2 + O2 -> 2H2O"));
+        assert_eq!(two.multiple, 2);
+        assert!((two.dh_kj - 2.0 * one.dh_kj).abs() < 0.01);
+        assert!(two.label.contains("double the ΔH"), "{}", two.label);
+        assert!(!two.first_discovery, "same page as before");
     }
 
     #[test]
@@ -1911,6 +2029,13 @@ mod tests {
         assert_eq!(r.outcome, Outcome::Partial);
         assert_eq!(r.suggestion.as_deref(), Some("2H2 + O2 -> 2H2O"));
         assert!(!r.imbalance.is_empty());
+        assert!(!r.first_discovery);
+        assert!(g.discovered.is_empty());
+        assert!(
+            r.label.starts_with("Not balanced: O 2 left, 1 right"),
+            "{}",
+            r.label
+        );
     }
 
     #[test]
@@ -1924,13 +2049,12 @@ mod tests {
     }
 
     #[test]
-    fn apprentice_gets_no_fix_until_three_misses() {
+    fn apprentice_gets_the_fix_after_the_first_unbalanced_cast() {
         let mut g = game(Tier::Apprentice);
-        g.jars.insert("H2".into(), 12);
-        g.jars.insert("O2".into(), 6);
-        assert!(g.cast("H2 + O2 -> H2O").suggestion.is_none());
-        assert!(g.cast("H2 + O2 -> H2O").suggestion.is_none());
-        assert!(g.cast("H2 + O2 -> H2O").suggestion.is_some());
+        assert_eq!(
+            g.cast("H2 + O2 -> H2O").suggestion.as_deref(),
+            Some("2H2 + O2 -> 2H2O")
+        );
     }
 
     #[test]

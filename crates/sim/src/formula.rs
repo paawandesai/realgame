@@ -274,6 +274,30 @@ impl Equation {
             .collect()
     }
 
+    /// The same equation with its coefficients divided by their greatest
+    /// common divisor (4H2 + 2O2 -> 4H2O becomes 2H2 + O2 -> 2H2O), and the
+    /// factor it was divided by.
+    pub fn simplest(&self) -> (Equation, u32) {
+        fn gcd(a: u32, b: u32) -> u32 {
+            if b == 0 {
+                a
+            } else {
+                gcd(b, a % b)
+            }
+        }
+        let k = self
+            .reactants
+            .iter()
+            .chain(self.products.iter())
+            .fold(0, |g, t| gcd(g, t.coef))
+            .max(1);
+        let mut eq = self.clone();
+        for t in eq.reactants.iter_mut().chain(eq.products.iter_mut()) {
+            t.coef /= k;
+        }
+        (eq, k)
+    }
+
     /// Species formulas on each side, sorted, ignoring coefficients.
     pub fn species_key(&self) -> (Vec<String>, Vec<String>) {
         let mut l: Vec<String> = self.reactants.iter().map(|t| t.formula.clone()).collect();
@@ -310,6 +334,16 @@ impl fmt::Display for Equation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn simplest_form_divides_out_the_common_factor() {
+        let eq = parse_equation("4H2 + 2O2 -> 4H2O").unwrap();
+        let (s, k) = eq.simplest();
+        assert_eq!(s.to_string(), "2H2 + O2 -> 2H2O");
+        assert_eq!(k, 2);
+        let (s, k) = parse_equation("2H2 + O2 -> 2H2O").unwrap().simplest();
+        assert_eq!((s.to_string().as_str(), k), ("2H2 + O2 -> 2H2O", 1));
+    }
 
     #[test]
     fn parses_water_synthesis() {

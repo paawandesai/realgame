@@ -390,15 +390,15 @@ export class FxLayer {
       this.shakeBorn = now;
       if (dh > 400) this.hitStop = 3;
     }
-    // Leftover atoms drift back to the player as labelled orbs.
-    const left = Object.entries(e.leftovers);
-    left.forEach(([el, count], i) => {
+    // Unreacted reagent (whole molecules, "½ O2") drifts back to the player.
+    const left = out?.unreacted ?? [];
+    left.forEach((text, i) => {
       const label = document.createElement("div");
       label.className = "orb-label";
-      label.textContent = `+${count} ${el}`;
+      label.textContent = text;
       label.hidden = true;
       this.stage.append(label);
-      this.orbs.push({ x: e.x + i * 4, y: e.y - 4, tx: e.tx, ty: e.ty, born: now + 200 + i * 120, text: `+${count} ${el}`, el: label });
+      this.orbs.push({ x: e.x + i * 4, y: e.y - 4, tx: e.tx, ty: e.ty, born: now + 200 + i * 120, text, el: label });
     });
     if (out) window.setTimeout(() => this.label(out, e.x, e.y), 100);
   }

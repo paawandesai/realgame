@@ -38,6 +38,9 @@ function termWords(coef: string, formula: string): string {
  */
 export function speakable(text: string): string {
   let s = text
+    .replace(/(\d)½/g, "$1 and a half ")
+    .replace(/½/g, " half ")
+    .replace(/×/g, " times ")
     .replace(/→|->/g, " makes ")
     .replace(/ΔH\s*=\s*/g, "energy ")
     .replace(/[−-](\d)/g, "minus $1")

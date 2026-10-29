@@ -161,6 +161,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let lastCast = "";
   let castCount = 0;
   const slots: string[] = [...STARTER_SLOTS];
+  /** What each typed hotkey spell is (its reaction, or the substance poured). */
+  const typedKeys = new Map<string, string>();
+  /** Two hotkeys with the same key are the same spell. */
+  const slotKey = (f: string): string => {
+    const def = BAR_SPELLS.find((b) => b.formula === f);
+    if (def) return def.reaction ?? f;
+    return typedKeys.get(f) ?? f;
+  };
   /** Recent casts by id, so FX events can find their outcome and label. */
   const outcomes = new Map<number, CastOutcome>();
   const book = parseBook(reaction_book());
@@ -707,12 +715,21 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (result.outcome === "full" || result.outcome === "partial") {
       lastCast = formula;
       closeTutorial();
-      // A spell the player typed joins the hotkeys after the five Grimoire spells.
-      if (tier === "apprentice" && !slots.includes(formula) && !slots.includes(result.equation)) {
-        if (slots.length >= MAX_SLOTS) slots.splice(STARTER_SLOTS.length, 1);
-        slots.push(formula);
+      // A balanced spell the player typed joins the hotkeys after the five
+      // Grimoire spells, in its simplest form; a multiple of a spell already
+      // there (4H2 + 2O2 -> 4H2O) is the same spell, and a lopsided cast is
+      // never kept.
+      const key = result.reaction_id ?? result.canonical;
+      if (tier === "apprentice" && result.outcome === "full" && result.canonical && key && !slots.some((f) => slotKey(f) === key)) {
+        if (slots.length >= MAX_SLOTS) {
+          const gone = slots.splice(STARTER_SLOTS.length, 1)[0];
+          if (gone) typedKeys.delete(gone);
+        }
+        slots.push(result.canonical);
+        typedKeys.set(result.canonical, key);
       }
-      if (result.reaction_id) foundPage(result.reaction_id);
+      // Only a balanced spell finds its Grimoire page.
+      if (result.first_discovery && result.reaction_id) foundPage(result.reaction_id);
     }
     renderSlots();
   }
@@ -1179,6 +1196,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     lastCast = "";
     outcomes.clear();
     slots.splice(0, slots.length, ...STARTER_SLOTS);
+    typedKeys.clear();
     renderSlots();
     seedlingRoom2Filled = false;
     room1Cleared = false;

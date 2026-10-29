@@ -6,7 +6,7 @@
 //! far as the limiting reagent allows, and atoms are conserved exactly:
 //! atoms drawn (from the suit and the air) = atoms in products + leftovers.
 
-use crate::formula::{parse_equation, side_atoms, Atoms, Equation};
+use crate::formula::{parse_equation, side_atoms, Atoms, Equation, Term};
 use crate::reactions::{Reaction, ReactionBook};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -383,13 +383,39 @@ pub fn stock_atoms(stock: &Stock) -> Atoms {
     a
 }
 
-/// Kid-readable leftover text, e.g. "+1 O".
-pub fn leftover_label(atoms: &Atoms) -> String {
-    atoms
-        .iter()
-        .map(|(el, n)| format!("+{n} {el}"))
-        .collect::<Vec<_>>()
-        .join(" ")
+/// What did not react, as whole reagent molecules: "1 H2", or "½ O2" when
+/// an odd oxygen atom is left (half a mole of O2, never a lone "O").
+pub fn unreacted(returned: &Stock, loose: &Atoms, reactants: &[Term]) -> Vec<String> {
+    let mut out = vec![];
+    let mut loose = loose.clone();
+    for t in reactants {
+        let whole = returned.get(&t.formula).copied().unwrap_or(0);
+        // Loose atoms of a one-element reagent (H2, O2) are a fraction of it.
+        let mut part = (0, 1);
+        if t.atoms.len() == 1 {
+            let (el, per) = t.atoms.iter().next().expect("one element");
+            if let Some(n) = loose.remove(el) {
+                part = (n, *per);
+            }
+        }
+        let (n, per) = part;
+        let whole = whole + n / per;
+        let rem = n % per;
+        let text = match (whole, rem, per) {
+            (0, 0, _) => continue,
+            (w, 0, _) => format!("{w}"),
+            (0, 1, 2) => "½".to_string(),
+            (w, 1, 2) => format!("{w}½"),
+            (0, r, p) => format!("{r}/{p}"),
+            (w, r, p) => format!("{w} {r}/{p}"),
+        };
+        out.push(format!("{text} {}", t.formula));
+    }
+    // Anything else (never in this game's reactions) is named as atoms.
+    for (el, n) in loose {
+        out.push(format!("{n} {el} atom{}", if n == 1 { "" } else { "s" }));
+    }
+    out
 }
 
 /// Atoms of the typed reactants as a side total (used by tests and hints).

@@ -119,6 +119,12 @@ export interface CastOutcome {
   label: string;
   suggestion: string | null;
   imbalance: string[];
+  /** Reagent molecules that did not react ("1 H2", "½ O2"). */
+  unreacted: string[];
+  /** The simplest balanced form, or the substance poured; null if unbalanced. */
+  canonical: string | null;
+  /** How many times the simplest form was cast (2 for 4H2 + 2O2). */
+  multiple: number;
   concept: string | null;
   real_world: string | null;
   delta_h_kj: number | null;
