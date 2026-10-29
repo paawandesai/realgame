@@ -1,6 +1,6 @@
 # Alchemist's Trial v2: design
 
-Status: the plan for the overnight v2 build on branch `claude/playable-v2`.
+Status: built on branch `claude/playable-v2`. Sections 1-11 are the plan; where the build ended up different, the text says what was actually built, and section 12 lists the main differences in one place.
 Inputs: Paawan's playtest of v1 ("extremely basic and slow, half of it doesn't work, the spells don't do anything"), a Playwright audit of v1 (fun 2/10, clarity 3/10), three research briefs (learning games, all-ages UX, tech/perf) and three competing design proposals.
 
 ## 0. How the three proposals scored
@@ -40,7 +40,7 @@ See an obstacle (with a bobbing goal icon over it) -> cast with what you already
 
 ## 4. First 2 minutes per tier
 
-**Start screen (all tiers).** Three big picture buttons (sprout / sapling / wizard hat, each >= 96 px, with a short label and spoken name). If nothing is chosen in 8 s, the game starts in Sprout. A gear button (always visible, top-right, >= 64 px) opens the menu: change age, restart room, restart trial, sound on/off + volume, voice on/off, reduced motion, game speed 0.5x/0.75x/1x. Tier and settings live in `localStorage` only (wrapped in try/catch); the age choice is never locked.
+**Start screen (all tiers).** Three big picture buttons (sprout / sapling / wizard hat, each >= 96 px, with a short label and spoken name). The start screen waits for a choice (an early 8 s auto-start was removed after playtesting). A gear button (always visible, top-right, >= 64 px) opens the menu: change age, restart room, restart trial, sound on/off + volume, voice on/off, reduced motion, game speed 0.5x/0.75x/1x. Tier and settings live in `localStorage` only (wrapped in try/catch); the age choice is never locked.
 
 ### Sprout (4-7, zero reading)
 - 0-3 s: tap the sprout picture. The camera shows the player beside a burning hedge (room 1). Mote speaks (Web Speech, local voice, rate 0.9, caption shown): "Fire! Tap the water drop!" A ghost hand pulses over the water-drop card.
@@ -55,7 +55,7 @@ See an obstacle (with a bobbing goal icon over it) -> cast with what you already
 - Prompts are 8 words or fewer, voiced by default (toggle in menu), formula shown under each picture.
 
 ### Apprentice (11+)
-- One line: "Type a formula or a word (try `water`). [Skip]". Typed input uses the existing parser; hotkeys 1-9 cast Grimoire spells; Tab cycles; Up recalls the last spell.
+- One line: "Type a formula or a word (try `water`). [Skip]". Typed input uses the existing parser; hotkeys 1-9 cast Grimoire spells; Tab cycles; Up recalls the last spell. Starting to type a letter anywhere opens the spell box.
 - The suit starts with a charge of 4 H2 + 2 O2, so `2H2 + O2 -> 2H2O` works within 30 s: floating label `2H₂ + O₂ → 2H₂O  ΔH = −483.6 kJ (NIST)`.
 - Hovering a spell or Grimoire card shows ΔH, phase and source. Optional per-room challenge with a local score (casts used, kJ spent, atoms wasted), computed from the seed only.
 
@@ -67,7 +67,7 @@ Every cast, on every tier, goes through `Game::cast(text) -> CastOutcome`:
 2. **Launch a bolt.** A deterministic projectile entity in the sim (Proposal 2): starts at the player's hand, flies ~6 cells/tick toward the aim, stops at the first solid/liquid cell or the aim point. The reaction happens at impact, not at the player.
 3. **Resolve at impact** with whatever reagents the suit holds, using the limiting reagent:
    - `Full` - balanced and enough reagents: full-power effect, gold rim.
-   - `Partial` - unbalanced or short: reaction runs to the limiting reagent; leftovers are returned to the suit and shown as labelled floating orbs ("+1 O").
+   - `Partial` - unbalanced or short: only what pairs up reacts (a weaker "sputter", at most half power) and the rest is left over; the card says not balanced, what reacted (with its own ΔH) and what was left. Running out names the substance and how to get more.
    - `Fizzle` - nothing to react: grey puff at impact, plus a ghost icon of the missing reagent and an arrow (world-space) to its nearest source.
 4. **Return an FX event** (section 7) for every outcome, including `Fizzle` and `Unknown`.
 
@@ -96,10 +96,10 @@ Atoms are conserved in every branch: atoms consumed = atoms placed in products +
 - **Rooms** (left to right; each 2-3 min; each ends in a gate that opens visibly with a rumble once its goal state is true):
   1. **Splash Garden - fire.** A burning hedge in front of gate 1. Fire spread is bounded: a fixed fuel budget (the hedge only, separated from the trees by stone), lower spread probability. A water spell is a 40-cell stream with a cooling radius of 6, so 2-3 aimed casts put it out. A "fire left" meter over the hedge. Goal: no Flame cells and no wood above ignition in the room. The goal requires at least one player water/CO2 hit on the fire (tracked as `doused_by_player`); if the hedge ever burns out by itself, Mote says "It burned out by itself" instead of crediting water, and the gate waits for the player's cast at the embers. Feedback only claims causes the player produced.
   2. **Frozen Gate - heat changes phase.** An ice wall blocks the path above a dry pit. Boom (2H2 + O2) melts it; meltwater pours into the pit so you can swim/wade across; steam rises. Second solution: carry fire (a torch at the room entrance can be lit from the room-1 embers or with boom).
-  3. **Crystal Lab - electrolysis costs energy.** Cast water at the crystal pool (or "split" near it): an arc runs from the crystal, H2 and O2 bubble up in a visible 2:1 count and collect under a stone overhang. Igniting the trapped gas (boom or torch) blasts the stone door hinge open. The crystal's charge meter visibly drops with each split.
+  3. **Crystal Lab - electrolysis costs energy.** Cast water at the crystal pool (or "split" near it): an arc runs from the crystal and H2 and O2 bubble up in a visible 2:1 count. Hydrogen (2.02 g/mol, far lighter than air at 28.97) rises and collects under a stone overhang; oxygen (32.00 g/mol) is slightly denser than air and drifts down, so only the hydrogen is trapped and only trapped H2 counts toward the goal. Igniting it (boom or torch) burns it with oxygen from the air and blasts the stone door open. The trap fills over 2-3 splits, shown on a gauge, and the battery visibly drops with each split.
   4. **Marsh Door - fire triangle.** Marsh vents bubble CH4. A spark lights a sustained fireball (CH4 + 2O2 -> CO2 + 2H2O, -802.3 kJ). The brazier by the final door must be lit, but a second burning hedge blocks it: put it out with water, or capture CO2 from the methane flame and pour the "cloud" spell - CO2 is denser than air (1.98 vs 1.20 g/L at 0 °C), sinks, pools and smothers flames. Lighting the brazier opens the final door: Breakthrough screen.
-- **Goal UI:** a bobbing icon over each room's target plus a soft edge arrow when it is off screen, and a small 4-dot room-progress strip at the top. The five-item text objective list is removed.
-- **End screen:** breakthrough animation, Grimoire summary (cards found / silhouettes), Replay, Change age, Free play (all rooms open, all spells unlocked).
+- **Goal UI:** a bobbing icon over each room's target plus a soft edge arrow when it is off screen, a small 4-dot room-progress strip at the top, and a goal pill per room with 2-3 short ticked steps (pictures for Sprout, eight words or fewer for Seedling, full sentences for Apprentice). The v1 five-objective chain is gone.
+- **End screen:** breakthrough animation, Grimoire summary (cards found / silhouettes), Replay, Change age, Free play (all rooms open, all spells unlocked; each room has a Reset room button that rebuilds its target from the seed, and 5-6 seeded challenges unlock "coming soon" Grimoire pages).
 - **Hint ladder** per room, triggered by 8 s idle or 3 fizzles in a row: pulse the target -> ghost the needed card/reagent -> ghost the full spell (Sprout: ghost hand performs it). Never a dead end.
 
 ## 7. Feedback and juice (presentation only; never changes the sim)
@@ -124,7 +124,7 @@ Measured in v1: about 1.0 ms per sim step natively, 60 fps everywhere; "slow" wa
 3. **Skip work:** skip Air before any call in `move_pass`; skip heat pairs within 0.01 °C. Active-region stepping (section 6). Chunk sleeping (64 x 64, awake flag + dirty rect) only if the bench below fails.
 4. **Render only the viewport:** `render(view_x)` writes 320 x 180 pixels; cache the typed-array view (rebuild when `memory.buffer` changes); a `state_version` counter so JSON state is built only when something changed.
 5. **Overlay canvas** for particles, bolt, glow sprites, labels, goal icons.
-6. **Stretch, behind a flag:** WebGL1 palette shader (species + temperature `u8` textures uploaded with `texSubImage2D`, palette lookup, noise, flicker, bloom at 160 x 90) with automatic fallback to Canvas2D.
+6. **Stretch, behind a flag (built; opt in with `?gl=1`, and software WebGL stays on Canvas2D):** WebGL1 palette shader (species + temperature `u8` textures uploaded with `texSubImage2D`, palette lookup, noise, flicker, bloom at 160 x 90) with automatic fallback to Canvas2D.
 7. **Size:** enable `wasm-opt` only if `binaryen` is installed locally (no build-time download); total download stays < 2 MB.
 8. **Budgets (tested):** native release bench of 600 ticks of the full 4-room level averages < 2 ms/step; Playwright at 6x CPU throttle keeps frame time < 16 ms average.
 
@@ -154,3 +154,13 @@ Measured in v1: about 1.0 ms per sim step natively, 60 fps everywhere; "slow" wa
 ## 11. Tests that change on purpose
 
 v1 gameplay tests "the fire must spread if ignored", "aiming water at it puts it out" and "the trial stays completable" check behaviour deliberately redesigned here. Likewise `unbalanced_cast_fizzles_for_seedling_with_a_fix`, `sprout_gets_auto_balanced`, `apprentice_gets_no_fix_until_three_misses` (unbalanced casts now resolve as `Partial` on the limiting reagent; the one-tap fix and Sprout auto-balance stay as UI help), `electrolysis_needs_charge_then_conserves_atoms` (now: works with low power away from a crystal, still conserves atoms and drains charge by ΔH) and `release_pours_water_into_the_world` (now via the bolt at impact). All are rewritten, not deleted: the fire still spreads within its fuel budget when ignored, water still puts it out (now in <= 3 aimed casts), and the four-room trial must be completable by a scripted run across 5 seeds. Science tests are untouched.
+
+## 12. As built: differences from the plan
+
+- **Controls.** `A`/`D` or Left/Right move; `Space`/`W`/Up jump; mouse or touch aims and never casts (except a Sprout tap on the world); `T` aims at the room goal and `Shift`+arrows nudge the reticle; `Enter` casts (Apprentice: opens the spell box); `G` gathers; `L` toggles the heat lens (`Tab` cycles spells for Apprentice); `B` or `N` opens the Grimoire; `Q` opens the compact formula overlay; `1`-`9` cast saved spells; `Esc` closes overlays.
+- **Unbalanced casts** sputter on what pairs up (section 5.1) instead of running at full limiting-reagent power. Seedling's first Fix it explains before it solves.
+- **Electrolysis away from a crystal** draws the suit battery by 571.7 kJ per 2 H2O; only a crystal or the sun recharges it.
+- **Feedback.** One message channel at a time: cast cards hold the popup queue and dock under the goal column; the bottom-centre toast is gone.
+- **Real-chemistry wording.** Only reactions in `content/reactions.json` or `content/known_reactions.json` (each with a source) are called real. Helium, neon and argon "don't react"; krypton and xenon "almost never react: only with fluorine, in special labs", and their known fluorides (XeF2, XeF4, KrF2) are recognised as real but not in this trial.
+- **Size.** `wasm-opt` is off (it would download binaryen at build time); the build still stays far under 2 MB.
+
