@@ -162,6 +162,16 @@ impl Tier {
             _ => Tier::Apprentice,
         }
     }
+
+    /// How much faster than the base tuning this tier walks: young players
+    /// cross a room in about 3 s instead of trudging (playtest round 4).
+    /// Speed and acceleration scale together, so the feel stays snappy.
+    pub fn walk_scale(self) -> f32 {
+        match self {
+            Tier::Sprout => 1.4,
+            Tier::Seedling | Tier::Apprentice => 1.15,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -390,6 +400,9 @@ pub struct Game {
     /// Step every column each tick instead of only the active region around
     /// the camera (the worst case, for benchmarks and tooling).
     pub step_all_columns: bool,
+    /// Multiplies walking speed, acceleration and air speed
+    /// (`Tier::walk_scale`; 1.0 is the base tuning).
+    pub walk_scale: f32,
 }
 
 impl Game {
@@ -458,6 +471,7 @@ impl Game {
             view_x: 0.0,
             prev_view_x: 0.0,
             step_all_columns: false,
+            walk_scale: tier.walk_scale(),
             book,
             discovered: vec![],
             misses_in_a_row: 0,
@@ -602,12 +616,14 @@ impl Game {
         self.player.jump_held = held;
 
         // Run: accelerate toward the target speed, stop quickly when let go.
+        let walk = self.walk_scale;
+        let air_max = AIR_MAX * walk;
         let max = if swimming {
             SWIM_MAX
         } else if grounded {
-            RUN_MAX
+            RUN_MAX * walk
         } else {
-            AIR_MAX
+            air_max
         };
         let mut target_vx = 0.0;
         if input & INPUT_LEFT != 0 {
@@ -625,12 +641,12 @@ impl Game {
         } else if target_vx == 0.0 {
             RUN_DECEL
         } else {
-            RUN_ACCEL
+            RUN_ACCEL * walk
         };
         let dv = (target_vx - self.player.vx).clamp(-rate, rate);
         self.player.vx += dv;
         if !grounded && !swimming && !knocked {
-            self.player.vx = self.player.vx.clamp(-AIR_MAX, AIR_MAX);
+            self.player.vx = self.player.vx.clamp(-air_max, air_max);
         }
 
         // Coyote time and jump buffering make jumps forgiving.
@@ -3902,6 +3918,35 @@ mod feel {
             g.tick(INPUT_RIGHT);
         }
         assert!(g.player.x - x0 >= 120.0, "{} cells/s", g.player.x - x0);
+    }
+
+    /// Cells walked on flat ground holding right for `ticks`.
+    fn walked(tier: Tier, scale: Option<f32>, ticks: u32) -> f32 {
+        let mut g = arena();
+        g.tier = tier;
+        g.walk_scale = scale.unwrap_or(tier.walk_scale());
+        g.grid.fill_rect(660, 0, 1280, 150, Species::Air);
+        g.grid.fill_rect(660, 150, 1280, 180, Species::Stone);
+        let x0 = g.player.x;
+        for _ in 0..ticks {
+            g.tick(INPUT_RIGHT);
+        }
+        g.player.x - x0
+    }
+
+    #[test]
+    fn sprout_walks_at_least_a_third_faster_than_the_base_tuning() {
+        let base = walked(Tier::Sprout, Some(1.0), 120);
+        let sprout = walked(Tier::Sprout, None, 120);
+        assert!(sprout >= base * 1.35, "sprout {sprout} vs base {base}");
+        let seedling = walked(Tier::Seedling, None, 120);
+        assert!(
+            seedling >= base * 1.12,
+            "seedling {seedling} vs base {base}"
+        );
+        // Still a walk, not a dash: a 320-cell room takes at least 1.5 s.
+        let room_ticks = 320.0 / (sprout / 120.0);
+        assert!(room_ticks >= 90.0, "{room_ticks} ticks");
     }
 
     /// Walks off a ledge and presses jump `late` ticks after leaving it.

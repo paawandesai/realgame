@@ -4236,3 +4236,112 @@ body.cast-ok #help {
     display: none;
   }
 }
+
+/* ------------------------- Sprout cues (round 4): badges, cloud, bullseye */
+
+#battery-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#battery-tag .icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+body[data-tier="sprout"] #battery-tag .icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* A small card picture on a goal marker: which card it needs. */
+.goal-badge {
+  position: absolute;
+  right: -12px;
+  bottom: -10px;
+  width: 26px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 7px;
+  background: #0f1720;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.goal-badge.badge-star {
+  border-color: #f0c75e;
+}
+
+/* Sprout's gas pocket: a glowing cloud of bubbles, no outline box. */
+#goal-area.sprout-cloud {
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(143, 211, 255, 0.45) 0%, rgba(143, 211, 255, 0.18) 55%, transparent 75%);
+  animation: cloud-glow 1.6s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#goal-area.sprout-cloud .cloud-pic {
+  position: absolute;
+  inset: 8% 30%;
+  opacity: 0.85;
+}
+
+#goal-area.sprout-cloud .cloud-eye {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #e8473c 0 22%, #fff 22% 44%, #e8473c 44% 66%, transparent 66%);
+  animation: eye-pulse 1s ease-in-out infinite;
+}
+
+@keyframes cloud-glow {
+  50% {
+    filter: brightness(1.3);
+  }
+}
+
+@keyframes eye-pulse {
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+body[data-motion="calm"] #goal-area.sprout-cloud,
+body[data-motion="calm"] #goal-area.sprout-cloud .cloud-eye {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #goal-area.sprout-cloud,
+  #goal-area.sprout-cloud .cloud-eye {
+    animation: none;
+  }
+}
+
+/* The aim layer sits under the player layer, so the bullseye never covers
+ * the player; over the player it shrinks to a thin ring. */
+#aim-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#aim-layer #bullseye {
+  z-index: auto;
+}
+
+#bullseye.ring {
+  background: none;
+  border: 3px solid rgba(232, 71, 60, 0.9);
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  box-shadow: 0 0 0 2px rgba(15, 23, 32, 0.6);
+}

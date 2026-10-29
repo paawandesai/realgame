@@ -13,7 +13,7 @@ import type { Goal, Tier } from "./types";
 import { prettyFormula } from "./types";
 
 const GOAL_ICON: Record<Goal["kind"], IconName> = {
-  fire: "fire",
+  fire: "hedgeFire",
   ice: "ice",
   gas: "bubbles",
   brazier: "bowl",
@@ -22,7 +22,7 @@ const GOAL_ICON: Record<Goal["kind"], IconName> = {
 const STEP_ICON: Record<string, IconName> = {
   bubbles: "bubbles",
   boom: "boom",
-  fire: "fire",
+  fire: "hedgeFire",
   bowl: "bowl",
   methane: "methane",
 };

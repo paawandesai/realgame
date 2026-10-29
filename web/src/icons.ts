@@ -69,6 +69,14 @@ const FIRE: Shape[] = [
   ["path", { d: "M24 24 C28 28 31 31 31 35 a7 7 0 0 1 -14 0 C17 31 21 29 24 24 Z", fill: "#f0e442" }],
 ];
 
+/** A hedge on fire: a green bush with a flame on top (the room 1 and room 4
+ * targets), so "put out the burning hedge" is one picture. */
+const HEDGE_FIRE: Shape[] = [
+  ["path", { d: "M6 44 a9 9 0 0 1 4 -16 a10 10 0 0 1 14 -6 a10 10 0 0 1 14 6 a9 9 0 0 1 4 16 Z", fill: "#2f8f4e", stroke: "#bff0c8", "stroke-width": 2 }],
+  ["path", { d: "M24 2 C29 9 34 12 34 20 a10 10 0 0 1 -20 0 C14 14 18 12 19 7 C21 11 22 12 24 12 C24 8 23 5 24 2 Z", fill: "#e69f00" }],
+  ["path", { d: "M24 14 C27 17 29 19 29 22 a5 5 0 0 1 -10 0 C19 19 22 17 24 14 Z", fill: "#f0e442" }],
+];
+
 const ICE: Shape[] = [
   ["rect", { x: 8, y: 8, width: 32, height: 32, rx: 4, fill: "#a6dcf5", stroke: "#ffffff", "stroke-width": 2 }],
   ["path", { d: "M14 16 l8 -4 M14 26 l14 -8 M20 36 l14 -8", stroke: "#ffffff", "stroke-width": 3, "stroke-linecap": "round" }],
@@ -274,6 +282,7 @@ const ICONS = {
   boom: BOOM,
   cloud: CLOUD,
   fire: FIRE,
+  hedgeFire: HEDGE_FIRE,
   ice: ICE,
   crystal: CRYSTAL,
   bowl: BOWL,
@@ -294,7 +303,10 @@ const ICONS = {
 export type IconName = keyof typeof ICONS;
 
 export function icon(name: IconName): SVGSVGElement {
-  return svg(ICONS[name]);
+  const el = svg(ICONS[name]);
+  // Which picture this is, for tests and styling.
+  el.setAttribute("data-icon", name);
+  return el;
 }
 
 /** Replaces an element's children with an icon. */

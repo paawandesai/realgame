@@ -409,7 +409,7 @@ impl Game {
     pub fn objective_line(&self, k: usize) -> &'static str {
         match k {
             0 => self.line(
-                "Put out the fire!",
+                "Water the burning hedge!",
                 "Put out the burning hedge.",
                 "Put out the burning hedge: cast H2O or CO2 at the flames.",
             ),
@@ -424,7 +424,7 @@ impl Game {
                 "Split pool water into its two gases with the crystal's power, trap them under the stone roof, then light them.",
             ),
             _ => self.line(
-                "Put out fire, light bowl!",
+                "Water hedge, light bowl!",
                 "Put out the hedge, light the brazier.",
                 "Put out the hedge (your suit holds H2O and CO2), then light the brazier by the door: it needs heat.",
             ),
@@ -623,7 +623,7 @@ impl Game {
             })
             .collect();
         let intro = self.line(
-            "Fire! Tap the water drop!",
+            "Burning hedge! Tap water drop!",
             "Fire! Cast H2O at the flames.",
             "Fire in the garden. Your suit is full of water: cast H2O at the flames.",
         );
@@ -740,7 +740,7 @@ impl Game {
                 "The crystal pool. Electricity splits water into two hydrogen for every oxygen. Trap the gas under the stone roof, then light it.",
             ),
             3 => self.line(
-                "Fire! Then light the bowl!",
+                "Burning hedge! Water, then bowl!",
                 "Douse the hedge, then light the brazier.",
                 "Put out the hedge with water or carbon dioxide, then light the brazier. Bonus star: light it with methane from the marsh bubbles (hold G there).",
             ),
@@ -791,7 +791,7 @@ impl Game {
                     // No Grimoire page: pages come only from spells the
                     // player casts (CH4 + 2O2 -> CO2 + 2H2O, typed, finds it).
                     let line = self.line(
-                        "Bubbles on fire! Stand close!",
+                        "Bubbles burning! Stand close!",
                         "Methane burns into CO2. Stand close.",
                         "The methane vent caught fire! Burning methane makes carbon dioxide: stand close and your suit will catch it.",
                     );
@@ -1006,19 +1006,19 @@ impl Game {
             let h = &self.rooms.hedges[0];
             let line = if h.co2_hits == 0 {
                 self.line(
-                    "Fire out! Gate open!",
+                    "Hedge out! Gate open!",
                     "Fire out! Cooling took its heat. Gate open.",
                     "The fire is out. Fire needs fuel, oxygen and heat: your water took away the heat. The gate is open.",
                 )
             } else if h.co2_hits == h.hits {
                 self.line(
-                    "Fire out! Gate open!",
+                    "Hedge out! Gate open!",
                     "Fire out! CO2 took its oxygen. Gate open.",
                     "The fire is out. Fire needs fuel, oxygen and heat: CO2 is denser than air, so it sank over the flames and took away the oxygen. The gate is open.",
                 )
             } else {
                 self.line(
-                    "Fire out! Gate open!",
+                    "Hedge out! Gate open!",
                     "Fire out! No heat, no oxygen. Gate open.",
                     "The fire is out. Fire needs fuel, oxygen and heat: water took away the heat and CO2, denser than air, took away the oxygen. The gate is open.",
                 )
@@ -1478,8 +1478,18 @@ impl Game {
             Goal {
                 room: 4,
                 kind: "brazier",
-                x: bx,
-                y: BRAZIER.y0 - 10,
+                // Over the burning hedge while it blocks the way, then over
+                // the bowl: the marker always sits on what to cast at next.
+                x: if r.hedges[1].out {
+                    bx
+                } else {
+                    HEDGE2.centre().0
+                },
+                y: if r.hedges[1].out {
+                    BRAZIER.y0 - 10
+                } else {
+                    HEDGE2.y0 - 10
+                },
                 done: r.brazier_lit,
                 meter: Some(r.hedges[1].meter()),
                 // The hedge blocks the way: put it out, then light the bowl.
@@ -1502,7 +1512,7 @@ impl Game {
         let mut steps = vec![
             Step {
                 text: self.line(
-                    "Fire out!",
+                    "Hedge out!",
                     "1. Put out the hedge.",
                     "1. Put out the hedge: H2O or CO2.",
                 ),
@@ -2355,7 +2365,9 @@ mod tests {
         for t in 0..40 {
             g.tick(INPUT_RIGHT | INPUT_JUMP);
             if t > 2 && !g.player.grounded {
-                assert!(g.player.vx.abs() <= AIR_MAX + 1e-3, "{}", g.player.vx);
+                // Air speed scales with the tier's walk speed (`Tier::walk_scale`).
+                let cap = AIR_MAX * g.walk_scale;
+                assert!(g.player.vx.abs() <= cap + 1e-3, "{}", g.player.vx);
             }
         }
         settle(&mut g, 60);

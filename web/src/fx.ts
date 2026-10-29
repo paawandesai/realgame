@@ -229,6 +229,21 @@ export class FxLayer {
   /** How far the world layers are raised (px) to keep the player above the
    * bottom HUD. Framing, not motion, so it applies under Calm motion too. */
   liftPx = 0;
+  /** Short landscape screens: the world layers are scaled up by this much
+   * about the stage's bottom centre, cropping sky (and a sliver of each
+   * side) so the player and targets read bigger. 1 = no zoom. */
+  zoom = 1;
+  /** The player canvas's own translate (CSS px), so the zoom maps it. */
+  private playerAt: [number, number] = [0, 0];
+
+  /** Maps a point on the unzoomed stage (CSS px) to where the zoom puts it. */
+  zoomed(x: number, y: number): [number, number] {
+    const z = this.zoom;
+    if (z === 1) return [x, y];
+    const ox = this.stage.clientWidth / 2;
+    const oy = this.stage.clientHeight;
+    return [ox + (x - ox) * z, oy + (y - oy) * z];
+  }
   /** HUD popups the cast-result bubble must steer clear of (the Grimoire
    * card, Mote's caption, the objective banner). Hidden ones are skipped. */
   avoid: () => (HTMLElement | null)[] = () => [];
@@ -475,6 +490,21 @@ export class FxLayer {
     if (redraw || this.playerBox === null) {
       ctx.clearRect(0, 0, bw, bh);
       ctx.imageSmoothingEnabled = false;
+      // A soft pool of light under the feet, so the player stands out from
+      // sparks, steam and bubbles around them.
+      const gx = bw / 2;
+      const gy = pad + h - cell * 0.5;
+      const rx = w * 0.75;
+      const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, rx);
+      glow.addColorStop(0, "rgba(255, 246, 214, 0.55)");
+      glow.addColorStop(1, "rgba(255, 246, 214, 0)");
+      ctx.save();
+      ctx.fillStyle = glow;
+      ctx.translate(gx, gy);
+      ctx.scale(1, Math.min(1, (pad + cell) / rx));
+      ctx.translate(-gx, -gy);
+      ctx.fillRect(gx - rx, gy - rx, rx * 2, rx * 2);
+      ctx.restore();
       ctx.save();
       ctx.shadowColor = HALO;
       ctx.shadowBlur = Math.max(2, k * 1.5);
@@ -484,7 +514,9 @@ export class FxLayer {
     this.playerBox = [x - pad, y - pad, bw, bh];
     const at = `${((x - pad) * css).toFixed(1)}px ${((y - pad) * css).toFixed(1)}px`;
     if (this.playerCanvas.style.translate !== at) this.playerCanvas.style.translate = at;
-    this.playerScreenBox = { x: x * css, y: y * css, w: w * css, h: h * css };
+    this.playerAt = [(x - pad) * css, (y - pad) * css];
+    const [zx, zy] = this.zoomed(x * css, y * css);
+    this.playerScreenBox = { x: zx, y: zy, w: w * css * this.zoom, h: h * css * this.zoom };
   }
 
   private resize(): void {
@@ -1347,8 +1379,9 @@ export class FxLayer {
       ctx.arc(sx(x), sy(y), rad(3 * k), 0, Math.PI * 2);
       ctx.fill();
       o.el.hidden = now < o.born;
-      o.el.style.left = `${sx(x) * css}px`;
-      o.el.style.top = `${(sy(y) - 6 * k) * css}px`;
+      const [ox, oy] = this.zoomed(sx(x) * css, (sy(y) - 6 * k) * css);
+      o.el.style.left = `${ox}px`;
+      o.el.style.top = `${oy}px`;
       o.el.style.opacity = String(ctx.globalAlpha);
     }
 
@@ -1500,8 +1533,19 @@ export class FxLayer {
     this.lastShakePx = Math.max(Math.abs(dx), Math.abs(dy));
     this.maxShakePx = Math.max(this.maxShakePx, this.lastShakePx);
     dy -= this.liftPx;
-    const transform = dx === 0 && dy === 0 ? "" : `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+    const z = this.zoom;
+    const plain = dx === 0 && dy === 0 ? "" : `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+    // Zoom about the stage's bottom centre O: each layer is scaled about its
+    // own top-left corner T and shifted by (1 - z)(O - T).
+    const ox = this.stage.clientWidth / 2;
+    const oy = this.stage.clientHeight;
+    const zoomAt = (tx: number, ty: number) =>
+      `translate(${(dx + (1 - z) * (ox - tx)).toFixed(1)}px, ${(dy + (1 - z) * (oy - ty)).toFixed(1)}px) scale(${z})`;
+    const layers = z === 1 ? plain : zoomAt(0, 0);
     for (const el of this.shaken) {
+      const transform = z !== 1 && el === this.playerCanvas ? zoomAt(this.playerAt[0], this.playerAt[1]) : layers;
+      if (z !== 1 && el.style.transformOrigin !== "0px 0px") el.style.transformOrigin = "0px 0px";
+      if (z === 1 && el.style.transformOrigin) el.style.transformOrigin = "";
       if (el.style.transform !== transform) el.style.transform = transform;
     }
   }

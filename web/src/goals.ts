@@ -7,11 +7,26 @@ import { icon, type IconName } from "./icons";
 import type { Goal } from "./types";
 
 const GOAL_ICON: Record<Goal["kind"], IconName> = {
-  fire: "fire",
+  fire: "hedgeFire",
   ice: "ice",
   gas: "bubbles",
   brazier: "bowl",
 };
+
+/** The marker's picture: room 4's marker is the burning hedge until the
+ * hedge is out (water is what it needs), then the bowl. */
+function markerIcon(g: Goal): IconName {
+  return g.kind === "brazier" && g.need === "water" ? "hedgeFire" : GOAL_ICON[g.kind];
+}
+
+/** Sprout: a small badge on the marker saying which card it needs (a water
+ * drop on a burning hedge) or that it is the trial's final goal (a star on
+ * the bowl). */
+function markerBadge(g: Goal): IconName | null {
+  if (g.need === "water") return "drop";
+  if (g.kind === "brazier") return "star";
+  return null;
+}
 
 /** The player is "there" within this many cells of a goal's standing spot. */
 export const NEAR_CELLS = 40;
@@ -56,7 +71,7 @@ export class GoalMarkers {
    * picture when full, and the battery tag is just its lightning bolt. */
   setPictureOnly(on: boolean): void {
     this.pictureOnly = on;
-    this.battery.textContent = on ? "⚡" : "⚡ Crystal battery";
+    this.setBatteryTag(on);
     const stand = this.stand.firstElementChild;
     if (stand) stand.textContent = on ? "⬇" : "Stand here";
     this.trapText.replaceChildren();
@@ -64,6 +79,28 @@ export class GoalMarkers {
   }
 
   private trapKey = "";
+
+  /** The crystal's name tag: a crystal picture, and its name for readers. */
+  private setBatteryTag(pictureOnly: boolean): void {
+    this.battery.replaceChildren(icon("crystal"));
+    if (!pictureOnly) {
+      const word = document.createElement("span");
+      word.textContent = "Crystal battery";
+      this.battery.append(word);
+    }
+    this.area.classList.toggle("sprout-cloud", pictureOnly);
+    this.area.replaceChildren();
+    if (pictureOnly) {
+      // Sprout: the gas pocket is a glowing cloud of bubbles with a pulsing
+      // bullseye, not an outlined box.
+      const cloud = document.createElement("span");
+      cloud.className = "cloud-pic";
+      cloud.append(icon("bubbles"));
+      const eye = document.createElement("span");
+      eye.className = "cloud-eye";
+      this.area.append(cloud, eye);
+    }
+  }
 
   constructor(
     private readonly stage: HTMLElement,
@@ -88,7 +125,6 @@ export class GoalMarkers {
     this.area.hidden = true;
     this.battery = document.createElement("div");
     this.battery.id = "battery-tag";
-    this.battery.textContent = "⚡ Crystal battery";
     this.battery.hidden = true;
     this.pointer = document.createElement("div");
     this.pointer.id = "goal-pointer";
@@ -118,6 +154,7 @@ export class GoalMarkers {
     this.trapText.className = "trap-text";
     this.trapMeter.append(icon("bubbles"), bar, this.trapText);
     this.layer.append(this.area, this.battery, this.pointer, this.stand, this.trapMeter);
+    this.setBatteryTag(false);
 
     this.go = document.createElement("button");
     this.go.type = "button";
@@ -144,11 +181,26 @@ export class GoalMarkers {
     }
     goals.forEach((g, i) => {
       const m = this.markers[i]!;
-      if (m.el.dataset.kind !== g.kind) {
+      const pic = markerIcon(g);
+      if (m.el.dataset.kind !== g.kind || m.el.dataset.pic !== pic) {
         m.el.dataset.kind = g.kind;
+        m.el.dataset.pic = pic;
         // Swap the picture, never stack a second one.
         m.el.querySelector(":scope > .icon")?.remove();
-        m.el.prepend(icon(GOAL_ICON[g.kind]));
+        m.el.prepend(icon(pic));
+      }
+      const badge = this.pictureOnly ? markerBadge(g) : null;
+      if ((m.el.dataset.badge ?? "") !== (badge ?? "")) {
+        m.el.querySelector(":scope > .goal-badge")?.remove();
+        if (badge) {
+          const b = document.createElement("span");
+          b.className = `goal-badge badge-${badge}`;
+          b.append(icon(badge));
+          m.el.append(b);
+          m.el.dataset.badge = badge;
+        } else {
+          delete m.el.dataset.badge;
+        }
       }
       m.el.dataset.room = String(g.room);
       m.el.hidden = g.done;

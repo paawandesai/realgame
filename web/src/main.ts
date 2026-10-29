@@ -90,14 +90,15 @@ const STARTER_SLOTS = BAR_SPELLS.map((b) => b.formula);
 
 /** What to aim at for each goal, in words and as a picture. */
 const AIM_WORDS: Record<Goal["kind"], string> = { fire: "fire", ice: "ice", gas: "bubbles", brazier: "bowl" };
-const GOAL_PICTURE: Record<Goal["kind"], IconName> = { fire: "fire", ice: "ice", gas: "bubbles", brazier: "bowl" };
+const GOAL_PICTURE: Record<Goal["kind"], IconName> = { fire: "hedgeFire", ice: "ice", gas: "bubbles", brazier: "bowl" };
 
 /** The picture for a caption, from what it talks about (first match wins). */
 const CAPTION_PICTURES: [RegExp, IconName][] = [
   [/\bcrystal|battery\b/i, "crystal"],
   [/\bice\b|\bmelt/i, "ice"],
   [/\bbubble|\bgas\b|\bsplit/i, "bubbles"],
-  [/\bfire\b|\bflame|\bhedge|\bburn|\btorch/i, "fire"],
+  [/\bhedge/i, "hedgeFire"],
+  [/\bfire\b|\bflame|\bburn|\btorch/i, "fire"],
   [/\bbowl\b|\bbrazier/i, "bowl"],
   [/\bboom\b|\bbang\b/i, "boom"],
   [/\bwater\b|\bsplash/i, "drop"],
@@ -397,18 +398,36 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   bullseye.id = "bullseye";
   bullseye.className = "reticle";
   bullseye.hidden = tier !== "sprout";
+  // Its own world layer just under the player's, so the player is always
+  // drawn over it.
+  const aimLayer = document.createElement("div");
+  aimLayer.id = "aim-layer";
+  aimLayer.setAttribute("aria-hidden", "true");
   if (tier === "sprout") {
     game.set_crosshair(false);
     goals.pulseOff = true;
     goals.setPictureOnly(true);
-    goals.layer.append(bullseye);
+    stage.insertBefore(aimLayer, fx.playerCanvas);
+    fx.follow(aimLayer);
+    aimLayer.append(bullseye);
   }
   function placeBullseye(viewX: number): void {
     if (bullseye.hidden) return;
     const [x, y] = Array.from(game.shown_aim());
     const kx = stage.clientWidth / w;
     const ky = stage.clientHeight / h;
-    bullseye.style.transform = `translate(${((x! - viewX + 0.5) * kx).toFixed(1)}px, ${((y! + 0.5) * ky).toFixed(1)}px)`;
+    const bx = (x! - viewX + 0.5) * kx;
+    const by = (y! + 0.5) * ky;
+    bullseye.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px)`;
+    // Over the player: just a ring, so the child still sees themself.
+    const p = fx.playerScreenBox;
+    let over = false;
+    if (p) {
+      const [zx, zy] = fx.zoomed(bx, by);
+      const r = 20 * fx.zoom;
+      over = zx + r > p.x && zx - r < p.x + p.w && zy + r > p.y && zy - r < p.y + p.h;
+    }
+    bullseye.classList.toggle("ring", over);
   }
   // Seedling and Apprentice: the goal the reticle is on, named under it
   // ("→ brazier"), so a typed spell's target is never a surprise.
@@ -2359,8 +2378,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     fx.setGas(lens ? new Float32Array(0) : game.gas_bubbles());
     const tRender = performance.now();
     const viewX = game.view_x();
-    fx.draw(now, viewX);
     fx.drawPlayer(game.player_sprite(alpha), viewX);
+    fx.draw(now, viewX);
     const tFx = performance.now();
     if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1], true));
     // Goals change every tick; a few polls a second is plenty.
@@ -2489,6 +2508,17 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   // Sprout on an upright phone: the stage is wider than the screen (zoomed
   // in), so it slides sideways to keep the player near the middle.
+  // Phones held sideways (under 420 px tall): scale the world up about the
+  // bottom of the stage, cropping sky the rooms never use, so the player
+  // and targets are bigger. HUD stays where it is.
+  const shortLandscape = window.matchMedia("(orientation: landscape) and (max-height: 419px)");
+  const SHORT_ZOOM = 1.2;
+  const applyZoom = () => {
+    fx.zoom = shortLandscape.matches ? SHORT_ZOOM : 1;
+    document.body.classList.toggle("world-zoom", fx.zoom !== 1);
+  };
+  shortLandscape.addEventListener("change", applyZoom);
+  applyZoom();
   const portrait = window.matchMedia("(orientation: portrait) and (max-width: 700px)");
   let portraitLeft = 0;
   function framePortrait(viewX: number): void {
@@ -2615,6 +2645,15 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       viewX: () => game.view_x(),
       playerX: () => game.player_x(),
       playerY: () => game.player_y(),
+      /** Sprout: whether the player layer paints after (over) the bullseye. */
+      playerOverBullseye: () => {
+        const b = document.getElementById("bullseye");
+        if (!b || b.hidden) return null;
+        const after = (b.compareDocumentPosition(fx.playerCanvas) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        const zb = getComputedStyle(b).zIndex;
+        const zp = getComputedStyle(fx.playerCanvas).zIndex;
+        return { after, zb, zp, ring: b.classList.contains("ring") };
+      },
       /** The drawn player (sprite, outline, halo) in CSS px relative to the stage. */
       playerBox: () => fx.playerScreenBox,
       goals: () => JSON.parse(game.goals()) as Goal[],
