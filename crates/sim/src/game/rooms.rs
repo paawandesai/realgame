@@ -577,6 +577,7 @@ impl Game {
                 });
                 if hot {
                     self.rooms.vent_lit[k] = true;
+                    self.witness("methane_combustion", x as f32, y as f32);
                     let line = self.line(
                         "The bubbles caught fire! Stand close to catch the gas.",
                         "Methane burns into CO2. Stand close to catch it.",
@@ -671,7 +672,11 @@ impl Game {
         if !self.rooms.torch.lit && near_heat(&self.grid, 3) {
             self.rooms.torch.lit = true;
             self.torch_lit = true;
-            self.emit_at("discover", tx as f32, ty as f32, 1.0);
+            // The torch is wood burning: carbon + oxygen -> carbon dioxide
+            // (wood simplified to carbon, as everywhere in the game).
+            if !self.witness("carbon_combustion", tx as f32, ty as f32) {
+                self.emit_at("discover", tx as f32, ty as f32, 1.0);
+            }
             let line = if self.rooms.torch.carried {
                 "Your torch caught fire."
             } else {
@@ -1370,6 +1375,34 @@ mod tests {
     }
 
     #[test]
+    fn lighting_the_torch_finds_the_burning_wood_page_once() {
+        let mut g = Game::new(Tier::Apprentice, 7);
+        teleport(&mut g, TORCH_X as f32 - 20.0);
+        g.take_fx();
+        assert!(!g.discovered.iter().any(|d| d == "carbon_combustion"));
+        let head = g.torch_head();
+        cast_at(&mut g, "boom", head);
+        settle(&mut g, 10);
+        assert!(g.rooms.torch.lit);
+        let pages: Vec<_> = g
+            .discovered
+            .iter()
+            .filter(|d| *d == "carbon_combustion")
+            .collect();
+        assert_eq!(pages.len(), 1, "{:?}", g.discovered);
+        // A world reaction never pretends to be a cast: its discover event has no cast id.
+        let mut g2 = Game::new(Tier::Apprentice, 7);
+        assert!(g2.witness("carbon_combustion", 1.0, 2.0));
+        assert!(!g2.witness("carbon_combustion", 1.0, 2.0), "found twice");
+        assert!(!g2.witness("not_in_the_book", 1.0, 2.0));
+        let fx = g2.take_fx();
+        assert_eq!(fx.len(), 1);
+        assert_eq!(fx[0].kind, "discover");
+        assert_eq!(fx[0].id, 0);
+        assert_eq!(fx[0].reaction_id.as_deref(), Some("carbon_combustion"));
+    }
+
+    #[test]
     fn a_lit_torch_held_to_the_ice_also_opens_gate_2() {
         for seed in SEEDS {
             let mut g = Game::new(Tier::Seedling, seed);
@@ -1617,6 +1650,13 @@ mod marsh {
             cast_at(&mut g, "boom", (mouth.0, mouth.1 - 2));
             settle(&mut g, 30);
             assert!(g.rooms.vent_lit[0], "seed {seed}: vent not lit");
+            // Seeing methane burn finds its Grimoire page, once.
+            let found = g
+                .discovered
+                .iter()
+                .filter(|d| *d == "methane_combustion")
+                .count();
+            assert_eq!(found, 1, "seed {seed}: {:?}", g.discovered);
             assert!(
                 cells_of(&g, marsh_air, Species::CO2).len() > co2,
                 "seed {seed}: no CO2 made"

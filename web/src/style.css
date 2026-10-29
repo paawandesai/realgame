@@ -142,8 +142,7 @@ kbd {
 #mote,
 #readout,
 #hud-bottom,
-#ring,
-#notebook {
+#ring {
   position: absolute;
   background: var(--panel);
   border-radius: var(--radius);
@@ -458,36 +457,6 @@ body[data-tier="seedling"] .fx-label {
   .slot.suggested {
     animation: none;
   }
-}
-
-/* ------------------------------------------------------------- notebook */
-
-#notebook {
-  top: 10px;
-  bottom: 10px;
-  right: 10px;
-  width: min(360px, 80%);
-  padding: 14px;
-  overflow-y: auto;
-  background: var(--panel-solid);
-}
-
-#notebook h2 {
-  margin: 0 0 8px;
-}
-
-#notebook ul {
-  list-style: none;
-  padding: 0;
-}
-
-#notebook li {
-  border-top: 1px solid #2d3b49;
-  padding: 8px 0;
-}
-
-#notebook p {
-  margin: 4px 0;
 }
 
 /* ------------------------------------------------------------- settings */
@@ -1043,46 +1012,6 @@ body[data-tier="sprout"] #settings .row {
   to { opacity: 1; transform: none; }
 }
 
-#grimoire {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  padding: 0;
-  margin: 8px 0;
-}
-
-#grimoire li {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 140px;
-  padding: 10px;
-  border-radius: var(--radius);
-  background: var(--panel-solid);
-  border: 2px solid #f0c75e;
-}
-
-#grimoire li .icon {
-  width: 48px;
-  height: 48px;
-}
-
-#grimoire li.silhouette {
-  border-color: #3a4b5c;
-}
-
-#grimoire li.silhouette .icon {
-  filter: brightness(0) opacity(0.4);
-}
-
-.grim-eq {
-  font-size: 0.85rem;
-  color: var(--quiet);
-}
-
 .end-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -1413,4 +1342,320 @@ body[data-motion="calm"] *::before {
   .tray-tile.mol {
     min-width: 60px;
   }
+}
+
+/* ------------------------------------------- Apprentice spell box (W17) */
+
+#hud-bottom {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#caster {
+  display: flex;
+  gap: 6px;
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+#cast-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 10px;
+  font: 1.1rem system-ui, sans-serif;
+  letter-spacing: 0.03em;
+  font-variant-numeric: slashed-zero;
+  color: var(--ink);
+  background: #0b1219;
+  border: 2px solid #3a4b5c;
+  border-radius: 8px;
+}
+
+#cast-input:focus {
+  border-color: var(--accent);
+}
+
+#cast-input::placeholder {
+  color: #94a3b8;
+}
+
+#cast-go {
+  min-height: 44px;
+}
+
+.slot {
+  flex-direction: row;
+  gap: 6px;
+  min-height: 44px;
+  max-width: 140px;
+  font-size: 0.9rem;
+}
+
+.slot-pic {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.slot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot.armed {
+  border-color: #f0c75e;
+  box-shadow: 0 0 0 2px rgba(240, 199, 94, 0.5);
+}
+
+#app-tutorial {
+  position: absolute;
+  left: 50%;
+  bottom: 78px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 8px 6px 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#app-tutorial code {
+  color: var(--accent);
+  font-size: 1.05em;
+}
+
+#app-tutorial button {
+  min-height: 36px;
+}
+
+#challenge {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 4;
+}
+
+body[data-tier="apprentice"] #jars-mini {
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------- hover card */
+
+#hovercard {
+  position: absolute;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid #f0c75e;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  font-size: 0.9rem;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#hovercard p {
+  margin: 4px 0 0;
+}
+
+#hovercard .hc-source {
+  color: var(--quiet);
+  font-size: 0.8rem;
+}
+
+/* ------------------------------------------------------- Grimoire (W18) */
+
+#book-btn {
+  position: absolute;
+  top: 10px;
+  right: 84px;
+  width: 64px;
+  height: 64px;
+  padding: 10px;
+  background: var(--panel);
+  z-index: 5;
+}
+
+#book-btn[data-count]::after {
+  content: attr(data-count);
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  min-width: 20px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: #f0c75e;
+  color: #0f1720;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+#progress {
+  right: 158px;
+}
+
+#grimoire-panel {
+  position: absolute;
+  top: 84px;
+  right: 10px;
+  left: 10px;
+  max-width: 760px;
+  margin-left: auto;
+  max-height: calc(100% - 94px);
+  overflow-y: auto;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  z-index: 6;
+}
+
+#grimoire-panel h2 {
+  margin: 0 0 4px;
+}
+
+#grimoire-close {
+  min-height: 48px;
+  min-width: 120px;
+}
+
+.grim-cards {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 0;
+  margin: 8px 0;
+  perspective: 800px;
+}
+
+.grim-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 160px;
+  min-height: 150px;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  text-align: center;
+}
+
+.grim-card:focus-visible {
+  outline: 3px solid var(--accent);
+}
+
+.grim-pic {
+  width: 52px;
+  height: 52px;
+}
+
+.grim-card.silhouette {
+  border-color: #3a4b5c;
+  border-style: dashed;
+}
+
+.grim-card.silhouette .grim-pic {
+  filter: brightness(0) opacity(0.45);
+}
+
+.grim-card.silhouette .grim-name {
+  color: var(--quiet);
+  font-size: 1.6rem;
+}
+
+.grim-eq {
+  font-size: 0.9rem;
+}
+
+.grim-dh {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.grim-dh.exo {
+  color: #f0c75e;
+}
+
+.grim-dh.endo {
+  color: #7cc4f0;
+}
+
+.grim-words {
+  font-size: 0.78rem;
+  color: var(--quiet);
+}
+
+.grim-src {
+  font-size: 0.72rem;
+  color: var(--quiet);
+  font-style: italic;
+}
+
+.grim-card.flip {
+  animation: card-flip 0.9s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+@keyframes card-flip {
+  0% { transform: rotateY(180deg) scale(0.7); filter: brightness(0.2); }
+  50% { transform: rotateY(90deg) scale(1.05); filter: brightness(0.6); }
+  100% { transform: none; filter: none; }
+}
+
+#discover {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  perspective: 800px;
+  pointer-events: none;
+  z-index: 7;
+}
+
+#discover .grim-card {
+  width: 200px;
+  box-shadow: 0 0 30px rgba(240, 199, 94, 0.7);
+}
+
+.discover-title {
+  font-size: 1.4rem;
+  color: #f0c75e;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+}
+
+.confetti {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+
+.confetti span {
+  position: absolute;
+  width: 10px;
+  height: 6px;
+  border-radius: 2px;
+  animation: confetti 1.6s ease-out forwards;
+}
+
+@keyframes confetti {
+  from { transform: translate(0, 0) rotate(0); opacity: 1; }
+  to { transform: translate(var(--dx), calc(var(--dy) + 120px)) rotate(var(--rot)); opacity: 0; }
 }

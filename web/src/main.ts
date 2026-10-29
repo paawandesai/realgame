@@ -2,20 +2,23 @@
 // and chemistry run in the Rust simulation (crates/sim), compiled to
 // WebAssembly.
 
-import init, { WebGame } from "./pkg/realgame_sim.js";
+import init, { WebGame, reaction_book } from "./pkg/realgame_sim.js";
 import { Sfx } from "./audio";
+import { BAR_SPELLS, HoverCard, parseBook, spellCardLines, type SpellDef } from "./book";
 import { CARDS, SproutCards, type CardSpell } from "./cards";
 import { FxLayer } from "./fx";
 import { GoalMarkers } from "./goals";
-import { equationBalls, icon, setIcon, type IconName } from "./icons";
-import { loadPrefs, savePrefs, savedTier, storageRemove, storageSet, isTier } from "./prefs";
+import { Grimoire } from "./grimoire";
+import { icon, setIcon, type IconName } from "./icons";
+import { loadPrefs, savePrefs, savedTier, storageGet, storageRemove, storageSet, isTier } from "./prefs";
 import { FormulaRing, byId } from "./ring";
 import { Speech, speakable } from "./speech";
 import { SpellTray } from "./tray";
 import { prettyFormula, type CastOutcome, type Fx, type GameState, type Goal, type Tier } from "./types";
 
 const INPUT = { left: 1, right: 2, jump: 4, gather: 8 } as const;
-const MAX_SLOTS = 5;
+/** Hotkeys 1-9: the five Grimoire spells, then spells the player typed. */
+const MAX_SLOTS = 9;
 /** The simulation always advances in fixed 60 Hz steps, whatever the display rate. */
 const STEP_MS = 1000 / 60;
 /** At most this many steps per frame; anything beyond is dropped so a slow
@@ -37,30 +40,13 @@ const SPELLS: Record<Tier, Record<Goal["need"], string>> = {
 };
 
 /** Spells that work from the very first second (the suit starts charged). */
-const STARTER_SLOTS = ["H2O", "2H2 + O2 -> 2H2O", "2H2O -> 2H2 + O2"];
+const STARTER_SLOTS = BAR_SPELLS.map((b) => b.formula);
 
 const REALM_NAMES: Record<Tier, string> = {
   sprout: "Sprout",
   seedling: "Seedling",
   apprentice: "Apprentice",
 };
-
-/** The Grimoire's pages, in the order the trial teaches them. */
-const GRIMOIRE: { id: string; name: string; picture: IconName; equation: string }[] = [
-  { id: "water_synthesis", name: "Boom", picture: "boom", equation: "2H2 + O2 -> 2H2O" },
-  { id: "electrolysis_water", name: "Bubbles", picture: "bubbles", equation: "2H2O -> 2H2 + O2" },
-  { id: "methane_combustion", name: "Fireball", picture: "fire", equation: "CH4 + 2O2 -> CO2 + 2H2O" },
-  { id: "carbon_combustion", name: "Burning wood", picture: "fire", equation: "C + O2 -> CO2" },
-];
-
-interface NotebookEntry {
-  id: string;
-  equation: string;
-  concept: string;
-  realWorld: string;
-  deltaH: number | null;
-  source: string | null;
-}
 
 /** Whether the page has had a user gesture (speech and audio need one). */
 let gestured = false;
@@ -146,7 +132,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const slots: string[] = [...STARTER_SLOTS];
   /** Recent casts by id, so FX events can find their outcome and label. */
   const outcomes = new Map<number, CastOutcome>();
-  const notebook = new Map<string, NotebookEntry>();
+  const book = parseBook(reaction_book());
+  const hover = new HoverCard(stage);
+  const grimoire = new Grimoire(book, tier, hover);
   let state: GameState | null = null;
   let ended = false;
   let freePlay = false;
@@ -157,6 +145,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const replayBtn = byId<HTMLButtonElement>("replay");
   setIcon(replayBtn, "speaker");
   const speech = new Speech(prefs.voice, byId("mote"), byId("mote-text"), replayBtn);
+  speech.captions = prefs.captions;
   const sfx = new Sfx(tier);
   // Browsers only allow audio and speech after a gesture.
   const unlock = () => {
@@ -201,6 +190,29 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     byId("jars-mini").hidden = false;
   } else {
     byId("hud-bottom").hidden = false;
+    byId("jars-mini").hidden = false;
+  }
+
+  // The key list under the stage, for the tiers that cast with Enter.
+  if (tier !== "apprentice") {
+    const help = byId("help");
+    const keysLine: [string, string[]][] = [
+      ["Move", ["A", "D"]],
+      ["Jump", ["Space"]],
+      ["Point to aim", []],
+      ["Cast", ["Enter"]],
+      ["Gather", ["G"]],
+      ["Grimoire", ["B"]],
+    ];
+    help.replaceChildren();
+    keysLine.forEach(([what, ks], i) => {
+      help.append(`${i > 0 ? " · " : ""}${what} `);
+      for (const k of ks) {
+        const kbd = document.createElement("kbd");
+        kbd.textContent = k;
+        help.append(kbd);
+      }
+    });
   }
 
   // ------------------------------------------------------------------ input
@@ -243,16 +255,33 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     if (!menu.hidden || !byId("end").hidden) return;
     if ((k === "enter" || k === " ") && isControl(e.target)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === "l") setLens(!lens);
     else if (k === "q" && tier !== "sprout") ring.toggle();
-    else if (k === "n") toggleNotebook();
-    else if (k === "enter") {
+    else if (k === "b" || k === "n") toggleGrimoire();
+    else if (k === "tab" && castInput && !isControl(e.target)) {
+      // Tab from the game (not from a button) picks the next Grimoire spell.
       e.preventDefault();
-      if (!e.repeat) requestCast();
-    } else if (/^[1-5]$/.test(k) && !e.repeat) {
+      cycleSpell(e.shiftKey ? -1 : 1);
+      return;
+    } else if (k === "enter") {
+      e.preventDefault();
+      if (e.repeat) return;
+      // Apprentices type: Enter opens the spell box (already holding the last spell).
+      if (castInput) focusCastBox();
+      else requestCast();
+      return;
+    } else if (/^[1-9]$/.test(k) && !e.repeat) {
       const spell = tier === "sprout" ? CARDS[Number(k) - 1]?.spell : slots[Number(k) - 1];
       if (spell && (tier !== "sprout" || cards?.element(spell as CardSpell))) requestCast(spell);
     } else if (k === " ") e.preventDefault();
+    else if (castInput && /^[a-z(]$/i.test(e.key) && !GAME_KEYS.has(k)) {
+      // Starting to type a formula ("H2O", "CO2", "oxygen") anywhere opens the box.
+      e.preventDefault();
+      focusCastBox("");
+      castInput.value = e.key;
+      return;
+    }
     if (["a", "d", "arrowleft", "arrowright", " ", "w", "arrowup"].includes(k)) autoWalk = null;
     keys.add(k);
   });
@@ -285,18 +314,147 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   byId("lens-btn").addEventListener("click", () => setLens(!lens));
-  byId("notebook-btn").addEventListener("click", toggleNotebook);
-  byId("notebook-close").addEventListener("click", toggleNotebook);
 
   function setLens(on: boolean): void {
     lens = on;
     byId("lens-btn").setAttribute("aria-pressed", String(on));
   }
 
-  function toggleNotebook(): void {
-    const nb = byId("notebook");
-    nb.hidden = !nb.hidden;
+  // ---------------------------------------------------- Apprentice spell box
+
+  /** Keys the game uses itself; any other letter starts typing a spell. */
+  const GAME_KEYS = new Set(["a", "d", "w", "g", "l", "q", "b", "n"]);
+  const castInput = tier === "apprentice" ? byId<HTMLInputElement>("cast-input") : null;
+  /** Where Tab is in the spell list (-1: not cycling yet). */
+  let cycleAt = -1;
+  const tutorial = byId("app-tutorial");
+  let tutorialOpen = tier === "apprentice" && storageGet("tutorialDone") !== "1";
+  tutorial.hidden = !tutorialOpen;
+  const closeTutorial = () => {
+    if (!tutorialOpen) return;
+    tutorialOpen = false;
+    tutorial.hidden = true;
+    storageSet("tutorialDone", "1");
+  };
+  byId("tutorial-skip").addEventListener("click", () => {
+    closeTutorial();
+    castInput?.focus();
+  });
+
+  function focusCastBox(text: string = lastCast): void {
+    if (!castInput) return;
+    castInput.value = text;
+    castInput.focus();
+    castInput.select();
   }
+
+  function cycleSpell(dir: number): void {
+    if (!castInput) return;
+    const list = slots.filter(Boolean);
+    if (list.length === 0) return;
+    if (cycleAt < 0) {
+      const at = list.indexOf(castInput.value.trim());
+      cycleAt = at >= 0 ? at : dir > 0 ? -1 : 0;
+    }
+    cycleAt = (cycleAt + dir + list.length) % list.length;
+    focusCastBox(list[cycleAt]);
+    renderSlots();
+  }
+
+  if (castInput) {
+    castInput.addEventListener("keydown", (e) => {
+      // Typing letters such as L or Q must not trigger game shortcuts.
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (e.repeat) return;
+        const text = castInput.value.trim() || lastCast;
+        if (!text) return;
+        requestCast(text);
+        castInput.value = "";
+        castInput.blur();
+      } else if (e.key === "Escape") {
+        castInput.blur();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (lastCast) focusCastBox(lastCast);
+      } else if (e.key === "Tab" && !e.shiftKey && castInput.value.trim() === "" ) {
+        e.preventDefault();
+        cycleSpell(1);
+      } else if (e.key === "Tab" && slots.includes(castInput.value.trim())) {
+        e.preventDefault();
+        cycleSpell(e.shiftKey ? -1 : 1);
+      }
+    });
+    castInput.addEventListener("input", () => (cycleAt = -1));
+    castInput.addEventListener("blur", () => (cycleAt = -1));
+    byId("cast-go").addEventListener("click", () => {
+      const text = castInput.value.trim() || lastCast || slots[0] || "";
+      if (text) requestCast(text);
+      castInput.value = "";
+    });
+  }
+
+  // ----------------------------------------------------- per-room challenge
+
+  /** Apprentice: each room's casts, energy and wasted atoms (all from this run of the seed). */
+  const challenge = { room: 0, casts: 0, kj: 0, wasted: 0 };
+  const challengeEl = byId("challenge");
+  let challengeTimer = 0;
+  function scoreCast(r: CastOutcome): void {
+    if (tier !== "apprentice" || r.outcome === "unknown") return;
+    challenge.casts++;
+    challenge.kj += Math.abs(r.dh_kj);
+    for (const n of Object.values(r.leftovers)) challenge.wasted += n;
+  }
+  function roomCleared(room: number): void {
+    if (tier !== "apprentice" || !prefs.challenge) {
+      challenge.casts = challenge.kj = challenge.wasted = 0;
+      return;
+    }
+    const key = `best-room-${room}`;
+    const best = Number(storageGet(key) ?? "0");
+    const isBest = best === 0 || challenge.casts < best;
+    if (isBest) storageSet(key, String(challenge.casts));
+    challengeEl.textContent =
+      `Room ${room + 1} clear · ${challenge.casts} cast${challenge.casts === 1 ? "" : "s"} · ` +
+      `${challenge.kj.toFixed(1)} kJ · ${challenge.wasted} atom${challenge.wasted === 1 ? "" : "s"} wasted` +
+      (isBest ? " · best" : ` · best ${best} casts`);
+    challengeEl.hidden = false;
+    window.clearTimeout(challengeTimer);
+    challengeTimer = window.setTimeout(() => (challengeEl.hidden = true), 7000);
+    challenge.casts = challenge.kj = challenge.wasted = 0;
+  }
+
+  // ----------------------------------------------------------- Grimoire
+
+  const bookBtn = byId<HTMLButtonElement>("book-btn");
+  setIcon(bookBtn, "book");
+  const grimPanel = byId("grimoire-panel");
+  /** Pages found since the book was last open: they flip over when it opens. */
+  const unseenPages = new Set<string>();
+  function renderGrimoire(): void {
+    const open = !grimPanel.hidden;
+    grimoire.render(byId("grimoire-cards"), open ? unseenPages : new Set());
+    if (open) unseenPages.clear();
+    byId("grimoire-count").textContent =
+      tier === "sprout" ? "" : `${grimoire.found.size} of ${grimoire.total} pages found`;
+    bookBtn.dataset.count = String(grimoire.found.size);
+  }
+  function toggleGrimoire(open = grimPanel.hidden): void {
+    grimPanel.hidden = !open;
+    bookBtn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      renderGrimoire();
+      byId("grimoire-close").focus();
+    } else hover.hide();
+  }
+  bookBtn.addEventListener("click", () => toggleGrimoire());
+  byId("grimoire-close").addEventListener("click", () => {
+    toggleGrimoire(false);
+    bookBtn.focus();
+  });
+  renderGrimoire();
 
   /** Walking to the next goal by itself (the go arrow), hopping when blocked. */
   let autoWalk: { target: number; stuck: number; lastX: number } | null = null;
@@ -352,12 +510,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     outcomes.set(result.id, result);
     if (outcomes.size > 32) outcomes.delete(outcomes.keys().next().value as number);
     // Events from the cast itself (charge, bolt, fizzle) show at once.
-    const events = JSON.parse(game.take_fx()) as Fx[];
-    sfx.handle(events, outcomes);
-    fx.handle(events, outcomes, performance.now());
+    handleFx(JSON.parse(game.take_fx()) as Fx[]);
     castCount++;
-    speech.say(result.label, outcomeSpeech(result));
+    // Apprentices read the floating label; the caption would only repeat it.
+    if (tier !== "apprentice") speech.say(result.label, outcomeSpeech(result));
     hintOnCast(result);
+    scoreCast(result);
     if (tray) {
       if (result.outcome === "partial" && result.suggestion) tray.offerFix(result.suggestion);
       document.body.classList.toggle("cast-full", result.outcome === "full");
@@ -365,23 +523,23 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     if (result.outcome === "full" || result.outcome === "partial") {
       lastCast = formula;
-      if (tier === "apprentice" && !slots.includes(formula)) {
-        slots.unshift(formula);
-        slots.length = Math.min(slots.length, MAX_SLOTS);
+      closeTutorial();
+      // A spell the player typed joins the hotkeys after the five Grimoire spells.
+      if (tier === "apprentice" && !slots.includes(formula) && !slots.includes(result.equation)) {
+        if (slots.length >= MAX_SLOTS) slots.splice(STARTER_SLOTS.length, 1);
+        slots.push(formula);
       }
-      if (result.reaction_id && result.concept && !notebook.has(result.reaction_id)) {
-        notebook.set(result.reaction_id, {
-          id: result.reaction_id,
-          equation: result.equation,
-          concept: result.concept,
-          realWorld: result.real_world ?? "",
-          deltaH: result.delta_h_kj,
-          source: result.source,
-        });
-        renderNotebook();
-      }
+      if (result.reaction_id) foundPage(result.reaction_id);
     }
     renderSlots();
+  }
+
+  /** A reaction happened: a new Grimoire page flips face up the first time. */
+  function foundPage(id: string): void {
+    if (!grimoire.discover(id)) return;
+    grimoire.celebrate(byId("discover"), id, fx.reducedMotion);
+    unseenPages.add(id);
+    renderGrimoire();
   }
 
   /** What gets read aloud for a cast: the label, plus a nudge on a miss. */
@@ -495,49 +653,41 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   // -------------------------------------------------------------------- HUD
 
+  /** Hover-card details for a hotkey spell, from the sourced reaction book. */
+  const spellDef = (f: string): SpellDef =>
+    BAR_SPELLS.find((b) => b.formula === f) ?? { formula: f, name: "Your spell", picture: "wand", reaction: null, note: "A spell you typed." };
+
   function renderSlots(): void {
     if (tier !== "apprentice") return;
     const el = byId("slots");
     el.replaceChildren();
-    for (let i = 0; i < MAX_SLOTS; i++) {
-      const f = slots[i];
+    hover.hide();
+    slots.forEach((f, i) => {
+      const def = spellDef(f);
       const b = document.createElement("button");
       b.type = "button";
-      b.className = i === 0 && castCount === 0 ? "slot suggested" : "slot";
-      b.disabled = !f;
-      b.title = f ? prettyFormula(f) : "Empty slot";
+      b.className = "slot";
+      if (i === 0 && castCount === 0) b.classList.add("suggested");
+      if (i === cycleAt) b.classList.add("armed");
+      b.dataset.formula = f;
+      b.setAttribute("aria-label", `${i + 1}: ${def.name}, ${f}`);
       const n = document.createElement("kbd");
       n.textContent = String(i + 1);
+      const pic = document.createElement("span");
+      pic.className = "slot-pic";
+      pic.append(icon(def.picture));
       const label = document.createElement("span");
-      label.textContent = f ? prettyFormula(f) : "";
-      b.append(n, label);
-      if (f) b.addEventListener("click", () => requestCast(f));
+      label.className = "slot-name";
+      label.textContent = def.reaction === null && def.name === "Your spell" ? prettyFormula(f) : def.name;
+      b.append(n, pic, label);
+      b.addEventListener("click", () => requestCast(f));
+      hover.attach(b, () => {
+        const c = spellCardLines(def, book);
+        if (def.name === "Your spell") c.title = prettyFormula(f);
+        return c;
+      });
       el.append(b);
-    }
-  }
-
-  function renderNotebook(): void {
-    const list = byId("notebook-list");
-    list.replaceChildren();
-    byId("notebook-empty").hidden = notebook.size > 0;
-    for (const e of notebook.values()) {
-      const li = document.createElement("li");
-      const eq = document.createElement("strong");
-      eq.textContent = prettyFormula(e.equation);
-      const c = document.createElement("p");
-      c.textContent = e.concept;
-      const rw = document.createElement("p");
-      rw.className = "small";
-      rw.textContent = e.realWorld;
-      li.append(eq, c, rw);
-      if (e.deltaH !== null) {
-        const dh = document.createElement("p");
-        dh.className = "small";
-        dh.textContent = `ΔH = ${e.deltaH.toFixed(1)} kJ · ${e.source ?? ""}`;
-        li.append(dh);
-      }
-      list.append(li);
-    }
+    });
   }
 
   const describeTemp = (t: number): string => {
@@ -550,6 +700,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   };
 
   let lastHudKey = "";
+  const gatesSeen: boolean[] = [];
   function renderHud(s: GameState): void {
     for (const m of s.messages) speech.say(m);
     byId("readout").textContent = `${s.aim_substance} · ${describeTemp(s.aim_temp_c)}`;
@@ -567,6 +718,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       seedlingRoom2Filled = true;
       tray.set("H2 + O2 -> H2O");
     }
+    // A gate opening ends that room's challenge.
+    s.gates_open.forEach((open, i) => {
+      if (open && !gatesSeen[i] && !freePlay) roomCleared(i);
+      gatesSeen[i] = open;
+    });
     if (s.trial_complete && !ended && !freePlay && endTimer === 0) {
       endTimer = window.setTimeout(showEnd, END_DELAY_MS);
     }
@@ -574,7 +730,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const key = JSON.stringify([s.jars, Math.round((s.crystal_kj / s.crystal_max_kj) * 20)]);
     if (key === lastHudKey) return;
     lastHudKey = key;
-    const jars = byId(tier === "apprentice" ? "jars" : "jars-mini");
+    const jars = byId("jars-mini");
     jars.replaceChildren();
     for (const [formula, n] of Object.entries(s.jars)) {
       if (tier !== "apprentice" && n === 0 && (formula === "CH4" || formula === "CO2")) continue;
@@ -607,28 +763,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     endTimer = 0;
     if (freePlay) return;
     ended = true;
-    const list = byId("grimoire");
-    list.replaceChildren();
-    const found = new Set(state?.discovered ?? []);
-    for (const g of GRIMOIRE) {
-      const li = document.createElement("li");
-      const has = found.has(g.id);
-      li.className = has ? "found" : "silhouette";
-      li.append(icon(g.picture));
-      const name = document.createElement("strong");
-      name.textContent = has ? g.name : "?";
-      li.append(name);
-      if (has) {
-        const eq = document.createElement("span");
-        eq.className = "grim-eq";
-        if (tier === "sprout") eq.append(equationBalls(g.equation));
-        else eq.textContent = prettyFormula(g.equation);
-        li.append(eq);
-      }
-      list.append(li);
-    }
+    grimoire.render(byId("grimoire"), new Set(grimoire.found));
     byId("end-sub").textContent =
-      tier === "sprout" ? "You did it!" : `You passed the Alchemist's Trial: ${found.size} of ${GRIMOIRE.length} Grimoire pages found.`;
+      tier === "sprout"
+        ? "You did it!"
+        : `You passed the Alchemist's Trial: ${grimoire.found.size} of ${grimoire.total} Grimoire pages found.`;
     byId("end").hidden = false;
     speech.say("Breakthrough! You passed the trial!");
     byId("end-replay").focus();
@@ -707,6 +846,21 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (!voice.checked) speech.stop();
     savePrefs(prefs);
   });
+  const captionsBox = byId<HTMLInputElement>("captions");
+  captionsBox.checked = prefs.captions;
+  captionsBox.addEventListener("change", () => {
+    prefs.captions = captionsBox.checked;
+    speech.captions = captionsBox.checked;
+    savePrefs(prefs);
+  });
+  const challengeBox = byId<HTMLInputElement>("challenge-on");
+  challengeBox.checked = prefs.challenge;
+  challengeBox.closest("label")!.hidden = tier !== "apprentice";
+  challengeBox.addEventListener("change", () => {
+    prefs.challenge = challengeBox.checked;
+    if (!challengeBox.checked) challengeEl.hidden = true;
+    savePrefs(prefs);
+  });
   const motion = byId<HTMLInputElement>("motion");
   motion.checked = prefs.reducedMotion;
   motion.addEventListener("change", () => {
@@ -738,8 +892,6 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     castCount = 0;
     lastCast = "";
     outcomes.clear();
-    notebook.clear();
-    renderNotebook();
     slots.splice(0, slots.length, ...STARTER_SLOTS);
     renderSlots();
     seedlingRoom2Filled = false;
@@ -774,6 +926,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (events.length === 0) return;
     sfx.handle(events, outcomes);
     fx.handle(events, outcomes, performance.now());
+    // Reactions seen in the world (the torch's wood, a lit methane vent) find pages too.
+    for (const e of events) if (e.kind === "discover" && e.reaction_id) foundPage(e.reaction_id);
   }
 
   let accumulator = 0;
@@ -839,7 +993,6 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   renderSlots();
-  renderNotebook();
   requestAnimationFrame(loop);
 }
 

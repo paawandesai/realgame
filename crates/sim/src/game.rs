@@ -377,6 +377,33 @@ impl Game {
         });
     }
 
+    /// The player saw a book reaction happen in the world (not from a cast),
+    /// such as the torch's wood burning. The first time, it counts as found
+    /// and a `discover` event carries its id. Returns whether it was new.
+    pub(crate) fn witness(&mut self, reaction_id: &str, x: f32, y: f32) -> bool {
+        if self.discovered.iter().any(|d| d == reaction_id)
+            || self.book.by_id(reaction_id).is_none()
+        {
+            return false;
+        }
+        self.discovered.push(reaction_id.to_string());
+        self.emit(Fx {
+            kind: "discover",
+            x,
+            y,
+            tx: x,
+            ty: y,
+            dh_kj: 0.0,
+            outcome: None,
+            leftovers: Atoms::new(),
+            reaction_id: Some(reaction_id.to_string()),
+            id: 0,
+            power: 1.0,
+        });
+        self.refresh_version();
+        true
+    }
+
     /// Drains the presentation events since the last call.
     pub fn take_fx(&mut self) -> Vec<Fx> {
         std::mem::take(&mut self.fx)

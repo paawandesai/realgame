@@ -311,3 +311,10 @@ fn draw_aim(game: &Game, out: &mut [u8], view_x: i32) {
         put(out, ax, ay - d, c);
     }
 }
+
+/// The curated reaction table (`content/reactions.json`) as shipped, so the
+/// Grimoire and hover cards show exactly the sourced values the sim uses.
+#[wasm_bindgen]
+pub fn reaction_book() -> String {
+    crate::reactions::REACTIONS_JSON.to_string()
+}

@@ -67,6 +67,8 @@ export class Speech {
   private lastSpoken = "";
   private hideTimer = 0;
   enabled: boolean;
+  /** Show the caption box. Hints still show when this is off. */
+  captions = true;
 
   constructor(
     enabled: boolean,
@@ -109,20 +111,21 @@ export class Speech {
   }
 
   /** Shows a caption and reads it aloud (if voice is on). */
-  say(caption: string, spoken: string = speakable(caption)): void {
+  say(caption: string, spoken: string = speakable(caption), force = false): void {
     this.lastCaption = caption;
     this.lastSpoken = spoken;
+    if (this.unlocked) this.speak(spoken);
+    if (!this.captions && !force) return;
     this.text.textContent = caption;
     this.box.classList.add("show");
     window.clearTimeout(this.hideTimer);
     this.hideTimer = window.setTimeout(() => this.box.classList.remove("show"), 9000);
-    if (this.unlocked) this.speak(spoken);
   }
 
   replay(): void {
     if (!this.lastCaption) return;
     this.unlocked = true;
-    this.say(this.lastCaption, this.lastSpoken);
+    this.say(this.lastCaption, this.lastSpoken, true);
   }
 
   stop(): void {

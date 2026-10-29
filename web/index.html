@@ -56,22 +56,28 @@
         </section>
 
         <section id="hud-bottom" hidden>
-          <div id="jars" aria-label="Reagent jars"></div>
-          <div id="slots" aria-label="Quick-cast spells"></div>
+          <div id="caster">
+            <input id="cast-input" type="text" maxlength="64" autocomplete="off" spellcheck="false" enterkeyhint="go" aria-label="Type a formula or a word, then press Enter to cast" placeholder="Type a spell: water, 2H2 + O2 -> 2H2O" />
+            <button id="cast-go" type="button" class="primary">Cast</button>
+          </div>
+          <div id="slots" aria-label="Grimoire spells, keys 1 to 5"></div>
           <div class="hud-buttons">
-            <button id="lens-btn" type="button" aria-pressed="false">Insight lens <kbd>L</kbd></button>
-            <button id="notebook-btn" type="button">Notebook <kbd>N</kbd></button>
+            <button id="lens-btn" type="button" aria-pressed="false">Heat lens <kbd>L</kbd></button>
           </div>
         </section>
+        <p id="app-tutorial" hidden>Type a formula or a word (try <code>water</code>), then press Enter. <button id="tutorial-skip" type="button">Skip</button></p>
+        <div id="challenge" role="status" aria-live="polite" hidden></div>
 
         <div id="jars-mini" aria-label="Suit gauges" hidden></div>
 
-        <aside id="notebook" hidden aria-label="Lab notebook">
-          <h2>Lab notebook</h2>
-          <p class="small" id="notebook-empty">Reactions you discover are written here.</p>
-          <ul id="notebook-list"></ul>
-          <button id="notebook-close" type="button">Close</button>
+        <button id="book-btn" type="button" aria-label="Grimoire" aria-expanded="false" aria-controls="grimoire-panel"></button>
+        <aside id="grimoire-panel" hidden role="dialog" aria-modal="false" aria-labelledby="grimoire-title">
+          <h2 id="grimoire-title">Grimoire</h2>
+          <p class="small" id="grimoire-count"></p>
+          <ul id="grimoire-cards" class="grim-cards"></ul>
+          <button id="grimoire-close" type="button">Close</button>
         </aside>
+        <div id="discover" aria-live="polite" hidden></div>
 
         <div id="moves" role="group" aria-label="Move">
           <button type="button" data-key="left" aria-label="Walk left"></button>
@@ -101,6 +107,8 @@
           <label class="row">Volume <input id="sound-master" type="range" min="0" max="100" step="5" /></label>
           <label class="row">Effects <input id="sound-sfx" type="range" min="0" max="100" step="5" /></label>
           <label class="row"><input id="voice" type="checkbox" /> Read aloud</label>
+          <label class="row"><input id="captions" type="checkbox" /> Mentor captions</label>
+          <label class="row"><input id="challenge-on" type="checkbox" /> Room scores</label>
           <label class="row"><input id="motion" type="checkbox" /> Calm motion</label>
           <label class="row">Speed
             <select id="speed">
@@ -116,7 +124,7 @@
           <div class="burst" aria-hidden="true"></div>
           <h2 id="end-title">Breakthrough!</h2>
           <p id="end-sub">You passed the Alchemist's Trial.</p>
-          <ul id="grimoire" aria-label="Grimoire"></ul>
+          <ul id="grimoire" class="grim-cards" aria-label="Grimoire"></ul>
           <div class="end-buttons">
             <button id="end-replay" type="button" class="primary">Replay</button>
             <button id="end-age" type="button">Change age</button>
@@ -126,8 +134,8 @@
       </div>
       <section id="tray" hidden aria-label="Spell tray"></section>
       <p id="help" class="small">
-        Move <kbd>A</kbd><kbd>D</kbd> · Jump <kbd>Space</kbd> · Point to aim · Gather <kbd>G</kbd> · Lens <kbd>L</kbd> ·
-        Formula ring <kbd>Q</kbd> · Cast <kbd>Enter</kbd> · Saved spells <kbd>1</kbd>–<kbd>5</kbd>
+        Move <kbd>A</kbd><kbd>D</kbd> · Jump <kbd>Space</kbd> · Point to aim · Type a spell <kbd>Enter</kbd> · Spells <kbd>1</kbd>–<kbd>9</kbd>
+        · Next spell <kbd>Tab</kbd> · Last spell <kbd>↑</kbd> · Gather <kbd>G</kbd> · Lens <kbd>L</kbd> · Grimoire <kbd>B</kbd> · Tiles <kbd>Q</kbd>
       </p>
     </main>
     <script type="module" src="/src/main.ts"></script>

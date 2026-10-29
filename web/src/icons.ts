@@ -129,7 +129,50 @@ const STAR: Shape[] = [
   ["path", { d: "M24 4 L30 18 L45 19 L33 29 L37 44 L24 36 L11 44 L15 29 L3 19 L18 18 Z", fill: "#f0c75e", stroke: "#fff7d6", "stroke-width": 2, "stroke-linejoin": "round" }],
 ];
 
+/** Methane: one carbon with four hydrogens, rising from the marsh in a bubble. */
+const METHANE: Shape[] = [
+  ["circle", { cx: 24, cy: 24, r: 21, fill: "#0b3b2e", stroke: "#009e73", "stroke-width": 3 }],
+  ["path", { d: "M24 24 L24 9 M24 24 L11 32 M24 24 L37 32 M24 24 L30 36", stroke: "#e6f6ff", "stroke-width": 2.5 }],
+  ["circle", { cx: 24, cy: 9, r: 5, fill: "#56b4e9" }],
+  ["circle", { cx: 11, cy: 32, r: 5, fill: "#56b4e9" }],
+  ["circle", { cx: 37, cy: 32, r: 5, fill: "#56b4e9" }],
+  ["circle", { cx: 30, cy: 37, r: 4, fill: "#56b4e9" }],
+  ["circle", { cx: 24, cy: 24, r: 7, fill: "#3b3b3b", stroke: "#e6f6ff", "stroke-width": 1.5 }],
+];
+
+/** Burning wood: a log with a small flame (carbon burning). */
+const LOG: Shape[] = [
+  ["rect", { x: 6, y: 32, width: 36, height: 10, rx: 5, fill: "#8a5a2b", stroke: "#e8d2b0", "stroke-width": 2 }],
+  ["circle", { cx: 37, cy: 37, r: 3, fill: "#e8d2b0" }],
+  ["path", { d: "M22 6 C27 13 32 17 32 24 a8 8 0 0 1 -16 0 C16 18 20 15 22 6 Z", fill: "#e69f00" }],
+  ["path", { d: "M24 18 C26 21 28 23 28 26 a4 4 0 0 1 -8 0 C20 23 22 21 24 18 Z", fill: "#f0e442" }],
+];
+
+/** The Grimoire: a closed book with a star on the cover. */
+const BOOK: Shape[] = [
+  ["path", { d: "M10 6 h26 a4 4 0 0 1 4 4 v30 a4 4 0 0 1 -4 4 h-26 Z", fill: "#7c3aed", stroke: "#e9ddff", "stroke-width": 2 }],
+  ["path", { d: "M10 6 v38", stroke: "#e9ddff", "stroke-width": 3 }],
+  ["path", { d: "M25 14 l2.5 5 l5.5 .8 l-4 3.9 l1 5.5 l-5 -2.6 l-5 2.6 l1 -5.5 l-4 -3.9 l5.5 -.8 Z", fill: "#f0c75e" }],
+];
+
+/** Gather: an open hand scooping. */
+const SCOOP: Shape[] = [
+  ["path", { d: "M6 22 h36 a18 16 0 0 1 -36 0 Z", fill: "none", stroke: "currentColor", "stroke-width": 4, "stroke-linejoin": "round" }],
+  ["path", { d: "M24 4 v12 M18 10 l6 6 l6 -6", fill: "none", stroke: "currentColor", "stroke-width": 4, "stroke-linecap": "round", "stroke-linejoin": "round" }],
+];
+
+/** Cast: a spark burst from a wand tip. */
+const WAND: Shape[] = [
+  ["path", { d: "M8 42 L28 22", stroke: "currentColor", "stroke-width": 5, "stroke-linecap": "round" }],
+  ["path", { d: "M34 4 l3 8 l8 3 l-8 3 l-3 8 l-3 -8 l-8 -3 l8 -3 Z", fill: "#f0c75e" }],
+];
+
 const ICONS = {
+  methane: METHANE,
+  log: LOG,
+  book: BOOK,
+  scoop: SCOOP,
+  wand: WAND,
   drop: DROP,
   bubbles: BUBBLES,
   boom: BOOM,

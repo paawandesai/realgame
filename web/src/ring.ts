@@ -1,6 +1,7 @@
 // The formula ring: tiles to build an equation, coefficient dials, and a text
 // box for players who would rather type.
 
+import { icon, molecule, type IconName } from "./icons";
 import { prettyFormula, type Tier } from "./types";
 
 interface Term {
@@ -11,15 +12,17 @@ interface Term {
 interface TileDef {
   formula: string;
   name: string;
-  picture: string;
+  /** A picture icon, or null to draw the molecule as atom balls. */
+  picture: IconName | null;
 }
 
+// Pictures are drawn, not emoji: methane gets its own molecule icon, never a fire.
 const TILES: TileDef[] = [
-  { formula: "H2O", name: "Water", picture: "💧" },
-  { formula: "H2", name: "Hydrogen", picture: "🎈" },
-  { formula: "O2", name: "Oxygen", picture: "🫧" },
-  { formula: "CH4", name: "Methane", picture: "🔥" },
-  { formula: "CO2", name: "Carbon dioxide", picture: "☁️" },
+  { formula: "H2O", name: "Water", picture: "drop" },
+  { formula: "H2", name: "Hydrogen", picture: null },
+  { formula: "O2", name: "Oxygen", picture: null },
+  { formula: "CH4", name: "Methane", picture: "methane" },
+  { formula: "CO2", name: "Carbon dioxide", picture: "cloud" },
 ];
 
 export class FormulaRing {
@@ -49,7 +52,7 @@ export class FormulaRing {
       b.setAttribute("aria-label", `${t.name}, ${t.formula}`);
       const pic = document.createElement("span");
       pic.className = "pic";
-      pic.textContent = t.picture;
+      pic.append(t.picture ? icon(t.picture) : molecule(t.formula));
       const label = document.createElement("span");
       label.textContent = tier === "sprout" ? t.name : prettyFormula(t.formula);
       b.append(pic, label);

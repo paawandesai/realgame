@@ -47,12 +47,18 @@ export interface Prefs {
   reducedMotion: boolean;
   /** Game speed: 0.5, 0.75 or 1. */
   speed: number;
+  /** Mentor captions on screen. Off by default for Apprentices, who get labels. */
+  captions: boolean;
+  /** Apprentice per-room score (casts, kJ, atoms wasted). */
+  challenge: boolean;
 }
 
 export function loadPrefs(tier: Tier): Prefs {
   const voice = storageGet("voice");
   const motion = storageGet("reducedMotion");
   const speed = Number(storageGet("speed"));
+  const captions = storageGet("captions");
+  const challenge = storageGet("challenge");
   let systemReduced = false;
   try {
     systemReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -63,6 +69,8 @@ export function loadPrefs(tier: Tier): Prefs {
     voice: voice === null ? tier !== "apprentice" : voice === "on",
     reducedMotion: motion === null ? systemReduced : motion === "on",
     speed: (SPEEDS as readonly number[]).includes(speed) ? speed : 1,
+    captions: captions === null ? tier !== "apprentice" : captions === "on",
+    challenge: challenge !== "off",
   };
 }
 
@@ -70,4 +78,6 @@ export function savePrefs(p: Prefs): void {
   storageSet("voice", p.voice ? "on" : "off");
   storageSet("reducedMotion", p.reducedMotion ? "on" : "off");
   storageSet("speed", String(p.speed));
+  storageSet("captions", p.captions ? "on" : "off");
+  storageSet("challenge", p.challenge ? "on" : "off");
 }

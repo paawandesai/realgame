@@ -6,7 +6,7 @@
 use crate::formula::{parse_equation, Equation};
 use serde::Deserialize;
 
-const REACTIONS_JSON: &str = include_str!("../../../content/reactions.json");
+pub const REACTIONS_JSON: &str = include_str!("../../../content/reactions.json");
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Reaction {
