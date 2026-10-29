@@ -1911,6 +1911,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         return [r.left + ((p[0] - game.view_x()) / w) * r.width, r.top + (p[1] / h) * r.height];
       },
       room: () => game.room(),
+      /** Opens every gate (as free play does), to reach later rooms quickly. */
+      openGates: () => game.free_play(),
       aim: () => Array.from(game.aim()),
       /** Fills the hotbar with typed spells, as a long session would. */
       setSlots: (list: string[]) => {

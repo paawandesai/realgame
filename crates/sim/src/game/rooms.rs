@@ -101,6 +101,19 @@ const CAPTURE_RADIUS: i32 = 14;
 const ROOM_WOOD_FLAME_CHANCE: f32 = 0.2;
 /// Wood that blocks the player: you can't push through burning wood.
 pub const HOT_WOOD_BLOCKS_C: f32 = 150.0;
+/// A doused hedge that stays out this long (no flame, no hot wood touching
+/// oxygen) has had its fire triangle broken: it falls to ash for good.
+const HEDGE_OUT_TICKS: u32 = 20;
+/// Out at least this long, then burning again, counts as re-igniting.
+const RELIGHT_AFTER_TICKS: u32 = 3;
+/// A CO2 cloud cast on a hedge keeps the oxygen away this long (3 s).
+/// CO2 is denser than air (1.977 vs 1.293 g/L at 0 C, CRC Handbook), so it
+/// sinks onto and around the hedge and stays there for a while.
+const SMOTHER_TICKS: u64 = 180;
+/// While smothered, hot wood loses this fraction of its excess heat per
+/// tick: with no oxygen nothing burns to keep it hot, so the charcoal cools
+/// (a gameplay rate, not a measured one).
+const SMOTHER_COOL: f32 = 0.03;
 
 #[derive(Debug, Clone)]
 pub struct Hedge {
@@ -111,6 +124,12 @@ pub struct Hedge {
     pub burning: u32,
     pub peak: u32,
     pub out: bool,
+    /// Put out for good: the charred hedge fell to ash and can't relight.
+    pub crumbled: bool,
+    /// Ticks in a row it has been out after the player's casts.
+    out_ticks: u32,
+    /// A CO2 cloud blankets it until this tick: no oxygen reaches it.
+    smother_until: u64,
     /// Mote has said it burned out with no help.
     said_self_out: bool,
 }
@@ -123,6 +142,9 @@ impl Hedge {
             burning: 0,
             peak: 0,
             out: false,
+            crumbled: false,
+            out_ticks: 0,
+            smother_until: 0,
             said_self_out: false,
         }
     }
@@ -267,6 +289,15 @@ pub struct Goal {
     pub area: Option<[i32; 4]>,
     /// Where to label the crystal battery (top centre), in room 3.
     pub battery: Option<[i32; 2]>,
+    /// The goal in ordered steps, each ticked when done (room 4).
+    pub steps: Option<Vec<Step>>,
+}
+
+/// One step of a room's goal, as the objective banner lists it.
+#[derive(Debug, Clone, Serialize)]
+pub struct Step {
+    pub text: &'static str,
+    pub done: bool,
 }
 
 /// The torch as the renderer needs it.
@@ -531,7 +562,42 @@ impl Game {
             self.say(line);
         }
         let h = &mut self.rooms.hedges[k];
-        h.out = out;
+        h.out = out || h.crumbled;
+    }
+
+    /// Hedge 2 after the player's casts: out for `HEDGE_OUT_TICKS` in a row
+    /// and it falls to ash (no fuel left, so nothing can relight it and heat
+    /// spells fly through); burning again before that is explained.
+    fn settle_hedge_2(&mut self) {
+        let h = &mut self.rooms.hedges[1];
+        if h.crumbled || h.hits == 0 {
+            return;
+        }
+        if h.out {
+            h.out_ticks += 1;
+        } else {
+            let relit = h.out_ticks >= RELIGHT_AFTER_TICKS;
+            h.out_ticks = 0;
+            if relit {
+                let line = self.line(
+                    "It lit again! Splash more!",
+                    "Hot charcoal re-ignited. Cool it more.",
+                    "Hot charcoal re-ignited: it was still above ignition temperature with oxygen around. Cool it with more water or CO2.",
+                );
+                self.say(line);
+            }
+            return;
+        }
+        if h.out_ticks >= HEDGE_OUT_TICKS {
+            self.crumble_hedge(1);
+            self.rooms.hedges[1].crumbled = true;
+            let line = self.line(
+                "Hedge out! Walk through!",
+                "Hedge out! Walk through, light the brazier.",
+                "Hedge out! It crumbled to ash, so walk through and light the brazier.",
+            );
+            self.say(line);
+        }
     }
 
     fn enter_rooms(&mut self) {
@@ -803,10 +869,12 @@ impl Game {
         self.torch_tick(gather);
 
         // Room 1: the hedge is out, and the player's water helped.
+        self.smother_tick(0);
         self.update_hedge(0);
         let h = &self.rooms.hedges[0];
         if h.out && h.hits > 0 && self.open_gate(0) {
             self.crumble_hedge(0);
+            self.rooms.hedges[0].crumbled = true;
             let line = self.line(
                 "Fire out! Gate open!",
                 "Fire out! Cooling it stopped it. Gate open.",
@@ -860,7 +928,9 @@ impl Game {
         }
 
         // Room 4: the hedge (for the meter) and the brazier.
+        self.smother_tick(1);
         self.update_hedge(1);
+        self.settle_hedge_2();
         if !self.rooms.brazier_lit {
             let zone = Rect::new(BRAZIER.x0, BRAZIER.y0 - 6, BRAZIER.x1, BRAZIER.y1 - 2);
             let hot = zone.cells().any(|(x, y)| {
@@ -913,6 +983,40 @@ impl Game {
         if n > 0 {
             let (cx, _) = r.centre();
             self.emit_at("land", cx as f32, r.y1 as f32, 5.0);
+        }
+    }
+
+    /// A CO2 cloud landed at `at`: any hedge it hit is blanketed, so its
+    /// flames die and its wood cools for `SMOTHER_TICKS`.
+    pub(super) fn smother(&mut self, at: (i32, i32)) {
+        let until = self.ticks + SMOTHER_TICKS;
+        for h in &mut self.rooms.hedges {
+            if h.zone().grow(8).contains(at.0, at.1) {
+                h.smother_until = h.smother_until.max(until);
+            }
+        }
+    }
+
+    /// A blanketed hedge: flames in its zone go out (their fuel gas has no
+    /// oxygen) and hot wood cools toward the air's temperature.
+    fn smother_tick(&mut self, k: usize) {
+        if self.ticks >= self.rooms.hedges[k].smother_until {
+            return;
+        }
+        let zone = self.rooms.hedges[k].zone();
+        for (x, y) in zone.cells() {
+            if !self.grid.in_bounds(x, y) {
+                continue;
+            }
+            let i = self.grid.idx(x as usize, y as usize);
+            match self.grid.cells[i] {
+                Species::Flame => self.grid.set(x, y, Species::Air, AMBIENT_C),
+                Species::Wood if self.grid.temp[i] > AMBIENT_C => {
+                    let t = self.grid.temp[i];
+                    self.grid.temp[i] = t - (t - AMBIENT_C) * SMOTHER_COOL;
+                }
+                _ => {}
+            }
         }
     }
 
@@ -1054,6 +1158,7 @@ impl Game {
                 text: self.objective_line(0),
                 area: None,
                 battery: None,
+                steps: None,
             },
             Goal {
                 room: 2,
@@ -1069,6 +1174,7 @@ impl Game {
                 text: self.objective_line(1),
                 area: None,
                 battery: None,
+                steps: None,
             },
             Goal {
                 room: 3,
@@ -1087,6 +1193,7 @@ impl Game {
                 text: self.objective_line(2),
                 area: Some([TRAP.x0, TRAP.y0, TRAP.x1, TRAP.y1]),
                 battery: Some([CRYSTAL.centre().0, CRYSTAL.y0]),
+                steps: None,
             },
             Goal {
                 room: 4,
@@ -1102,6 +1209,24 @@ impl Game {
                 text: self.objective_line(3),
                 area: None,
                 battery: None,
+                steps: Some(vec![
+                    Step {
+                        text: self.line(
+                            "Fire out!",
+                            "1. Put out the hedge.",
+                            "1. Put out the hedge: H2O or CO2.",
+                        ),
+                        done: r.hedges[1].out,
+                    },
+                    Step {
+                        text: self.line(
+                            "Light the bowl!",
+                            "2. Light the brazier.",
+                            "2. Light the brazier: 2H2 + O2 -> 2H2O.",
+                        ),
+                        done: r.brazier_lit,
+                    },
+                ]),
             },
         ]
     }
@@ -1920,6 +2045,123 @@ mod marsh {
                 "seed {seed}: still burning after {casts} clouds"
             );
         }
+    }
+
+    /// Hedge 2's wood above ignition, or flame anywhere in its zone.
+    fn hedge2_alight(g: &Game) -> usize {
+        g.rooms.hedges[1]
+            .zone()
+            .cells()
+            .filter(|&(x, y)| {
+                let s = g.grid.get(x, y);
+                s == Species::Flame
+                    || (s == Species::Wood && g.grid.temp_at(x, y) >= WOOD_IGNITION_C)
+            })
+            .count()
+    }
+
+    /// Puts hedge 2 out from in front of it, with water or with `clouds`
+    /// CO2 casts, then checks it stays out for 30 s of ticks.
+    fn hedge2_put_out(tier: Tier, seed: u64, clouds: Option<u32>) -> Game {
+        let mut g = Game::new(tier, seed);
+        teleport(&mut g, 1150.0);
+        match clouds {
+            None => {
+                assert!(
+                    douse(&mut g, 1, 4).is_some(),
+                    "seed {seed}: hedge 2 burning"
+                );
+            }
+            Some(n) => {
+                g.jars.insert("CO2".into(), 10);
+                for _ in 0..n {
+                    let at = (HEDGE2.x0, GROUND_Y - 6);
+                    assert_eq!(cast_at(&mut g, "cloud", at).outcome, Outcome::Full);
+                    settle(&mut g, 40);
+                }
+            }
+        }
+        settle(&mut g, 60);
+        assert!(g.rooms.hedges[1].out, "seed {seed}: hedge 2 not out");
+        assert!(
+            g.rooms.hedges[1].crumbled,
+            "seed {seed}: hedge 2 still standing"
+        );
+        for t in 0..30 * 60 {
+            g.tick(0);
+            assert!(g.rooms.hedges[1].out, "seed {seed}: relit after {t} ticks");
+            assert_eq!(hedge2_alight(&g), 0, "seed {seed}: alight after {t} ticks");
+        }
+        g
+    }
+
+    /// One boom from the left of the hedge lights the brazier, and the
+    /// hedge never reaches ignition on the way.
+    fn boom_lights_brazier_from_the_left(g: &mut Game, aimed: bool, seed: u64) {
+        while g.jars["H2"] < 2 || g.jars["O2"] < 1 {
+            settle(g, 10);
+        }
+        let out = if aimed {
+            cast_at(g, "boom", (BRAZIER.centre().0, BRAZIER.y1 - 4))
+        } else {
+            let out = g.cast("boom");
+            land(g);
+            out
+        };
+        assert_eq!(out.outcome, Outcome::Full, "seed {seed}");
+        for _ in 0..60 {
+            g.tick(0);
+            assert_eq!(hedge2_alight(g), 0, "seed {seed}: the boom relit the hedge");
+        }
+        assert!(
+            g.rooms.brazier_lit,
+            "seed {seed}: brazier dark (aimed {aimed})"
+        );
+    }
+
+    #[test]
+    fn water_puts_hedge_2_out_for_good_and_a_boom_from_the_left_lights_the_brazier() {
+        for seed in SEEDS {
+            let mut g = hedge2_put_out(Tier::Sprout, seed, None);
+            assert!(
+                g.player.x + PLAYER_W < HEDGE2.x0 as f32,
+                "still left of the hedge"
+            );
+            boom_lights_brazier_from_the_left(&mut g, false, seed);
+            let mut g = hedge2_put_out(Tier::Apprentice, seed, None);
+            boom_lights_brazier_from_the_left(&mut g, true, seed);
+        }
+    }
+
+    #[test]
+    fn three_co2_casts_put_hedge_2_out_for_good() {
+        for seed in SEEDS {
+            let mut g = hedge2_put_out(Tier::Apprentice, seed, Some(3));
+            boom_lights_brazier_from_the_left(&mut g, true, seed);
+            let mut g = hedge2_put_out(Tier::Sprout, seed, Some(3));
+            boom_lights_brazier_from_the_left(&mut g, false, seed);
+        }
+    }
+
+    #[test]
+    fn room_4_goal_has_two_steps_ticked_in_order() {
+        let mut g = Game::new(Tier::Seedling, 42);
+        teleport(&mut g, 1150.0);
+        let steps = |g: &Game| g.goals()[3].steps.clone().expect("room 4 has steps");
+        let s = steps(&g);
+        assert_eq!(s.len(), 2);
+        assert!(!s[0].done && !s[1].done);
+        assert!(douse(&mut g, 1, 4).is_some());
+        settle(&mut g, 60);
+        let s = steps(&g);
+        assert!(s[0].done && !s[1].done, "{s:?}");
+        assert!(
+            g.messages.iter().any(|l| l.contains("Hedge out")),
+            "{:?}",
+            g.messages
+        );
+        // The stand spot moves to beside the brazier, past the hedge.
+        assert!(g.goals()[3].stand_x > HEDGE2.x1);
     }
 }
 

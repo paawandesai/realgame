@@ -2199,6 +2199,59 @@ body[data-tier="sprout"] #objective-banner .objective-pic {
   white-space: nowrap;
 }
 
+#objective-banner .objective-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.objective-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+#goal-chip .objective-steps {
+  flex-direction: row;
+  gap: 10px;
+  flex: none;
+  font-size: 0.85em;
+}
+
+.objective-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.objective-step .step-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  border: 2px solid #f0c75e;
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.objective-step.done {
+  color: #9be7a8;
+}
+
+.objective-step.done .step-mark {
+  background: #2e9d4f;
+  border-color: #9be7a8;
+  color: #ffffff;
+}
+
+#goal-chip.ticked {
+  border-color: #9be7a8;
+}
+
 #goal-chip.pop {
   animation: chip-pop 0.5s ease-out;
 }
@@ -2267,6 +2320,56 @@ body[data-motion="calm"] #goal-chip.pop {
 
 body[data-tier="sprout"] #battery-tag {
   font-size: 1rem;
+}
+
+#stand-spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  will-change: transform;
+}
+
+#stand-spot::before {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: -9px;
+  width: 56px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid #f0c75e;
+  background: rgba(240, 199, 94, 0.3);
+  box-shadow: 0 0 14px rgba(240, 199, 94, 0.8);
+  animation: stand-glow 1.2s ease-in-out infinite alternate;
+}
+
+#stand-spot .stand-label {
+  position: absolute;
+  left: 0;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 32, 0.8);
+  color: #f0c75e;
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+body[data-tier="sprout"] #stand-spot .stand-label::before {
+  content: "⬇ ";
+}
+
+@keyframes stand-glow {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+body[data-motion="calm"] #stand-spot::before {
+  animation: none;
 }
 
 #goal-pointer {

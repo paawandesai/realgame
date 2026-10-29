@@ -26,11 +26,15 @@ export class ObjectiveBanner {
   private readonly chip: HTMLButtonElement;
   private readonly chipPic: HTMLElement;
   private readonly chipText: HTMLElement;
+  private readonly bannerSteps: HTMLElement;
+  private readonly chipSteps: HTMLElement;
   private key = "";
   private text = "";
   private timer = 0;
   private holdTimer = 0;
   private holdUntil = 0;
+  /** The goal line as the simulation wrote it (for speech). */
+  private raw = "";
   /** Called when the player asks for the goal again; the caller speaks it. */
   onAnnounce: ((line: string) => void) | null = null;
 
@@ -46,7 +50,12 @@ export class ObjectiveBanner {
     this.bannerPic.className = "objective-pic";
     this.bannerText = document.createElement("span");
     this.bannerText.className = "objective-text";
-    this.banner.append(this.bannerPic, this.bannerText);
+    this.bannerSteps = document.createElement("span");
+    this.bannerSteps.className = "objective-steps";
+    const bannerBody = document.createElement("span");
+    bannerBody.className = "objective-body";
+    bannerBody.append(this.bannerText, this.bannerSteps);
+    this.banner.append(this.bannerPic, bannerBody);
 
     this.chip = document.createElement("button");
     this.chip.type = "button";
@@ -56,7 +65,9 @@ export class ObjectiveBanner {
     this.chipPic.className = "objective-pic";
     this.chipText = document.createElement("span");
     this.chipText.className = "objective-text";
-    this.chip.append(this.chipPic, this.chipText);
+    this.chipSteps = document.createElement("span");
+    this.chipSteps.className = "objective-steps";
+    this.chip.append(this.chipPic, this.chipText, this.chipSteps);
     this.chip.addEventListener("click", () => this.replay());
     stage.append(this.banner, this.chip);
   }
@@ -79,14 +90,41 @@ export class ObjectiveBanner {
       return;
     }
     const text = this.tier === "sprout" ? goal.text : prettyFormula(goal.text);
-    const key = `${goal.room}:${goal.text}`;
+    const steps = goal.steps ?? [];
+    const stepKey = steps.map((s) => (s.done ? "1" : "0")).join("");
+    const key = `${goal.room}:${goal.text}:${stepKey}`;
     if (key === this.key) return;
+    const ticked = this.key.startsWith(`${goal.room}:${goal.text}:`);
     this.key = key;
     this.text = text;
+    this.raw = goal.text;
     for (const pic of [this.bannerPic, this.chipPic]) pic.replaceChildren(icon(GOAL_ICON[goal.kind]));
     this.bannerText.textContent = text;
     this.chipText.textContent = text;
-    this.chip.setAttribute("aria-label", `Goal: ${text}. Say it again.`);
+    // The chip is small: a goal in steps shows just its ticked steps.
+    this.chipText.hidden = (goal.steps ?? []).length > 0;
+    // A goal in steps: each step listed with a tick once it is done, so
+    // "1. hedge out" visibly comes before "2. light the bowl".
+    for (const box of [this.bannerSteps, this.chipSteps]) {
+      box.replaceChildren(
+        ...steps.map((s) => {
+          const el = document.createElement("span");
+          el.className = s.done ? "objective-step done" : "objective-step";
+          const mark = document.createElement("span");
+          mark.className = "step-mark";
+          mark.textContent = s.done ? "✓" : "○";
+          const words = document.createElement("span");
+          words.textContent = this.tier === "sprout" ? s.text : prettyFormula(s.text);
+          el.append(mark, words);
+          return el;
+        }),
+      );
+      box.hidden = steps.length === 0;
+    }
+    const said = steps.length ? ` Steps: ${steps.map((s) => `${s.text}${s.done ? " (done)" : ""}`).join(", ")}.` : "";
+    this.chip.setAttribute("aria-label", `Goal: ${text}.${said} Say it again.`);
+    // A step just ticked: the chip glows; the banner comes back to show it.
+    this.chip.classList.toggle("ticked", ticked);
     this.chip.hidden = false;
     // Not spoken here: each room already speaks its own entry line.
     this.show();
@@ -102,8 +140,7 @@ export class ObjectiveBanner {
   replay(): void {
     if (!this.text) return;
     this.show();
-    const raw = this.key.slice(this.key.indexOf(":") + 1);
-    this.onAnnounce?.(raw);
+    this.onAnnounce?.(this.raw);
   }
 
   private show(): void {

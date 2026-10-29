@@ -15,6 +15,10 @@ const GOAL_ICON: Record<Goal["kind"], IconName> = {
 
 /** The player is "there" within this many cells of a goal's standing spot. */
 export const NEAR_CELLS = 40;
+/** Top of the flat ground in world cells (GROUND_Y in game/rooms.rs). */
+const GROUND_Y = 148;
+/** Standing within this many cells of the spot counts as on it. */
+const ON_SPOT_CELLS = 5;
 
 interface Marker {
   el: HTMLElement;
@@ -32,6 +36,7 @@ export class GoalMarkers {
   private readonly area: HTMLElement;
   private readonly battery: HTMLElement;
   private readonly pointer: HTMLElement;
+  private readonly stand: HTMLElement;
   /** Show a bouncing pointer on the next goal (casts are not moving it on). */
   pointAt = false;
   /** Whether the go arrow is showing (the player should walk first). */
@@ -66,7 +71,15 @@ export class GoalMarkers {
     this.pointer.id = "goal-pointer";
     this.pointer.hidden = true;
     this.pointer.append(icon("hand"));
-    this.layer.append(this.area, this.battery, this.pointer);
+    // Where to stand to cast at the brazier, once the hedge is out of the way.
+    this.stand = document.createElement("div");
+    this.stand.id = "stand-spot";
+    this.stand.hidden = true;
+    const standLabel = document.createElement("span");
+    standLabel.className = "stand-label";
+    standLabel.textContent = "Stand here";
+    this.stand.append(standLabel);
+    this.layer.append(this.area, this.battery, this.pointer, this.stand);
 
     this.go = document.createElement("button");
     this.go.type = "button";
@@ -200,6 +213,17 @@ export class GoalMarkers {
     if (bat) {
       this.battery.style.transform = `translate(${((bat[0] - viewX) * kx).toFixed(1)}px, ${(bat[1] * ky).toFixed(1)}px)`;
     }
+    // Room 4's second step: a glowing pad where the bowl can be reached.
+    const showStand =
+      next !== null &&
+      next.kind === "brazier" &&
+      (next.steps?.[0]?.done ?? false) &&
+      Math.abs(next.stand_x - playerCx) > ON_SPOT_CELLS;
+    this.stand.hidden = !showStand;
+    if (showStand && next) {
+      this.stand.style.transform = `translate(${((next.stand_x - viewX) * kx).toFixed(1)}px, ${(GROUND_Y * ky).toFixed(1)}px)`;
+    }
+
     // A hand pointing at the target when casts are not moving the goal on.
     const point = this.pointAt && next !== null && !far;
     this.pointer.hidden = !point;

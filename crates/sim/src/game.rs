@@ -1643,6 +1643,7 @@ impl Game {
                 // ice (-78.5 C, CRC) and pushes the oxygen away, so it both
                 // cools and smothers what it lands on.
                 self.note_douse(at);
+                self.smother(at);
                 let cooled = self.soak(at, n("CO2") * CO2_SOAK_CELLS_PER_MOL);
                 self.spawn_blob_at(at, Species::CO2, n("CO2") * CO2_CELLS_PER_MOL, DRY_ICE_C);
                 if cooled > 0 {
