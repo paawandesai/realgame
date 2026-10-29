@@ -766,7 +766,7 @@ impl Game {
     /// Where the reticle is drawn: the aim, or, before the player has
     /// pointed anywhere, the goal a typed spell will fly at.
     pub fn shown_aim(&self) -> (i32, i32) {
-        if self.aim_tick == 0 {
+        if self.aim_tick == 0 || self.aim_is_stale() {
             self.goal_in_range().unwrap_or(self.aim)
         } else {
             self.aim
@@ -2027,7 +2027,10 @@ impl Game {
                 (hy as i32).min(HEIGHT as i32 - 1),
             );
         }
-        if !never_aimed && !self.aim_on_goal_marker() {
+        // An aim left on a target that is finished (the put-out hedge) is
+        // stale: the next spell goes to the active goal instead of lighting
+        // the ash again (playtest round 4).
+        if !never_aimed && !self.aim_on_goal_marker() && !self.aim_is_stale() {
             if self.tier > Tier::Seedling {
                 return;
             }
@@ -2047,7 +2050,13 @@ impl Game {
         let in_reach =
             |p: (i32, i32)| ((p.0 as f32 - hx).powi(2) + (p.1 as f32 - hy).powi(2)).sqrt() <= REACH;
         let mut found = None;
-        if douse || heat {
+        // The active goal's target comes before any other match: with room
+        // 4's hedge out, a heat spell goes to the brazier, never back to the
+        // hedge it just doused.
+        if heat && self.goal_need() == Some("boom") {
+            found = self.goal_in_range();
+        }
+        if found.is_none() && (douse || heat) {
             Self::rings(hx as i32, hy as i32, REACH as i32, |x, y| {
                 let g = &self.grid;
                 let s = g.get(x, y);

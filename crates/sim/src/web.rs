@@ -115,6 +115,12 @@ impl WebGame {
         vec![x, y]
     }
 
+    /// The goal target under the reticle ("hedge", "ice", "gas",
+    /// "brazier"), or an empty string when it is on none.
+    pub fn aim_target(&self) -> String {
+        self.game.aim_target().unwrap_or("").to_string()
+    }
+
     /// Keyboard aiming (T): points at the room's goal. False if none in range.
     pub fn aim_at_goal(&mut self) -> bool {
         self.game.aim_at_goal()

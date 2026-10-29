@@ -370,6 +370,27 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const ky = stage.clientHeight / h;
     bullseye.style.transform = `translate(${((x! - viewX + 0.5) * kx).toFixed(1)}px, ${((y! + 0.5) * ky).toFixed(1)}px)`;
   }
+  // Seedling and Apprentice: the goal the reticle is on, named under it
+  // ("→ brazier"), so a typed spell's target is never a surprise.
+  const aimTag = document.createElement("div");
+  aimTag.id = "aim-target";
+  aimTag.hidden = true;
+  if (tier !== "sprout") goals.layer.append(aimTag);
+  let aimTagText = "";
+  function placeAimTag(viewX: number): void {
+    if (tier === "sprout") return;
+    const name = game.aim_target();
+    if (name !== aimTagText) {
+      aimTagText = name;
+      aimTag.textContent = name ? `→ ${name}` : "";
+      aimTag.hidden = !name;
+    }
+    if (!name) return;
+    const [x, y] = Array.from(game.shown_aim());
+    const kx = stage.clientWidth / w;
+    const ky = stage.clientHeight / h;
+    aimTag.style.transform = `translate(${((x! - viewX + 0.5) * kx).toFixed(1)}px, ${((y! + 7) * ky).toFixed(1)}px)`;
+  }
   let tray: SpellTray | null = null;
   if (tier === "sprout") {
     const root = byId("cards");
@@ -2238,6 +2259,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     updateLift(now, viewX);
     jumpHintTick(now, viewX);
     placeBullseye(viewX);
+    placeAimTag(viewX);
     hintTick(now);
     // JSON is only built when something on the HUD actually changed.
     const version = game.state_version();

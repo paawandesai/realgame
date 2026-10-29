@@ -1620,6 +1620,42 @@ impl Game {
 }
 
 impl Game {
+    /// What the room's unfinished goal asks for next ("water", "boom",
+    /// "split"), or None when it is done.
+    pub(super) fn goal_need(&self) -> Option<&'static str> {
+        self.goals()
+            .get(self.room())
+            .filter(|g| !g.done)
+            .map(|g| g.need)
+    }
+
+    /// Whether the aim still rests on a target that is finished: a hedge
+    /// that has been put out. A spell there would only relight the ash.
+    pub(super) fn aim_is_stale(&self) -> bool {
+        let (ax, ay) = self.aim;
+        self.rooms.hedges.iter().any(|h| {
+            let r = h.rect;
+            h.out && ax >= r.x0 - 4 && ax <= r.x1 + 4 && ay >= r.y0 - 8 && ay <= r.y1
+        })
+    }
+
+    /// The name of the goal target the reticle is on ("hedge", "ice",
+    /// "gas", "brazier"), for the label under the crosshair.
+    pub fn aim_target(&self) -> Option<&'static str> {
+        let (gx, gy) = self.goal_aim_point()?;
+        let (ax, ay) = self.shown_aim();
+        if ((gx - ax) as f32).hypot((gy - ay) as f32) > 10.0 {
+            return None;
+        }
+        Some(match self.room() {
+            0 => "hedge",
+            1 => "ice",
+            2 => "gas",
+            _ if self.rooms.hedges[1].out => "brazier",
+            _ => "hedge",
+        })
+    }
+
     /// Where soft auto-aim sends a spell when nothing it acts on is in
     /// reach: the target of the room's unfinished goal (the ice, the gas
     /// pocket, the hedge or the brazier), so a tapped card always flies at
@@ -2626,6 +2662,46 @@ mod marsh {
             boom_lights_brazier_from_the_left(&mut g, false, seed);
             let mut g = hedge2_put_out(Tier::Apprentice, seed, None);
             boom_lights_brazier_from_the_left(&mut g, true, seed);
+        }
+    }
+
+    /// Playtest round 4: after hedge 2 is out, a fuel or heat spell cast
+    /// without a fresh aim must fly at the brazier (the active goal), not
+    /// back at the hedge the water was last aimed at.
+    #[test]
+    fn heat_spells_after_hedge_2_aim_at_the_brazier_not_the_hedge() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for seed in SEEDS {
+                let mut g = hedge2_put_out(tier, seed, None);
+                let stand = g.goals()[3].stand_x as f32;
+                assert!(walk_to(&mut g, stand, 600), "{tier:?} seed {seed}: blocked");
+                assert_eq!(g.aim_target(), Some("brazier"), "{tier:?} seed {seed}");
+                g.jars.insert("CH4".into(), 2);
+                while g.jars["H2"] < 2 || g.jars["O2"] < 2 {
+                    settle(&mut g, 10);
+                }
+                for spell in ["CH4 + 2O2 -> CO2 + 2H2O", "2H2 + O2 -> 2H2O"] {
+                    if g.rooms.brazier_lit {
+                        break;
+                    }
+                    let out = g.cast(spell);
+                    assert_ne!(
+                        out.outcome,
+                        Outcome::Fizzle,
+                        "{tier:?} seed {seed}: {spell}"
+                    );
+                    for _ in 0..90 {
+                        g.tick(0);
+                        let flames = HEDGE2
+                            .cells()
+                            .filter(|&(x, y)| g.grid.get(x, y) == Species::Flame)
+                            .count();
+                        assert_eq!(flames, 0, "{tier:?} seed {seed}: {spell} lit the hedge");
+                    }
+                }
+                assert!(g.rooms.brazier_lit, "{tier:?} seed {seed}: brazier dark");
+                assert!(g.goals()[3].done);
+            }
         }
     }
 
