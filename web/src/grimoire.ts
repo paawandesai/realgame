@@ -3,7 +3,7 @@
 // localStorage on this device only; if storage is blocked the book still
 // works for the visit.
 
-import { GRIMOIRE_PAGES, formatDh, stateNote, type Book, type HoverCard } from "./book";
+import { BAR_SPELLS, GRIMOIRE_PAGES, earnablePages, formatDh, stateNote, type Book, type GrimoirePage, type HoverCard } from "./book";
 import { equationBalls, icon } from "./icons";
 import { storageGet, storageSet } from "./prefs";
 import { prettyFormula, type Tier } from "./types";
@@ -30,21 +30,35 @@ export class Grimoire {
     }
   }
 
+  /** Pages this tier can earn in this trial. */
   get total(): number {
-    return GRIMOIRE_PAGES.length;
+    return earnablePages(this.tier).length;
+  }
+
+  /** Earnable pages found so far. */
+  get earned(): number {
+    return earnablePages(this.tier).filter((p) => this.found.has(p.id)).length;
   }
 
   /** Records a page. Returns true the first time it is ever found. */
   discover(id: string): boolean {
-    if (!GRIMOIRE_PAGES.some((p) => p.id === id) || this.found.has(id)) return false;
+    const page = GRIMOIRE_PAGES.find((p) => p.id === id);
+    if (!page || page.soon || this.found.has(id)) return false;
     this.found.add(id);
     storageSet(KEY, JSON.stringify([...this.found]));
     return true;
   }
 
-  /** Fills a list with every page: face up if found, a silhouette if not. */
-  render(list: HTMLElement, flip: ReadonlySet<string> = new Set()): void {
-    list.replaceChildren(...GRIMOIRE_PAGES.map((p) => this.card(p.id, flip.has(p.id))));
+  /**
+   * Fills a list with the pages: face up if found, a silhouette if not,
+   * then the "coming soon" page. `cleared` holds the rooms (1-4) already
+   * done, so no face-down page sends the player back to one. On the end
+   * screen Sprout sees only the cards earned and one "more soon" card.
+   */
+  render(list: HTMLElement, flip: ReadonlySet<string> = new Set(), cleared: ReadonlySet<number> = new Set(), end = false): void {
+    let pages = GRIMOIRE_PAGES.filter((p) => p.soon || p.tiers.includes(this.tier) || this.found.has(p.id));
+    if (end && this.tier === "sprout") pages = pages.filter((p) => p.soon || this.found.has(p.id));
+    list.replaceChildren(...pages.map((p) => this.card(p, flip.has(p.id), cleared)));
   }
 
   /**
@@ -56,7 +70,9 @@ export class Grimoire {
     const title = document.createElement("strong");
     title.className = "discover-title";
     title.textContent = this.tier === "sprout" ? "New card!" : "New Grimoire page!";
-    const card = this.card(id, true);
+    const page = GRIMOIRE_PAGES.find((p) => p.id === id);
+    if (!page) return;
+    const card = this.card(page, true);
     card.classList.add("compact");
     card.removeAttribute("tabindex");
     const parts: HTMLElement[] = [title, card];
@@ -80,34 +96,70 @@ export class Grimoire {
     host.replaceChildren(...parts);
   }
 
-  private card(id: string, flip: boolean): HTMLLIElement {
-    const page = GRIMOIRE_PAGES.find((p) => p.id === id);
+  /** A found pour page (water, carbon dioxide): no reaction, so no ΔH. */
+  private pourCard(li: HTMLLIElement, name: HTMLElement, page: GrimoirePage): HTMLLIElement {
+    const formula = page.formula ?? "";
+    const spell = BAR_SPELLS.find((s) => s.formula === formula);
+    name.textContent = page.name;
+    const eq = document.createElement("span");
+    eq.className = "grim-eq";
+    if (this.tier === "sprout") eq.append(equationBalls(formula));
+    else eq.textContent = prettyFormula(formula);
+    const words = document.createElement("span");
+    words.className = "grim-words";
+    words.textContent = this.tier === "apprentice" ? (spell?.note ?? page.short ?? "") : (page.short ?? "");
+    li.append(eq, words);
+    if (this.tier === "apprentice" && spell?.noteSource) {
+      const src = document.createElement("span");
+      src.className = "grim-src";
+      src.textContent = spell.noteSource;
+      li.append(src);
+    }
+    li.tabIndex = 0;
+    li.setAttribute("aria-label", `${page.name}: ${formula}`);
+    return li;
+  }
+
+  private card(page: GrimoirePage, flip: boolean, cleared: ReadonlySet<number> = new Set()): HTMLLIElement {
+    const id = page.id;
     const r = this.book.byId.get(id);
     const li = document.createElement("li");
     li.className = "grim-card";
     li.dataset.id = id;
-    const has = this.found.has(id);
+    const has = this.found.has(id) && !page.soon;
     li.classList.add(has ? "found" : "silhouette");
+    if (page.soon) li.classList.add("soon");
     if (flip && has) li.classList.add("flip");
     const pic = document.createElement("span");
     pic.className = "grim-pic";
-    if (page) pic.append(icon(page.picture));
+    pic.append(icon(page.picture));
     const name = document.createElement("strong");
     name.className = "grim-name";
     li.append(pic, name);
-    if (!has || !r || !page) {
-      name.textContent = "?";
-      // Never a dead end: every face-down page names where it is taught.
-      const where = page ? (this.tier === "sprout" ? page.whereSprout : page.where) : "";
-      if (where) {
-        const hint = document.createElement("span");
-        hint.className = "grim-where";
-        hint.textContent = where;
-        li.append(hint);
+    if (page.soon) {
+      name.textContent = this.tier === "sprout" ? "More soon!" : page.name;
+      if (this.tier !== "sprout") {
+        const soon = document.createElement("span");
+        soon.className = "grim-where";
+        soon.textContent = prettyFormula(page.soon);
+        li.append(soon);
       }
-      li.setAttribute("aria-label", where ? `Page not found yet. ${where}` : "Page not found yet");
+      li.setAttribute("aria-label", this.tier === "sprout" ? "More cards soon" : `${page.name}: ${page.soon}`);
       return li;
     }
+    if (!has || (!r && !page.formula)) {
+      name.textContent = "?";
+      // Never a dead end: every face-down page says how to earn it, and
+      // never sends the player back to a room already cleared.
+      const where = this.tier === "sprout" ? page.whereSprout : cleared.has(page.room) ? page.again : page.where;
+      const hint = document.createElement("span");
+      hint.className = "grim-where";
+      hint.textContent = this.tier === "sprout" ? where : prettyFormula(where);
+      li.append(hint);
+      li.setAttribute("aria-label", `Page not found yet. ${where}`);
+      return li;
+    }
+    if (!r) return this.pourCard(li, name, page);
     name.textContent = page.name;
     const eq = document.createElement("span");
     eq.className = "grim-eq";

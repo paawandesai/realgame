@@ -1047,7 +1047,8 @@ body[data-tier="sprout"] #settings .row {
   gap: 8px;
   padding: 16px;
   text-align: center;
-  background: radial-gradient(circle, rgba(240, 199, 94, 0.35), rgba(15, 23, 32, 0.92) 65%);
+  /* Opaque: nothing from the last room shows through the win screen. */
+  background: radial-gradient(circle, rgba(240, 199, 94, 0.35), rgba(240, 199, 94, 0) 65%), #0f1720;
   z-index: 8;
   overflow: hidden;
 }
@@ -1705,6 +1706,18 @@ body[data-tier="apprentice"] #jars-mini {
 .grim-pic {
   width: 52px;
   height: 52px;
+}
+
+/* Sprout's win screen: the picture and its name, nothing to read. */
+body[data-tier="sprout"] #grimoire .grim-eq,
+body[data-tier="sprout"] #grimoire .grim-dh,
+body[data-tier="sprout"] #grimoire .grim-words,
+body[data-tier="sprout"] #grimoire .grim-where {
+  display: none;
+}
+
+.grim-card.soon {
+  border-style: dashed;
 }
 
 .grim-card.silhouette {

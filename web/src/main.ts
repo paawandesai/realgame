@@ -921,13 +921,15 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const grimPanel = byId("grimoire-panel");
   /** Pages found since the book was last open: they flip over when it opens. */
   const unseenPages = new Set<string>();
+  /** Rooms (1-4) whose goal is done, so face-down pages never point back. */
+  const clearedRooms = new Set<number>();
   function renderGrimoire(): void {
     const open = !grimPanel.hidden;
-    grimoire.render(byId("grimoire-cards"), open ? unseenPages : new Set());
+    grimoire.render(byId("grimoire-cards"), open ? unseenPages : new Set(), clearedRooms);
     if (open) unseenPages.clear();
     byId("grimoire-count").textContent =
-      tier === "sprout" ? "" : `${grimoire.found.size} of ${grimoire.total} pages found`;
-    bookBtn.dataset.count = String(grimoire.found.size);
+      tier === "sprout" ? "" : `${grimoire.earned} of ${grimoire.total} pages earned in this trial`;
+    bookBtn.dataset.count = String(grimoire.earned);
   }
   function toggleGrimoire(open = grimPanel.hidden): void {
     grimPanel.hidden = !open;
@@ -1043,6 +1045,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       }
       // Only a balanced spell finds its Grimoire page.
       if (result.first_discovery && result.reaction_id) foundPage(result.reaction_id);
+      // The suit's pours have pages too (no reaction, so no ΔH).
+      if (result.spell === "water") foundPage("pour_water");
+      if (result.spell === "cloud") foundPage("pour_co2");
     }
     renderSlots();
   }
@@ -1132,6 +1137,17 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   /** The goals moved on (a goal done, its next step, or a fire meter falling). */
   function trackProgress(list: Goal[]): void {
+    for (const g of list) {
+      if (!g.done || clearedRooms.has(g.room)) continue;
+      clearedRooms.add(g.room);
+      // Room 3 needs both: split water, then boom the gas. Its pages are
+      // earned with the room, however the water got split.
+      if (g.room === 3) {
+        foundPage("electrolysis_water");
+        foundPage("water_synthesis");
+      }
+      renderGrimoire();
+    }
     const sig = list.map((g) => `${g.done}:${g.need}`).join(",");
     let moved = sig !== progressSig;
     progressSig = sig;
@@ -1698,11 +1714,16 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     ended = true;
     // Nothing from the last room shows through the end screen.
     popups.drop();
-    grimoire.render(byId("grimoire"), new Set(grimoire.found));
+    // The trial is done: every room counts as cleared.
+    for (let r = 1; r <= 4; r++) clearedRooms.add(r);
+    grimoire.render(byId("grimoire"), new Set(grimoire.found), clearedRooms, true);
+    const earned = grimoire.earned;
+    const more = grimoire.total - earned;
     byId("end-sub").textContent =
       tier === "sprout"
         ? "You did it!"
-        : `You passed the Alchemist's Trial: ${grimoire.found.size} of ${grimoire.total} Grimoire pages found.`;
+        : `You passed the Alchemist's Trial and earned ${earned} Grimoire ${earned === 1 ? "page" : "pages"}!` +
+          (more > 0 ? ` ${more} bonus ${more === 1 ? "page waits" : "pages wait"} in free play.` : "");
     byId("end").hidden = false;
     speech.say("Breakthrough! You passed the trial!");
     byId("end-replay").focus();
@@ -1866,6 +1887,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     renderSlots();
     hudRoom = -1;
     room1Cleared = false;
+    clearedRooms.clear();
     renderTutorial();
     tray?.reset();
     tray?.suggest(1, TRAY_STARTERS[0]!);

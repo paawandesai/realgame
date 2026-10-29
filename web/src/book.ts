@@ -3,7 +3,7 @@
 // hover cards that show each spell's sourced numbers.
 
 import type { IconName } from "./icons";
-import { prettyFormula } from "./types";
+import { prettyFormula, type Tier } from "./types";
 
 export interface BookReaction {
   id: string;
@@ -91,37 +91,105 @@ export const BAR_SPELLS: SpellDef[] = [
   },
 ];
 
-/** The Grimoire's pages: one per reaction in the book that this level can make. */
-export const GRIMOIRE_PAGES: { id: string; name: string; picture: IconName; where: string; whereSprout: string }[] = [
+/** A Grimoire page: a reaction from the book, or one of the suit's pours. */
+export interface GrimoirePage {
+  id: string;
+  name: string;
+  picture: IconName;
+  /** The room (1-4) that teaches it. */
+  room: number;
+  /** Where to earn it, naming the room, while that room is still ahead. */
+  where: string;
+  /** How to earn it once its room is behind you (never names a room). */
+  again: string;
+  /** Sprout's teaser: pictures and a few words, no room numbers. */
+  whereSprout: string;
+  /** Tiers that can earn it in this trial (empty: a later trial). */
+  tiers: Tier[];
+  /** The formula for a pour (no reaction): what the card shows. */
+  formula?: string;
+  /** Sprout and Seedling words for a pour page. */
+  short?: string;
+  /** Shown on a page that comes in a later trial. */
+  soon?: string;
+}
+
+const ALL: Tier[] = ["sprout", "seedling", "apprentice"];
+
+/** The Grimoire's pages, in the order the trial teaches them. Only pages
+ * this tier can earn in this trial count; the last is a "coming soon". */
+export const GRIMOIRE_PAGES: GrimoirePage[] = [
+  {
+    id: "pour_water",
+    name: "Water",
+    picture: "drop",
+    room: 1,
+    where: "Room 1, Splash Garden: pour water (H2O) on the burning hedge.",
+    again: "Cast water (H2O) at a fire.",
+    whereSprout: "The water drop.",
+    tiers: ALL,
+    formula: "H2O",
+    short: "Water puts out fire.",
+  },
   {
     id: "water_synthesis",
     name: "Boom",
     picture: "boom",
+    room: 2,
     where: "Room 2, the Frozen Gate: melt the ice wall with boom (2H2 + O2 -> 2H2O).",
-    whereSprout: "Room 2: the ice wall.",
+    again: "Cast boom: 2H2 + O2 -> 2H2O.",
+    whereSprout: "The boom card.",
+    tiers: ALL,
   },
   {
     id: "electrolysis_water",
     name: "Bubbles",
     picture: "bubbles",
-    where: "Room 3, the Crystal Lab: split water beside the crystal.",
-    whereSprout: "Room 3: the crystal.",
+    room: 3,
+    where: "Room 3, the Crystal Lab: split water (2H2O -> 2H2 + O2) beside the crystal.",
+    again: "Cast bubbles: 2H2O -> 2H2 + O2.",
+    whereSprout: "The bubbles card.",
+    tiers: ALL,
+  },
+  {
+    id: "pour_co2",
+    name: "Cloud",
+    picture: "cloud",
+    room: 4,
+    where: "Room 4, the Marsh Door: smother the burning hedge with carbon dioxide (CO2).",
+    again: "Cast cloud (CO2) at a fire to smother it.",
+    whereSprout: "The cloud card.",
+    tiers: ALL,
+    formula: "CO2",
+    short: "Heavy gas smothers fire.",
   },
   {
     id: "methane_combustion",
     name: "Fireball",
     picture: "methane",
-    where: "Room 4, the Marsh Door: gather methane from the marsh bubbles (hold G), then cast fireball.",
-    whereSprout: "Room 4: the marsh bubbles.",
+    room: 4,
+    where: "Room 4, the Marsh Door: hold G in the marsh bubbles for methane, then light the brazier with fireball (CH4 + 2O2 -> CO2 + 2H2O).",
+    again: "Hold G in the marsh bubbles for methane, then cast fireball: CH4 + 2O2 -> CO2 + 2H2O.",
+    whereSprout: "The marsh bubbles.",
+    tiers: ["seedling", "apprentice"],
   },
   {
     id: "carbon_combustion",
     name: "Burning wood",
     picture: "log",
-    where: "Seen in room 1: the burning hedge is carbon + oxygen. Carrying carbon to cast it comes in a later trial.",
-    whereSprout: "Room 1: the burning hedge. More soon!",
+    room: 1,
+    where: "",
+    again: "",
+    whereSprout: "More soon!",
+    tiers: [],
+    soon: "Coming soon. Wood is mostly cellulose (C, H, O); burning makes CO2 and H2O.",
   },
 ];
+
+/** Pages this tier can earn in this trial. */
+export function earnablePages(tier: Tier): GrimoirePage[] {
+  return GRIMOIRE_PAGES.filter((p) => p.tiers.includes(tier));
+}
 
 /** "−483.6 kJ" with a real minus sign. */
 export function formatDh(kj: number): string {
