@@ -88,8 +88,14 @@ pub enum Rejection {
     /// A capital letter group that is not an element (`Hh`).
     UnknownElement(String),
     /// A real-looking formula or a balanced reaction this trial does not have
-    /// (`NaCl`, `2Na + Cl2 -> 2NaCl`).
-    NotInWorld { balanced: bool },
+    /// (`NaCl`, `2Na + Cl2 -> 2NaCl`). `known` is true only when the balanced
+    /// equation is a sourced real reaction (`content/known_reactions.json`):
+    /// balancing alone does not make a reaction happen.
+    NotInWorld { balanced: bool, known: bool },
+    /// The same substances on both sides (`H2O -> H2O`): nothing changes.
+    NoChange,
+    /// A noble gas as a reactant (`He + O2 -> HeO2`), named by its symbol.
+    NobleGas(String),
     /// Atoms do not add up and no known reaction matches. `counts` are
     /// per-element lines ("O: 1 on the left, 2 on the right"). `pair` names a
     /// diatomic gas written as a lone atom (`O` for `O2`).
@@ -112,6 +118,8 @@ impl Rejection {
             Rejection::NotAFormula => "parse",
             Rejection::UnknownElement(_) => "element",
             Rejection::NotInWorld { .. } => "not_in_world",
+            Rejection::NoChange => "no_change",
+            Rejection::NobleGas(_) => "noble_gas",
             Rejection::Unbalanced { .. } => "unbalanced",
             Rejection::WrongState(_) => "state",
             Rejection::ZeroForO => "zero",
@@ -311,7 +319,13 @@ pub fn plan(book: &ReactionBook, text: &str, auto_balance: bool) -> Plan {
                 reason: Rejection::ZeroForO,
             };
         }
-        return unknown(Rejection::NotInWorld { balanced: false });
+        if let Some(g) = noble_gas(&eq) {
+            return unknown(Rejection::NobleGas(g));
+        }
+        return unknown(Rejection::NotInWorld {
+            balanced: false,
+            known: false,
+        });
     }
     let found = if eq.products.is_empty() {
         find_by_reactants(book, &eq)
@@ -380,15 +394,43 @@ fn not_a_book_reaction(book: &ReactionBook, eq: &Equation) -> Rejection {
             pair,
         };
     }
-    if !eq.products.is_empty() && !eq.is_balanced() {
+    let balanced = eq.is_balanced();
+    if balanced && book.find_elsewhere(eq).is_some() {
+        return Rejection::NotInWorld {
+            balanced,
+            known: true,
+        };
+    }
+    if !eq.products.is_empty() {
+        let key = eq.species_key();
+        if key.0 == key.1 {
+            return Rejection::NoChange;
+        }
+    }
+    if let Some(g) = noble_gas(eq) {
+        return Rejection::NobleGas(g);
+    }
+    if !eq.products.is_empty() && !balanced {
         return Rejection::Unbalanced {
             counts: eq.imbalance_report(),
             pair: None,
         };
     }
     Rejection::NotInWorld {
-        balanced: eq.is_balanced(),
+        balanced,
+        known: false,
     }
+}
+
+/// Noble gases: full outer shells, so (almost) nothing reacts with them.
+const NOBLE: &[&str] = &["He", "Ne", "Ar", "Kr", "Xe", "Rn"];
+
+/// The first reactant that is a lone noble gas, by symbol.
+fn noble_gas(eq: &Equation) -> Option<String> {
+    eq.reactants
+        .iter()
+        .find(|t| NOBLE.contains(&t.formula.as_str()))
+        .map(|t| t.formula.clone())
 }
 
 fn find_by_reactants<'a>(
@@ -943,12 +985,39 @@ mod tests {
         assert_eq!(reason(&book, "Hh"), Rejection::UnknownElement("Hh".into()));
         assert_eq!(
             reason(&book, "NaCl"),
-            Rejection::NotInWorld { balanced: false }
+            Rejection::NotInWorld {
+                balanced: false,
+                known: false
+            }
         );
         assert_eq!(
             reason(&book, "2Na + Cl2 -> 2NaCl"),
-            Rejection::NotInWorld { balanced: true }
+            Rejection::NotInWorld {
+                balanced: true,
+                known: true
+            }
         );
+        // Balanced is not the same as real.
+        assert_eq!(
+            reason(&book, "O2 + O2 -> O4"),
+            Rejection::NotInWorld {
+                balanced: true,
+                known: false
+            }
+        );
+        assert_eq!(
+            reason(&book, "CO2 -> C + O2"),
+            Rejection::NotInWorld {
+                balanced: true,
+                known: false
+            }
+        );
+        assert_eq!(reason(&book, "H2O -> H2O"), Rejection::NoChange);
+        assert_eq!(
+            reason(&book, "He + O2 -> HeO2"),
+            Rejection::NobleGas("He".into())
+        );
+        assert_eq!(reason(&book, "Ar"), Rejection::NobleGas("Ar".into()));
         assert_eq!(
             reason(&book, "Na + Cl2 -> NaCl"),
             Rejection::Unbalanced {

@@ -1431,10 +1431,41 @@ impl Game {
                 )
                 .into(),
             Rejection::UnknownElement(el) => format!("{el} is not an element"),
-            Rejection::NotInWorld { balanced: true } => {
-                "Balanced, real chemistry! Not in this trial yet".into()
+            Rejection::NotInWorld {
+                balanced: true,
+                known: true,
+            } => self
+                .line(
+                    "Real, but not here yet!",
+                    "Balanced, real chemistry! Not in this trial yet",
+                    "Balanced, real chemistry! Not in this trial yet",
+                )
+                .into(),
+            Rejection::NotInWorld {
+                balanced: true,
+                known: false,
+            } => self
+                .line(
+                    "Atoms match, but that doesn't happen.",
+                    "Atoms match, but balancing doesn't make it happen.",
+                    "Atoms match, but I don't know this reaction. Balancing alone doesn't make it happen.",
+                )
+                .into(),
+            Rejection::NoChange => "Nothing changes: that's not a reaction.".into(),
+            Rejection::NobleGas(g) => {
+                let name = match g.as_str() {
+                    "He" => "Helium",
+                    "Ne" => "Neon",
+                    "Ar" => "Argon",
+                    "Kr" => "Krypton",
+                    "Xe" => "Xenon",
+                    _ => "Radon",
+                };
+                format!("{name} doesn't react.")
             }
-            Rejection::NotInWorld { balanced: false } => {
+            Rejection::NotInWorld {
+                balanced: false, ..
+            } => {
                 let what = input.trim();
                 if young || what.chars().count() > 16 {
                     "Not in this trial yet".into()
@@ -2768,6 +2799,37 @@ mod tests {
         assert!(g.cast("H2O").note.is_none());
         assert!(g.cast("water").note.is_none());
         assert!(game(Tier::Seedling).cast("h2o").note.is_none());
+    }
+
+    #[test]
+    fn only_known_reactions_are_called_real_chemistry() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let mut g = game(tier);
+            for text in [
+                "He + O2 -> HeO2",
+                "O2 + O2 -> O4",
+                "H2O -> H2O",
+                "CO2 -> C + O2",
+            ] {
+                let r = g.cast(text);
+                assert_eq!(r.outcome, Outcome::Unknown, "{text}");
+                assert!(!r.label.contains("real chemistry"), "{text}: {}", r.label);
+            }
+            let r = g.cast("H2O -> H2O");
+            assert_eq!(r.reason, Some("no_change"));
+            assert_eq!(r.label, "Nothing changes: that's not a reaction.");
+            let r = g.cast("He + O2 -> HeO2");
+            assert_eq!(r.reason, Some("noble_gas"));
+            assert_eq!(r.label, "Helium doesn't react.");
+            let r = g.cast("O2 + O2 -> O4");
+            assert!(r.label.contains("Atoms match"), "{}", r.label);
+        }
+        let mut g = game(Tier::Apprentice);
+        let r = g.cast("N2 + 3H2 -> 2NH3");
+        assert_eq!(r.reason, Some("not_in_world"));
+        assert!(r.label.contains("real chemistry"), "{}", r.label);
+        let r = g.cast("Xe + F2 -> XeF2");
+        assert!(r.label.contains("real chemistry"), "{}", r.label);
     }
 
     #[test]

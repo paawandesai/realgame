@@ -150,7 +150,17 @@ export interface CastOutcome {
   source: string | null;
   first_discovery: boolean;
   /** Why an "unknown" cast was rejected; null for real casts. */
-  reason: "empty" | "parse" | "element" | "not_in_world" | "unbalanced" | "state" | "zero" | null;
+  reason:
+    | "empty"
+    | "parse"
+    | "element"
+    | "not_in_world"
+    | "no_change"
+    | "noble_gas"
+    | "unbalanced"
+    | "state"
+    | "zero"
+    | null;
   /** Apprentice only: the reaction with state symbols, matching the ΔH shown. */
   equation_states: string | null;
   /** Apprentice only: a teaching note, such as "symbols are case-sensitive". */

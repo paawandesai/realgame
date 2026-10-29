@@ -7,6 +7,22 @@ use crate::formula::{parse_equation, Equation};
 use serde::Deserialize;
 
 pub const REACTIONS_JSON: &str = include_str!("../../../content/reactions.json");
+/// Real reactions this trial cannot cast, so the game only calls a typed
+/// equation "real chemistry" when it really is.
+pub const KNOWN_REACTIONS_JSON: &str = include_str!("../../../content/known_reactions.json");
+
+/// A real, sourced reaction that is not in this trial.
+#[derive(Debug, Clone, Deserialize)]
+pub struct KnownReaction {
+    pub equation: String,
+    pub name: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct KnownTable {
+    reactions: Vec<KnownReaction>,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Reaction {
@@ -48,6 +64,8 @@ struct Table {
 pub struct ReactionBook {
     pub reactions: Vec<(Reaction, Equation)>,
     pub phase_changes: Vec<PhaseChange>,
+    /// Real reactions outside this trial (`content/known_reactions.json`).
+    pub elsewhere: Vec<(KnownReaction, Equation)>,
 }
 
 impl ReactionBook {
@@ -84,9 +102,30 @@ impl ReactionBook {
                 (r, eq)
             })
             .collect();
+        let known: KnownTable = serde_json::from_str(KNOWN_REACTIONS_JSON)
+            .expect("content/known_reactions.json is valid");
+        let elsewhere = known
+            .reactions
+            .into_iter()
+            .map(|r| {
+                let eq = parse_equation(&r.equation).expect("known reaction equations parse");
+                assert!(
+                    eq.is_balanced(),
+                    "known reaction {} must be balanced",
+                    r.equation
+                );
+                assert!(
+                    !r.source.trim().is_empty(),
+                    "known reaction {} needs a source",
+                    r.equation
+                );
+                (r, eq)
+            })
+            .collect();
         ReactionBook {
             reactions,
             phase_changes: table.phase_changes,
+            elsewhere,
         }
     }
 
@@ -96,6 +135,15 @@ impl ReactionBook {
         self.reactions
             .iter()
             .find(|(_, known)| known.species_key() == key)
+    }
+
+    /// A real reaction outside this trial with the same species on each side.
+    pub fn find_elsewhere(&self, eq: &Equation) -> Option<&KnownReaction> {
+        let key = eq.species_key();
+        self.elsewhere
+            .iter()
+            .find(|(_, known)| known.species_key() == key)
+            .map(|(r, _)| r)
     }
 
     pub fn by_id(&self, id: &str) -> Option<&(Reaction, Equation)> {
@@ -119,6 +167,24 @@ mod tests {
     fn table_loads_and_every_reaction_balances() {
         let book = ReactionBook::load();
         assert!(book.reactions.len() >= 4);
+    }
+
+    #[test]
+    fn known_reactions_elsewhere_are_sourced_and_not_castable() {
+        let book = ReactionBook::load();
+        assert!(book.elsewhere.len() >= 10);
+        for (r, eq) in &book.elsewhere {
+            assert!(r.source.len() > 10, "{}", r.equation);
+            assert!(
+                book.find_by_species(eq).is_none(),
+                "{} is castable, so it does not belong in known_reactions.json",
+                r.equation
+            );
+        }
+        let salt = parse_equation("2Na + Cl2 -> 2NaCl").unwrap();
+        assert!(book.find_elsewhere(&salt).is_some());
+        let made_up = parse_equation("He + O2 -> HeO2").unwrap();
+        assert!(book.find_elsewhere(&made_up).is_none());
     }
 
     #[test]
