@@ -345,6 +345,13 @@ export class FxLayer {
         case "discover":
           this.burst(e.x, e.y - 6, 16, COLOR.gold, 0.06, now, 0.00003);
           break;
+        case "door":
+          // The gate dissolves: sparks stream up the whole doorway.
+          for (let k = 0; k < 6; k++) {
+            this.burst(e.x, e.y - 18 + k * 7, 8, (i) => (i % 2 ? COLOR.gold : "#ffffff"), 0.05, now + k * 40, -0.00003);
+          }
+          this.flashes.push({ x: e.x, y: e.y, born: now, life: 400, color: COLOR.gold, radius: 22 });
+          break;
         case "land":
           this.burst(e.x, e.y, Math.min(10, Math.round(e.power * 2)), "#c9b48a", 0.03, now, 0.0001);
           break;

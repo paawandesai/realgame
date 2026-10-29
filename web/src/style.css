@@ -2004,3 +2004,208 @@ body[data-tier="apprentice"] #jars-mini {
     overflow-y: auto;
   }
 }
+
+/* ------------------------------------------------- room objective */
+
+#objective-banner {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(86%, 760px);
+  padding: 14px 22px;
+  border-radius: 16px;
+  background: var(--panel-solid);
+  border: 2px solid #f0c75e;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 0 6px rgba(240, 199, 94, 0.18);
+  font-size: 1.4rem;
+  font-weight: 700;
+  pointer-events: none;
+  animation: objective-in 0.35s ease-out;
+  transition: transform 0.4s ease-in, opacity 0.4s ease-in, top 0.4s ease-in;
+}
+
+#objective-banner.shrink {
+  top: 6%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.45);
+}
+
+body[data-tier="sprout"] #objective-banner {
+  font-size: 1.9rem;
+}
+
+#objective-banner .objective-pic {
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+body[data-tier="sprout"] #objective-banner .objective-pic {
+  width: 80px;
+  height: 80px;
+}
+
+@keyframes objective-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+#goal-chip {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(70%, 620px);
+  min-height: 44px;
+  padding: 4px 14px 4px 6px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid #f0c75e;
+  font-weight: 600;
+  text-align: left;
+}
+
+#goal-chip .objective-pic {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+#goal-chip .objective-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#goal-chip.pop {
+  animation: chip-pop 0.5s ease-out;
+}
+
+@keyframes chip-pop {
+  0% { box-shadow: 0 0 0 0 rgba(240, 199, 94, 0.8); }
+  100% { box-shadow: 0 0 0 12px rgba(240, 199, 94, 0); }
+}
+
+body[data-tier="sprout"] #goal-chip,
+body[data-tier="seedling"] #goal-chip {
+  font-size: 1.15rem;
+  min-height: 56px;
+}
+
+body[data-tier="sprout"] #goal-chip .objective-pic {
+  width: 44px;
+  height: 44px;
+}
+
+body[data-motion="calm"] #objective-banner,
+body[data-motion="calm"] #goal-chip.pop {
+  animation: none;
+  transition: none;
+}
+
+@media (max-height: 500px) {
+  #goal-chip {
+    top: 60px;
+    min-height: 36px;
+    font-size: 0.9rem;
+  }
+  #objective-banner {
+    font-size: 1.1rem;
+  }
+}
+
+/* ------------------------------------- room 3: gas pocket and battery */
+
+#goal-area {
+  position: absolute;
+  border: 3px dashed #f0c75e;
+  border-radius: 6px;
+  background: rgba(240, 199, 94, 0.12);
+  animation: area-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes area-glow {
+  50% { background: rgba(240, 199, 94, 0.26); }
+}
+
+#battery-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -130%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--panel-solid);
+  border: 1px solid #56b4e9;
+  color: #cfeaff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+body[data-tier="sprout"] #battery-tag {
+  font-size: 1rem;
+}
+
+#goal-pointer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 52px;
+  height: 52px;
+  margin: 22px 0 0 -16px;
+  z-index: 6;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+body[data-motion="calm"] #goal-area {
+  animation: none;
+}
+
+/* ------------------------------------------------------ room clear */
+
+#room-clear {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-radius: 18px;
+  background: rgba(15, 23, 32, 0.85);
+  border: 3px solid #f0c75e;
+  color: #ffe9a8;
+  font-size: 2rem;
+  font-weight: 800;
+  pointer-events: none;
+  animation: room-clear 1.8s ease-out forwards;
+}
+
+#room-clear .icon {
+  width: 56px;
+  height: 56px;
+}
+
+@keyframes room-clear {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
+}
+
+body[data-motion="calm"] #room-clear {
+  animation: none;
+}

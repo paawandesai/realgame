@@ -47,7 +47,7 @@ export interface Prefs {
   reducedMotion: boolean;
   /** Game speed: 0.5, 0.75 or 1. */
   speed: number;
-  /** Mentor captions on screen. Off by default for Apprentices, who get labels. */
+  /** Mentor captions on screen (on by default, so every tier sees the science lines). */
   captions: boolean;
   /** Apprentice per-room score (casts, kJ, atoms wasted). */
   challenge: boolean;
@@ -69,7 +69,7 @@ export function loadPrefs(tier: Tier): Prefs {
     voice: voice === null ? tier !== "apprentice" : voice === "on",
     reducedMotion: motion === null ? systemReduced : motion === "on",
     speed: (SPEEDS as readonly number[]).includes(speed) ? speed : 1,
-    captions: captions === null ? tier !== "apprentice" : captions === "on",
+    captions: captions === null ? true : captions === "on",
     challenge: challenge !== "off",
   };
 }

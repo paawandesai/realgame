@@ -51,6 +51,11 @@ impl WebGame {
         self.game.player.x
     }
 
+    /// Where the gauntlet points, in world cells (for browser tests).
+    pub fn aim(&self) -> Vec<i32> {
+        vec![self.game.aim.0, self.game.aim.1]
+    }
+
     pub fn height(&self) -> usize {
         HEIGHT
     }

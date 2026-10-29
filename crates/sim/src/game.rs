@@ -81,6 +81,9 @@ const RUN_MAX: f32 = 2.2;
 const RUN_ACCEL: f32 = 0.34;
 const RUN_DECEL: f32 = 0.5;
 const SWIM_MAX: f32 = 1.1;
+/// Top horizontal speed in the air, so a held jump can't fling the player
+/// past a room's puzzle (still enough to clear a crystal or a curb).
+const AIR_MAX: f32 = 1.5;
 const JUMP_V: f32 = -4.5;
 /// Letting go of jump while rising keeps only this share of the upward speed.
 const JUMP_CUT: f32 = 0.45;
@@ -506,7 +509,13 @@ impl Game {
         self.player.jump_held = held;
 
         // Run: accelerate toward the target speed, stop quickly when let go.
-        let max = if swimming { SWIM_MAX } else { RUN_MAX };
+        let max = if swimming {
+            SWIM_MAX
+        } else if grounded {
+            RUN_MAX
+        } else {
+            AIR_MAX
+        };
         let mut target_vx = 0.0;
         if input & INPUT_LEFT != 0 {
             target_vx -= max;
@@ -523,6 +532,9 @@ impl Game {
         };
         let dv = (target_vx - self.player.vx).clamp(-rate, rate);
         self.player.vx += dv;
+        if !grounded && !swimming {
+            self.player.vx = self.player.vx.clamp(-AIR_MAX, AIR_MAX);
+        }
 
         // Coyote time and jump buffering make jumps forgiving.
         let p = &mut self.player;
@@ -914,11 +926,14 @@ impl Game {
             *self.loose.entry(el.clone()).or_insert(0) += n;
         }
         self.recombine_loose();
-        // Splitting water costs energy: the crystal pays when it is in reach.
-        if spell == "split" && res.units > 0 && self.nearest_crystal().is_some() {
-            let cost = self.split_kj * res.units as f32;
-            self.crystal_kj = (self.crystal_kj - cost).max(0.0);
-        }
+        // Splitting water costs energy: the crystal pays when it is in reach
+        // (charged where the spell lands; see `impact`).
+        let crystal_cost_kj =
+            if spell == "split" && res.units > 0 && self.nearest_crystal().is_some() {
+                self.split_kj * res.units as f32
+            } else {
+                0.0
+            };
 
         // Unbalanced or empty casts count as misses; a fix is offered to
         // Seedlings at once and to Apprentices after three in a row.
@@ -1012,6 +1027,7 @@ impl Game {
             leftovers: res.leftovers.clone(),
             reaction_id,
             first,
+            crystal_cost_kj,
         };
         if outcome == Outcome::Fizzle {
             // Nothing reacts and nothing in the world changes: one grey puff
@@ -1186,8 +1202,11 @@ impl Game {
         last
     }
 
+    /// Spells stop at anything that isn't a gas, except the crystal
+    /// battery: a thin column the player often stands against, which a
+    /// spell passes through instead of fizzling into it.
     fn stops_bolt(s: Species) -> bool {
-        !s.is_gas()
+        !s.is_gas() && s != Species::Crystal
     }
 
     /// Sprout and Seedling: if the player has not aimed in the last 3 s, the
@@ -1400,6 +1419,14 @@ impl Game {
                 extra.push("bubble");
             }
             "split" => {
+                // The crystal pays for the split, unless the spell came down
+                // on the crystal itself (its energy would go straight back).
+                let on_crystal = (-1..=1).any(|dy| {
+                    (-1..=1).any(|dx| self.grid.get(at.0 + dx, at.1 + dy) == Species::Crystal)
+                });
+                if !on_crystal {
+                    self.crystal_kj = (self.crystal_kj - shot.crystal_cost_kj).max(0.0);
+                }
                 // Exactly two hydrogen cells for each oxygen cell, like the equation.
                 self.spawn_blob_at(at, Species::H2, n("H2") * GAS_CELLS_PER_MOL, 15.0);
                 self.spawn_blob_at(at, Species::O2, n("O2") * GAS_CELLS_PER_MOL, 15.0);
@@ -1654,6 +1681,8 @@ struct Shot {
     leftovers: Atoms,
     reaction_id: Option<String>,
     first: bool,
+    /// What the crystal pays for a split, charged when it lands.
+    crystal_cost_kj: f32,
 }
 
 /// How far a spell flies before it lands on its own, in cells...
@@ -1815,15 +1844,55 @@ mod tests {
         g.player.y = 136.0;
         assert!(g.nearest_crystal().is_some());
         let kj = g.crystal_kj;
+        g.set_aim(720, 140, true);
         let out = g.cast("4H2O -> 4H2 + 2O2");
         assert_eq!(out.outcome, Outcome::Full);
         assert_eq!(out.products.get("H2"), Some(&4));
         assert_eq!(out.products.get("O2"), Some(&2));
+        // The crystal pays when the spell lands (bolts only, no other ticking).
+        while g.bolts_in_flight() > 0 {
+            g.advance_bolts();
+        }
         assert!(
             (kj - g.crystal_kj - 2.0 * 571.7).abs() < 0.01,
             "drop {}",
             kj - g.crystal_kj
         );
+    }
+
+    #[test]
+    fn a_split_that_lands_on_the_crystal_does_not_drain_it() {
+        let mut g = game(Tier::Apprentice);
+        g.player.x = 680.0;
+        g.player.y = 136.0;
+        assert!(g.nearest_crystal().is_some());
+        let kj = g.crystal_kj;
+        let (cx, cy) = rooms::CRYSTAL.centre();
+        g.set_aim(cx, cy, true);
+        let out = g.cast("2H2O -> 2H2 + O2");
+        assert_eq!(out.outcome, Outcome::Full);
+        let mut landed = None;
+        while g.bolts_in_flight() > 0 {
+            g.advance_bolts();
+            if let Some(f) = g.fx.iter().find(|f| f.kind == "impact") {
+                landed = Some((f.x as i32, f.y as i32));
+            }
+        }
+        let (x, y) = landed.expect("the split landed");
+        assert!(
+            rooms::CRYSTAL.grow(1).contains(x, y),
+            "landed at {x},{y}, not on the crystal"
+        );
+        assert_eq!(g.crystal_kj, kj, "a split on the crystal costs it nothing");
+    }
+
+    #[test]
+    fn spells_pass_through_the_crystal_column() {
+        let g = game(Tier::Apprentice);
+        let (cx, cy) = rooms::CRYSTAL.centre();
+        // From just left of the crystal, aim at the air past it.
+        let lands = g.trace((cx as f32 - 8.0, cy as f32), (cx + 30, cy));
+        assert_eq!(lands, (cx + 30, cy));
     }
 
     #[test]

@@ -261,6 +261,12 @@ pub struct Goal {
     pub need: &'static str,
     /// Where to stand (player centre, world cells) to cast `need` at it.
     pub stand_x: i32,
+    /// The room's goal in one tier-appropriate line (the objective banner).
+    pub text: &'static str,
+    /// A target area to outline (x0, y0, x1, y1), such as the gas pocket.
+    pub area: Option<[i32; 4]>,
+    /// Where to label the crystal battery (top centre), in room 3.
+    pub battery: Option<[i32; 2]>,
 }
 
 /// The torch as the renderer needs it.
@@ -302,6 +308,34 @@ impl Game {
             Tier::Sprout => sprout,
             Tier::Seedling => seedling,
             Tier::Apprentice => apprentice,
+        }
+    }
+
+    /// Room `k`'s goal in one line for the objective banner: a few spoken
+    /// words for Sprout, eight words or fewer for Seedling, the full line
+    /// for Apprentice.
+    pub fn objective_line(&self, k: usize) -> &'static str {
+        match k {
+            0 => self.line(
+                "Put out the fire!",
+                "Put out the burning hedge.",
+                "Put out the burning hedge: cast H2O at the flames.",
+            ),
+            1 => self.line(
+                "Melt the ice!",
+                "Melt the ice wall with heat.",
+                "Melt the ice wall: cast 2H2 + O2 -> 2H2O at it, or carry a lit torch.",
+            ),
+            2 => self.line(
+                "Make bubbles, then boom!",
+                "Split water, trap the gas, light it.",
+                "Trap the gas under the stone roof, then light it.",
+            ),
+            _ => self.line(
+                "Put out the fire, then light the bowl!",
+                "Put out the hedge, light the brazier.",
+                "Put out the hedge with H2O or CO2, then light the brazier by the door.",
+            ),
         }
     }
 
@@ -431,28 +465,15 @@ impl Game {
         self.rooms.ice_start = ICE.cells().count() as u32;
         self.rooms.ice_left = self.rooms.ice_start;
 
-        self.objectives = vec![
-            Objective {
-                id: "fire",
-                text: "Put out the burning hedge".into(),
+        self.objectives = ["fire", "ice", "gas", "brazier"]
+            .iter()
+            .enumerate()
+            .map(|(k, id)| Objective {
+                id,
+                text: self.objective_line(k).into(),
                 done: false,
-            },
-            Objective {
-                id: "ice",
-                text: "Melt the ice wall".into(),
-                done: false,
-            },
-            Objective {
-                id: "gas",
-                text: "Trap the gas under the stone roof and light it".into(),
-                done: false,
-            },
-            Objective {
-                id: "brazier",
-                text: "Light the brazier by the last door".into(),
-                done: false,
-            },
-        ];
+            })
+            .collect();
         let intro = self.line(
             "Fire! Tap the water drop to put it out!",
             "Fire! Cast H2O at the flames.",
@@ -1014,6 +1035,9 @@ impl Game {
                 meter: Some(r.hedges[0].meter()),
                 need: "water",
                 stand_x: HEDGE1_STAND_X,
+                text: self.objective_line(0),
+                area: None,
+                battery: None,
             },
             Goal {
                 room: 2,
@@ -1026,6 +1050,9 @@ impl Game {
                 meter: None,
                 need: "boom",
                 stand_x: 440,
+                text: self.objective_line(1),
+                area: None,
+                battery: None,
             },
             Goal {
                 room: 3,
@@ -1041,6 +1068,9 @@ impl Game {
                     "split"
                 },
                 stand_x: 686,
+                text: self.objective_line(2),
+                area: Some([TRAP.x0, TRAP.y0, TRAP.x1, TRAP.y1]),
+                battery: Some([CRYSTAL.centre().0, CRYSTAL.y0]),
             },
             Goal {
                 room: 4,
@@ -1053,6 +1083,9 @@ impl Game {
                 need: if r.hedges[1].out { "boom" } else { "water" },
                 // In front of the hedge, then through it beside the brazier.
                 stand_x: if r.hedges[1].out { 1218 } else { 1150 },
+                text: self.objective_line(3),
+                area: None,
+                battery: None,
             },
         ]
     }
@@ -1555,6 +1588,88 @@ mod tests {
         }
     }
 
+    /// Walks into room 3 holding right with no jumps, the way a new player
+    /// arrives (stopped by the crystal column), then casts what the goal
+    /// asks for: cards with no aim for Sprout, the tray equation for
+    /// Seedling, a typed formula aimed at the goal marker for Apprentice.
+    /// Returns the ticks it took to open gate 3, if it opened.
+    fn room_3_from_arrival(tier: Tier, seed: u64) -> Option<u64> {
+        let mut g = Game::new(tier, seed);
+        for k in 0..2 {
+            g.open_gate(k);
+        }
+        teleport(&mut g, (GATE_X[1] + GATE_W + 8) as f32);
+        for _ in 0..240 {
+            g.tick(INPUT_RIGHT);
+        }
+        settle(&mut g, 10);
+        let arrived = g.player.x + PLAYER_W / 2.0;
+        assert!(
+            arrived < CRYSTAL.x0 as f32,
+            "seed {seed}: walked past the crystal to {arrived}"
+        );
+        let start = g.ticks;
+        for _ in 0..12 {
+            if g.rooms.gates_open[2] {
+                break;
+            }
+            let goal = g.goals()[2].clone();
+            for _ in 0..40 {
+                let ready = match goal.need {
+                    "split" => g.jars["H2O"] >= 2,
+                    _ => g.jars["H2"] >= 2 && g.jars["O2"] >= 1,
+                };
+                if ready {
+                    break;
+                }
+                settle(&mut g, 15);
+            }
+            let text = match (tier, goal.need) {
+                (Tier::Sprout, need) => need,
+                (_, "split") => "2H2O -> 2H2 + O2",
+                _ => "2H2 + O2 -> 2H2O",
+            };
+            if tier == Tier::Apprentice {
+                g.set_aim(goal.x, goal.y, true);
+            }
+            assert_ne!(g.cast(text).outcome, Outcome::Fizzle, "seed {seed}");
+            land(&mut g);
+            settle(&mut g, 40);
+        }
+        g.rooms.gates_open[2].then(|| g.ticks - start)
+    }
+
+    #[test]
+    fn room_3_clears_from_the_arrival_point_on_every_tier() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            for seed in SEEDS {
+                let ticks = room_3_from_arrival(tier, seed);
+                assert!(
+                    ticks.is_some_and(|t| t < 1500),
+                    "{tier:?} seed {seed}: {ticks:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_held_jump_does_not_fling_the_player_past_room_3() {
+        let mut g = Game::new(Tier::Seedling, 42);
+        for k in 0..2 {
+            g.open_gate(k);
+        }
+        teleport(&mut g, (GATE_X[1] + GATE_W + 8) as f32);
+        // Run right holding jump for one long jump, then let go of everything.
+        for t in 0..40 {
+            g.tick(INPUT_RIGHT | INPUT_JUMP);
+            if t > 2 && !g.player.grounded {
+                assert!(g.player.vx.abs() <= AIR_MAX + 1e-3, "{}", g.player.vx);
+            }
+        }
+        settle(&mut g, 60);
+        assert!(g.player.x < TRAP.x1 as f32, "flung to {}", g.player.x);
+    }
+
     #[test]
     fn a_boom_with_no_trapped_gas_does_not_open_gate_3() {
         let mut g = Game::new(Tier::Apprentice, 42);
@@ -1847,6 +1962,30 @@ mod restart_tests {
             assert_eq!(*n, Game::jar_cap(f), "{f}");
         }
         assert!(walk_to(&mut g, 440.0, 4000), "stuck at {}", g.player.x);
+    }
+
+    #[test]
+    fn every_room_has_its_own_objective_line_on_every_tier() {
+        for tier in [Tier::Sprout, Tier::Seedling, Tier::Apprentice] {
+            let g = Game::new(tier, 42);
+            let lines: Vec<_> = g.goals().iter().map(|goal| goal.text).collect();
+            assert_eq!(lines.len(), ROOMS);
+            for (k, line) in lines.iter().enumerate() {
+                assert!(!line.trim().is_empty(), "{tier:?} room {k}");
+                assert!(
+                    !lines[..k].contains(line),
+                    "{tier:?}: room {k} repeats a line"
+                );
+                if tier == Tier::Seedling {
+                    assert!(line.split_whitespace().count() <= 8, "{line}");
+                }
+            }
+        }
+        let g = Game::new(Tier::Apprentice, 42);
+        assert_eq!(
+            g.goals()[2].text,
+            "Trap the gas under the stone roof, then light it."
+        );
     }
 
     #[test]

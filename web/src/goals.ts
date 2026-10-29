@@ -29,6 +29,11 @@ export class GoalMarkers {
   private readonly dots: HTMLElement[] = [];
   private goals: Goal[] = [];
   private hintLevel = 0;
+  private readonly area: HTMLElement;
+  private readonly battery: HTMLElement;
+  private readonly pointer: HTMLElement;
+  /** Show a bouncing pointer on the next goal (casts are not moving it on). */
+  pointAt = false;
   /** Whether the go arrow is showing (the player should walk first). */
   goVisible = false;
 
@@ -48,6 +53,20 @@ export class GoalMarkers {
     this.pulse.id = "hint-pulse";
     this.pulse.hidden = true;
     this.layer.append(this.pulse);
+
+    // Room 3: the gas pocket to fill, and a name tag on the crystal battery.
+    this.area = document.createElement("div");
+    this.area.id = "goal-area";
+    this.area.hidden = true;
+    this.battery = document.createElement("div");
+    this.battery.id = "battery-tag";
+    this.battery.textContent = "⚡ Crystal battery";
+    this.battery.hidden = true;
+    this.pointer = document.createElement("div");
+    this.pointer.id = "goal-pointer";
+    this.pointer.hidden = true;
+    this.pointer.append(icon("hand"));
+    this.layer.append(this.area, this.battery, this.pointer);
 
     this.go = document.createElement("button");
     this.go.type = "button";
@@ -131,11 +150,11 @@ export class GoalMarkers {
     const next = this.next;
     this.goals.forEach((g, i) => {
       const m = this.markers[i]!;
+      m.el.classList.toggle("next", g === next);
       if (g.done) return;
       const x = (g.x - viewX) * kx;
       const on = x >= -20 && x <= sw + 20;
       m.el.classList.toggle("offscreen", !on);
-      m.el.classList.toggle("next", g === next);
       m.el.style.transform = `translate(${x.toFixed(1)}px, ${(g.y * ky + bob).toFixed(1)}px)`;
     });
 
@@ -152,6 +171,30 @@ export class GoalMarkers {
         this.go.replaceChildren(icon(right ? "right" : "left"));
       }
       this.go.classList.toggle("hinting", this.hintLevel >= 1);
+    }
+
+    // The next goal's target area (the gas pocket) and the battery's name tag.
+    const area = next?.area ?? null;
+    this.area.hidden = area === null;
+    if (area) {
+      const [x0, y0, x1, y1] = area;
+      const a = this.area.style;
+      a.left = `${((x0 - viewX) * kx).toFixed(1)}px`;
+      a.top = `${(y0 * ky).toFixed(1)}px`;
+      a.width = `${((x1 - x0) * kx).toFixed(1)}px`;
+      a.height = `${((y1 - y0) * ky).toFixed(1)}px`;
+    }
+    const bat = next?.battery ?? null;
+    this.battery.hidden = bat === null;
+    if (bat) {
+      this.battery.style.transform = `translate(${((bat[0] - viewX) * kx).toFixed(1)}px, ${(bat[1] * ky).toFixed(1)}px)`;
+    }
+    // A hand pointing at the target when casts are not moving the goal on.
+    const point = this.pointAt && next !== null && !far;
+    this.pointer.hidden = !point;
+    if (point && next) {
+      const tap = reducedMotion ? 0 : Math.abs(Math.sin(now / 250)) * 10;
+      this.pointer.style.transform = `translate(${((next.x - viewX) * kx).toFixed(1)}px, ${(next.y * ky - tap).toFixed(1)}px)`;
     }
 
     // Hint level 1+: a pulsing ring on the target (or on the go arrow).

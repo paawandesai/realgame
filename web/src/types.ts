@@ -49,6 +49,12 @@ export interface Goal {
   need: "water" | "boom" | "split";
   /** Where to stand (player centre, world cells) to cast it. */
   stand_x: number;
+  /** The room's goal in one tier-appropriate line (the objective banner). */
+  text: string;
+  /** A target area to outline (x0, y0, x1, y1), such as the gas pocket. */
+  area: [number, number, number, number] | null;
+  /** Where to label the crystal battery (top centre), in room 3. */
+  battery: [number, number] | null;
 }
 
 export interface TorchView {

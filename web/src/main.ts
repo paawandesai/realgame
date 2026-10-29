@@ -11,6 +11,7 @@ import { GlRenderer } from "./gl";
 import { initDevice, isTouch, words } from "./device";
 import { GoalMarkers } from "./goals";
 import { Grimoire } from "./grimoire";
+import { ObjectiveBanner } from "./objective";
 import { icon, setIcon, type IconName } from "./icons";
 import { loadPrefs, savePrefs, savedTier, storageGet, storageRemove, storageSet, isTier } from "./prefs";
 import { FormulaRing, byId } from "./ring";
@@ -29,8 +30,13 @@ const STEP_MS = 1000 / 60;
 const MAX_STEPS_PER_FRAME = 2;
 /** With no choice on the start screen, the youngest tier starts by itself. */
 const AUTOSTART_MS = 8000;
-/** Hint ladder: each step after this long without progress... */
-const HINT_IDLE_MS = 8000;
+/** Hint ladder: when each step (pulse, glowing card, full hint) shows after
+ * no progress. Sprouts get help sooner. */
+const HINT_IDLE_MS: Record<Tier, [number, number, number]> = {
+  sprout: [3000, 6000, 12000],
+  seedling: [8000, 16000, 24000],
+  apprentice: [8000, 16000, 24000],
+};
 /** ...or straight to the full hint after this many misses in a row. */
 const HINT_MISSES = 3;
 const END_DELAY_MS = 2500;
@@ -219,6 +225,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const next = goals.next;
     if (next) autoWalk = { target: next.stand_x, stuck: 0, lastX: game.player_x() };
   });
+  // The room's goal in one line: a banner on arrival, then a chip at the top.
+  const objective = new ObjectiveBanner(stage, tier);
+  objective.onAnnounce = (line) => speech.say(line, speakable(line), true);
+  /** Room 1 is done: the Apprentice hint line switches to the current goal. */
+  let room1Cleared = false;
 
   // Per-tier controls: picture cards, a tile tray, or the formula ring.
   let cards: SproutCards | null = null;
@@ -489,6 +500,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   tutorial.hidden = !tutorialOpen;
   function renderTutorial(): void {
     const t = byId("app-tutorial-text");
+    if (room1Cleared && objective.line) {
+      t.textContent = `Goal: ${objective.line}`;
+      return;
+    }
     const code = document.createElement("code");
     code.textContent = "water";
     if (isTouch()) t.replaceChildren("Tap a spell below, or tap the pencil to write one (try ", code, ").");
@@ -681,6 +696,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (tier !== "apprentice") speech.say(result.label, outcomeSpeech(result));
     hintOnCast(result);
     scoreCast(result);
+    afterCastNudges(result);
     if (tray) {
       setTrayOpen(false);
       if (result.outcome === "partial" && result.suggestion) tray.offerFix(result.suggestion);
@@ -723,7 +739,13 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const hintUse = byId<HTMLButtonElement>("hint-use");
   const ghostHand = byId("ghost-hand");
   setIcon(ghostHand, "hand");
-  const hint = { floor: 0, misses: 0, since: performance.now(), key: "", level: 0 };
+  const hint = { floor: 0, misses: 0, since: performance.now(), key: "", level: 0, nudged: false };
+  /** After the first bubbles in room 3: point at Boom at once, not after a wait. */
+  let nudgeBoom = false;
+  /** Casts since the goals last moved on; two in a row show a pointer. */
+  let castsNoProgress = 0;
+  let progressSig = "";
+  const meters: number[] = [];
   let hintSpell = "";
   hintUse.addEventListener("click", () => {
     if (!hintSpell) return;
@@ -746,7 +768,49 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     hint.since = performance.now();
   }
 
+  /** Room 3: the first bubbles point straight at Boom; and any two casts
+   * that don't move the goal on bring up a pointer at the target. */
+  function afterCastNudges(r: CastOutcome): void {
+    const next = goals.next;
+    const worked = r.outcome === "full" || r.outcome === "partial";
+    if (worked && r.spell === "split" && next?.kind === "gas" && !nudgeBoom) {
+      nudgeBoom = true;
+      speech.say(
+        tier === "sprout"
+          ? "Now light the bubbles! Tap boom!"
+          : tier === "seedling"
+            ? "Now light the bubbles with boom!"
+            : "Now light the trapped gas: 2H2 + O2 -> 2H2O",
+      );
+    } else if (r.spell === "boom" && worked) nudgeBoom = false;
+    castsNoProgress++;
+    if (castsNoProgress >= 2) {
+      goals.pointAt = true;
+      hint.floor = Math.max(hint.floor, 1);
+    }
+  }
+
+  /** The goals moved on (a goal done, its next step, or a fire meter falling). */
+  function trackProgress(list: Goal[]): void {
+    const sig = list.map((g) => `${g.done}:${g.need}`).join(",");
+    let moved = sig !== progressSig;
+    progressSig = sig;
+    list.forEach((g, i) => {
+      const m = g.meter ?? 0;
+      const before = meters[i] ?? m;
+      if (m < before - 0.1) moved = true;
+      meters[i] = moved || m > before ? m : before;
+    });
+    if (moved) {
+      castsNoProgress = 0;
+      goals.pointAt = false;
+    }
+  }
+
   function resetHints(): void {
+    nudgeBoom = false;
+    castsNoProgress = 0;
+    goals.pointAt = false;
     hint.floor = 0;
     hint.misses = 0;
     hint.since = performance.now();
@@ -762,22 +826,35 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       hint.misses = 0;
       hint.since = now;
     }
+    const steps = HINT_IDLE_MS[tier];
     // Time spent in the menu or on the end screen doesn't count.
-    if (!menu.hidden || ended) hint.since = now - (hint.level - hint.floor) * HINT_IDLE_MS;
-    const idle = Math.floor((now - hint.since) / HINT_IDLE_MS);
-    const level = next ? Math.min(3, Math.max(hint.floor, idle)) : 0;
-    if (level !== hint.level) applyHint(level, next);
+    if (!menu.hidden || ended) hint.since = now - (hint.level > hint.floor ? steps[hint.level - 1]! : 0);
+    const waited = now - hint.since;
+    const idle = steps.filter((ms) => waited >= ms).length;
+    let level = next ? Math.min(3, Math.max(hint.floor, idle)) : 0;
+    // Bubbles made: go straight to the glowing Boom card.
+    if (nudgeBoom && next?.kind !== "gas") nudgeBoom = false;
+    if (nudgeBoom && next) level = Math.max(level, 2);
+    if (level !== hint.level || nudgeBoom !== hint.nudged) applyHint(level, next);
     placeGhostHand(now);
   }
 
   function applyHint(level: number, next: Goal | null): void {
     hint.level = level;
+    hint.nudged = nudgeBoom;
     document.body.dataset.hint = String(level);
     goals.setHintLevel(level);
-    const spell = next ? SPELLS[tier][next.need] : "";
+    const need: Goal["need"] | null = next ? (nudgeBoom ? "boom" : next.need) : null;
+    const spell = need ? SPELLS[tier][need] : "";
     hintSpell = spell;
-    cards?.setHint(level >= 2 && !goals.goVisible && next ? (next.need as CardSpell) : null);
-    tray?.setHint(level >= 2 && !goals.goVisible ? spell : null);
+    const glow = level >= 2 && !goals.goVisible && need !== null;
+    cards?.setHint(glow ? (need as CardSpell) : null);
+    tray?.setHint(glow ? spell : null);
+    const slot = glow ? spell : "";
+    if (slot !== slotHint) {
+      slotHint = slot;
+      renderSlots();
+    }
     const showGhost = level >= 3 && next !== null;
     if (showGhost && hintGhost.hidden) {
       if (goals.goVisible) {
@@ -785,7 +862,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
         hintUse.hidden = true;
         speech.say("Walk this way! Tap the arrow.");
       } else if (tier === "sprout") {
-        const card = CARDS.find((c) => c.spell === next.need);
+        const card = CARDS.find((c) => c.spell === need);
         hintText.replaceChildren(icon(card?.picture ?? "drop"));
         hintUse.hidden = true;
         speech.say(`Try the ${card?.name ?? "water drop"}!`);
@@ -803,10 +880,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (!cards) return;
     const next = goals.next;
     const onboarding = castCount === 0;
-    const show = next !== null && !ended && (onboarding || hint.level >= 3);
+    const show = next !== null && !ended && (onboarding || hint.level >= 3 || nudgeBoom);
     let target: Element | null = null;
     if (show) {
-      target = goals.goVisible ? document.getElementById("go-arrow") : cards.element(next.need as CardSpell);
+      const need = nudgeBoom ? "boom" : next.need;
+      target = goals.goVisible ? document.getElementById("go-arrow") : cards.element(need as CardSpell);
     }
     ghostHand.hidden = !target;
     if (!target) return;
@@ -823,6 +901,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const spellDef = (f: string): SpellDef =>
     BAR_SPELLS.find((b) => b.formula === f) ?? { formula: f, name: "Your spell", picture: "wand", reaction: null, note: "A spell you typed." };
 
+  /** The hotkey spell the hint ladder points at (Apprentice). */
+  let slotHint = "";
   function renderSlots(): void {
     if (tier !== "apprentice") return;
     const el = byId("slots");
@@ -835,6 +915,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       b.className = "slot";
       if (i === 0 && castCount === 0) b.classList.add("suggested");
       if (i === cycleAt) b.classList.add("armed");
+      if (slotHint && f === slotHint) b.classList.add("suggested");
       b.dataset.formula = f;
       b.setAttribute("aria-label", `${i + 1}: ${def.name}, ${f}`);
       const n = document.createElement("kbd");
@@ -886,6 +967,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     // A gate opening ends that room's challenge.
     s.gates_open.forEach((open, i) => {
+      if (open && gatesSeen[i] === false && !freePlay) showRoomClear(i);
       if (open && !gatesSeen[i] && !freePlay) roomCleared(i);
       gatesSeen[i] = open;
     });
@@ -921,6 +1003,21 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       charge.title = "Crystal battery charge";
       jars.append(charge);
     }
+  }
+
+  /** A gate opened: a big star stamp so it reads as done. */
+  function showRoomClear(room: number): void {
+    if (room >= 3) return; // The last door has its own end screen.
+    document.getElementById("room-clear")?.remove();
+    objective.holdFor(1900);
+    const el = document.createElement("div");
+    el.id = "room-clear";
+    el.setAttribute("role", "status");
+    const text = document.createElement("span");
+    text.textContent = tier === "sprout" ? "Yay! Gate open!" : `Room ${room + 1} clear! Gate open`;
+    el.append(icon("star"), text);
+    stage.append(el);
+    window.setTimeout(() => el.remove(), 1900);
   }
 
   // ------------------------------------------------------------- end screen
@@ -1061,6 +1158,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     slots.splice(0, slots.length, ...STARTER_SLOTS);
     renderSlots();
     seedlingRoom2Filled = false;
+    room1Cleared = false;
+    renderTutorial();
     tray?.set("H2O");
     cards?.reset();
     cards?.unlock(["water"]);
@@ -1116,6 +1215,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let lastTime = performance.now();
   let lastHudTime = -Infinity;
   let lastGoalsTime = -Infinity;
+  let shownGoalLine = "";
   let stateVersion = -1;
 
   function loop(): void {
@@ -1162,7 +1262,16 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (now - lastGoalsTime >= 200) {
       lastGoalsTime = now;
       if (tray) byId("act-tray-text").textContent = prettyFormula(tray.text()) || words("Tap to build");
-      goals.setGoals(JSON.parse(game.goals()) as Goal[]);
+      const list = JSON.parse(game.goals()) as Goal[];
+      goals.setGoals(list);
+      trackProgress(list);
+      const here = list[game.room()];
+      objective.update(here && !here.done ? here : goals.next);
+      if (!room1Cleared && list[0]?.done) {
+        room1Cleared = true;
+        renderTutorial();
+      } else if (room1Cleared && objective.line !== shownGoalLine) renderTutorial();
+      shownGoalLine = objective.line;
     }
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
     hintTick(now);
@@ -1207,6 +1316,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       renderer: () => (gl ? "webgl" : "2d"),
       fxStats: () => fx.stats(),
       room: () => game.room(),
+      aim: () => Array.from(game.aim()),
     };
   }
 
