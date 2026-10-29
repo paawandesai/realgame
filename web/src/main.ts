@@ -16,6 +16,7 @@ import { ObjectiveBanner } from "./objective";
 import { PopupQueue } from "./popups";
 import { icon, setIcon, type IconName } from "./icons";
 import { loadPrefs, savePrefs, savedTier, storageGet, storageRemove, storageSet, isTier } from "./prefs";
+import { trackRoomComplete, trackSessionStart, trackTrialComplete } from "./analytics";
 import { FormulaRing, byId } from "./ring";
 import { Speech, speakable } from "./speech";
 import { SpellTray } from "./tray";
@@ -221,6 +222,7 @@ function showStartScreen(onChoose: (tier: Tier) => void): void {
 }
 
 function start(tier: Tier, memory: WebAssembly.Memory): void {
+  trackSessionStart(tier);
   byId("start").hidden = true;
   byId("game").hidden = false;
   document.body.dataset.tier = tier;
@@ -1793,7 +1795,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     // A gate opening ends that room's challenge.
     s.gates_open.forEach((open, i) => {
       if (open && !gatesSeen[i] && !freePlay) roomCleared(i);
-      if (open && gatesSeen[i] === false && !freePlay) showRoomClear(i);
+      if (open && gatesSeen[i] === false && !freePlay) {
+        trackRoomComplete(i);
+        showRoomClear(i);
+      }
       gatesSeen[i] = open;
     });
     if (s.trial_complete && !ended && !freePlay && endTimer === 0) {
@@ -2082,6 +2087,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     endTimer = 0;
     if (freePlay) return;
     ended = true;
+    trackTrialComplete();
     // Nothing from the last room shows through the end screen.
     popups.drop();
     // The trial is done: every room counts as cleared.
@@ -2296,6 +2302,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   function restartTrial(): void {
+    trackSessionStart(tier);
     game.restart();
     window.clearTimeout(endTimer);
     endTimer = 0;

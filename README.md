@@ -2,7 +2,7 @@
 
 A chemistry spell game, and the first playable slice of a larger game where real skills are the magic system. You walk through four rooms and cast real chemical equations as spells: each one flies as a bolt, hits, and the simulation decides what happens. Water douses a burning hedge, a balanced `2H2 + O2 -> 2H2O` melts an ice wall, electricity splits water so hydrogen rises under a stone roof to be lit, and carbon dioxide (denser than air) smothers the last fire before you light the brazier.
 
-It runs in the browser (school Chromebooks first), downloads about 280 KB gzipped, needs no network once loaded, and collects no personal data.
+It runs in the browser (school Chromebooks first), downloads about 280 KB gzipped, and collects no personal data: only anonymous play counts, described in `docs/ANALYTICS.md`.
 
 ## Run it locally
 
@@ -22,6 +22,10 @@ Run the simulation's tests from the repository root:
 cargo test
 cargo clippy --all-targets -- -D warnings
 ```
+
+## Deploy
+
+`npx wrangler login`, then `npm run deploy` publishes the game to Cloudflare Pages with its analytics. Step-by-step instructions, including building from GitHub instead, are in `docs/DEPLOY.md`.
 
 ## How to play
 
@@ -79,7 +83,19 @@ The full design and what was built is in [docs/DESIGN_V2.md](docs/DESIGN_V2.md).
 | `web` | The browser shell in TypeScript: input, HUD, formula ring. No framework, no third-party runtime code |
 | `docs/DESIGN_V2.md` | The v2 design and how it was built |
 | `docs/ENGINEERING.md` | The engineering and safety practices this repo follows, and why |
+| `functions/`, `migrations/` | Cloudflare Pages Functions for anonymous play counts (`/api/event`, `/api/stats`) and their D1 schema |
+| `dashboard/` | The static analytics dashboard served at `/dashboard/` |
+| `docs/DEPLOY.md`, `docs/ANALYTICS.md` | How to deploy to Cloudflare, and exactly what the analytics collect |
 
 ## Science and accuracy
 
 All enthalpies come from standard enthalpies of formation in the NIST Chemistry WebBook, and latent heats from the CRC Handbook. A unit test re-derives each one with Hess's law, so a typo in the content file fails the build. Where the game simplifies (wood is treated as pure carbon, flame temperatures are capped at real adiabatic values), the code says so next to the rule. No content entry has been reviewed by a credentialed expert yet; `reviewed_by` is `null` until one is.
+
+## Checks before you push
+
+Running `npm install` once at the repository root sets up git hooks (husky):
+
+- **pre-commit** (about 1 s): `rustfmt --check` on staged Rust files, and `tsc` when web TypeScript, or the Functions, tests or dashboard script, are staged.
+- **pre-push** (about 10 s warm, under a minute from cold): rustfmt, clippy for native and wasm32, `cargo test`, the analytics typecheck and tests (`npm test`), the WebAssembly build, `tsc` and the Vite build.
+
+If a hook fails, fix the problem rather than bypassing it; CI runs the same checks plus the dependency audits.
