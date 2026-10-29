@@ -2679,10 +2679,16 @@ body[data-motion="calm"] .walk-pic {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Wraps instead of running past its border: the steps go on as many
+     lines as they need, and the bonus star always gets its own line. */
+  flex-wrap: wrap;
+  row-gap: 2px;
   max-width: min(70%, 620px);
   min-height: 44px;
   padding: 4px 14px 4px 6px;
-  border-radius: 999px;
+  /* Round ends on one line, rounded corners (not a lozenge that cuts the
+     text off) when it wraps. */
+  border-radius: 22px;
   background: var(--panel);
   border: 1px solid #f0c75e;
   font-weight: 600;
@@ -2696,6 +2702,8 @@ body[data-motion="calm"] .walk-pic {
 }
 
 #goal-chip .objective-text {
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2717,9 +2725,26 @@ body[data-motion="calm"] .walk-pic {
 
 #goal-chip .objective-steps {
   flex-direction: row;
-  gap: 10px;
-  flex: none;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  row-gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
   font-size: 0.85em;
+}
+
+#goal-chip .objective-step {
+  white-space: normal;
+  min-width: 0;
+}
+
+#goal-chip .objective-step .step-mark {
+  flex: none;
+}
+
+/* "Bonus: light it with ..." is a line of its own, never squeezed in. */
+#goal-chip .objective-step.bonus {
+  flex-basis: 100%;
 }
 
 .objective-step {
@@ -2802,6 +2827,7 @@ body[data-tier="sprout"] #goal-chip,
 body[data-tier="seedling"] #goal-chip {
   font-size: 1.15rem;
   min-height: 56px;
+  border-radius: 28px;
 }
 
 body[data-tier="sprout"] #goal-chip .objective-pic {
