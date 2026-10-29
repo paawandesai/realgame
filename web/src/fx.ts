@@ -762,6 +762,12 @@ export class FxLayer {
     if (out) window.setTimeout(() => this.label(out, e.x, e.y), 100);
   }
 
+  /** A small sparkle puff at a world cell: every Sprout tap answers, even
+   * on empty sky. */
+  puff(x: number, y: number, now = performance.now()): void {
+    this.burst(x, y, 10, (i) => (i % 2 ? "#ffffff" : COLOR.spark), 0.03, now, -0.00002);
+  }
+
   private fizzle(e: Fx, out: CastOutcome | undefined, now: number): void {
     this.burst(e.x, e.y, 14, COLOR.grey, 0.03, now, -0.00002);
     const missing = out?.missing[0] ?? "";

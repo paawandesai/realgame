@@ -102,7 +102,11 @@ export class Grimoire {
     if (!note) return null;
     const el = document.createElement("span");
     el.className = "grim-safety";
-    if (this.tier === "sprout") el.append(icon("boom"), icon("left"), "Stand back!");
+    if (this.tier === "sprout") {
+      // Pictures only: the boom and an arrow pointing away from it.
+      el.append(icon("boom"), icon("left"));
+      el.setAttribute("aria-label", "Stand back");
+    }
     else el.textContent = `⚠ ${prettyFormula(note)}`;
     return el;
   }
@@ -177,7 +181,9 @@ export class Grimoire {
     name.className = "grim-name";
     li.append(pic, name);
     if (page.soon) {
-      name.textContent = this.tier === "sprout" ? "More soon!" : page.name;
+      // Sprout: a clock picture (later), no words.
+      if (this.tier === "sprout") name.append(icon("clock"));
+      else name.textContent = page.name;
       if (this.tier !== "sprout") {
         const soon = document.createElement("span");
         soon.className = "grim-where";

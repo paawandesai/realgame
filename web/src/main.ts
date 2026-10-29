@@ -468,6 +468,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     game.set_aim(...at);
     if (tier === "sprout" && e.button === 0) {
       tapPop(at);
+      fx.puff(at[0] + 0.5, at[1] + 0.5);
       requestCast(sproutTapSpell());
     }
   });
@@ -1113,6 +1114,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     // the younger tiers hear them (Seedling only the card's first line), and
     // the replay button says them again.
     if (tier !== "apprentice") speech.sayOnly(words(result.label).replace(/\n/g, " "), outcomeSpeech(result));
+    if (cards) sproutNotThatOne(result);
     hintOnCast(result);
     scoreCast(result);
     afterCastNudges(result);
@@ -1155,6 +1157,36 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     renderSlots();
   }
+
+  /** Sprout: after a "not that one", the card that helps (and until when the
+   * ghost hand points at it). */
+  let bonkHint: { need: CardSpell; until: number } | null = null;
+  let bonkTimer = 0;
+  /** Sprout: a card that cannot move the goal on wobbles under a grey X with
+   * a soft bonk; 2 s later the card that helps bounces and the ghost hand
+   * taps it. No words. Runs before afterCastNudges (which may change the
+   * goal's nudge), so it judges the goal the child saw. */
+  function sproutNotThatOne(r: CardOutcomeLike): void {
+    const goal = goalNow;
+    if (!cards || !goal || goal.done || r.outcome === "unknown") return;
+    const need = (nudgeFor !== null ? "boom" : goal.need) as CardSpell;
+    const used = r.spell as CardSpell;
+    const helps =
+      used === need ||
+      (goal.kind === "fire" && used === "cloud") ||
+      // More bubbles (or water into the crystal pool) still fills the trap.
+      (goal.kind === "gas" && need === "split" && used === "water");
+    if (helps || !cards.element(used) || !cards.element(need)) return;
+    cards.wrong(used);
+    sfx.bonk();
+    window.clearTimeout(bonkTimer);
+    bonkHint = null;
+    bonkTimer = window.setTimeout(() => {
+      cards?.bounce(need);
+      bonkHint = { need, until: performance.now() + 3000 };
+    }, 2000);
+  }
+  type CardOutcomeLike = Pick<CastOutcome, "spell" | "outcome">;
 
   /** A reaction happened: a new Grimoire page flips face up the first time. */
   function foundPage(id: string): void {
@@ -1407,12 +1439,13 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     const onboarding = castCount === 0;
     // A goal nobody has cast at yet: show which card, and where it goes.
     const freshGoal = next !== null && next.room !== lastCastRoom;
-    const show = next !== null && !ended && (onboarding || hint.level >= 3 || nudgeFor !== null || freshGoal);
+    if (bonkHint && now > bonkHint.until) bonkHint = null;
+    const show = next !== null && !ended && (onboarding || hint.level >= 3 || nudgeFor !== null || freshGoal || bonkHint !== null);
     let target: Element | null = null;
     if (show) {
-      const need = nudgeFor !== null ? "boom" : next.need;
+      const need = bonkHint?.need ?? (nudgeFor !== null ? "boom" : next.need);
       // The card just worked: point at the target (the goal pointer), not the card.
-      const repeat = lastWorked?.spell === need && lastWorked.room === next.room - 1 && !goals.goVisible;
+      const repeat = !bonkHint && lastWorked?.spell === need && lastWorked.room === next.room - 1 && !goals.goVisible;
       target = goals.goVisible ? document.getElementById("go-arrow") : repeat ? null : cards.element(need as CardSpell);
     }
     if (fx.labelUp || dialogOpen()) target = null;
@@ -1929,6 +1962,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const gear = byId<HTMLButtonElement>("settings-btn");
   setIcon(gear, "gear");
   for (const pic of menu.querySelectorAll("[data-icon]")) setIcon(pic, pic.getAttribute("data-icon") as IconName);
+  for (const host of [byId("end"), byId("grimoire-panel")]) {
+    for (const pic of host.querySelectorAll("[data-icon]")) setIcon(pic, pic.getAttribute("data-icon") as IconName);
+  }
+  // Sprout reads pictures: a tap on a picture button says its name.
+  if (tier === "sprout") {
+    for (const b of document.querySelectorAll<HTMLButtonElement>("#end button, #settings button, #grimoire-close")) {
+      b.addEventListener("pointerdown", () => {
+        const name = b.getAttribute("aria-label");
+        if (name) speech.sayOnly(name);
+      });
+    }
+  }
   const menuBody = byId("menu-body");
   const menuMore = byId("menu-more");
   const trialConfirm = byId("trial-confirm");

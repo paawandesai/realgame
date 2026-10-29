@@ -158,6 +158,44 @@ export class SproutCards {
     for (const [s, b] of this.buttons) b.classList.toggle("ready", s === spell);
   }
 
+  private readonly timers = new Map<string, number>();
+  /** Adds a class for `ms`, restarting its animation if it is already on. */
+  private flash(b: HTMLButtonElement, cls: string, ms: number): void {
+    b.classList.remove(cls);
+    void b.offsetWidth;
+    b.classList.add(cls);
+    const key = `${b.dataset.spell}:${cls}`;
+    window.clearTimeout(this.timers.get(key));
+    this.timers.set(
+      key,
+      window.setTimeout(() => {
+        b.classList.remove(cls);
+        if (cls === "wobble") b.querySelector(".card-x")?.remove();
+      }, ms),
+    );
+  }
+
+  /** Sprout: this card did not help the goal. A wobble and a grey X over its
+   * picture; no words. */
+  wrong(spell: CardSpell): void {
+    const b = this.buttons.get(spell);
+    if (!b) return;
+    if (!b.querySelector(".card-x")) {
+      const x = document.createElement("span");
+      x.className = "card-x";
+      x.setAttribute("aria-hidden", "true");
+      x.append(icon("close"));
+      b.append(x);
+    }
+    this.flash(b, "wobble", 1100);
+  }
+
+  /** Sprout: this is the card that helps. It bounces. */
+  bounce(spell: CardSpell): void {
+    const b = this.buttons.get(spell);
+    if (b && !b.hidden) this.flash(b, "bounce", 1800);
+  }
+
   element(spell: CardSpell): HTMLButtonElement | null {
     const b = this.buttons.get(spell);
     return b && !b.hidden ? b : null;

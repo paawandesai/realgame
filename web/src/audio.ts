@@ -352,6 +352,15 @@ export class Sfx {
     });
   }
 
+  /** Sprout: a soft, low "bonk" for a card that did not help the goal. */
+  bonk(): void {
+    this.voice(0, 0.2, 0.12, (ctx, out) => {
+      const o = this.osc(ctx, "sine", 260, 130, 0, 0.2);
+      o.connect(out);
+      return [o];
+    });
+  }
+
   private shimmer(): void {
     for (let i = 0; i < 3; i++) {
       this.voice(i * 0.06, 0.22, 0.07, (ctx, out) => {

@@ -1034,6 +1034,47 @@ body[data-tier="seedling"] #moves button {
   animation: pulse-gold 1s ease-in-out infinite;
 }
 
+/* Sprout: "not that one" (a wobble and a grey X) and "this one" (a bounce). */
+.card.wobble {
+  animation: card-wobble 0.45s ease-in-out;
+}
+
+.card-x {
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px #0f1720);
+}
+
+.card-x svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 4;
+}
+
+.card.bounce {
+  border-color: #f0c75e;
+  animation: card-bounce 0.6s ease-in-out 3;
+}
+
+@keyframes card-wobble {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-9deg); }
+  40% { transform: rotate(8deg); }
+  60% { transform: rotate(-6deg); }
+  80% { transform: rotate(4deg); }
+}
+
+@keyframes card-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-14px) scale(1.08); }
+  70% { transform: translateY(0) scale(0.97); }
+}
+
 .card-drag {
   position: fixed;
   width: 72px;
@@ -1236,6 +1277,55 @@ body[data-tier="sprout"] #settings .row {
   min-height: 64px;
   min-width: 140px;
   font-size: 1.15rem;
+}
+
+/* Picture buttons (end screen, Grimoire close): an icon of 32px or more,
+   then the word for readers. */
+.end-buttons button,
+#grimoire-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.bi,
+.bi-ages > span {
+  flex: none;
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+}
+
+.bi svg,
+.bi-ages svg {
+  width: 100%;
+  height: 100%;
+}
+
+.bi.bi-ages {
+  display: inline-flex;
+  width: auto;
+  gap: 1px;
+}
+
+.bi-ages > span {
+  width: 24px;
+  height: 24px;
+}
+
+body[data-tier="sprout"] .end-buttons button {
+  min-height: 72px;
+}
+
+body[data-tier="sprout"] .bi:not(.bi-ages) {
+  width: 44px;
+  height: 44px;
+}
+
+body[data-tier="sprout"] .bi-ages > span {
+  width: 30px;
+  height: 30px;
 }
 
 /* ------------------------------------------------------ atoms as balls */
@@ -3241,7 +3331,8 @@ button.danger {
 
 /* Sprout reads pictures: options that only make sense as words are hidden,
    and the rest are big picture rows. */
-body[data-tier="sprout"] #settings .text-only {
+body[data-tier="sprout"] #settings .text-only,
+body[data-tier="sprout"] #settings .sprout-hide {
   display: none;
 }
 
@@ -4044,3 +4135,9 @@ body[data-motion="calm"] .tap-pop {
   color: #fbbf24;
 }
 .fx-standback svg, .grim-safety svg { width: 28px; height: 28px; }
+
+/* Sprout: a "later" page is a clock picture, not words. */
+.grim-name > svg {
+  width: 28px;
+  height: 28px;
+}

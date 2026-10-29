@@ -100,7 +100,7 @@
           <h2 id="grimoire-title" tabindex="-1">Grimoire</h2>
           <p class="small" id="grimoire-count"></p>
           <ul id="grimoire-cards" class="grim-cards"></ul>
-          <button id="grimoire-close" type="button">Close</button>
+          <button id="grimoire-close" type="button" aria-label="Close the Grimoire"><span class="bi" data-icon="close"></span><span class="btn-word">Close</span></button>
         </aside>
         <div id="discover" class="toast" aria-live="polite" hidden></div>
 
@@ -129,17 +129,17 @@
           </div>
           <div id="menu-body">
             <div class="menu-actions">
-              <button id="menu-age" type="button"><span class="mi" data-icon="sprout"></span><span class="menu-word">Change age</span></button>
-              <button id="menu-room" type="button"><span class="mi" data-icon="restart"></span><span class="menu-word">Restart room</span></button>
+              <button id="menu-age" type="button" aria-label="Change age"><span class="mi" data-icon="sprout"></span><span class="menu-word">Change age</span></button>
+              <button id="menu-room" type="button" aria-label="Restart this room"><span class="mi" data-icon="restart"></span><span class="menu-word">Restart room</span></button>
             </div>
             <label class="row"><span class="mi" data-icon="mute"></span><input id="sound-mute" type="checkbox" /> <span class="menu-word">Mute sound</span></label>
             <label class="row"><span class="mi" data-icon="speaker"></span><span class="menu-word">Volume</span> <input id="sound-master" type="range" min="0" max="100" step="5" /></label>
             <label class="row text-only"><span class="mi" data-icon="boom"></span><span class="menu-word">Effects</span> <input id="sound-sfx" type="range" min="0" max="100" step="5" /></label>
-            <label class="row"><span class="mi" data-icon="talk"></span><input id="voice" type="checkbox" /> <span class="menu-word">Read aloud</span></label>
+            <label class="row sprout-hide"><span class="mi" data-icon="talk"></span><input id="voice" type="checkbox" /> <span class="menu-word">Read aloud</span></label>
             <label class="row text-only"><span class="mi" data-icon="captions"></span><input id="captions" type="checkbox" /> <span class="menu-word">Mentor captions</span></label>
             <label class="row text-only"><span class="mi" data-icon="star"></span><input id="challenge-on" type="checkbox" /> <span class="menu-word">Room scores</span></label>
-            <label class="row"><span class="mi" data-icon="calm"></span><input id="motion" type="checkbox" /> <span class="menu-word">Calm motion</span></label>
-            <label class="row"><span class="mi" data-icon="clock"></span><span class="menu-word">Speed</span>
+            <label class="row sprout-hide"><span class="mi" data-icon="calm"></span><input id="motion" type="checkbox" /> <span class="menu-word">Calm motion</span></label>
+            <label class="row sprout-hide"><span class="mi" data-icon="clock"></span><span class="menu-word">Speed</span>
               <select id="speed">
                 <option value="0.5">Slow</option>
                 <option value="0.75">Steady</option>
@@ -147,7 +147,7 @@
               </select>
             </label>
             <div class="menu-danger">
-              <button id="menu-trial" type="button"><span class="mi" data-icon="rewind"></span><span class="menu-word">Restart trial</span></button>
+              <button id="menu-trial" type="button" aria-label="Restart the whole trial"><span class="mi" data-icon="rewind"></span><span class="menu-word">Restart trial</span></button>
             </div>
           </div>
           <div id="menu-more" aria-hidden="true">More below</div>
@@ -172,9 +172,9 @@
             <ul id="grimoire" class="grim-cards" aria-label="Grimoire"></ul>
           </div>
           <footer class="end-buttons">
-            <button id="end-replay" type="button" class="primary">Replay</button>
-            <button id="end-age" type="button">Change age</button>
-            <button id="end-free" type="button">Free play</button>
+            <button id="end-replay" type="button" class="primary" aria-label="Play again"><span class="bi" data-icon="restart"></span><span class="btn-word">Replay</span></button>
+            <button id="end-age" type="button" aria-label="Change age"><span class="bi bi-ages"><span data-icon="sprout"></span><span data-icon="sapling"></span><span data-icon="hat"></span></span><span class="btn-word">Change age</span></button>
+            <button id="end-free" type="button" aria-label="Free play: every door open"><span class="bi" data-icon="star"></span><span class="btn-word">Free play</span></button>
           </footer>
         </section>
       </div>
