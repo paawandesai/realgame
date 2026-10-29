@@ -153,6 +153,8 @@ export interface CastOutcome {
   reason: "empty" | "parse" | "element" | "not_in_world" | "unbalanced" | "state" | "zero" | null;
   /** Apprentice only: the reaction with state symbols, matching the ΔH shown. */
   equation_states: string | null;
+  /** Apprentice only: a teaching note, such as "symbols are case-sensitive". */
+  note: string | null;
 }
 
 /** Turns "2H2 + O2 -> 2H2O" into display text with subscripts and a real arrow. */

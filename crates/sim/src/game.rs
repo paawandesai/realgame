@@ -217,6 +217,9 @@ pub struct CastOutcome {
     /// Apprentice only: the reaction with state symbols, matching the ΔH
     /// shown (`2H2(g) + O2(g) -> 2H2O(g)`).
     pub equation_states: Option<String>,
+    /// Apprentice only: a short teaching note for the cast card, such as
+    /// "symbols are case-sensitive" when lower-case typing was forgiven.
+    pub note: Option<String>,
 }
 
 /// A presentation-only event for the browser (particles, sound, labels).
@@ -1270,17 +1273,18 @@ impl Game {
             ),
             _ => None,
         };
-        // Water thrown at the ice wall: it can't melt it, and the label says
-        // what will (the impact shows a frost puff).
+        // Water thrown at the ice wall: it melts ice only slowly, and the label
+        // says what is faster (the impact shows a frost puff).
         if spell == "water" && outcome != Outcome::Fizzle && self.lands_on_ice((hx, hy)) {
             label = self
                 .line(
-                    "Too cold! Try boom!",
-                    "Too cold! Water can't melt ice. Try boom.",
-                    "Water is too cold to melt the ice. Heat it: 2H2 + O2 -> 2H2O.",
+                    "Too slow! Try boom.",
+                    "Water melts ice slowly. Boom heats it fast.",
+                    "Water melts ice only slowly; a boom gives lots of heat fast: 2H2 + O2 -> 2H2O.",
                 )
                 .to_string();
         }
+        let note = self.case_note(&input);
         let out = CastOutcome {
             id,
             outcome,
@@ -1316,6 +1320,7 @@ impl Game {
             first_discovery: first,
             reason: None,
             equation_states,
+            note,
         };
 
         let shot = Shot {
@@ -1448,7 +1453,15 @@ impl Game {
             first_discovery: false,
             reason: Some(reason.code()),
             equation_states: None,
+            note: None,
         }
+    }
+
+    /// Apprentice: lower-case typing is forgiven, but says why it matters.
+    fn case_note(&self, input: &str) -> Option<String> {
+        (self.tier == Tier::Apprentice && spell::forgiven_case(input)).then(|| {
+            "Read as capitals. Element symbols are case-sensitive: CO is carbon monoxide, Co is cobalt.".to_string()
+        })
     }
 
     fn label(
@@ -1754,7 +1767,7 @@ impl Game {
         }
         // Nothing to act on in reach: fly at the room's goal anyway, so a
         // tapped card always goes somewhere that teaches something (water
-        // on the ice says "too cold, try boom").
+        // on the ice says "too slow, try boom").
         if found.is_none() {
             found = self.goal_aim_point().filter(|&(x, y)| {
                 ((x as f32 - hx).powi(2) + (y as f32 - hy).powi(2)).sqrt() <= BOLT_RANGE
@@ -1876,7 +1889,7 @@ impl Game {
             "water" => {
                 let mut doused = self.cool_area(at, WATER_COOL_RADIUS);
                 doused += self.soak(at, n("H2O") * SOAK_CELLS_PER_MOL);
-                self.note_douse(at);
+                self.note_douse(at, false);
                 self.douse_vents(at);
                 let cells = (n("H2O") * WATER_CELLS_PER_MOL).min(4 * WATER_CELLS_PER_MOL);
                 self.spawn_blob_at(at, Species::Water, cells, AMBIENT_C);
@@ -1895,7 +1908,7 @@ impl Game {
                 // Like a CO2 extinguisher: the gas comes out as cold as dry
                 // ice (-78.5 C, CRC) and pushes the oxygen away, so it both
                 // cools and smothers what it lands on.
-                self.note_douse(at);
+                self.note_douse(at, true);
                 self.smother(at);
                 let cooled = self.soak(at, n("CO2") * CO2_SOAK_CELLS_PER_MOL);
                 self.spawn_blob_at(at, Species::CO2, n("CO2") * CO2_CELLS_PER_MOL, DRY_ICE_C);
@@ -2699,6 +2712,20 @@ mod tests {
         assert!(r.label.contains("What reacted: H2 + 1/2 O2 -> H2O"));
         assert!(r.label.contains("1/2 O2 left over"), "{}", r.label);
         assert!(!r.label.contains("ΔH") && !r.label.contains("excess"));
+    }
+
+    #[test]
+    fn apprentice_lower_case_works_with_a_case_note() {
+        let mut g = game(Tier::Apprentice);
+        let r = g.cast("h2o");
+        assert_ne!(r.outcome, Outcome::Unknown);
+        assert_eq!(r.equation, "H2O");
+        let note = r.note.expect("a note about case");
+        assert!(note.contains("case"), "{note}");
+        // Correct capitals, words and younger tiers get no note.
+        assert!(g.cast("H2O").note.is_none());
+        assert!(g.cast("water").note.is_none());
+        assert!(game(Tier::Seedling).cast("h2o").note.is_none());
     }
 
     #[test]

@@ -664,6 +664,12 @@ export class FxLayer {
       dh.textContent = `ΔH = ${sign}${Math.abs(out.delta_h_kj).toFixed(1)} kJ${what} (${out.source?.split(",")[0] ?? ""})`;
       el.append(dh);
     }
+    if (this.tier === "apprentice" && out.note) {
+      const note = document.createElement("div");
+      note.className = "fx-note";
+      note.textContent = out.note;
+      el.append(note);
+    }
     let life = LABEL_MS;
     if (out.suggestion) {
       const fix = document.createElement("button");

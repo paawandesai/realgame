@@ -176,7 +176,8 @@ export class Grimoire {
     if (this.tier === "seedling") return li;
     this.hover.attach(li, () => ({
       title: `${page.name}: ${prettyFormula(r.equation_states ?? r.equation)}`,
-      lines: [`ΔH = ${formatDh(r.delta_h_kj)}`, r.concept, r.real_world, stateNote(r.id, this.book)],
+      // The steam note is already printed on the page itself: one copy only.
+      lines: [`ΔH = ${formatDh(r.delta_h_kj)}`, r.concept, r.real_world],
       source: stateNote(r.id, this.book) && this.book.vaporNote ? `${r.source}; ${this.book.vaporNote.source}` : r.source,
     }));
     return li;

@@ -216,6 +216,22 @@ fn parse_lenient(text: &str) -> Result<Equation, ParseError> {
     parse_equation(&upper_keeping_states(text)).map_err(|_| err)
 }
 
+/// True when `text` was understood only by upper-casing it ("h2o", "co2",
+/// "2h2 + o2 -> 2h2o"): the game forgives it, but element symbols are
+/// case-sensitive (Co is cobalt, CO is carbon monoxide). Words like "water"
+/// are aliases, not formulas, and never count.
+pub fn forgiven_case(text: &str) -> bool {
+    let t = text.trim();
+    if !t.chars().any(|c| c.is_ascii_lowercase()) || parse_equation(t).is_ok() {
+        return false;
+    }
+    let upper = upper_keeping_states(t);
+    match alias(t) {
+        Some(a) => a == upper,
+        None => parse_equation(&upper).is_ok(),
+    }
+}
+
 /// Upper-cases letters, but leaves state symbols like `(g)` and `(aq)` alone.
 fn upper_keeping_states(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
@@ -749,6 +765,12 @@ mod tests {
         assert_eq!(alias("Water"), Some("H2O"));
         assert_eq!(alias(" BOOM "), Some("2H2 + O2 -> 2H2O"));
         assert_eq!(alias("h20"), Some("H2O"));
+        assert!(forgiven_case("h2o"));
+        assert!(forgiven_case("co2"));
+        assert!(forgiven_case("2h2 + o2 -> 2h2o"));
+        assert!(!forgiven_case("H2O"));
+        assert!(!forgiven_case("water"));
+        assert!(!forgiven_case("h20"));
         assert_eq!(alias("split"), Some("2H2O -> 2H2 + O2"));
         assert_eq!(alias("cloud"), Some("CO2"));
         // Redesigned in playtest round 1: "fire" means the methane fireball,

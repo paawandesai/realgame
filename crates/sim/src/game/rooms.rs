@@ -135,6 +135,9 @@ pub struct Hedge {
     pub rect: Rect,
     /// Water or CO2 casts that landed on this hedge.
     pub hits: u32,
+    /// How many of those were CO2 (it smothers: takes away the oxygen)
+    /// rather than water (it cools: takes away the heat).
+    pub co2_hits: u32,
     /// Burning cells now, and the most there have been (for the meter).
     pub burning: u32,
     pub peak: u32,
@@ -154,6 +157,7 @@ impl Hedge {
         Hedge {
             rect,
             hits: 0,
+            co2_hits: 0,
             burning: 0,
             peak: 0,
             out: false,
@@ -374,7 +378,7 @@ impl Game {
             0 => self.line(
                 "Put out the fire!",
                 "Put out the burning hedge.",
-                "Put out the burning hedge: cast H2O at the flames.",
+                "Put out the burning hedge: cast H2O or CO2 at the flames.",
             ),
             1 => self.line(
                 "Melt the ice!",
@@ -918,11 +922,26 @@ impl Game {
         if h.out && h.hits > 0 && self.open_gate(0) {
             self.crumble_hedge(0);
             self.rooms.hedges[0].crumbled = true;
-            let line = self.line(
-                "Fire out! Gate open!",
-                "Fire out! Cooling it stopped it. Gate open.",
-                "The fire is out. Fire needs fuel, oxygen and heat: you took away the heat. The gate is open.",
-            );
+            let h = &self.rooms.hedges[0];
+            let line = if h.co2_hits == 0 {
+                self.line(
+                    "Fire out! Gate open!",
+                    "Fire out! Cooling took its heat. Gate open.",
+                    "The fire is out. Fire needs fuel, oxygen and heat: your water took away the heat. The gate is open.",
+                )
+            } else if h.co2_hits == h.hits {
+                self.line(
+                    "Fire out! Gate open!",
+                    "Fire out! CO2 took its oxygen. Gate open.",
+                    "The fire is out. Fire needs fuel, oxygen and heat: CO2 is denser than air, so it sank over the flames and took away the oxygen. The gate is open.",
+                )
+            } else {
+                self.line(
+                    "Fire out! Gate open!",
+                    "Fire out! No heat, no oxygen. Gate open.",
+                    "The fire is out. Fire needs fuel, oxygen and heat: water took away the heat and CO2, denser than air, took away the oxygen. The gate is open.",
+                )
+            };
             self.say(line);
         }
 
@@ -1094,11 +1113,16 @@ impl Game {
         }
     }
 
-    /// A water or CO2 cast landed at `at`: credit any hedge it hit.
-    pub(super) fn note_douse(&mut self, at: (i32, i32)) {
+    /// A water (`co2` false) or CO2 cast landed at `at`: credit any hedge
+    /// it hit, remembering which agent did it so feedback names the right
+    /// side of the fire triangle.
+    pub(super) fn note_douse(&mut self, at: (i32, i32), co2: bool) {
         for h in &mut self.rooms.hedges {
             if h.zone().grow(8).contains(at.0, at.1) {
                 h.hits += 1;
+                if co2 {
+                    h.co2_hits += 1;
+                }
             }
         }
     }
@@ -2745,14 +2769,14 @@ mod restart_tests {
     }
 
     #[test]
-    fn water_on_the_ice_says_too_cold_with_a_frost_puff() {
+    fn water_on_the_ice_says_too_slow_with_a_frost_puff() {
         let mut g = Game::new(Tier::Sprout, 42);
         g.open_gate(0);
         teleport(&mut g, 440.0);
         g.take_fx();
         let out = g.cast("water");
         assert_eq!(out.outcome, Outcome::Full);
-        assert!(out.label.contains("Too cold"), "{}", out.label);
+        assert!(out.label.contains("Too slow"), "{}", out.label);
         land(&mut g);
         assert!(g.take_fx().iter().any(|f| f.kind == "frost"));
     }
@@ -2913,6 +2937,39 @@ mod path_tests {
             let t = reached.unwrap_or_else(|| panic!("seed {seed}: stuck at x={}", g.player.x));
             // About 100 cells of walking at 2.2 cells/tick, plus slack.
             assert!(t < 240, "seed {seed}: took {t} ticks");
+        }
+    }
+
+    /// The gate-1 line names the side of the fire triangle the player took
+    /// away: heat for water, oxygen for CO2.
+    #[test]
+    fn room_1_line_names_heat_for_water_and_oxygen_for_co2() {
+        let g = douse_from_spawn(42);
+        let said = g.messages.join(" | ");
+        assert!(said.contains("heat"), "{said}");
+        assert!(!said.contains("oxygen"), "{said}");
+
+        for tier in [Tier::Seedling, Tier::Apprentice] {
+            let mut g = Game::new(tier, 42);
+            settle(&mut g, 30);
+            g.jars.insert("CO2".into(), 20);
+            g.messages.clear();
+            let mut casts = 0;
+            while !g.rooms.gates_open[0] && casts < 10 {
+                let at = (HEDGE1.centre().0, HEDGE1.y0);
+                cast_at(&mut g, "2CO2", at);
+                casts += 1;
+                settle(&mut g, 60);
+            }
+            assert!(g.rooms.gates_open[0], "{tier:?}: CO2 never put it out");
+            let said = g.messages.join(" | ");
+            assert!(said.contains("oxygen"), "{tier:?}: {said}");
+            if tier == Tier::Apprentice {
+                // It names all three sides, then the one that was taken.
+                assert!(said.contains("took away the oxygen"), "{said}");
+            } else {
+                assert!(!said.contains("heat"), "{tier:?}: {said}");
+            }
         }
     }
 

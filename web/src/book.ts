@@ -47,8 +47,9 @@ export function parseBook(json: string): Book {
   return { byId, vaporNote };
 }
 
-/** Reactions whose ΔH depends on water being steam or liquid. */
-const WATER_STATE_REACTIONS = new Set(["water_synthesis", "electrolysis_water"]);
+/** The one card that explains why steam and liquid water give different ΔH
+ * (making steam vs splitting liquid); shown there only, not on every card. */
+const WATER_STATE_REACTIONS = new Set(["water_synthesis"]);
 
 /** The sourced steam-vs-liquid note for a reaction that needs it, else "". */
 export function stateNote(id: string, book: Book): string {
@@ -137,9 +138,9 @@ export function spellCardLines(spell: SpellDef, book: Book): { title: string; li
       lines: [
         `ΔH = ${formatDh(r.delta_h_kj)} ${r.delta_h_kj < 0 ? "(releases heat)" : "(takes in energy)"}`,
         r.concept,
-        stateNote(r.id, book),
       ],
-      source: stateNote(r.id, book) && book.vaporNote ? `${r.source}; ${book.vaporNote.source}` : r.source,
+      // The steam-vs-liquid note lives on the Grimoire page only.
+      source: r.source,
     };
   }
   return {
