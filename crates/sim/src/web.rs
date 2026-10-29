@@ -35,6 +35,11 @@ impl WebGame {
         self.drawn_view_x
     }
 
+    /// The player's left edge, in world cells (for the HUD and browser tests).
+    pub fn player_x(&self) -> f32 {
+        self.game.player.x
+    }
+
     pub fn height(&self) -> usize {
         HEIGHT
     }
@@ -68,6 +73,12 @@ impl WebGame {
     /// builds JSON) only needs calling when this moves.
     pub fn state_version(&self) -> f64 {
         self.game.state_version() as f64
+    }
+
+    /// Returns a JSON array of `Goal`s (icon positions and fire meters). Cheap;
+    /// the overlay polls it a few times a second.
+    pub fn goals(&self) -> String {
+        serde_json::to_string(&self.game.goals()).unwrap_or_default()
     }
 
     /// Returns a JSON `State` for the HUD. Drains pending mentor messages.
@@ -175,8 +186,37 @@ fn render(game: &Game, out: &mut [u8], lens: bool, alpha: f32, view_x: i32) {
             out[o..o + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
         }
     }
+    draw_torch(game, out, view_x);
     draw_player(game, out, alpha, view_x);
     draw_aim(game, out, view_x);
+}
+
+/// The room-2 torch: a wooden post with a flickering flame when lit. Drawn
+/// in the player's hand when carried.
+fn draw_torch(game: &Game, out: &mut [u8], view_x: i32) {
+    let t = game.torch_view();
+    let (hx, hy) = game.torch_head();
+    let (x, top) = (hx - view_x, hy);
+    let len = if t.carried { 7 } else { 12 };
+    for dy in 1..=len {
+        put(out, x, top + dy, [122, 84, 48]);
+    }
+    put(out, x, top, [60, 40, 24]);
+    if t.lit {
+        let f = game.grid.frame as usize;
+        for (dx, dy, c) in [
+            (0, -1, [255, 220, 90]),
+            (0, -2, [255, 170, 40]),
+            (-1, -1, [255, 140, 30]),
+            (1, -1, [255, 140, 30]),
+            (0, -3, [255, 120, 30]),
+        ] {
+            if dy == -3 && hash(hx as usize, f / 3).is_multiple_of(2) {
+                continue;
+            }
+            put(out, x + dx, top + dy, c);
+        }
+    }
 }
 
 fn put(out: &mut [u8], x: i32, y: i32, c: [u8; 3]) {

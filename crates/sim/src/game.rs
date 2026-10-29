@@ -2,7 +2,7 @@
 //! first breakthrough trial.
 
 use crate::formula::Atoms;
-use crate::grid::{Grid, AMBIENT_C, WOOD_IGNITION_C};
+use crate::grid::{Grid, AMBIENT_C, CH4_IGNITION_C, WOOD_IGNITION_C};
 use crate::reactions::ReactionBook;
 use crate::species::{Phase, Species};
 use crate::spell::{self, Outcome, Plan, Resolution, Stock};
@@ -45,8 +45,13 @@ const WATER_CELLS_PER_MOL: u32 = 40;
 const WATER_COOL_RADIUS: i32 = 6;
 /// ...and soaks through this many burning cells of a hedge it hits.
 const SOAK_CELLS_PER_MOL: u32 = 160;
-/// One mole of the cloud spell is this many cells of CO2.
+/// One mole of the cloud spell is this many cells of CO2...
 const CO2_CELLS_PER_MOL: u32 = 40;
+/// ...that cools this many burning cells (it cools less than water does).
+const CO2_SOAK_CELLS_PER_MOL: u32 = 60;
+/// CO2 sublimes at -78.5 C at 1 atm (CRC Handbook): an extinguisher's gas
+/// leaves the nozzle about this cold.
+const DRY_ICE_C: f32 = -78.5;
 /// Gas spells and gathering: cells per mole of gas.
 const GAS_CELLS_PER_MOL: u32 = 3;
 /// Gathering: cells of water per mole, and how far (cells) the suit can pull from.
@@ -1292,6 +1297,7 @@ impl Game {
                 let mut doused = self.cool_area(at, WATER_COOL_RADIUS);
                 doused += self.soak(at, n("H2O") * SOAK_CELLS_PER_MOL);
                 self.note_douse(at);
+                self.douse_vents(at);
                 let cells = (n("H2O") * WATER_CELLS_PER_MOL).min(4 * WATER_CELLS_PER_MOL);
                 self.spawn_blob_at(at, Species::Water, cells, AMBIENT_C);
                 extra.push("splash");
@@ -1303,8 +1309,15 @@ impl Game {
                 }
             }
             "cloud" => {
+                // Like a CO2 extinguisher: the gas comes out as cold as dry
+                // ice (-78.5 C, CRC) and pushes the oxygen away, so it both
+                // cools and smothers what it lands on.
                 self.note_douse(at);
-                self.spawn_blob_at(at, Species::CO2, n("CO2") * CO2_CELLS_PER_MOL, 10.0);
+                let cooled = self.soak(at, n("CO2") * CO2_SOAK_CELLS_PER_MOL);
+                self.spawn_blob_at(at, Species::CO2, n("CO2") * CO2_CELLS_PER_MOL, DRY_ICE_C);
+                if cooled > 0 {
+                    extra.push("hiss");
+                }
                 extra.push("bubble");
             }
             "gas" => {
@@ -1465,6 +1478,11 @@ impl Game {
                 let falloff = 1.0 - (d2 as f32).sqrt() / (radius as f32 + 1.0);
                 let i = self.grid.idx(x as usize, y as usize);
                 self.grid.temp[i] = self.grid.temp[i].max(AMBIENT_C + peak * falloff);
+                // Fuel gas anywhere inside the fireball catches: the flame front
+                // reaches it even where the average heat would be too low.
+                if matches!(self.grid.cells[i], Species::H2 | Species::CH4) {
+                    self.grid.temp[i] = self.grid.temp[i].max(CH4_IGNITION_C + 100.0);
+                }
                 if self.grid.cells[i] == Species::Air
                     && d2 >= (radius - 1) * (radius - 1)
                     && self.grid.chance(0.5)
@@ -1497,9 +1515,7 @@ impl Game {
         self.nearest_crystal().is_some().hash(&mut h);
         self.rooms.gates_open.hash(&mut h);
         self.room().hash(&mut h);
-        for hedge in &self.rooms.hedges {
-            ((hedge.meter() * 20.0) as u32).hash(&mut h);
-        }
+        // Fire meters flicker every tick; the browser polls `goals()` for them.
         (self.rooms.torch.lit, self.rooms.torch.carried).hash(&mut h);
         let sig = h.finish();
         if sig != self.state_sig {

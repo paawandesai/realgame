@@ -13,7 +13,7 @@
 //! player cause as well as the world state.
 
 use super::*;
-use crate::grid::WOOD_FIRE_C;
+use crate::grid::{CH4_IGNITION_C, FLAME_C_IN_AIR, WOOD_FIRE_C};
 
 /// A rectangle of cells, `x0..x1` by `y0..y1`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,7 +75,13 @@ const H2_BLAST_C: f32 = 1500.0;
 // Room 4: Marsh Door.
 const MARSH: Rect = Rect::new(1000, GROUND_Y, 1064, 156);
 pub const VENTS: [i32; 2] = [1016, 1048];
-const VENT_TICKS: u64 = 15;
+const VENT_TICKS: u64 = 30;
+/// A lit vent burns its methane as fast as it seeps out.
+const VENT_LIT_TICKS: u64 = 4;
+/// A doused vent can't relight for this long.
+const VENT_WET_TICKS: u64 = 180;
+/// Heat this close to a vent's mouth lights it.
+const VENT_LIGHT_R: i32 = 6;
 /// Vents stop when this much methane is already loose in the room.
 const VENT_MAX_CH4: usize = 40;
 const ALCOVE_ROOF: Rect = Rect::new(1176, 118, GATE_X[3], 124);
@@ -164,6 +170,9 @@ pub struct Rooms {
     pub brazier_lit: bool,
     /// The last heat spell's landing point and tick (a player cause).
     pub last_heat: Option<(u64, i32, i32)>,
+    pub vent_lit: [bool; 2],
+    vent_wet_until: [u64; 2],
+    ch4_loose: u32,
     entered: [bool; ROOMS],
     capture_cells: u32,
 }
@@ -187,6 +196,9 @@ impl Rooms {
             trap_peak: 0,
             brazier_lit: false,
             last_heat: None,
+            vent_lit: [false; 2],
+            vent_wet_until: [0; 2],
+            ch4_loose: 0,
             entered: [false; ROOMS],
             capture_cells: 0,
         }
@@ -289,8 +301,8 @@ impl Game {
         self.flatten(226, 300);
         let g = &mut self.grid;
         // Stone curbs either side of the hedge: the fire's fuel is the hedge only.
-        g.fill_rect(228, 140, 232, GROUND_Y, Species::Stone);
-        g.fill_rect(264, 140, 268, GROUND_Y, Species::Stone);
+        g.fill_rect(228, 144, 232, GROUND_Y, Species::Stone);
+        g.fill_rect(264, 144, 268, GROUND_Y, Species::Stone);
         let h = HEDGE1;
         g.fill_rect(h.x0, h.y0, h.x1, h.y1, Species::Wood);
         // Its left end is already burning.
@@ -462,27 +474,75 @@ impl Game {
         self.say(line);
     }
 
+    /// The gas cell just above the marsh surface at a vent, if any.
+    fn vent_mouth(&self, x: i32) -> Option<(i32, i32)> {
+        (90..GROUND_Y + 8)
+            .rev()
+            .find(|&y| {
+                self.grid.get(x, y).is_gas() && self.grid.get(x, y + 1).phase() == Phase::Liquid
+            })
+            .map(|y| (x, y))
+    }
+
     /// Methane seeps up from the marsh vents while room 4 is being simulated.
+    /// Once something hot lights a vent it burns steadily at the surface, like
+    /// real natural-gas seeps that stay alight for years: CH4 + 2O2 -> CO2 + 2H2O.
     fn vents_tick(&mut self) {
         let vx = self.view_x.round() as i32;
         let active = vx + 2 * VIEW_W as i32 > MARSH.x0 && vx - (VIEW_W as i32) < MARSH.x1;
-        if !active || !self.ticks.is_multiple_of(VENT_TICKS) {
+        if !active {
             return;
         }
-        let room4 = Rect::new(3 * ROOM_W as i32, 0, WORLD_W as i32, HEIGHT as i32);
-        if self.ticks.is_multiple_of(VENT_TICKS * 4)
-            && self.count_in(room4, Species::CH4) as usize >= VENT_MAX_CH4
-        {
-            return;
+        if self.ticks.is_multiple_of(60) {
+            let room4 = Rect::new(3 * ROOM_W as i32, 0, WORLD_W as i32, HEIGHT as i32);
+            self.rooms.ch4_loose = self.count_in(room4, Species::CH4);
         }
-        let k = (self.ticks / VENT_TICKS) as usize % VENTS.len();
-        let x = VENTS[k];
-        // The first gas cell above the marsh at the vent.
-        if let Some(y) = (90..GROUND_Y + 8).rev().find(|&y| {
-            self.grid.get(x, y).is_gas() && self.grid.get(x, y + 1).phase() == Phase::Liquid
-        }) {
+        for (k, &vent) in VENTS.iter().enumerate() {
+            let Some((x, y)) = self.vent_mouth(vent) else {
+                continue;
+            };
+            if !self.rooms.vent_lit[k] && self.ticks >= self.rooms.vent_wet_until[k] {
+                let hot = (-VENT_LIGHT_R..=VENT_LIGHT_R).any(|dy| {
+                    (-VENT_LIGHT_R..=VENT_LIGHT_R).any(|dx| {
+                        let (cx, cy) = (x + dx, y + dy);
+                        let s = self.grid.get(cx, cy);
+                        s == Species::Flame
+                            || (s.is_gas() && self.grid.temp_at(cx, cy) >= CH4_IGNITION_C)
+                    })
+                });
+                if hot {
+                    self.rooms.vent_lit[k] = true;
+                    self.say("The methane vent caught fire! Burning methane makes carbon dioxide: stand close and your suit will catch it.");
+                }
+            }
+            let lit = self.rooms.vent_lit[k];
+            let period = if lit { VENT_LIT_TICKS } else { VENT_TICKS };
+            if !(self.ticks + k as u64 * 7).is_multiple_of(period) {
+                continue;
+            }
+            if !lit && self.rooms.ch4_loose as usize >= VENT_MAX_CH4 {
+                continue;
+            }
             if self.grid.get(x, y) == Species::Air {
-                self.grid.set(x, y, Species::CH4, 18.0);
+                // A lit vent's methane comes out into its own flame, hot enough to burn.
+                let t = if lit { CH4_IGNITION_C + 200.0 } else { 18.0 };
+                self.grid.set(x, y, Species::CH4, t);
+                if lit && self.grid.get(x, y - 1) == Species::Air {
+                    self.grid.spawn_flame(x, y - 1, 4, false, FLAME_C_IN_AIR);
+                }
+            }
+        }
+    }
+
+    /// Water landing on a lit vent puts it out.
+    pub(super) fn douse_vents(&mut self, at: (i32, i32)) {
+        for (k, &vent) in VENTS.iter().enumerate() {
+            if let Some((x, y)) = self.vent_mouth(vent) {
+                if (at.0 - x).abs() <= 8 && (at.1 - y).abs() <= 8 {
+                    self.rooms.vent_lit[k] = false;
+                    // Wet and cooled: the leftover heat can't relight it at once.
+                    self.rooms.vent_wet_until[k] = self.ticks + VENT_WET_TICKS;
+                }
             }
         }
     }
@@ -715,11 +775,13 @@ impl Game {
     /// wood it passes through costs nothing).
     pub(super) fn soak(&mut self, at: (i32, i32), budget: u32) -> u32 {
         const REACH: i32 = 30;
+        // A stream that lands on the curb or the ground beside a hedge still splashes it.
+        const SOAK_SPLASH: i32 = 8;
         let burnable = |s: Species| s == Species::Wood || s == Species::Flame;
         let mut seen = std::collections::BTreeSet::new();
         let mut queue = std::collections::VecDeque::new();
-        for dy in -4..=4 {
-            for dx in -4..=4 {
+        for dy in -SOAK_SPLASH..=SOAK_SPLASH {
+            for dx in -SOAK_SPLASH..=SOAK_SPLASH {
                 let (x, y) = (at.0 + dx, at.1 + dy);
                 if burnable(self.grid.get(x, y)) && self.grid.in_bounds(x, y) && seen.insert((x, y))
                 {
@@ -909,6 +971,14 @@ pub(super) mod script {
 
     pub const SEEDS: [u64; 5] = [1, 7, 42, 99, 2024];
 
+    /// Puts the player at `x` in a later room, standing on the ground.
+    pub fn teleport(g: &mut Game, x: f32) {
+        g.player.x = x - PLAYER_W / 2.0;
+        g.player.y = GROUND_Y as f32 - PLAYER_H - 4.0;
+        g.snap_camera();
+        settle(g, 20);
+    }
+
     pub fn settle(g: &mut Game, ticks: u32) {
         for _ in 0..ticks {
             g.tick(0);
@@ -1086,14 +1156,6 @@ mod tests {
 
     // ------------------------------------------------------------- room 2
 
-    /// Puts the player at `x` in a later room, standing on the ground.
-    fn teleport(g: &mut Game, x: f32) {
-        g.player.x = x - PLAYER_W / 2.0;
-        g.player.y = GROUND_Y as f32 - PLAYER_H - 4.0;
-        g.snap_camera();
-        settle(g, 20);
-    }
-
     #[test]
     fn booms_at_the_ice_melt_it_and_open_gate_2() {
         for seed in SEEDS {
@@ -1257,5 +1319,278 @@ mod tests {
             assert!(!g.rooms.gates_open[0]);
             assert!(!g.trial_complete());
         }
+    }
+}
+
+#[cfg(test)]
+mod marsh {
+    use super::script::*;
+    use super::*;
+
+    fn cells_of(g: &Game, r: Rect, s: Species) -> Vec<(i32, i32)> {
+        r.cells().filter(|&(x, y)| g.grid.get(x, y) == s).collect()
+    }
+
+    /// Open ground in room 4 between the marsh and the alcove.
+    const OPEN: Rect = Rect::new(1080, 0, 1170, GROUND_Y);
+
+    #[test]
+    fn co2_released_above_air_sinks_below_it_within_300_ticks() {
+        for seed in SEEDS {
+            let mut g = Game::new(Tier::Apprentice, seed);
+            teleport(&mut g, 1060.0);
+            let blob = Rect::new(1110, 50, 1130, 56);
+            for (x, y) in blob.cells() {
+                g.grid.set(x, y, Species::CO2, AMBIENT_C);
+            }
+            settle(&mut g, 300);
+            let co2 = cells_of(&g, OPEN, Species::CO2);
+            assert!(co2.len() >= 100, "seed {seed}: CO2 lost: {}", co2.len());
+            let low = co2.iter().filter(|&&(_, y)| y >= GROUND_Y - 16).count();
+            assert!(
+                low * 10 >= co2.len() * 9,
+                "seed {seed}: only {low} of {} CO2 cells near the floor",
+                co2.len()
+            );
+            // Air sits above it: the cells it left are air again.
+            assert!(blob.cells().all(|(x, y)| g.grid.get(x, y) != Species::CO2));
+        }
+    }
+
+    #[test]
+    fn a_pool_of_co2_puts_out_the_flames_it_covers() {
+        let burning = |with_co2: bool| {
+            let mut g = Game::new(Tier::Apprentice, 42);
+            teleport(&mut g, 1060.0);
+            // A hot log on the floor, burning.
+            let log = Rect::new(1120, GROUND_Y - 3, 1136, GROUND_Y);
+            for (x, y) in log.cells() {
+                g.grid.set(x, y, Species::Wood, 650.0);
+            }
+            settle(&mut g, 20);
+            if with_co2 {
+                // A CO2 pool poured over it, 12 cells deep.
+                for (x, y) in Rect::new(1108, GROUND_Y - 15, 1148, GROUND_Y).cells() {
+                    let s = g.grid.get(x, y);
+                    if s == Species::Air || s == Species::Flame {
+                        g.grid.set(x, y, Species::CO2, AMBIENT_C);
+                    }
+                }
+            }
+            let zone = Rect::new(1110, GROUND_Y - 30, 1146, GROUND_Y);
+            let mut flames = 0;
+            for _ in 0..60 {
+                g.tick(0);
+                flames += cells_of(&g, zone, Species::Flame).len();
+            }
+            flames
+        };
+        let open_air = burning(false);
+        let under_co2 = burning(true);
+        assert!(open_air > 50, "the log should burn in air: {open_air}");
+        assert!(
+            under_co2 * 10 < open_air,
+            "CO2 should smother it: {under_co2} flame-ticks vs {open_air}"
+        );
+    }
+
+    #[test]
+    fn a_spark_burns_vent_methane_into_co2_the_suit_can_capture() {
+        for seed in SEEDS {
+            let mut g = Game::new(Tier::Apprentice, seed);
+            teleport(&mut g, 990.0);
+            g.jars.insert("CO2".into(), 0);
+            // Let methane build up over the marsh.
+            settle(&mut g, 600);
+            let marsh_air = Rect::new(MARSH.x0 - 20, 0, MARSH.x1 + 20, GROUND_Y);
+            let ch4 = cells_of(&g, marsh_air, Species::CH4).len();
+            assert!(ch4 >= 10, "seed {seed}: vents gave only {ch4} CH4");
+            let co2 = cells_of(&g, marsh_air, Species::CO2).len();
+            // A boom at the vent lights it: the methane burns into CO2.
+            let mouth = g.vent_mouth(VENTS[0]).expect("vent under water");
+            cast_at(&mut g, "boom", (mouth.0, mouth.1 - 2));
+            settle(&mut g, 30);
+            assert!(g.rooms.vent_lit[0], "seed {seed}: vent not lit");
+            assert!(
+                cells_of(&g, marsh_air, Species::CO2).len() > co2,
+                "seed {seed}: no CO2 made"
+            );
+            // Stand by the burning vent: the suit's scrubber catches hot CO2.
+            walk_to(&mut g, VENTS[0] as f32 - 8.0, 300);
+            settle(&mut g, 300);
+            assert!(g.jars["CO2"] >= 1, "seed {seed}: no CO2 captured");
+            // Water puts the vent out again.
+            cast_at(&mut g, "water", mouth);
+            settle(&mut g, 5);
+            assert!(!g.rooms.vent_lit[0]);
+        }
+    }
+
+    #[test]
+    fn water_puts_out_the_second_hedge_then_a_boom_lights_the_brazier() {
+        for seed in SEEDS {
+            let mut g = Game::new(Tier::Seedling, seed);
+            teleport(&mut g, 1150.0);
+            assert!(
+                douse(&mut g, 1, 4).is_some(),
+                "seed {seed}: hedge 2 still burning"
+            );
+            assert!(!g.trial_complete());
+            // Walk through the cooled hedge into the alcove and light the brazier.
+            assert!(
+                walk_to(&mut g, 1218.0, 600),
+                "seed {seed}: blocked at {}",
+                g.player.x
+            );
+            let target = (BRAZIER.centre().0, BRAZIER.y1 - 4);
+            assert_ne!(cast_at(&mut g, "boom", target).outcome, Outcome::Fizzle);
+            settle(&mut g, 20);
+            assert!(g.rooms.brazier_lit, "seed {seed}: brazier dark");
+            assert!(g.trial_complete());
+            assert!(g.rooms.gates_open[3]);
+            assert!(g.state().trial_complete);
+        }
+    }
+
+    #[test]
+    fn a_burning_hedge_blocks_the_way_to_the_brazier() {
+        let mut g = Game::new(Tier::Seedling, 42);
+        settle(&mut g, 1);
+        teleport(&mut g, 1150.0);
+        // Make sure the whole face is burning.
+        for (x, y) in HEDGE2.cells() {
+            let i = g.grid.idx(x as usize, y as usize);
+            g.grid.temp[i] = 650.0;
+        }
+        walk_to(&mut g, 1218.0, 400);
+        assert!(
+            g.player.x + PLAYER_W <= HEDGE2.x0 as f32 + 1.0,
+            "walked into fire at {}",
+            g.player.x
+        );
+    }
+
+    #[test]
+    fn co2_cloud_cast_smothers_the_second_hedge() {
+        for seed in SEEDS {
+            let mut g = Game::new(Tier::Apprentice, seed);
+            teleport(&mut g, 1150.0);
+            g.jars.insert("CO2".into(), 10);
+            let mut casts = 0;
+            for _ in 0..10 {
+                if g.rooms.hedges[1].out {
+                    break;
+                }
+                let at = (HEDGE2.x0, GROUND_Y - 6);
+                assert_eq!(cast_at(&mut g, "2CO2", at).outcome, Outcome::Full);
+                casts += 1;
+                settle(&mut g, 40);
+            }
+            assert!(
+                g.rooms.hedges[1].out,
+                "seed {seed}: still burning after {casts} clouds"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod full_run {
+    use super::script::*;
+    use super::*;
+
+    /// A scripted play-through of all four rooms with real movement input,
+    /// the way a player would: douse, melt, split and light, walk on.
+    fn play(seed: u64) -> Game {
+        let mut g = Game::new(Tier::Seedling, seed);
+        settle(&mut g, 30);
+        // Room 1: three water casts at the hedge.
+        assert!(walk_to(&mut g, 200.0, 2000), "seed {seed}: stuck in room 1");
+        assert!(douse(&mut g, 0, 4).is_some(), "seed {seed}: fire 1");
+        settle(&mut g, 20);
+        assert!(g.rooms.gates_open[0], "seed {seed}: gate 1");
+        // Room 2: boom the ice wall.
+        assert!(
+            walk_to(&mut g, 440.0, 2000),
+            "seed {seed}: stuck before the ice at {}",
+            g.player.x
+        );
+        melt_ice_with_booms(&mut g, 4000);
+        assert!(g.rooms.gates_open[1], "seed {seed}: gate 2");
+        // Room 3: split under the overhang, then light it.
+        assert!(
+            walk_to(&mut g, 684.0, 3000),
+            "seed {seed}: stuck in room 2 at {}",
+            g.player.x
+        );
+        let mut tries = 0;
+        while !g.rooms.gates_open[2] && tries < 6 {
+            tries += 1;
+            cast_at(&mut g, "split", TRAP.centre());
+            settle(&mut g, 30);
+            while g.jars["H2"] < 2 || g.jars["O2"] < 1 {
+                settle(&mut g, 10);
+            }
+            cast_at(&mut g, "boom", TRAP.centre());
+            settle(&mut g, 30);
+        }
+        assert!(g.rooms.gates_open[2], "seed {seed}: gate 3");
+        // Room 4: put out the hedge, walk through, light the brazier.
+        assert!(
+            walk_to(&mut g, 1150.0, 3000),
+            "seed {seed}: stuck in room 3/4 at {}",
+            g.player.x
+        );
+        while g.jars["H2O"] < 4 {
+            settle(&mut g, 30);
+        }
+        assert!(douse(&mut g, 1, 4).is_some(), "seed {seed}: fire 2");
+        assert!(
+            walk_to(&mut g, 1218.0, 1000),
+            "seed {seed}: stuck at hedge 2 at {}",
+            g.player.x
+        );
+        while g.jars["H2"] < 2 || g.jars["O2"] < 1 {
+            settle(&mut g, 10);
+        }
+        cast_at(&mut g, "boom", (BRAZIER.centre().0, BRAZIER.y1 - 4));
+        settle(&mut g, 30);
+        g
+    }
+
+    #[test]
+    fn the_trial_can_be_finished() {
+        for seed in SEEDS {
+            let g = play(seed);
+            assert!(g.trial_complete(), "seed {seed}: brazier not lit");
+            assert!(g.rooms.gates_open.iter().all(|&o| o));
+            assert!(g.ticks < 20_000, "seed {seed}: took {} ticks", g.ticks);
+        }
+    }
+
+    #[test]
+    fn the_trial_never_completes_with_no_input() {
+        for seed in SEEDS {
+            let mut g = Game::new(Tier::Seedling, seed);
+            for _ in 0..20_000 {
+                g.tick(0);
+            }
+            assert!(!g.trial_complete());
+            assert!(
+                g.rooms.gates_open.iter().all(|&o| !o),
+                "{:?}",
+                g.rooms.gates_open
+            );
+        }
+    }
+
+    #[test]
+    fn room_4_left_alone_never_completes() {
+        // With the camera parked in room 4, its vents and hedge are simulated.
+        let mut g = Game::new(Tier::Seedling, 42);
+        teleport(&mut g, 1100.0);
+        settle(&mut g, 8000);
+        assert!(!g.trial_complete());
+        assert!(!g.rooms.brazier_lit);
     }
 }

@@ -5,7 +5,7 @@ import init, { WebGame } from "./pkg/realgame_sim.js";
 import { Sfx } from "./audio";
 import { FxLayer } from "./fx";
 import { FormulaRing, byId } from "./ring";
-import { prettyFormula, type CastOutcome, type Fx, type GameState, type Tier } from "./types";
+import { prettyFormula, type CastOutcome, type Fx, type GameState, type Goal, type Tier } from "./types";
 
 const INPUT = { left: 1, right: 2, jump: 4, gather: 8 } as const;
 const MAX_SLOTS = 5;
@@ -403,6 +403,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let accumulator = 0;
   let lastTime = performance.now();
   let lastHudTime = -Infinity;
+  let lastGoalsTime = -Infinity;
   let stateVersion = -1;
 
   function loop(): void {
@@ -424,6 +425,11 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
     fx.draw(now, game.view_x());
     if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1]));
+    // Goal icons and fire meters change every tick; a few polls a second is plenty.
+    if (now - lastGoalsTime >= 200) {
+      lastGoalsTime = now;
+      fx.setGoals(JSON.parse(game.goals()) as Goal[]);
+    }
     // JSON is only built when something on the HUD actually changed.
     const version = game.state_version();
     if (state === null || (version !== stateVersion && now - lastHudTime >= 100)) {
@@ -440,6 +446,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   if (new URLSearchParams(window.location.search).has("debug")) {
     (window as unknown as { realgame: unknown }).realgame = {
       state: () => state,
+      viewX: () => game.view_x(),
+      playerX: () => game.player_x(),
+      goals: () => JSON.parse(game.goals()) as Goal[],
       shake: () => ({ max: fx.maxShakePx, last: fx.lastShakePx }),
     };
   }

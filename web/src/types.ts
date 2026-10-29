@@ -29,6 +29,29 @@ export interface GameState {
   aim_y: number;
   /** Camera left edge in world cells. */
   view_x: number;
+  /** The room the player is in (0-based) and which gates are open. */
+  room: number;
+  gates_open: boolean[];
+  goals: Goal[];
+  torch: TorchView;
+}
+
+/** A room's target, marked on screen (see `Goal` in game/rooms.rs). */
+export interface Goal {
+  room: number;
+  kind: "fire" | "ice" | "gas" | "brazier";
+  x: number;
+  y: number;
+  done: boolean;
+  /** "Fire left", 0..1, for the burning hedges. */
+  meter: number | null;
+}
+
+export interface TorchView {
+  x: number;
+  y: number;
+  lit: boolean;
+  carried: boolean;
 }
 
 export type Outcome = "full" | "partial" | "fizzle" | "unknown";
