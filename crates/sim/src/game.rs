@@ -579,6 +579,11 @@ impl Game {
             == Species::Water
     }
 
+    /// Standing on something or swimming: a jump would lift the player now.
+    pub fn player_footed(&self) -> bool {
+        self.player.grounded || self.in_water()
+    }
+
     fn on_ground(&self) -> bool {
         self.box_blocked(self.player.x, self.player.y + 0.5)
     }
@@ -3672,14 +3677,9 @@ mod world {
         g.player.x = 270.0;
         g.player.y = 120.0;
         g.snap_camera();
-        for t in 0..1200u32 {
-            // Hold right; hop now and then to climb out of the pit.
-            let hop = if g.player.vx.abs() < 0.5 && t % 20 < 12 {
-                INPUT_JUMP
-            } else {
-                0
-            };
-            g.tick(INPUT_RIGHT | hop);
+        for _ in 0..1200u32 {
+            // Hold right only: the pit and the pool have stairs, no jump.
+            g.tick(INPUT_RIGHT);
             let screen_x = g.player.x - g.view_x;
             assert!(
                 screen_x >= 0.0 && screen_x + PLAYER_W <= VIEW_W as f32,

@@ -69,6 +69,12 @@ impl WebGame {
         v
     }
 
+    /// Whether the player stands on something or swims, so a jump would
+    /// lift them now (the blocked-walk jump cue only shows then).
+    pub fn player_footed(&self) -> bool {
+        self.game.player_footed()
+    }
+
     /// The player's top edge, in world cells (camera lift and browser tests).
     pub fn player_y(&self) -> f32 {
         self.game.player.y

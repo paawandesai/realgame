@@ -2153,11 +2153,13 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     frameParts[2] = frameParts[2]! * 0.95 + (tFx - tRender) * 0.05;
     frameParts[3] = frameParts[3]! * 0.95 + (end - tFx) * 0.05;
   }
-  // Every tier: pushing against a wall too tall to step up (more than 2
-  // cells) with no progress for 1 s brings up a bouncing jump picture over
-  // the player and pulses the jump button. Readers also get the word.
-  const JUMP_HINT_MS = 1000;
-  const blocked = { since: -1, x: 0 };
+  // Every tier: holding a direction with the player standing (or swimming)
+  // and not moving for 1.2 s brings up a pulsing up-arrow over the player
+  // and pulses the jump button. Readers also get the words; Sprout gets one
+  // automatic hop after 2 s of being blocked (and again every 2 s after).
+  const JUMP_HINT_MS = 1200;
+  const AUTO_HOP_MS = 2000;
+  const blocked = { since: -1, x: 0, hopped: -1 };
   const jumpHint = document.createElement("div");
   jumpHint.id = "jump-hint";
   jumpHint.setAttribute("aria-hidden", "true");
@@ -2166,7 +2168,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   if (tier !== "sprout") {
     const word = document.createElement("span");
     word.className = "jump-word";
-    word.textContent = "Jump!";
+    word.textContent = "Jump! (Space / ↑)";
     jumpHint.append(word);
   }
   goals.layer.append(jumpHint);
@@ -2175,11 +2177,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       keys.has("a") || keys.has("arrowleft") || held.has("left") || keys.has("d") || keys.has("arrowright") || held.has("right");
     const jumping = keys.has(" ") || keys.has("w") || keys.has("arrowup") || held.has("jump");
     const x = game.player_x();
-    if (!pushing || jumping || Math.abs(x - blocked.x) > 2) {
-      blocked.since = pushing && !jumping ? now : -1;
+    const footed = game.player_footed();
+    if (!pushing || jumping || Math.abs(x - blocked.x) > 0.5 || (!footed && blocked.since < 0)) {
+      blocked.since = pushing && !jumping && footed ? now : -1;
       blocked.x = x;
+      blocked.hopped = -1;
     }
-    const show = blocked.since >= 0 && now - blocked.since >= JUMP_HINT_MS;
+    const stuckMs = blocked.since >= 0 ? now - blocked.since : 0;
+    const show = blocked.since >= 0 && stuckMs >= JUMP_HINT_MS;
+    if (tier === "sprout" && show && footed && now - Math.max(blocked.since, blocked.hopped) >= AUTO_HOP_MS) {
+      blocked.hopped = now;
+      game.press_jump();
+    }
     if (jumpHint.hidden === show) {
       jumpHint.hidden = !show;
       document.querySelector('#moves [data-key="jump"]')?.classList.toggle("hinting", show);

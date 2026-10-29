@@ -54,6 +54,8 @@ pub const GATE_W: i32 = 6;
 pub const DOOR_TOP: i32 = 112;
 
 // Room 1: Splash Garden.
+/// The stream's bed, dug into the ground (water from row 150).
+const STREAM: Rect = Rect::new(30, GROUND_Y, 96, 162);
 pub const HEDGE1: Rect = Rect::new(236, 132, 260, GROUND_Y);
 /// Where to stand to douse it: past the low wall, where the trial starts.
 pub const HEDGE1_STAND_X: i32 = 214;
@@ -446,17 +448,40 @@ impl Game {
 
         // ---- Room 1: Splash Garden.
         // The stream: a pool dug into the ground, for topping up water.
-        g.fill_rect(30, 140, 96, 162, Species::Air);
-        g.fill_rect(30, 162, 96, 166, Species::Stone);
-        g.fill_rect(30, 150, 96, 162, Species::Water);
+        // Level banks, so the stairs below meet the ground with a 2-cell step.
+        self.flatten(STREAM.x0 - 4, STREAM.x1 + 4);
+        let g = &mut self.grid;
+        g.fill_rect(STREAM.x0, 140, STREAM.x1, STREAM.y1, Species::Air);
+        g.fill_rect(
+            STREAM.x0,
+            STREAM.y1,
+            STREAM.x1,
+            STREAM.y1 + 4,
+            Species::Stone,
+        );
+        g.fill_rect(STREAM.x0, 150, STREAM.x1, STREAM.y1, Species::Water);
+        // Stone stairs inside both banks, as in room 2's pit: wading out
+        // needs no jump (2-cell risers, within the step-up).
+        let rises = (STREAM.y1 - GROUND_Y) / PIT_RISER;
+        for k in 1..rises {
+            let top = GROUND_Y + k * PIT_RISER;
+            let w = k * PIT_TREAD;
+            g.fill_rect(STREAM.x0, top, STREAM.x0 + w, STREAM.y1, Species::Stone);
+            g.fill_rect(STREAM.x1 - w, top, STREAM.x1, STREAM.y1, Species::Stone);
+        }
         // A small wood of cool trees (scenery you walk in front of).
         for (tx, h) in [(112, 14), (124, 18), (137, 12), (150, 16), (163, 13)] {
             let top = GROUND_Y - 1 - h;
             g.fill_rect(tx, top, tx + 2, GROUND_Y, Species::Wood);
             g.fill_rect(tx - 4, top - 6, tx + 6, top + 1, Species::Wood);
         }
-        // A low stone wall between the trees and the hedge.
-        g.fill_rect(200, 134, 204, GROUND_Y, Species::Stone);
+        // A low stepped stone wall between the trees and the hedge: 2-cell
+        // steps, so walking back to the stream needs no jump.
+        for k in 0..3 {
+            let top = GROUND_Y - 6 + k * PIT_RISER;
+            let w = k * PIT_TREAD;
+            g.fill_rect(200 - w, top, 204 + w, GROUND_Y, Species::Stone);
+        }
         self.flatten(226, 300);
         let g = &mut self.grid;
         // Stone curbs either side of the hedge: the fire's fuel is the hedge only.
@@ -511,6 +536,16 @@ impl Game {
             Species::Crystal,
         );
         g.fill_rect(POOL.x0, POOL.y0, POOL.x1, POOL.y1, Species::Water);
+        // Stone stairs inside both ends of the pool, as in room 2's pit: a
+        // swimmer, a wader or a player in a drained pool walks out (2-cell
+        // risers, within the step-up), no jump needed.
+        let rises = (POOL.y1 - POOL.y0) / PIT_RISER;
+        for k in 1..rises {
+            let top = POOL.y0 + k * PIT_RISER;
+            let w = k * PIT_TREAD;
+            g.fill_rect(POOL.x0, top, POOL.x0 + w, POOL.y1, Species::Stone);
+            g.fill_rect(POOL.x1 - w, top, POOL.x1, POOL.y1, Species::Stone);
+        }
         g.fill_rect(ROOF.x0, ROOF.y0, ROOF.x1, ROOF.y1, Species::Stone);
         g.fill_rect(ROOF.x0, ROOF.y1, ROOF.x0 + 4, TRAP.y1, Species::Stone);
         g.fill_rect(ROOF.x1 - 4, ROOF.y1, ROOF.x1, TRAP.y1, Species::Stone);
@@ -3062,6 +3097,61 @@ mod path_tests {
         }
         assert!(g.rooms.gates_open[0], "seed {seed}: fire still burning");
         g
+    }
+
+    /// Every gate open and the ice gone: holding right alone (no jump)
+    /// walks from the room-2 exit through the crystal pool to gate 4.
+    fn walk_room_3_holding_right(drain_rows: i32) -> f32 {
+        let mut g = Game::new(Tier::Seedling, 42);
+        for k in 0..ROOMS {
+            g.open_gate(k);
+        }
+        g.grid
+            .fill_rect(ICE.x0, ICE.y0, ICE.x1, ICE.y1, Species::Air);
+        // Drain the pool's water from the top, as the split spell does.
+        for (x, y) in POOL.cells() {
+            if y < POOL.y0 + drain_rows && g.grid.get(x, y) == Species::Water {
+                g.grid.set(x, y, Species::Air, AMBIENT_C);
+            }
+        }
+        teleport(&mut g, (GATE_X[1] + GATE_W + 8) as f32);
+        for _ in 0..1500 {
+            g.tick(INPUT_RIGHT);
+        }
+        g.player.x
+    }
+
+    /// Every dip and wall on the main path (the stream, the stepped wall,
+    /// the curbs, the pit, the crystal pool, the marsh) has 2-cell stairs:
+    /// with the obstacles cleared, holding one direction alone, with no
+    /// jump, crosses the whole level both ways.
+    #[test]
+    fn the_whole_level_walks_both_ways_with_no_jump() {
+        for (dir, from, to) in [(INPUT_RIGHT, 6.0, 1220.0), (INPUT_LEFT, 1226.0, 10.0)] {
+            let mut g = Game::new(Tier::Seedling, 42);
+            for k in 0..ROOMS {
+                g.open_gate(k);
+            }
+            for r in [ICE, HEDGE1, HEDGE2] {
+                g.grid.fill_rect(r.x0, r.y0, r.x1, r.y1, Species::Air);
+            }
+            teleport(&mut g, from);
+            for _ in 0..1500 {
+                g.tick(dir);
+            }
+            let x = g.player.x + PLAYER_W / 2.0;
+            let past = if dir == INPUT_RIGHT { x > to } else { x < to };
+            assert!(past, "dir {dir}: stuck at x = {x}");
+        }
+    }
+
+    #[test]
+    fn holding_right_alone_walks_through_the_crystal_pool() {
+        let depth = POOL.y1 - POOL.y0;
+        for (label, drain) in [("full", 0), ("half", depth / 2), ("empty", depth)] {
+            let x = walk_room_3_holding_right(drain);
+            assert!(x > 940.0, "pool {label}: stuck at x = {x}");
+        }
     }
 
     #[test]
