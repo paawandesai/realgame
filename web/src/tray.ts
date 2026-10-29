@@ -157,6 +157,12 @@ export class SpellTray {
   private coefHintTimer = 0;
   /** Reads a line aloud without a caption (the words are already on screen). */
   sayOnly: ((line: string) => void) | null = null;
+  /** The player changed the bar (a tile, a number, Clear, a fix). */
+  onEdit: (() => void) | null = null;
+  /** Teaching a fix: the balanced numbers, by molecule token index. The
+   * number to change next carries the "teach" class (the ghost hand sits
+   * on it) until the scale balances. Null when not teaching. */
+  private teachWant: Map<number, number> | null = null;
 
   constructor(
     root: HTMLElement,
@@ -245,7 +251,53 @@ export class SpellTray {
     this.hideUndo();
     this.tokens = parseSpell(text);
     this.fixes.clear();
+    this.endTeach();
     this.render();
+    this.onEdit?.();
+  }
+
+  /**
+   * Seedling's first "Fix it": teach instead of solving. The number to
+   * change next is marked (the ghost hand points at it) and the scale
+   * wobbles toward its light side; each tap moves on to the next number
+   * that is still off, until the scale balances. Returns false when the
+   * bar does not hold this spell's molecules (nothing to point at).
+   */
+  teach(suggestion: string): boolean {
+    const want = parseSpell(suggestion).filter((t) => t.kind === "mol");
+    const have = this.tokens.map((t, i) => [t, i] as const).filter(([t]) => t.kind === "mol");
+    if (want.length === 0 || want.length !== have.length) return false;
+    const map = new Map<number, number>();
+    for (const [k, [t, i]] of have.entries()) {
+      const w = want[k]!;
+      if (t.kind !== "mol" || w.kind !== "mol" || w.formula !== t.formula) return false;
+      map.set(i, w.coef);
+    }
+    if ([...map].every(([i, c]) => (this.tokens[i] as { coef: number }).coef === c)) return false;
+    // One pointer at a time: the one-time number hint steps aside for good.
+    this.dropCoefHint();
+    this.coefHintSeen = true;
+    this.teachWant = map;
+    this.fixes.clear();
+    this.render();
+    (this.sayOnly ?? this.onSpeak)(words("Tap the number the hand points at."));
+    return true;
+  }
+
+  /** Whether a fix is being taught (the hand is on a number). */
+  get teaching(): boolean {
+    return this.teachWant !== null;
+  }
+
+  /** The number the hand should point at while teaching, if any. */
+  teachEl(): HTMLElement | null {
+    return this.teachWant ? this.bar.querySelector<HTMLElement>(".bar-coef.teach") : null;
+  }
+
+  private endTeach(): void {
+    this.teachWant = null;
+    this.scale.classList.remove("wobble");
+    delete this.scale.dataset.light;
   }
 
   /**
@@ -269,6 +321,7 @@ export class SpellTray {
     }
     this.tokens = parseSpell(next);
     this.fixes.clear();
+    this.endTeach();
     this.render();
     this.showNew("New spell", false);
     if (mine) {
@@ -285,6 +338,7 @@ export class SpellTray {
     this.tokens = parseSpell(this.undoText);
     this.touched = true;
     this.fixes.clear();
+    this.endTeach();
     this.hideUndo();
     this.render();
     if (offer) {
@@ -436,13 +490,17 @@ export class SpellTray {
     // A pulsing fix on this molecule is answered (either way) once tapped.
     this.fixes.delete(i);
     this.dropCoefHint();
+    if (this.balanced()) this.endTeach();
     this.render();
+    this.onEdit?.();
     if (this.balanced()) this.onSpeak("Balanced!");
   }
 
   private changed(): void {
     this.fixes.clear();
+    this.endTeach();
     this.render();
+    this.onEdit?.();
   }
 
   balanced(): boolean {
@@ -454,6 +512,27 @@ export class SpellTray {
 
   private render(): void {
     this.bar.replaceChildren();
+    // Teaching: the first number that is still off gets the hand.
+    // Prefer a molecule that adds an atom its side is short of (the one
+    // the scale names), so each tap visibly helps.
+    let teachAt = -1;
+    if (this.teachWant) {
+      const { left, right } = sideAtoms(this.tokens);
+      const arrowAt = this.tokens.findIndex((t) => t.kind === "arrow");
+      let fallback = -1;
+      for (const [i, c] of this.teachWant) {
+        const t = this.tokens[i];
+        if (t?.kind !== "mol" || t.coef === c) continue;
+        if (fallback < 0) fallback = i;
+        const [mine, other] = i < arrowAt ? [left, right] : [right, left];
+        const short = Object.keys(atomsOf(t.formula)).some((el) => (mine[el] ?? 0) < (other[el] ?? 0));
+        if (short && t.coef < c) {
+          teachAt = i;
+          break;
+        }
+      }
+      if (teachAt < 0) teachAt = fallback;
+    }
     this.tokens.forEach((t, i) => {
       if (t.kind === "plus") this.bar.append(chip("+", "op"));
       else if (t.kind === "arrow") this.bar.append(chip("→", "op arrow"));
@@ -463,6 +542,7 @@ export class SpellTray {
         // Always the molecule's own number; a suggested fix only pulses it.
         const coef = button(String(t.coef), `How many ${t.formula}: ${t.coef}. Tap for more.`, "bar-coef", () => this.cycleCoef(i));
         if (this.fixes.has(i)) coef.classList.add("fix");
+        if (i === teachAt) coef.classList.add("teach");
         if (t.coef === 1) coef.classList.add("one");
         coef.dataset.index = String(i);
         const f = document.createElement("span");
@@ -566,6 +646,13 @@ export class SpellTray {
     }
     this.scale.dataset.state = state;
     this.beam.style.transform = `rotate(${angle}deg)`;
+    this.beam.style.setProperty("--tilt", `${angle}deg`);
+    // Teaching: the beam wobbles up toward its light side (the side that
+    // needs more atoms), and that pan glows.
+    const wobble = this.teachWant !== null && state === "tipped";
+    this.scale.classList.toggle("wobble", wobble);
+    if (wobble) this.scale.dataset.light = nl < nr ? "left" : nl > nr ? "right" : "both";
+    else delete this.scale.dataset.light;
     this.scale.setAttribute("aria-label", `Atoms in equal atoms out. ${this.scaleLabel.textContent}. Before ${describe(left)}. After ${describe(right)}.`);
     this.fillPan(this.pans[0], left);
     this.fillPan(this.pans[1], right);

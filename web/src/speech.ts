@@ -66,6 +66,13 @@ export function speakable(text: string): string {
 
 type SpeechWin = Window & { __speechLog?: string[] };
 
+/** How long a caption stays up. */
+const CAPTION_MS = 9000;
+/** A caption that waited behind a card shows for at least this long. */
+const CAPTION_MIN_MS = 3000;
+/** A caption that waited longer than this is old news and never shows. */
+const CAPTION_STALE_MS = 8000;
+
 export class Speech {
   private unlocked = false;
   private voice: SpeechSynthesisVoice | null = null;
@@ -119,6 +126,52 @@ export class Speech {
     if (this.lastSpoken) this.speak(this.lastSpoken);
   }
 
+  /** Another transient (a cast card, a Grimoire page) is on screen: the
+   * caption waits and shows once it is gone, if it is still fresh. */
+  private held = false;
+  /** When the caption waiting (or showing) was said; 0 for none. */
+  private captionAt = 0;
+
+  /** Whether the caption box is on screen. */
+  get showing(): boolean {
+    return this.box.classList.contains("show");
+  }
+
+  /**
+   * One message at a time: while `on`, the caption box stays hidden (a line
+   * said meanwhile waits). When the hold ends, the latest line comes back
+   * for the rest of its time, unless it is older than CAPTION_STALE_MS.
+   */
+  hold(on: boolean): void {
+    if (on === this.held) return;
+    this.held = on;
+    if (on) {
+      this.box.classList.remove("show");
+      return;
+    }
+    const age = performance.now() - this.captionAt;
+    if (this.captionAt > 0 && age < CAPTION_STALE_MS) this.showBox(CAPTION_MS - Math.min(age, CAPTION_MS - CAPTION_MIN_MS));
+    else this.captionAt = 0;
+  }
+
+  /** A new player action: the caption about what happened before is stale
+   * ("Too close!" must not outlive a fix), so it goes now. Replay still
+   * says it again. */
+  clear(): void {
+    window.clearTimeout(this.hideTimer);
+    this.captionAt = 0;
+    this.box.classList.remove("show");
+  }
+
+  private showBox(ms: number): void {
+    this.box.classList.add("show");
+    window.clearTimeout(this.hideTimer);
+    this.hideTimer = window.setTimeout(() => {
+      this.box.classList.remove("show");
+      this.captionAt = 0;
+    }, ms);
+  }
+
   /** Shows a caption and reads it aloud (if voice is on). */
   say(rawCaption: string, rawSpoken: string = speakable(rawCaption), force = false): void {
     // "Tap" on touch screens, "Click" with a mouse.
@@ -140,9 +193,12 @@ export class Speech {
       }
       slot.replaceChildren(icon(pic));
     } else slot?.remove();
-    this.box.classList.add("show");
-    window.clearTimeout(this.hideTimer);
-    this.hideTimer = window.setTimeout(() => this.box.classList.remove("show"), 9000);
+    this.captionAt = performance.now();
+    if (this.held) {
+      window.clearTimeout(this.hideTimer);
+      return;
+    }
+    this.showBox(CAPTION_MS);
   }
 
   /** Reads a line aloud with no caption: for words already on screen in

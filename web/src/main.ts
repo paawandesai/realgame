@@ -41,6 +41,8 @@ const HINT_MISSES = 3;
 const END_DELAY_MS = 2500;
 /** The "new Grimoire page" card stays this long (or until the next input). */
 const DISCOVER_MS = 1500;
+/** Longest a bolt takes to land and show its card (popups wait that long). */
+const CARD_DUE_MS = 1200;
 /** The room-clear stamp. */
 const ROOM_CLEAR_MS = 1900;
 
@@ -289,13 +291,31 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     else glCanvas.remove();
   }
   document.body.dataset.renderer = gl ? "webgl" : "2d";
-  const fx = new FxLayer(stage, gl ? [canvas, glCanvas] : [canvas], w, h, tier, (fix) => {
-    if (tray) tray.set(fix);
-    else {
+  const fx = new FxLayer(stage, gl ? [canvas, glCanvas] : [canvas], w, h, tier, (fix) => onFixPressed(fix));
+  /** Seedling: the first "Fix it" teaches (the hand points at one number);
+   * a second press, or any press after a second miss on the same goal,
+   * fixes the whole bar as before. */
+  let fixTaught = false;
+  const misses = { room: -1, count: 0 };
+  function onFixPressed(fix: string): void {
+    // A new player action: the caption about the last cast is stale.
+    speech.clear();
+    if (tray) {
+      const teach = tier === "seedling" && !fixTaught && !tray.teaching && misses.count <= 1;
+      if (teach && tray.teach(fix)) {
+        fixTaught = true;
+        setTrayOpenSoon(true);
+        return;
+      }
+      tray.set(fix);
+      fx.dismissCard(true);
+    } else {
       ring.set(fix);
       ring.toggle(true);
     }
-  });
+  }
+  /** Opens the Seedling tray drawer (wired up once the drawer exists). */
+  let setTrayOpenSoon: (open: boolean) => void = () => {};
   fx.reducedOverride = prefs.reducedMotion;
   fx.glowLayer = gl === null;
 
@@ -318,6 +338,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const objective = new ObjectiveBanner(byId("hud-pill"), byId("hud-banners"), tier);
   /** The Grimoire card, the room-clear stamp and the room score take turns. */
   const popups = new PopupQueue();
+  // One message at a time: a cast card outranks the popup queue, which
+  // outranks Mote's caption. Each steps aside the moment a higher one
+  // shows (and the main loop keeps it that way every frame).
+  fx.onCard = () => {
+    cardDueUntil = 0;
+    popups.hold(true);
+    speech.hold(true);
+  };
+  /** A cast's card is on its way (the bolt is in flight): a Grimoire page
+   * it found waits for the card instead of flashing up before it. */
+  let cardDueUntil = 0;
+  popups.onShow = () => speech.hold(true);
   // The cast-result bubble steers around whichever popup is up.
   // Cast cards and "New Grimoire page" cards dock top-centre under the
   // goal column and step aside from goal markers, gates and meters.
@@ -330,6 +362,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       if (r.height > 0) bottom = Math.max(bottom, r.bottom - st.top);
     }
     return bottom > 0 ? bottom + 10 : 80;
+  };
+  fx.dockBottom = () => {
+    if (!document.body.classList.contains("tray-open")) return Infinity;
+    const t = document.getElementById("tray");
+    if (!t || t.hidden) return Infinity;
+    const st = stage.getBoundingClientRect();
+    const top = t.getBoundingClientRect().top;
+    return top < st.bottom ? top - st.top : Infinity;
   };
   fx.keepClear = () => [
     document.querySelector<HTMLElement>("#mote.show"),
@@ -407,6 +447,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     root.hidden = false;
     tray = new SpellTray(root, (t) => requestCast(t), (line) => speech.say(line));
     tray.sayOnly = (line) => speech.sayOnly(line);
+    tray.onEdit = () => {
+      // A new player action: old captions go, and an Oops card has done
+      // its job once the bar balances.
+      speech.clear();
+      if (tray?.balanced()) fx.dismissCard(true);
+    };
     tray.suggest(1, TRAY_STARTERS[0]!);
     byId("jars-mini").hidden = false;
   } else {
@@ -753,6 +799,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     // The one-time number hint waits until the drawer is on screen.
     if (open) window.setTimeout(() => tray?.maybeCoefHint(), 260);
   };
+  setTrayOpenSoon = setTrayOpen;
   actTray.addEventListener("click", () => setTrayOpen(!document.body.classList.contains("tray-open")));
   byId("act-cast").addEventListener("click", () => requestCast());
   // Apprentice on touch: the pencil opens the formula ring (tiles plus a text box).
@@ -1117,7 +1164,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   }
 
   function doCast(formula: string): void {
+    // A new player action: Mote's last line and an old Oops card are stale.
+    speech.clear();
+    fx.dismissCard(true);
     const result = JSON.parse(game.cast(formula)) as CastOutcome;
+    cardDueUntil = performance.now() + CARD_DUE_MS;
+    if (result.imbalance.length > 0) {
+      const room = goalNow?.room ?? -1;
+      if (room === misses.room) misses.count++;
+      else Object.assign(misses, { room, count: 1 });
+    }
+    // The key list under the stage goes once a spell has worked.
+    if (result.outcome === "full") document.body.classList.add("cast-ok");
     lastResult = result;
     outcomes.set(result.id, result);
     if (outcomes.size > 32) outcomes.delete(outcomes.keys().next().value as number);
@@ -1317,6 +1375,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     for (const g of list) {
       if (!g.done || clearedRooms.has(g.room)) continue;
       clearedRooms.add(g.room);
+      // The goal worked: an "Oops" card from before it is old news.
+      fx.dismissCard(true);
       // Room 3 needs both: split water, then boom the gas. Its pages are
       // earned with the room, however the water got split.
       if (g.room === 3) {
@@ -1446,9 +1506,28 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     hintGhost.hidden = !showGhost || fx.labelUp || dialogOpen();
   }
 
+  /** Seedling, teaching a fix: the ghost hand taps the number to change.
+   * Returns true while it does. */
+  function placeTeachHand(now: number): boolean {
+    const el = tray?.teachEl() ?? null;
+    const on = el !== null && !dialogOpen() && el.offsetParent !== null;
+    ghostHand.classList.toggle("teach", on);
+    if (!on) return false;
+    ghostHand.hidden = false;
+    const r = el.getBoundingClientRect();
+    const tap = fx.reducedMotion ? 0 : Math.max(0, Math.sin(now / 220)) * 6;
+    ghostHand.style.left = `${Math.round(r.left + r.width / 2)}px`;
+    ghostHand.style.top = `${Math.round(r.top + r.height / 2 + tap)}px`;
+    return true;
+  }
+
   /** Sprout: a ghost hand taps the card to use (or the go arrow). */
   function placeGhostHand(now: number): void {
-    if (!cards) return;
+    if (placeTeachHand(now)) return;
+    if (!cards) {
+      ghostHand.hidden = true;
+      return;
+    }
     const next = goals.next;
     const onboarding = castCount === 0;
     // A goal nobody has cast at yet: show which card, and where it goes.
@@ -2309,7 +2388,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
     framePortrait(viewX);
     // One transient at a time: the queue waits while a cast card is up.
-    popups.hold(fx.labelUp);
+    const cardSoon = fx.labelUp || now < cardDueUntil;
+    popups.hold(cardSoon);
+    speech.hold(cardSoon || popups.active !== null);
+    if (document.body.classList.contains("card-up") !== fx.labelUp) document.body.classList.toggle("card-up", fx.labelUp);
     const toast = popups.active;
     if (toast?.id === "discover") fx.dockEl(toast);
     // The top column reads layout: ten times a second is enough.

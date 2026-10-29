@@ -254,7 +254,10 @@ export class GoalMarkers {
     // Room 3: the trap's fill meter, on the stone roof above the trap (the
     // pointing hand sits in the trap), in quarters.
     const gas = next?.kind === "gas" ? next : null;
-    this.trapMeter.hidden = gas === null || area === null;
+    // The goal's own meter: shown while its trap is on screen (the player
+    // splits water a little way off, so no distance limit).
+    const trapOnScreen = area !== null && area[2] >= viewX && area[0] <= viewX + this.viewW;
+    this.trapMeter.hidden = gas === null || !trapOnScreen;
     if (gas && area) {
       const fill = Math.max(0, Math.min(1, gas.meter ?? 0));
       const quarters = Math.round(fill * 4);
@@ -278,8 +281,12 @@ export class GoalMarkers {
       const [x0, y0, x1] = area;
       this.trapMeter.style.transform = `translate(${(((x0 + x1) / 2 - viewX) * kx).toFixed(1)}px, ${((y0 - 4) * ky - 6).toFixed(1)}px)`;
     }
+    // Name tags only for things on screen and near the player (within
+    // NEAR_CELLS): the next room's crystal never labels itself from here.
+    const inView = (x: number) => x >= viewX && x <= viewX + this.viewW;
+    const near = (x: number) => inView(x) && Math.abs(x - playerCx) <= NEAR_CELLS;
     const bat = next?.battery ?? null;
-    this.battery.hidden = bat === null;
+    this.battery.hidden = bat === null || !near(bat[0]);
     if (bat) {
       this.battery.style.transform = `translate(${((bat[0] - viewX) * kx).toFixed(1)}px, ${(bat[1] * ky).toFixed(1)}px)`;
     }
@@ -288,7 +295,8 @@ export class GoalMarkers {
       next !== null &&
       next.kind === "brazier" &&
       (next.steps?.[0]?.done ?? false) &&
-      Math.abs(next.stand_x - playerCx) > ON_SPOT_CELLS;
+      Math.abs(next.stand_x - playerCx) > ON_SPOT_CELLS &&
+      near(next.stand_x);
     this.stand.hidden = !showStand;
     if (showStand && next) {
       this.stand.style.transform = `translate(${((next.stand_x - viewX) * kx).toFixed(1)}px, ${(GROUND_Y * ky).toFixed(1)}px)`;

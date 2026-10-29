@@ -37,6 +37,9 @@ export class PopupQueue {
     window.addEventListener("pointerdown", onInput, { capture: true });
   }
 
+  /** Called as a popup goes up (Mote's caption steps aside at once). */
+  onShow: (() => void) | null = null;
+
   /** The popup on screen now, if any. */
   get active(): HTMLElement | null {
     return this.current?.el ?? null;
@@ -93,6 +96,7 @@ export class PopupQueue {
     this.current = p;
     if (!p) return;
     p.el.hidden = false;
+    this.onShow?.();
     // Restart the fade-in.
     p.el.classList.remove("popup-in");
     void p.el.offsetWidth;

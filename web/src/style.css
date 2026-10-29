@@ -4178,3 +4178,61 @@ body[data-motion="calm"] .tap-pop {
   width: 28px;
   height: 28px;
 }
+
+/* ------------------------------------------ round 4: teach before solving */
+
+/* Seedling's first "Fix it" points at one number: it glows gold and the
+ * ghost hand (fixed, so the stage's edge never clips it) taps on it. */
+.bar-coef.teach {
+  border: 3px solid #f0c75e;
+  color: #f0c75e;
+  box-shadow: 0 0 0 4px rgba(240, 199, 94, 0.35);
+  animation: pulse-gold 0.9s ease-in-out infinite;
+}
+
+#ghost-hand.teach {
+  position: fixed;
+  z-index: 40;
+  margin: 2px 0 0 -10px;
+}
+
+/* The beam wobbles up toward its light side, and that pan glows. */
+#scale.wobble .beam {
+  animation: scale-wobble 1.1s ease-in-out infinite;
+}
+
+@keyframes scale-wobble {
+  0%,
+  100% { transform: rotate(var(--tilt, 0deg)); }
+  50% { transform: rotate(calc(var(--tilt, 0deg) * 1.7)); }
+}
+
+#scale[data-light="left"] .pan.left,
+#scale[data-light="right"] .pan.right,
+#scale[data-light="both"] .pan {
+  border-bottom-color: #f0c75e;
+  box-shadow: 0 6px 10px -6px rgba(240, 199, 94, 0.8);
+}
+
+body[data-motion="calm"] #scale.wobble .beam,
+body[data-motion="calm"] .bar-coef.teach {
+  animation: none;
+}
+
+/* The key list is for keyboards, and only until the first spell works. */
+body[data-input="touch"] #help,
+body.cast-ok #help {
+  display: none;
+}
+
+/* Short screens: a cast card takes the goal pill's place while it is up
+ * (one message at a time), and with the tray drawer open the card drops
+ * its small scale (the tray shows the big one) so it fits above it. */
+@media (max-height: 500px) {
+  body.card-up #hud-top #goal-chip {
+    display: none;
+  }
+  body.tray-open .cast-card .card-scale {
+    display: none;
+  }
+}

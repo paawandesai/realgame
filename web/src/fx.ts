@@ -867,6 +867,9 @@ export class FxLayer {
     el.replaceChildren();
     el.removeAttribute("style");
     el.className = `fx-label cast-card ${out.outcome}`;
+    // An unbalanced cast's card is the "Oops" card (it leaves as soon as
+    // the player acts on it or the goal succeeds).
+    el.classList.toggle("oops", out.imbalance.length > 0);
     el.dataset.cast = String(out.id);
     // Sprout's card is a picture and a few words: no equation row.
     const pic = SPROUT_PICTURE[out.spell];
@@ -884,6 +887,7 @@ export class FxLayer {
       this.labels = [{ el, x, y, born: performance.now(), life: LABEL_FIX_MS }];
       if (el.parentNode !== this.stage) this.stage.append(el);
       this.placeLabel(this.labels[0]!);
+      this.onCard?.();
       return;
     }
     if (out.outcome !== "unknown" && this.tier !== "sprout") {
@@ -968,6 +972,25 @@ export class FxLayer {
     this.labels = [{ el, x, y, born: performance.now(), life }];
     if (el.parentNode !== this.stage) this.stage.append(el);
     this.placeLabel(this.labels[0]!);
+    this.onCard?.();
+  }
+
+  /** Called the moment a cast card goes up, so everything else that talks
+   * (Mote's caption, the popup queue) steps aside in the same frame. */
+  onCard: (() => void) | null = null;
+
+  /** Whether the card on screen is an "Oops" (unbalanced) card. */
+  get oopsUp(): boolean {
+    return this.labels.some((l) => l.el.classList.contains("oops"));
+  }
+
+  /** Takes the cast card down now (only an Oops card when `oopsOnly`). */
+  dismissCard(oopsOnly = false): void {
+    this.labels = this.labels.filter((l) => {
+      if (oopsOnly && !l.el.classList.contains("oops")) return true;
+      l.el.remove();
+      return false;
+    });
   }
 
   /** The Seedling card for an unbalanced cast: one line, a scale, Why?, Fix it. */
@@ -1052,9 +1075,12 @@ export class FxLayer {
       rects.push(new DOMRect(r.left - s.left, r.top - s.top, r.width, r.height));
     }
     const pad = 8;
+    // An open drawer (the Seedling tray on a phone) covers the stage's
+    // bottom: a card never docks under it.
+    const floor = Math.min(sh, this.dockBottom());
     const hits = (x: number, y: number) =>
       rects.some((r) => x - lw / 2 < r.right + pad && x + lw / 2 > r.left - pad && y < r.bottom + pad && y + lh > r.top - pad);
-    const fits = (x: number, y: number) => x - lw / 2 >= 4 && x + lw / 2 <= sw - 4 && y >= 4 && y + lh <= sh - 4;
+    const fits = (x: number, y: number) => x - lw / 2 >= 4 && x + lw / 2 <= sw - 4 && y >= 4 && y + lh <= floor - 4;
     const last = this.docked.get(el);
     let best: [number, number] | null = null;
     if (last && last.top === top && fits(last.x, last.y) && !hits(last.x, last.y)) best = [last.x, last.y];
@@ -1079,13 +1105,15 @@ export class FxLayer {
         }
       }
     }
-    const [x, y] = best ?? [sw / 2, Math.min(top, sh - lh - 4)];
+    const [x, y] = best ?? [sw / 2, Math.max(4, Math.min(top, floor - lh - 4))];
     this.docked.set(el, { x, y, top });
     el.classList.add("docked");
     el.style.left = `${Math.round(x)}px`;
     el.style.top = `${Math.round(y)}px`;
   }
 
+  /** Stage-relative y (px) docked cards must stay above (a drawer's top). */
+  dockBottom: () => number = () => Infinity;
   /** Stage-relative y (px) where docked cards start: under the goal pill. */
   dockTop: () => number = () => 80;
   /** What a docked card must never cover. */
