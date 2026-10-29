@@ -2,7 +2,7 @@
 //! renderer that turns the grid into pixels.
 
 use crate::game::{Game, Tier, HEIGHT, VIEW_W, WORLD_W};
-use crate::palette::{self, glow_of, hash, mix, Around, GlowMap};
+use crate::palette::{self, glow_of, hash, heat_color, mix, temp_byte, Around, GlowMap};
 use crate::species::Species;
 use wasm_bindgen::prelude::*;
 
@@ -10,6 +10,11 @@ use wasm_bindgen::prelude::*;
 pub struct WebGame {
     game: Game,
     pixels: Vec<u8>,
+    /// Per viewport pixel, for the WebGL renderer: a temperature byte (see
+    /// `palette::temp_byte`) then the species id, or `SPRITE` where the
+    /// player, torch or crosshair is drawn. Filled only while enabled.
+    cell_data: Vec<u8>,
+    cell_data_on: bool,
     /// Glowing blocks of the last frame, for the browser's glow sprites.
     glow: GlowMap,
     /// The camera position the last frame was drawn at, so pointer input maps
@@ -24,6 +29,8 @@ impl WebGame {
         WebGame {
             game: Game::new(Tier::parse(tier), seed as u64 + 1),
             pixels: vec![0; VIEW_W * HEIGHT * 4],
+            cell_data: vec![0; VIEW_W * HEIGHT * 2],
+            cell_data_on: false,
             glow: GlowMap::default(),
             drawn_view_x: 0,
         }
@@ -119,15 +126,35 @@ impl WebGame {
         let g = &self.game;
         let vx = (g.prev_view_x + (g.view_x - g.prev_view_x) * alpha).round() as i32;
         self.drawn_view_x = vx.clamp(0, (WORLD_W - VIEW_W) as i32);
+        let mut frame = Frame {
+            rgba: &mut self.pixels,
+            data: if self.cell_data_on {
+                Some(&mut self.cell_data)
+            } else {
+                None
+            },
+        };
         render(
             g,
-            &mut self.pixels,
+            &mut frame,
             &mut self.glow,
             lens,
             alpha,
             self.drawn_view_x,
         );
         self.pixels.as_ptr()
+    }
+
+    /// Turns the per-pixel temperature and species buffer on or off (the
+    /// WebGL renderer reads it; Canvas2D does not need it).
+    pub fn set_cell_data(&mut self, on: bool) {
+        self.cell_data_on = on;
+    }
+
+    /// Pointer to VIEW_W * HEIGHT byte pairs (temperature byte, species id)
+    /// for the last rendered frame, filled while `set_cell_data(true)`.
+    pub fn cell_data(&self) -> *const u8 {
+        self.cell_data.as_ptr()
     }
 
     /// The glowing parts of the last rendered frame (flames, crystals, cells
@@ -138,35 +165,21 @@ impl WebGame {
     }
 }
 
+/// Species byte in `cell_data` for sprite pixels (drawn as-is by the GPU).
+pub const SPRITE: u8 = 255;
+
+/// The frame being drawn: RGBA pixels, plus the optional per-pixel cell
+/// data for the WebGL renderer.
+struct Frame<'a> {
+    rgba: &'a mut [u8],
+    data: Option<&'a mut Vec<u8>>,
+}
+
 fn sky(y: usize) -> [u8; 3] {
     palette::sky(y, HEIGHT)
 }
 
-/// Temperature colour map for the Insight lens: blue cold, dark at room
-/// temperature, then red, orange, yellow and white as it heats.
-fn heat_color(t: f32) -> [u8; 3] {
-    let stops: [(f32, [u8; 3]); 7] = [
-        (-60.0, [60, 120, 255]),
-        (0.0, [70, 170, 230]),
-        (20.0, [24, 28, 40]),
-        (100.0, [120, 40, 140]),
-        (500.0, [220, 40, 30]),
-        (1500.0, [255, 170, 30]),
-        (2800.0, [255, 255, 230]),
-    ];
-    if t <= stops[0].0 {
-        return stops[0].1;
-    }
-    for w in stops.windows(2) {
-        let ((t0, c0), (t1, c1)) = (w[0], w[1]);
-        if t <= t1 {
-            return mix(c0, c1, (t - t0) / (t1 - t0));
-        }
-    }
-    stops[6].1
-}
-
-fn render(game: &Game, out: &mut [u8], glow: &mut GlowMap, lens: bool, alpha: f32, view_x: i32) {
+fn render(game: &Game, out: &mut Frame, glow: &mut GlowMap, lens: bool, alpha: f32, view_x: i32) {
     let g = &game.grid;
     glow.reset(VIEW_W, g.h);
     for y in 0..g.h {
@@ -203,7 +216,12 @@ fn render(game: &Game, out: &mut [u8], glow: &mut GlowMap, lens: bool, alpha: f3
                     c
                 }
             };
-            out[o..o + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
+            out.rgba[o..o + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
+            if let Some(d) = out.data.as_deref_mut() {
+                let o2 = (y * VIEW_W + sx) * 2;
+                d[o2] = temp_byte(t);
+                d[o2 + 1] = s as u8;
+            }
         }
     }
     draw_torch(game, out, view_x);
@@ -213,7 +231,7 @@ fn render(game: &Game, out: &mut [u8], glow: &mut GlowMap, lens: bool, alpha: f3
 
 /// The room-2 torch: a wooden post with a flickering flame when lit. Drawn
 /// in the player's hand when carried.
-fn draw_torch(game: &Game, out: &mut [u8], view_x: i32) {
+fn draw_torch(game: &Game, out: &mut Frame, view_x: i32) {
     let t = game.torch_view();
     let (hx, hy) = game.torch_head();
     let (x, top) = (hx - view_x, hy);
@@ -239,10 +257,13 @@ fn draw_torch(game: &Game, out: &mut [u8], view_x: i32) {
     }
 }
 
-fn put(out: &mut [u8], x: i32, y: i32, c: [u8; 3]) {
+fn put(out: &mut Frame, x: i32, y: i32, c: [u8; 3]) {
     if x >= 0 && y >= 0 && (x as usize) < VIEW_W && (y as usize) < HEIGHT {
-        let i = (y as usize * VIEW_W + x as usize) * 4;
-        out[i..i + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
+        let p = y as usize * VIEW_W + x as usize;
+        out.rgba[p * 4..p * 4 + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
+        if let Some(d) = out.data.as_deref_mut() {
+            d[p * 2 + 1] = SPRITE;
+        }
     }
 }
 
@@ -271,7 +292,7 @@ fn sprite_color(c: u8) -> Option<[u8; 3]> {
     })
 }
 
-fn draw_player(game: &Game, out: &mut [u8], alpha: f32, view_x: i32) {
+fn draw_player(game: &Game, out: &mut Frame, alpha: f32, view_x: i32) {
     let p = &game.player;
     let lerp = |a: f32, b: f32| a + (b - a) * alpha;
     let (px, py) = (
@@ -300,7 +321,7 @@ fn draw_player(game: &Game, out: &mut [u8], alpha: f32, view_x: i32) {
     }
 }
 
-fn draw_aim(game: &Game, out: &mut [u8], view_x: i32) {
+fn draw_aim(game: &Game, out: &mut Frame, view_x: i32) {
     let (ax, ay) = (game.aim.0 - view_x, game.aim.1);
     let c = [255, 255, 255];
     for d in [2, 3] {
@@ -316,4 +337,53 @@ fn draw_aim(game: &Game, out: &mut [u8], view_x: i32) {
 #[wasm_bindgen]
 pub fn reaction_book() -> String {
     crate::reactions::REACTIONS_JSON.to_string()
+}
+
+/// The Insight lens colour map as a 256-entry RGBA lookup table indexed by
+/// temperature byte (`palette::temp_byte`), for the WebGL renderer.
+#[wasm_bindgen]
+pub fn heat_lut() -> Vec<u8> {
+    palette::heat_lut()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The WebGL renderer's per-pixel data matches the grid it was drawn
+    /// from, and marks the player's pixels as sprite so the GPU draws them
+    /// as they are (even under the Insight lens).
+    #[test]
+    fn cell_data_matches_the_grid_and_marks_sprites() {
+        let mut w = WebGame::new("apprentice", 9);
+        for _ in 0..10 {
+            w.tick(0);
+        }
+        w.render(false, 1.0);
+        assert!(w.cell_data.iter().all(|&b| b == 0), "off by default");
+        w.set_cell_data(true);
+        w.render(false, 1.0);
+        let vx = w.view_x() as usize;
+        let g = &w.game;
+        let (px, py) = (
+            g.player.x.round() as usize - vx + 2,
+            g.player.y.round() as usize + 5,
+        );
+        let mut checked = 0;
+        for y in 0..HEIGHT {
+            for sx in 0..VIEW_W {
+                let o = (y * VIEW_W + sx) * 2;
+                let i = g.grid.idx(sx + vx, y);
+                if w.cell_data[o + 1] == SPRITE {
+                    continue;
+                }
+                assert_eq!(w.cell_data[o + 1], g.grid.cells[i] as u8);
+                assert_eq!(w.cell_data[o], temp_byte(g.grid.temp[i]));
+                checked += 1;
+            }
+        }
+        assert!(checked > VIEW_W * HEIGHT * 9 / 10);
+        assert_eq!(w.cell_data[(py * VIEW_W + px) * 2 + 1], SPRITE);
+        assert_eq!(heat_lut().len(), 1024);
+    }
 }

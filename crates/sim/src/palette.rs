@@ -212,6 +212,59 @@ pub fn cell_color(
     }
 }
 
+/// Temperature colour map for the Insight lens: blue cold, dark at room
+/// temperature, then red, orange, yellow and white as it heats.
+pub fn heat_color(t: f32) -> [u8; 3] {
+    let stops: [(f32, [u8; 3]); 7] = [
+        (-60.0, [60, 120, 255]),
+        (0.0, [70, 170, 230]),
+        (20.0, [24, 28, 40]),
+        (100.0, [120, 40, 140]),
+        (500.0, [220, 40, 30]),
+        (1500.0, [255, 170, 30]),
+        (2800.0, [255, 255, 230]),
+    ];
+    if t <= stops[0].0 {
+        return stops[0].1;
+    }
+    for w in stops.windows(2) {
+        let ((t0, c0), (t1, c1)) = (w[0], w[1]);
+        if t <= t1 {
+            return mix(c0, c1, (t - t0) / (t1 - t0));
+        }
+    }
+    stops[6].1
+}
+
+/// Temperature range the GPU renderer's one-byte temperatures cover, °C.
+pub const TEMP_BYTE_MIN_C: f32 = -60.0;
+pub const TEMP_BYTE_SPAN_C: f32 = 2860.0;
+
+/// One byte per temperature for the WebGL renderer: square-root spaced over
+/// -60..2800 °C, so it is finest near room temperature (about 4 °C a step)
+/// and coarser in flames (about 22 °C a step). Display only; the simulation
+/// keeps full f32 temperatures.
+pub fn temp_byte(t: f32) -> u8 {
+    let u = ((t - TEMP_BYTE_MIN_C) / TEMP_BYTE_SPAN_C).clamp(0.0, 1.0);
+    (u.sqrt() * 255.0).round() as u8
+}
+
+/// The temperature a byte from `temp_byte` stands for (the shader does the same).
+pub fn temp_from_byte(b: u8) -> f32 {
+    let u = b as f32 / 255.0;
+    u * u * TEMP_BYTE_SPAN_C + TEMP_BYTE_MIN_C
+}
+
+/// `heat_color` sampled at every temperature byte, as RGBA.
+pub fn heat_lut() -> Vec<u8> {
+    (0..=255u8)
+        .flat_map(|b| {
+            let c = heat_color(temp_from_byte(b));
+            [c[0], c[1], c[2], 255]
+        })
+        .collect()
+}
+
 /// What makes a cell glow (for the additive glow sprites in the browser).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Glow {
@@ -287,6 +340,23 @@ impl GlowMap {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn temperature_bytes_are_monotonic_and_close() {
+        let mut last = 0u8;
+        for t in -60..=2800 {
+            let b = temp_byte(t as f32);
+            assert!(b >= last, "not monotonic at {t}");
+            last = b;
+            let back = temp_from_byte(b);
+            // Finest where the game lives (room temperature), coarse in flames.
+            let tol = if t < 120 { 4.0 } else { 25.0 };
+            assert!((back - t as f32).abs() <= tol, "{t} -> {b} -> {back}");
+        }
+        assert_eq!(temp_byte(-500.0), 0);
+        assert_eq!(temp_byte(9000.0), 255);
+        assert_eq!(heat_lut().len(), 256 * 4);
+    }
+
     use super::*;
 
     fn lin(c: u8) -> f32 {

@@ -260,3 +260,21 @@ mod tests {
         assert!(!Species::Water.is_solid() && !Species::Water.is_gas());
     }
 }
+
+#[cfg(test)]
+mod gpu_ids {
+    use super::*;
+
+    /// `web/src/gl.ts` hard-codes these ids and the solid set in its shaders.
+    #[test]
+    fn ids_used_by_the_webgl_shaders() {
+        assert_eq!(Species::Flame as u8, 11);
+        assert_eq!(Species::Crystal as u8, 13);
+        let solid: Vec<u8> = ALL
+            .iter()
+            .filter(|s| s.is_solid())
+            .map(|&s| s as u8)
+            .collect();
+        assert_eq!(solid, vec![1, 2, 4, 12, 13]);
+    }
+}

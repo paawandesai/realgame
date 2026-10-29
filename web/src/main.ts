@@ -2,11 +2,12 @@
 // and chemistry run in the Rust simulation (crates/sim), compiled to
 // WebAssembly.
 
-import init, { WebGame, reaction_book } from "./pkg/realgame_sim.js";
+import init, { WebGame, heat_lut, reaction_book } from "./pkg/realgame_sim.js";
 import { Sfx } from "./audio";
 import { BAR_SPELLS, HoverCard, parseBook, spellCardLines, type SpellDef } from "./book";
 import { CARDS, SproutCards, type CardSpell } from "./cards";
 import { FxLayer } from "./fx";
+import { GlRenderer } from "./gl";
 import { initDevice, isTouch, words } from "./device";
 import { GoalMarkers } from "./goals";
 import { Grimoire } from "./grimoire";
@@ -65,6 +66,11 @@ function speakNow(line: string): void {
   } catch {
     // No speech on this system; the words are on screen.
   }
+}
+
+/** The WebGL renderer is opt-in with ?gl=1 (and ?gl=0 always keeps Canvas2D). */
+function wantWebGl(): boolean {
+  return new URLSearchParams(window.location.search).get("gl") === "1";
 }
 
 async function boot(): Promise<void> {
@@ -159,7 +165,21 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   window.addEventListener("keydown", unlock, { capture: true });
 
   const ring = new FormulaRing(tier, (formula) => requestCast(formula));
-  const fx = new FxLayer(stage, [canvas], w, h, tier, (fix) => {
+  // Optional WebGL renderer (?gl=1), on its own canvas over the 2D one (a
+  // canvas can hold only one context). Input still lands on the 2D canvas
+  // underneath; any failure keeps Canvas2D.
+  let gl: GlRenderer | null = null;
+  const glCanvas = document.createElement("canvas");
+  glCanvas.id = "world-gl";
+  glCanvas.setAttribute("aria-hidden", "true");
+  if (wantWebGl()) {
+    canvas.after(glCanvas);
+    gl = GlRenderer.create(glCanvas, w, h, heat_lut());
+    if (gl) game.set_cell_data(true);
+    else glCanvas.remove();
+  }
+  document.body.dataset.renderer = gl ? "webgl" : "2d";
+  const fx = new FxLayer(stage, gl ? [canvas, glCanvas] : [canvas], w, h, tier, (fix) => {
     if (tray) tray.set(fix);
     else {
       ring.set(fix);
@@ -167,6 +187,16 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
   });
   fx.reducedOverride = prefs.reducedMotion;
+  fx.glowLayer = gl === null;
+
+  /** Back to Canvas2D for good (the browser dropped the WebGL context). */
+  function dropWebGl(): void {
+    gl = null;
+    glCanvas.remove();
+    game.set_cell_data(false);
+    fx.glowLayer = true;
+    document.body.dataset.renderer = "2d";
+  }
   document.body.dataset.motion = prefs.reducedMotion ? "calm" : "full";
 
   const goals = new GoalMarkers(stage, byId("progress"), w, h, () => {
@@ -972,6 +1002,22 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     return frameImage;
   }
 
+  /** A byte view into WebAssembly memory (cached until memory grows). */
+  const byteViews = new Map<number, Uint8Array>();
+  let byteViewsBuffer: ArrayBuffer | null = null;
+  function bytesAt(ptr: number, len: number): Uint8Array {
+    if (byteViewsBuffer !== memory.buffer) {
+      byteViews.clear();
+      byteViewsBuffer = memory.buffer;
+    }
+    let v = byteViews.get(ptr);
+    if (!v || v.length !== len) {
+      v = new Uint8Array(memory.buffer, ptr, len);
+      byteViews.set(ptr, v);
+    }
+    return v;
+  }
+
   /** Presentation events from the simulation: particles, flashes, labels. */
   function handleFx(events: Fx[]): void {
     if (events.length === 0) return;
@@ -1006,8 +1052,22 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (steps > 0) handleFx(JSON.parse(game.take_fx()) as Fx[]);
     const tSim = performance.now();
     const alpha = accumulator / STEP_MS;
-    ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
-    fx.setGlow(lens ? new Float32Array(0) : game.emissive());
+    if (gl?.lost) dropWebGl();
+    if (gl) {
+      // The GPU draws the lens itself, from the temperature bytes.
+      const ptr = game.render(false, alpha);
+      gl.draw({
+        rgba: bytesAt(ptr, w * h * 4),
+        data: bytesAt(game.cell_data(), w * h * 2),
+        lens,
+        time: now / 1000,
+        motion: fx.reducedMotion ? 0 : 1,
+        viewX: game.view_x(),
+      });
+    } else {
+      ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
+      fx.setGlow(lens ? new Float32Array(0) : game.emissive());
+    }
     const tRender = performance.now();
     const viewX = game.view_x();
     fx.draw(now, viewX);
@@ -1059,6 +1119,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       frameMs: () => frameWork.reduce((a, b) => a + b, 0) / Math.max(1, frameWork.length),
       emissive: () => Array.from(game.emissive()),
       frameParts: () => [...frameParts],
+      renderer: () => (gl ? "webgl" : "2d"),
     };
   }
 
