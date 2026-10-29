@@ -1300,10 +1300,20 @@ impl Game {
     /// spell goes to the obvious target (fire for water, ice or the torch for
     /// heat) when one is in reach.
     fn soft_auto_aim(&mut self, plan: &Plan) {
+        let never_aimed = self.aim_tick == 0;
+        if never_aimed {
+            // Before the player has pointed anywhere, spells go a little way
+            // ahead rather than landing at their feet.
+            let (hx, hy) = self.hand();
+            self.aim = (
+                (hx + self.player.facing as f32 * 48.0) as i32,
+                (hy as i32).min(HEIGHT as i32 - 1),
+            );
+        }
         if self.tier > Tier::Seedling {
             return;
         }
-        if self.aim_tick != 0 && self.ticks.saturating_sub(self.aim_tick) <= AUTO_AIM_TICKS {
+        if !never_aimed && self.ticks.saturating_sub(self.aim_tick) <= AUTO_AIM_TICKS {
             return;
         }
         let douse =

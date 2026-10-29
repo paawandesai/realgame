@@ -144,7 +144,6 @@ kbd {
 #mote,
 #readout,
 #hud-bottom,
-#toast,
 #ring,
 #notebook {
   position: absolute;
@@ -436,32 +435,75 @@ kbd {
   margin-top: 8px;
 }
 
-/* ---------------------------------------------------------------- toast */
+/* ------------------------------------------------------------ feedback */
 
-#toast {
-  left: 50%;
-  bottom: 96px;
-  transform: translateX(-50%);
-  max-width: 70%;
-  padding: 10px 14px;
-  border-left: 4px solid var(--quiet);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+#fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
-#toast.good { border-left-color: var(--good); }
-#toast.fizzle { border-left-color: var(--warn); }
-#toast.bad { border-left-color: var(--bad); }
-
-.toast-eq {
-  font-size: 1.15rem;
-  font-weight: 700;
+.fx-label {
+  position: absolute;
+  transform: translate(-50%, -130%);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 2px solid var(--quiet);
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: label-rise 0.25s ease-out;
 }
 
-#toast button {
-  align-self: flex-start;
-  margin-top: 4px;
+body[data-tier="sprout"] .fx-label,
+body[data-tier="seedling"] .fx-label {
+  font-size: 1.3rem;
+}
+
+.fx-label.full { border-color: #f0c75e; }
+.fx-label.partial { border-color: var(--warn); }
+.fx-label.fizzle,
+.fx-label.unknown { border-color: var(--quiet); }
+
+.fx-eq {
+  font-size: 1.15em;
+}
+
+.fx-dh {
+  font-size: 0.8em;
+  font-weight: 400;
+  color: var(--quiet);
+}
+
+.fx-label button {
+  margin-top: 6px;
+  pointer-events: auto;
+}
+
+@keyframes label-rise {
+  from { opacity: 0; transform: translate(-50%, -90%); }
+  to { opacity: 1; transform: translate(-50%, -130%); }
+}
+
+.slot.suggested {
+  border-color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-label,
+  .slot.suggested {
+    animation: none;
+  }
 }
 
 /* ------------------------------------------------------------- notebook */

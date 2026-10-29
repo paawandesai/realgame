@@ -2,6 +2,7 @@
 // run in the Rust simulation (crates/sim), compiled to WebAssembly.
 
 import init, { WebGame } from "./pkg/realgame_sim.js";
+import { FxLayer } from "./fx";
 import { FormulaRing, byId } from "./ring";
 import { prettyFormula, type CastOutcome, type Fx, type GameState, type Tier } from "./types";
 
@@ -13,6 +14,21 @@ const STEP_MS = 1000 / 60;
  * device slows the game down instead of spiralling. */
 const MAX_STEPS_PER_FRAME = 4;
 const SPEEDS = [0.5, 0.75, 1] as const;
+
+/** Spells that work from the very first second (the suit starts charged). */
+const STARTER_SPELLS: Record<Tier, string[]> = {
+  sprout: ["water", "boom", "split"],
+  seedling: ["H2O", "2H2 + O2 -> 2H2O", "2H2O -> 2H2 + O2"],
+  apprentice: ["H2O", "2H2 + O2 -> 2H2O", "2H2O -> 2H2 + O2"],
+};
+
+/** Picture labels for the youngest players' spell cards. */
+const PICTURE_LABELS: Record<string, string> = {
+  water: "💧 Water",
+  boom: "💥 Boom",
+  split: "🫧 Split",
+  cloud: "☁️ Cloud",
+};
 
 const REALM_NAMES: Record<Tier, string> = {
   sprout: "Sprout",
@@ -79,11 +95,18 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let speed = Number(storageGet("speed"));
   if (!SPEEDS.includes(speed as (typeof SPEEDS)[number])) speed = 1;
   let lastCast = "";
-  const slots: string[] = [];
+  let castCount = 0;
+  const slots: string[] = [...STARTER_SPELLS[tier]];
+  /** Recent casts by id, so FX events can find their outcome and label. */
+  const outcomes = new Map<number, CastOutcome>();
   const notebook = new Map<string, NotebookEntry>();
   let state: GameState | null = null;
 
   const ring = new FormulaRing(tier, (formula) => requestCast(formula));
+  const fx = new FxLayer(byId("stage"), [canvas], w, h, tier, (fix) => {
+    ring.set(fix);
+    ring.toggle(true);
+  });
 
   // ------------------------------------------------------------------ input
 
@@ -189,7 +212,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
    * last spell), and opens the ring if there is nothing to cast yet.
    */
   function requestCast(formula?: string): void {
-    const f = (formula ?? (ring.isOpen ? ring.text() : lastCast)).trim();
+    const f = (formula ?? (ring.isOpen ? ring.text() : lastCast || slots[0] || "")).trim();
     if (!f) {
       ring.toggle(true);
       return;
@@ -200,7 +223,12 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
 
   function doCast(formula: string): void {
     const result = JSON.parse(game.cast(formula)) as CastOutcome;
-    showToast(result);
+    outcomes.set(result.id, result);
+    if (outcomes.size > 32) outcomes.delete(outcomes.keys().next().value as number);
+    // Events from the cast itself (charge, bolt, fizzle) show at once.
+    fx.handle(JSON.parse(game.take_fx()) as Fx[], outcomes, performance.now());
+    castCount++;
+    renderSlots();
     if (result.outcome === "full" || result.outcome === "partial") {
       lastCast = formula;
       if (!slots.includes(formula)) {
@@ -222,49 +250,6 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     }
   }
 
-  let toastTimer = 0;
-  function showToast(r: CastOutcome): void {
-    const toast = byId("toast");
-    toast.replaceChildren();
-    const ok = r.outcome === "full" || r.outcome === "partial";
-    toast.className = r.outcome === "full" ? "good" : ok || r.outcome === "fizzle" ? "fizzle" : "bad";
-    if (r.equation) {
-      const eq = document.createElement("div");
-      eq.className = "toast-eq";
-      eq.textContent = prettyFormula(r.equation);
-      toast.append(eq);
-    }
-    const msg = document.createElement("div");
-    msg.textContent = r.label;
-    toast.append(msg);
-    if (ok && r.delta_h_kj !== null) {
-      const dh = document.createElement("div");
-      dh.className = "small";
-      const sign = r.delta_h_kj < 0 ? "released" : "absorbed";
-      dh.textContent = `ΔH = ${r.delta_h_kj.toFixed(1)} kJ (heat ${sign}). Source: ${r.source ?? ""}`;
-      toast.append(dh);
-    }
-    if (r.first_discovery) {
-      const nb = document.createElement("div");
-      nb.className = "small";
-      nb.textContent = "New in your lab notebook!";
-      toast.append(nb);
-    }
-    if (r.suggestion) {
-      const fix = document.createElement("button");
-      fix.type = "button";
-      fix.textContent = `Fix it: ${prettyFormula(r.suggestion)}`;
-      fix.addEventListener("click", () => {
-        ring.set(r.suggestion ?? "");
-        ring.toggle(true);
-      });
-      toast.append(fix);
-    }
-    toast.hidden = false;
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => (toast.hidden = true), r.suggestion ? 9000 : 5000);
-  }
-
   // -------------------------------------------------------------------- HUD
 
   function renderSlots(): void {
@@ -274,13 +259,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
       const f = slots[i];
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "slot";
+      b.className = i === 0 && castCount === 0 ? "slot suggested" : "slot";
       b.disabled = !f;
+      const shown = f ? (tier === "sprout" && PICTURE_LABELS[f]) || prettyFormula(f) : "";
       b.title = f ? prettyFormula(f) : "Empty slot";
       const n = document.createElement("kbd");
       n.textContent = String(i + 1);
       const label = document.createElement("span");
-      label.textContent = f ? prettyFormula(f) : "";
+      label.textContent = shown;
       b.append(n, label);
       if (f) b.addEventListener("click", () => requestCast(f));
       el.append(b);
@@ -398,10 +384,9 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     return frameImage;
   }
 
-  /** Presentation events from the simulation. Particles and sound hook in here. */
+  /** Presentation events from the simulation: particles, flashes, labels. */
   function handleFx(events: Fx[]): void {
-    // "land" (landing dust) is drained here but drawn once the particle system lands.
-    void events;
+    if (events.length > 0) fx.handle(events, outcomes, performance.now());
   }
 
   let accumulator = 0;
@@ -415,6 +400,8 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     accumulator += Math.min(now - lastTime, 250) * speed;
     lastTime = now;
     let steps = 0;
+    // Hit-stop: a big blast freezes the world for a few frames.
+    if (fx.takeHitStop()) accumulator = 0;
     while (accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
       game.tick(inputBits());
       accumulator -= STEP_MS;
@@ -424,6 +411,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     if (steps > 0) handleFx(JSON.parse(game.take_fx()) as Fx[]);
     const alpha = accumulator / STEP_MS;
     ctx!.putImageData(frameFor(game.render(lens, alpha)), 0, 0);
+    fx.draw(now, game.view_x());
     if (pointer && steps > 0) game.track_aim(...toGrid(pointer[0], pointer[1]));
     // JSON is only built when something on the HUD actually changed.
     const version = game.state_version();
@@ -439,7 +427,10 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   // Automated browser tests read the HUD state through this hook. It exposes
   // nothing that isn't already on screen and only exists with ?debug.
   if (new URLSearchParams(window.location.search).has("debug")) {
-    (window as unknown as { realgame: unknown }).realgame = { state: () => state };
+    (window as unknown as { realgame: unknown }).realgame = {
+      state: () => state,
+      shake: () => ({ max: fx.maxShakePx, last: fx.lastShakePx }),
+    };
   }
 
   renderSlots();
