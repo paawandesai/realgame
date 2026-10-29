@@ -167,7 +167,14 @@ const WAND: Shape[] = [
   ["path", { d: "M34 4 l3 8 l8 3 l-8 3 l-3 8 l-3 -8 l-8 -3 l8 -3 Z", fill: "#f0c75e" }],
 ];
 
+/** Write a spell: a pencil. */
+const PENCIL: Shape[] = [
+  ["path", { d: "M10 38 L12 30 L32 10 L38 16 L18 36 Z", fill: "none", stroke: "currentColor", "stroke-width": 4, "stroke-linejoin": "round" }],
+  ["path", { d: "M28 14 L34 20 M8 42 h32", stroke: "currentColor", "stroke-width": 3, "stroke-linecap": "round" }],
+];
+
 const ICONS = {
+  pencil: PENCIL,
   methane: METHANE,
   log: LOG,
   book: BOOK,

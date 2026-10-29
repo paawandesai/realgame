@@ -2,6 +2,8 @@
 // network). Every line has a caption on screen and a separate speakable
 // string with no symbols, so "2H2 + O2 -> 2H2O" is read as words.
 
+import { words } from "./device";
+
 const NAMES: Record<string, [string, string]> = {
   // formula: [one, many]
   H2O: ["water", "water"],
@@ -111,7 +113,10 @@ export class Speech {
   }
 
   /** Shows a caption and reads it aloud (if voice is on). */
-  say(caption: string, spoken: string = speakable(caption), force = false): void {
+  say(rawCaption: string, rawSpoken: string = speakable(rawCaption), force = false): void {
+    // "Tap" on touch screens, "Click" with a mouse.
+    const caption = words(rawCaption);
+    const spoken = words(rawSpoken);
     this.lastCaption = caption;
     this.lastSpoken = spoken;
     if (this.unlocked) this.speak(spoken);

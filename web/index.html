@@ -62,10 +62,12 @@
           </div>
           <div id="slots" aria-label="Grimoire spells, keys 1 to 5"></div>
           <div class="hud-buttons">
-            <button id="lens-btn" type="button" aria-pressed="false">Heat lens <kbd>L</kbd></button>
+            <button id="lens-btn" type="button" aria-pressed="false" aria-label="Heat lens"><span class="lens-word">Heat lens</span><span class="lens-icon" aria-hidden="true">°C</span> <kbd>L</kbd></button>
+            <button id="app-write" type="button" class="touch-only" aria-label="Write a spell"></button>
+            <button id="app-gather" type="button" class="touch-only" data-hold="gather" aria-label="Gather"></button>
           </div>
         </section>
-        <p id="app-tutorial" hidden>Type a formula or a word (try <code>water</code>), then press Enter. <button id="tutorial-skip" type="button">Skip</button></p>
+        <p id="app-tutorial" hidden><span id="app-tutorial-text"></span> <button id="tutorial-skip" type="button">Skip</button></p>
         <div id="challenge" role="status" aria-live="polite" hidden></div>
 
         <div id="jars-mini" aria-label="Suit gauges" hidden></div>
@@ -83,8 +85,13 @@
           <button type="button" data-key="left" aria-label="Walk left"></button>
           <button type="button" data-key="right" aria-label="Walk right"></button>
           <button type="button" data-key="jump" aria-label="Jump"></button>
-          <button type="button" data-key="gather" class="extra" aria-label="Gather">Gather</button>
-          <button type="button" data-key="ring" class="extra" aria-label="Formula ring">Ring</button>
+        </div>
+
+        <!-- Touch: casting and gathering, bottom-right (Seedling). -->
+        <div id="actions" role="group" aria-label="Actions" hidden>
+          <button type="button" id="act-gather" class="act" data-hold="gather" aria-label="Gather"></button>
+          <button type="button" id="act-tray" class="act act-wide" aria-label="Build a spell" aria-expanded="false"><span id="act-tray-text"></span></button>
+          <button type="button" id="act-cast" class="act primary" aria-label="Cast"></button>
         </div>
 
         <div id="cards" role="group" aria-label="Spell cards" hidden></div>

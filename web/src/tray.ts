@@ -2,6 +2,7 @@
 // "+" and "->") that snap into a spell bar, with a live balance scale that
 // counts the atoms on each side and tips until they match.
 
+import { words } from "./device";
 import { ATOM_COLOR, atomsOf, molecule } from "./icons";
 import { prettyFormula } from "./types";
 
@@ -246,7 +247,7 @@ export class SpellTray {
       }
     });
     if (this.pendingCoef !== null) this.bar.append(chip(String(this.pendingCoef), "pending"));
-    if (this.tokens.length === 0 && this.pendingCoef === null) this.bar.append(chip("Tap tiles to build a spell", "empty"));
+    if (this.tokens.length === 0 && this.pendingCoef === null) this.bar.append(chip(words("Tap tiles to build a spell"), "empty"));
     for (const [n, b] of this.coefTiles) {
       b.classList.toggle("selected", this.pendingCoef === n);
       // After a partial cast, the coefficient that fixes it pulses.

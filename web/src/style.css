@@ -1685,3 +1685,305 @@ body[data-tier="apprentice"] #jars-mini {
 .hud-buttons {
   flex: none;
 }
+
+/* ================================================ touch and small screens */
+
+.touch-only,
+.lens-icon {
+  display: none;
+}
+
+#actions {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+
+.act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 12px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.act.primary {
+  background: #0f766e;
+}
+
+.act-wide {
+  width: auto;
+  min-width: 64px;
+  max-width: 200px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (pointer: fine) {
+  #actions {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .touch-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Apprentice: move buttons bottom-left, spells and actions bottom-right. */
+  body[data-tier="apprentice"] #moves {
+    display: flex;
+    bottom: 10px;
+  }
+
+  body[data-tier="apprentice"] #hud-bottom {
+    left: auto;
+    right: 10px;
+    bottom: 10px;
+    padding: 0;
+    gap: 6px;
+    background: none;
+    backdrop-filter: none;
+  }
+
+  body[data-tier="apprentice"] #caster,
+  #lens-btn .lens-word,
+  #lens-btn kbd,
+  .slot kbd,
+  .slot-name {
+    display: none;
+  }
+
+  #lens-btn .lens-icon {
+    display: inline;
+    font-weight: 700;
+  }
+
+  .slot,
+  .hud-buttons button {
+    width: 56px;
+    height: 56px;
+    min-width: 0;
+    padding: 8px;
+    justify-content: center;
+    background: var(--panel-solid);
+  }
+
+  .slot-pic {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Seedling: the tile tray becomes a drawer opened from the Spell button. */
+  body[data-tier="seedling"] {
+    --below: 0px;
+  }
+
+  body[data-tier="seedling"] #tray {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 62vh;
+    overflow-y: auto;
+    margin: 0;
+    z-index: 20;
+    transform: translateY(105%);
+    transition: transform 0.2s ease-out;
+  }
+
+  body.tray-open[data-tier="seedling"] #tray {
+    transform: none;
+  }
+}
+
+/* Short screens (phones held sideways): the stage fills the height and the
+ * HUD shrinks to icons at the edges, leaving the middle of the world clear. */
+@media (max-height: 500px) {
+  #game {
+    padding: 0;
+  }
+
+  #help,
+  #readout {
+    display: none !important;
+  }
+
+  #stage {
+    width: min(100vw, calc((100vh - var(--below)) * 16 / 9));
+    border-radius: 0;
+  }
+
+  #replay,
+  #settings-btn,
+  #book-btn {
+    top: 8px;
+    width: 48px;
+    height: 48px;
+    padding: 8px;
+  }
+
+  #replay {
+    left: 8px;
+  }
+
+  #settings-btn {
+    right: 8px;
+  }
+
+  #book-btn {
+    right: 62px;
+  }
+
+  #progress {
+    top: 16px;
+    right: 118px;
+    padding: 5px 8px;
+    gap: 6px;
+  }
+
+  #progress .dot {
+    width: 12px;
+    height: 12px;
+  }
+
+  #mote,
+  body[data-tier="sprout"] #mote,
+  body[data-tier="seedling"] #mote {
+    top: 8px;
+    left: 62px;
+    max-width: calc(100% - 62px - 215px);
+    padding: 6px 10px;
+    font-size: 0.95rem;
+  }
+
+  #jars-mini {
+    top: 62px;
+    left: 8px;
+    flex-direction: column;
+    padding: 4px;
+    gap: 3px;
+  }
+
+  #jars-mini .jar {
+    flex-direction: row;
+    min-width: 0;
+    gap: 4px;
+    font-size: 0.72rem;
+  }
+
+  #jars-mini .jar .glass {
+    width: 12px;
+    height: 16px;
+  }
+
+  #moves {
+    left: 8px;
+    bottom: 8px;
+    gap: 6px;
+  }
+
+  #moves button,
+  body[data-tier="seedling"] #moves button {
+    width: 52px;
+    height: 52px;
+    padding: 10px;
+  }
+
+  #cards,
+  #actions,
+  body[data-tier="apprentice"] #hud-bottom {
+    right: 8px;
+    bottom: 8px;
+    gap: 6px;
+  }
+
+  .card {
+    width: 64px;
+    height: 64px;
+    padding: 4px 4px 10px;
+  }
+
+  .card-pic {
+    width: 40px;
+    height: 40px;
+  }
+
+  .card-word {
+    display: none;
+  }
+
+  .act,
+  .slot,
+  .hud-buttons button {
+    width: 52px;
+    height: 52px;
+    padding: 8px;
+  }
+
+  .act-wide {
+    width: auto;
+    max-width: 150px;
+    font-size: 0.9rem;
+  }
+
+  #hint-ghost,
+  #challenge {
+    top: 62px;
+    font-size: 1rem;
+  }
+
+  #hint-text .icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  #grimoire-panel,
+  #settings {
+    top: 62px;
+    max-height: calc(100% - 70px);
+  }
+
+  .grim-card {
+    width: 132px;
+    min-height: 0;
+  }
+
+  #discover {
+    top: 10%;
+  }
+
+  #discover .grim-card {
+    width: 160px;
+  }
+
+  /* Above the world's middle, not over it. */
+  #app-tutorial {
+    top: 60px;
+    bottom: auto;
+    padding: 3px 4px 3px 10px;
+    font-size: 0.85rem;
+  }
+
+  #app-tutorial button {
+    min-height: 28px;
+    padding: 2px 8px;
+  }
+
+  #ring {
+    top: 8px;
+    max-height: calc(100% - 16px);
+    overflow-y: auto;
+  }
+}

@@ -1,6 +1,7 @@
 // The formula ring: tiles to build an equation, coefficient dials, and a text
 // box for players who would rather type.
 
+import { words } from "./device";
 import { icon, molecule, type IconName } from "./icons";
 import { prettyFormula, type Tier } from "./types";
 
@@ -172,7 +173,7 @@ export class FormulaRing {
         this.equation.append(chip);
       });
     };
-    addSide(this.left, "Tap substances to start");
+    addSide(this.left, words("Tap substances to start"));
     if (this.onRight || this.right.length > 0) {
       this.equation.append(textSpan(" → ", "op arrow"));
       addSide(this.right, "What do they make?");

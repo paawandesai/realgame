@@ -7,6 +7,7 @@ import { Sfx } from "./audio";
 import { BAR_SPELLS, HoverCard, parseBook, spellCardLines, type SpellDef } from "./book";
 import { CARDS, SproutCards, type CardSpell } from "./cards";
 import { FxLayer } from "./fx";
+import { initDevice, isTouch, words } from "./device";
 import { GoalMarkers } from "./goals";
 import { Grimoire } from "./grimoire";
 import { icon, setIcon, type IconName } from "./icons";
@@ -115,6 +116,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   byId("start").hidden = true;
   byId("game").hidden = false;
   document.body.dataset.tier = tier;
+  initDevice(() => renderTutorial());
 
   const prefs = loadPrefs(tier);
   const seed = (Math.random() * 1e9) >>> 0;
@@ -299,8 +301,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     b.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       autoWalk = null;
-      if (key === "ring") ring.toggle();
-      else held.add(key);
+      held.add(key);
     });
     const release = () => held.delete(key);
     b.addEventListener("pointerup", release);
@@ -308,13 +309,52 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     b.addEventListener("pointercancel", release);
     // Keyboard users: Enter on a move button takes a short step.
     b.addEventListener("click", (e) => {
-      if (e.detail !== 0 || key === "ring") return;
+      if (e.detail !== 0) return;
       held.add(key);
       window.setTimeout(() => held.delete(key), 250);
     });
   }
 
   byId("lens-btn").addEventListener("click", () => setLens(!lens));
+
+  // Hold-to-gather buttons. A quick tap still counts: the press lasts at
+  // least a quarter of a second so the simulation sees it.
+  for (const b of document.querySelectorAll<HTMLButtonElement>("[data-hold]")) {
+    const key = b.dataset.hold ?? "";
+    setIcon(b, "scoop");
+    let downAt = 0;
+    b.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      downAt = performance.now();
+      held.add(key);
+    });
+    const release = () => {
+      const left = Math.max(0, 250 - (performance.now() - downAt));
+      window.setTimeout(() => held.delete(key), left);
+    };
+    b.addEventListener("pointerup", release);
+    b.addEventListener("pointercancel", release);
+    b.addEventListener("click", (e) => {
+      if (e.detail !== 0) return;
+      downAt = performance.now();
+      held.add(key);
+      release();
+    });
+  }
+
+  // Seedling on touch: Cast and a button that opens the tile tray as a drawer.
+  const actTray = byId<HTMLButtonElement>("act-tray");
+  setIcon(byId("act-cast"), "wand");
+  if (tier === "seedling") byId("actions").hidden = false;
+  const setTrayOpen = (open: boolean) => {
+    document.body.classList.toggle("tray-open", open);
+    actTray.setAttribute("aria-expanded", String(open));
+  };
+  actTray.addEventListener("click", () => setTrayOpen(!document.body.classList.contains("tray-open")));
+  byId("act-cast").addEventListener("click", () => requestCast());
+  // Apprentice on touch: the pencil opens the formula ring (tiles plus a text box).
+  setIcon(byId("app-write"), "pencil");
+  byId("app-write").addEventListener("click", () => ring.toggle());
 
   function setLens(on: boolean): void {
     lens = on;
@@ -331,6 +371,14 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   const tutorial = byId("app-tutorial");
   let tutorialOpen = tier === "apprentice" && storageGet("tutorialDone") !== "1";
   tutorial.hidden = !tutorialOpen;
+  function renderTutorial(): void {
+    const t = byId("app-tutorial-text");
+    const code = document.createElement("code");
+    code.textContent = "water";
+    if (isTouch()) t.replaceChildren("Tap a spell below, or tap the pencil to write one (try ", code, ").");
+    else t.replaceChildren("Type a formula or a word (try ", code, "), then press Enter.");
+  }
+  renderTutorial();
   const closeTutorial = () => {
     if (!tutorialOpen) return;
     tutorialOpen = false;
@@ -518,6 +566,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     hintOnCast(result);
     scoreCast(result);
     if (tray) {
+      setTrayOpen(false);
       if (result.outcome === "partial" && result.suggestion) tray.offerFix(result.suggestion);
       document.body.classList.toggle("cast-full", result.outcome === "full");
       window.setTimeout(() => document.body.classList.remove("cast-full"), 1200);
@@ -966,6 +1015,7 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     // Goals change every tick; a few polls a second is plenty.
     if (now - lastGoalsTime >= 200) {
       lastGoalsTime = now;
+      if (tray) byId("act-tray-text").textContent = prettyFormula(tray.text()) || words("Tap to build");
       goals.setGoals(JSON.parse(game.goals()) as Goal[]);
     }
     goals.draw(now, viewX, game.player_x() + 3, fx.reducedMotion);
