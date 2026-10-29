@@ -1676,7 +1676,23 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
   let shownGoalLine = "";
   let stateVersion = -1;
 
+  // One frame's error must never stop the game: the next frame is always
+  // scheduled, and the first error is logged once.
+  let frameErrorLogged = false;
   function loop(): void {
+    try {
+      frame();
+    } catch (err) {
+      if (!frameErrorLogged) {
+        frameErrorLogged = true;
+        console.error("frame failed; the game keeps running", err);
+      }
+    } finally {
+      requestAnimationFrame(loop);
+    }
+  }
+
+  function frame(): void {
     const now = performance.now();
     // Clamp long gaps (a hidden tab) so the game doesn't fast-forward.
     accumulator += Math.min(now - lastTime, 250) * prefs.speed;
@@ -1752,7 +1768,6 @@ function start(tier: Tier, memory: WebAssembly.Memory): void {
     frameParts[1] = frameParts[1]! * 0.95 + (tRender - tSim) * 0.05;
     frameParts[2] = frameParts[2]! * 0.95 + (tFx - tRender) * 0.05;
     frameParts[3] = frameParts[3]! * 0.95 + (end - tFx) * 0.05;
-    requestAnimationFrame(loop);
   }
   // Sprout: pushing against a ledge or wall with no progress brings up a
   // bouncing jump arrow over the player and pulses the jump button.

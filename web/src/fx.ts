@@ -21,6 +21,18 @@ const LABEL_FIX_MS = 7000;
 /** The caption stays at least this far (CSS px) from the impact point. */
 const LABEL_GAP_PX = 64;
 
+/** Animation progress in [0, 1]: an effect born after `now` (events handled
+ * later in the same frame) has not started yet, rather than running backwards. */
+export function progress(now: number, born: number, life: number): number {
+  const t = (now - born) / life;
+  return t > 0 ? (t < 1 ? t : 1) : 0;
+}
+
+/** Canvas radii must never be negative: arc() and createRadialGradient() throw. */
+function rad(r: number): number {
+  return r > 0 ? r : 0;
+}
+
 /** Okabe-Ito palette, so colours stay distinguishable for colour-blind players. */
 const COLOR = {
   water: "#56b4e9",
@@ -703,12 +715,12 @@ export class FxLayer {
     // Charge rings at the gauntlet.
     this.charges = this.charges.filter((c) => now - c.born < c.life);
     for (const c of this.charges) {
-      const t = (now - c.born) / c.life;
+      const t = progress(now, c.born, c.life);
       ctx.strokeStyle = c.color;
       ctx.globalAlpha = 1 - t;
       ctx.lineWidth = Math.max(1, k * 0.8);
       ctx.beginPath();
-      ctx.arc(sx(c.x), sy(c.y), (c.radius * (1 - t) + 1) * k, 0, Math.PI * 2);
+      ctx.arc(sx(c.x), sy(c.y), rad((c.radius * (1 - t) + 1) * k), 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -717,7 +729,7 @@ export class FxLayer {
     for (const b of this.bolts) {
       const arc = b.id === -1;
       const dist = Math.hypot(b.x1 - b.x0, b.y1 - b.y0) || 1;
-      const t = arc ? 1 : Math.min(1, (now - b.born) / b.dur);
+      const t = arc ? 1 : progress(now, b.born, b.dur);
       if (!arc && t >= 1) continue;
       const hx = b.x0 + (b.x1 - b.x0) * t;
       const hy = b.y0 + (b.y1 - b.y0) * t;
@@ -765,14 +777,14 @@ export class FxLayer {
       ctx.stroke();
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.arc(sx(hx), sy(hy), (arc ? 1.4 : 2.2) * k, 0, Math.PI * 2);
+      ctx.arc(sx(hx), sy(hy), rad((arc ? 1.4 : 2.2) * k), 0, Math.PI * 2);
       ctx.fill();
     }
 
     // Gather beams: a wobbling glow line from the source to the hand.
     this.beams = this.beams.filter((b) => now - b.born < 140);
     for (const b of this.beams) {
-      const t = (now - b.born) / 140;
+      const t = progress(now, b.born, 140);
       this.lastBeamAt = now;
       ctx.globalCompositeOperation = "lighter";
       ctx.strokeStyle = b.color;
@@ -795,21 +807,21 @@ export class FxLayer {
     this.waves = this.waves.filter((w) => now - w.born < WAVE_MS);
     const css = this.canvas.clientWidth / this.canvas.width;
     for (const w of this.waves) {
-      const t = (now - w.born) / WAVE_MS;
+      const t = progress(now, w.born, WAVE_MS);
       const ease = 1 - (1 - t) * (1 - t) * (1 - t);
-      const r = (2 + (w.r - 2) * ease) * k;
+      const r = rad((2 + (w.r - 2) * ease) * k);
       this.maxWavePx = Math.max(this.maxWavePx, r * css);
       ctx.globalAlpha = 0.9 * (1 - t);
       ctx.strokeStyle = w.color;
       ctx.lineWidth = Math.max(1, (3.5 * (1 - t) + 0.5) * k);
       ctx.beginPath();
-      ctx.arc(sx(w.x), sy(w.y), r, 0, Math.PI * 2);
+      ctx.arc(sx(w.x), sy(w.y), rad(r), 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 0.35 * (1 - t);
       ctx.lineWidth = Math.max(1, 1.2 * k);
       ctx.strokeStyle = "#ffffff";
       ctx.beginPath();
-      ctx.arc(sx(w.x), sy(w.y), r * 0.82, 0, Math.PI * 2);
+      ctx.arc(sx(w.x), sy(w.y), rad(r * 0.82), 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -818,9 +830,9 @@ export class FxLayer {
     this.flashes = this.flashes.filter((f) => now - f.born < f.life);
     ctx.globalCompositeOperation = "lighter";
     for (const f of this.flashes) {
-      const t = (now - f.born) / f.life;
-      const r = f.radius * k * (0.6 + 0.4 * t);
-      const g = ctx.createRadialGradient(sx(f.x), sy(f.y), 0, sx(f.x), sy(f.y), r);
+      const t = progress(now, f.born, f.life);
+      const r = rad(f.radius * k * (0.6 + 0.4 * t));
+      const g = ctx.createRadialGradient(sx(f.x), sy(f.y), 0, sx(f.x), sy(f.y), Math.max(0.001, r));
       g.addColorStop(0, f.color);
       g.addColorStop(1, "rgba(0,0,0,0)");
       ctx.globalAlpha = 0.9 * (1 - t);
@@ -845,7 +857,7 @@ export class FxLayer {
         ctx.strokeStyle = p.color;
         ctx.lineWidth = Math.max(1, k * 0.4);
         ctx.beginPath();
-        ctx.arc(sx(x), sy(y), p.size * k, 0, Math.PI * 2);
+        ctx.arc(sx(x), sy(y), rad(p.size * k), 0, Math.PI * 2);
         ctx.stroke();
       } else {
         ctx.fillStyle = p.color;
@@ -863,14 +875,14 @@ export class FxLayer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (const o of this.orbs) {
-      const t = Math.max(0, (now - o.born) / 1400);
+      const t = progress(now, o.born, 1400);
       const e = t * t * (3 - 2 * t);
       const x = o.x + (o.tx - o.x) * e;
       const y = o.y + (o.ty - o.y) * e - Math.sin(t * Math.PI) * 10;
       ctx.globalAlpha = t < 0.85 ? 1 : (1 - t) / 0.15;
       ctx.fillStyle = COLOR.oxygen;
       ctx.beginPath();
-      ctx.arc(sx(x), sy(y), 3 * k, 0, Math.PI * 2);
+      ctx.arc(sx(x), sy(y), rad(3 * k), 0, Math.PI * 2);
       ctx.fill();
       o.el.hidden = now < o.born;
       o.el.style.left = `${sx(x) * css}px`;
@@ -881,7 +893,7 @@ export class FxLayer {
     // Fizzle hints: a ghost of what was missing and an arrow to where to get it.
     this.ghosts = this.ghosts.filter((g) => now - g.born < 2500);
     for (const g of this.ghosts) {
-      const t = (now - g.born) / 2500;
+      const t = progress(now, g.born, 2500);
       ctx.globalAlpha = Math.min(1, (1 - t) * 2) * 0.85;
       const gy = sy(g.y) - Math.sin(now / 200) * k;
       // A badge behind the icon keeps it visible even without an emoji font.
@@ -889,7 +901,7 @@ export class FxLayer {
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = Math.max(1, k * 0.5);
       ctx.beginPath();
-      ctx.arc(sx(g.x), gy, 7 * k, 0, Math.PI * 2);
+      ctx.arc(sx(g.x), gy, rad(7 * k), 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = "#ffffff";
@@ -903,7 +915,7 @@ export class FxLayer {
     if (ft >= 0 && ft < 1) {
       const w = this.canvas.width;
       const h = this.canvas.height;
-      const v = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.7);
+      const v = ctx.createRadialGradient(w / 2, h / 2, rad(Math.min(w, h) * 0.35), w / 2, h / 2, rad(Math.max(w, h) * 0.7));
       v.addColorStop(0, "rgba(166,220,245,0)");
       v.addColorStop(1, "rgba(166,220,245,0.55)");
       ctx.globalAlpha = 1 - ft;
