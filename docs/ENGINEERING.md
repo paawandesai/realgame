@@ -24,6 +24,8 @@ How this repo stays safe, capable and efficient, and which published standard ea
 - Dependencies are pinned by lockfiles (`Cargo.lock`, `web/package-lock.json`) and installed with `--locked` / `npm ci`.
 - Dependabot opens weekly update PRs for Cargo, npm and GitHub Actions.
 - CI runs with read-only permissions.
+- Git hooks catch problems before a push: `pre-commit` checks formatting and types of staged files in about a second, and `pre-push` runs lint, tests and the build in about 10 seconds warm. CI repeats every check, adds the dependency audits, and skips jobs whose code did not change; the `CI result` job is the one check to require on `main`.
+- Every GitHub Action is pinned to a full commit SHA, and a scheduled workflow re-runs the full supply-chain scans daily.
 
 ### Produce well-secured software (PW)
 
