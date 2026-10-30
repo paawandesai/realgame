@@ -2,6 +2,8 @@
 
 The single register of every science claim the first-person 3D client shows the player (`crates/bevy-client`), and of every number in its rules engine that drives a shown outcome. `npm test` (`test/science-sources.test.ts`) fails if a client string that looks like a science claim has no row here, if a row is malformed or cites an undefined source, if a `_C` temperature constant in `chem.rs` has no row or a different value, or if a `C-` row's text is no longer in a file it names. The fresh-model science review that scores bar B6 follows `docs/loop/science-review.md`.
 
+**What the lint sees.** The lint flags a client string as a claim when it has a temperature, a chemical formula, a science keyword, or the shape of a sentence (three or more words ending in `.`, `!`, `?` or `…`); everything else, including strings built at runtime and the skipped machine-output lines, is covered by the review protocol (see [Lint limits](../docs/loop/science-review.md#lint-limits)).
+
 **Conditions.** Phase-change temperatures are at 101.325 kPa (1 atm). Standard enthalpies (ΔH°) are at 298.15 K and 1 bar, per mole of reaction as written. Temperatures shown to the player are rounded to the nearest whole degree (or kelvin).
 
 **Verdicts.**
@@ -27,13 +29,13 @@ The single register of every science claim the first-person 3D client shows the 
 | C-009 | `It caught fire: hot enough to reach its ignition temperature, with oxygen around.` | crates/bevy-client/src/chem.rs | correct | | [S6] [S14] |
 | C-010 | `Fire out! Water cooled it below its ignition temperature.` | crates/bevy-client/src/chem.rs | correct | | [S9] |
 | C-011 | `Fire out! Liquid nitrogen at −196 °C cooled it far below ignition.` | crates/bevy-client/src/chem.rs | correct | | [S1] [S6] |
-| C-012 | `Fire out! The CO2 foam smothered it: no oxygen, no fire.` | crates/bevy-client/src/chem.rs | simplified | A foam blanket does put fires out by cutting off oxygen and fuel vapour. "No oxygen" is the limiting case (see C-004). "CO2 foam" is not a common modern agent: CO2 extinguishers discharge gas, and firefighting foams are made with air; the gas in the bubbles is not what does the work. The reviewer may escalate. | [S17] [S14] |
+| C-012 | `Fire out! The CO2 foam smothered it: no oxygen, no fire.` | crates/bevy-client/src/chem.rs | simplified | A foam blanket puts fires out by separating the fuel vapour from the oxygen it needs [S19] [S17]. "No oxygen" is the limiting case: the foam layer excludes oxygen from the fuel surface [S20] (see C-004). Firefighting foam is an aggregation of small bubbles made by mixing air into a solution of foam concentrate and water [S19]. A CO2 extinguishing agent discharges carbon dioxide, which is a gas at ambient conditions [S14], and puts fire out by lowering the oxygen concentration [S19]. So the game's "CO2 foam" pairs two agents; the smothering the caption describes is how either one works. The reviewer may escalate. | [S19] [S20] [S17] [S14] |
 | C-013 | `It burnt out: the fuel is used up.` | crates/bevy-client/src/chem.rs | correct | | [S7] |
 | C-014 | `The ice melted at 0 °C: H2O(s) → H2O(l). Now it is a puddle.` | crates/bevy-client/src/chem.rs | correct | | [S10] |
 | C-015 | `Melting... ice needs a lot of heat to turn into water (latent heat).` | crates/bevy-client/src/chem.rs | correct | | [S10] |
 | C-016 | `Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H2O(l) → H2O(s).` | crates/bevy-client/src/chem.rs | simplified | The text is true. The outcome it captions freezes a whole puddle in one cast; real freezing is limited by heat transfer (6.0 kJ/mol must leave the water) and takes much longer. Limiting case, not false. | [S1] [S10] |
 | C-017 | `Hot water boils at 100 °C and turns into steam: H2O(l) → H2O(g).` | crates/bevy-client/src/chem.rs | correct | | [S2] [S10] |
-| C-018 | `CO2 foam covers it: no oxygen can reach it, so it cannot burn.` | crates/bevy-client/src/chem.rs | simplified | As C-012: a foam blanket keeps oxygen and fuel vapour apart; "no oxygen" is the limiting case and "CO2 foam" is not a common modern agent. | [S17] [S14] |
+| C-018 | `CO2 foam covers it: no oxygen can reach it, so it cannot burn.` | crates/bevy-client/src/chem.rs | simplified | As C-012. A foam blanket separates fuel vapour from oxygen [S19] and excludes oxygen from the fuel surface [S20]; "no oxygen" is the limiting case. Firefighting foam is made with air [S19] and CO2 agents are a gas [S14], so "CO2 foam" pairs two agents. | [S19] [S20] [S17] [S14] |
 | C-019 | `Soaked: it must dry out (boil off at 100 °C) before it can burn.` | crates/bevy-client/src/chem.rs | simplified | Water evaporates at any temperature, not only at 100 °C. Under a flame, a wet surface stays near 100 °C until its water is gone, because the heat goes into vaporizing it, and that part is true. | [S10] [S2] |
 | C-020 | `Brrr! Liquid nitrogen boils away at −196 °C as it chills the surface.` | crates/bevy-client/src/chem.rs | correct | | [S1] |
 | C-021 | `Sizzle! The water must boil away at 100 °C before it can burn.` | crates/bevy-client/src/chem.rs | simplified | As C-019. | [S10] [S2] |
@@ -44,7 +46,7 @@ The single register of every science claim the first-person 3D client shows the 
 | C-026 | `Water-splitting station (coming soon): 2H2O → 2H2 + O2 with electricity.` | crates/bevy-client/src/chem.rs | correct | | [S7] [S13] [S3] |
 | C-027 | `Oh no! Heat from the fire reached the greenhouse. Press R to try again.` | crates/bevy-client/src/main.rs | correct | | [S6] |
 | C-028 | `Heat from a neighbour raised the {who} to its ignition temperature: it caught fire!` | crates/bevy-client/src/main.rs | correct | | [S6] |
-| C-029 | `You saved the greenhouse! Water, frost and CO2 foam each stop fire in their own way.` | crates/bevy-client/src/main.rs | correct | | [S9] [S1] [S17] |
+| C-029 | `You saved the greenhouse! Water, frost and CO2 foam each stop fire in their own way.` | crates/bevy-client/src/main.rs | correct | | [S9] [S1] [S19] [S17] |
 | C-030 | `Heat spread from bush to bush. Press R to try again.` | crates/bevy-client/web/hud.js | correct | | [S6] |
 | C-031 | `cools below ignition` | crates/bevy-client/web/index.html | correct | | [S9] |
 | C-032 | `CO₂ displaces O₂` | crates/bevy-client/web/index.html | correct | | [S14] [S5] [S8] |
@@ -74,6 +76,12 @@ The single register of every science claim the first-person 3D client shows the 
 | text | where | reason |
 |---|---|---|
 | `Fires put out: ${Math.min(state.extinguished, state.goal)} / ${state.goal} · burning now: ${state.burning}` | crates/bevy-client/web/hud.js | Status counter (fires put out, fires burning). Flagged only by the keyword `burn`; it states no science. |
+| `Save the Greenhouse! Put out 3 fires before they spread. Press 2 for Water.` | crates/bevy-client/src/main.rs | Game instruction (the objective and a key hint). Flagged by sentence shape; it states no science. |
+| `Save the Greenhouse! Put out 3 fires before they spread.` | crates/bevy-client/src/main.rs | Game instruction (the objective). Flagged by sentence shape; it states no science. |
+| `You saved the greenhouse!` | crates/bevy-client/web/hud.js | Win banner. Flagged by sentence shape; it states no science. |
+| `${state.extinguished} fires put out. Press R to play again.` | crates/bevy-client/web/hud.js | Win banner subtitle (a count and a key hint). Flagged by sentence shape; it states no science. |
+| `The greenhouse caught fire` | crates/bevy-client/web/hud.js | Lose banner: it reports the game outcome. Flagged by the keyword `caught fire`; the science of why (heat spread) is the subtitle, C-030. |
+| `Without locking the mouse you can also click (or tap) a glowing target to cast at it.` | crates/bevy-client/web/index.html | Game instruction (controls). Flagged by sentence shape; it states no science. |
 
 ## Sources
 
@@ -85,7 +93,7 @@ The single register of every science claim the first-person 3D client shows the 
 - [S5] NIST Chemistry WebBook, SRD 69, Carbon dioxide (molecular weight 44.0095): https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389
 - [S6] Babrauskas, V., "Ignition of Wood: A Review of the State of the Art", Journal of Fire Protection Engineering 12(3), 163–189, 2002. doi:10.1106/104239102028711
 - [S7] Flowers, P., Theopold, K., Langley, R., Robinson, W. R., *Chemistry 2e*, OpenStax, 2019, § 4.1 "Writing and Balancing Chemical Equations": https://openstax.org/books/chemistry-2e/pages/4-1-writing-and-balancing-chemical-equations
-- [S8] Minzner, R. A. (ed.), *The 1976 Standard Atmosphere Above 86-km Altitude*, NASA SP-398, NASA Goddard Space Flight Center, 1976 (standard sea-level mean molecular weight of air M0 = 28.9644 kg/kmol): https://ntrs.nasa.gov/api/citations/19770003812/downloads/19770003812.pdf
+- [S8] Minzner, R. A. (ed.), *The 1976 Standard Atmosphere Above 86-km Altitude*, NASA SP-398, NASA Goddard Space Flight Center, 1976. Standard sea-level mean molecular weight of air M0 = 28.9644 kg/kmol, stated in the Symbols list ("The standard, sea-level value of M, 28.9644 kg kmol-1") and in the chapter "Lower Boundary Conditions" (the list of boundary values, "M0 = 28.9644 kg kmol-1"); the same value defines the *U.S. Standard Atmosphere, 1976* (NOAA-S/T 76-1562, NASA-TM-X-74335, NTRS 19770009539). Fetched 2026-10-30: https://ntrs.nasa.gov/api/citations/19770003812/downloads/19770003812.pdf
 - [S9] Grant, G., Brenton, J., Drysdale, D., "Fire suppression by water sprays", Progress in Energy and Combustion Science 26, 79–130, 2000. doi:10.1016/S0360-1285(99)00012-X
 - [S10] Flowers, P., et al., *Chemistry 2e*, OpenStax, 2019, § 10.3 "Phase Transitions": https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions
 - [S11] Flowers, P., et al., *Chemistry 2e*, OpenStax, 2019, § 5.1 "Energy Basics": https://openstax.org/books/chemistry-2e/pages/5-1-energy-basics
@@ -96,3 +104,5 @@ The single register of every science claim the first-person 3D client shows the 
 - [S16] Fletcher, T. H., Pickett, B. M., Smith, S. G., Spittle, G. S., Woodhouse, M. M., Haake, E., Weise, D. R., "Effects of moisture on ignition behavior of moist California chaparral and Utah leaves", Combustion Science and Technology, 1183–1203, 2007. Record: https://research.fs.usda.gov/treesearch/30610
 - [S17] NIST, "NIST Researchers Develop Standards to Help Eliminate 'Forever Chemicals' in Firefighting Foams", news release, 18 September 2023: https://www.nist.gov/news-events/news/2023/09/nist-researchers-develop-standards-help-eliminate-forever-chemicals
 - [S18] Ohlemiller, T. J., *Modeling of Smoldering Combustion Propagation*, NBSIR 84-2895, National Bureau of Standards, 1984. doi:10.6028/NBS.IR.84-2895
+- [S19] U.S. Federal Aviation Administration, Advisory Circular 150/5210-6E, *Aircraft Fire Extinguishing Agents for Airports*, 27 November 2023: § 1.2 (foams "are produced by incorporation of air into a solution of foam concentrate and water"; "They extinguish fire by physically separating the fuel vapors from the heat and oxygen necessary for combustion"), § 1.4.2 (carbon dioxide "extinguishes fire by reducing the concentration of oxygen, the vapor phase of the fuel, or both"), App. C item 9 (foam: "An aggregation of small bubbles used to form an air-excluding, vapor-suppressing blanket"): https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC-150-5210-6e-arff-ext-agents.pdf
+- [S20] U.S. EPA, *Phase I Final Rule and Technical Development Document of Uniform National Discharge Standards (UNDS)*, Appendix A, "Aqueous Film-Forming Foam: Nature of Discharge", April 1999, § 2.1 ("The foam layer effectively excludes oxygen from the surface of the fuel, while the high water content cools the surface."): https://www.epa.gov/sites/default/files/2015-08/documents/2007_07_10_oceans_regulatory_unds_tdddocuments_appaafffnod.pdf

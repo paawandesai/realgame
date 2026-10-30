@@ -13,7 +13,7 @@ The procedure the fresh-model science reviewer follows to score bar B6 ("science
 
 1. The build under review: a checkout of the commit to score (the "build"). Record its full SHA.
 2. `content/science-sources.md` at that commit (the "register").
-3. The lint output at that commit: run `SCIENCE_SOURCES_VERBOSE=1 node --disable-warning=ExperimentalWarning --test --test-reporter=spec test/science-sources.test.ts` from the repo root. If the client tree is somewhere else (for example a branch not yet on main), add `SCIENCE_SCAN_ROOT=<path to that checkout>`. Keep the `claim:` lines and the summary line `science-sources: <n> client claims, <n> sourced, <n> params, <n> error verdicts, <n> stale-file warnings`.
+3. The lint output at that commit: run `SCIENCE_SOURCES_VERBOSE=1 node --disable-warning=ExperimentalWarning --test --test-reporter=spec test/science-sources.test.ts` from the repo root. If the client tree is somewhere else (for example a branch not yet on main), add `SCIENCE_SCAN_ROOT=<path to that checkout>`. Keep the `claim:` lines, the `skipped:` lines, the line `science-sources: <n> skipped as machine output` and the summary line `science-sources: <n> client claims, <n> sourced, <n> params, <n> error verdicts, <n> stale-file warnings`.
 4. Web access (to open source URLs) or a library catalogue (to confirm bibliographic records).
 
 Nothing else is needed. Do not read the planner's spec or earlier reviews before forming your own verdicts.
@@ -24,7 +24,10 @@ For the build:
 
 1. **Lint.** Run the lint command in Inputs. Copy its summary line into the output. If it exits non-zero, list every failure message in the output; any unsourced claim or stale row already fails B6 part (a).
 2. **Inventory.** Compare the `claim:` lines with the register. Every line must be the normalized text of a `## Claims` row or a `## Not claims` row. For each `## Not claims` row, confirm it states no science (a counter, a label); if it does, record it as an `error` with note "science claim filed under Not claims".
-3. **Runtime-built strings.** The lint cannot see claims assembled at runtime. Open `crates/bevy-client/src/main.rs` and `crates/bevy-client/web/hud.js` and find every place that sets the caption, banner or HUD text (`game.say(`, `format!(`, `.textContent =`). Any player-facing science text that is built from fragments (`concat!`, joined arrays, `+` on strings) and does not match a register row is a finding: record it as an extra row `X-<n>` with verdict `error` and note "unsourced runtime-built claim".
+3. **What the lint cannot see.** Read [Lint limits](#lint-limits) first.
+   1. **Caption paths.** In `crates/bevy-client/src/**/*.rs` and `crates/bevy-client/web/**/*.{html,js}`, find every call or definition on the five caption paths: `caption()`, `cast_caption()`, `formula()`, `game.say(` and `.textContent =`. List every string literal each one returns or passes (including the format string of a `format!` and each fragment joined by `concat!`, `+` or an array join), and the text it shows once its placeholders are filled.
+   2. **Skipped strings.** List every `skipped:` line from the verbose lint output.
+   3. **Check each one.** Each listed string must be the text of a register row (`## Claims` or `## Not claims`), or state no science. Any player-facing text on that list that states science and has no row (for example, text built from fragments, or prose carried in a skipped `TAG key=` line) is a finding: record it as an extra row `X-<n>` with verdict `error` and note "unsourced claim the lint cannot see" plus which limit hid it.
 4. **Per `C-` row**, in id order:
    1. **Read the source.** Open each cited source (see Source verification) and find the passage that supports or contradicts the claim. Form your verdict from the source, not from the register's verdict.
    2. **Equations.** For every chemical equation in the claim: count atoms of each element on each side (write the counts, for example `C 1/1, H 4/4, O 4/4`) and check total charge is equal on both sides (write `charge 0/0`). Any imbalance is an `error`.
@@ -59,6 +62,18 @@ Output row:
 ```
 | C-001 | correct | correct | C 1/1, H 4/4, O 4/4, charge 0/0; label on Fire spell; apply Spell::Fire ignites | |
 ```
+
+## Lint limits
+
+`test/science-sources.test.ts` flags a client string as a claim when it has a temperature (`-196 °C`, `77 K`), a formula with a digit or state symbol (`CO2`, `H2O(s)`), a keyword (`burn`, `boil`, `react`, `acid`, `pH`, `caught fire`, and the rest of `KEYWORD`), or sentence shape (at least 3 whitespace-separated tokens that contain a letter, ending in `.`, `!`, `?` or `…` once trailing quotes and brackets are trimmed). After I-010 it cannot see:
+
+- **(a) Bare fragments.** A string with no temperature, no formula, no keyword and no sentence punctuation, such as `copper turns green`. Adding the full stop (`Copper turns green.`) makes it a claim.
+- **(b) Strings built at runtime.** `concat!`, `+` on strings, joined arrays, and `format!` with substituted words. The lint judges each literal as written, and a placeholder such as `{}` or `${...}` is not a word, so `format!("{} turns green.", "Copper")` (two words) and `format!("{} turns {}", "copper", "green")` pass unseen. Only the literal pieces are checked.
+- **(c) The two machine-output skips,** applied to Rust strings only: a JSON template (the decoded string starts with `{{"`) and a log line matching `^[A-Z][A-Z0-9_]{2,} [a-z_][a-z0-9_]*=` (an upper-case tag, a space, then `key=`, as in `STATS fps={:.1} ...`). These are console and bridge output, not shown to the player, but a skip-shaped string hides any prose it carries: `STATS fps=1 copper turns green` passes unseen, while `STATS copper turns green.` (no `key=`) and `stats fps=1 copper turns green.` (lower-case tag) are flagged. The lint prints `science-sources: <n> skipped as machine output`, and with `SCIENCE_SOURCES_VERBOSE=1` each one as `skipped: <text>`. Strings in `.html` and `.js` files are never skipped.
+- **(d) Files outside the scan.** Only `crates/bevy-client/src/**/*.rs` and `crates/bevy-client/web/**/*.{html,js}` are read. CSS, JSON, shaders, assets, `content/*.json` and anything else are not.
+- **(e) Rust raw strings (`r"..."`, `r#"..."#`) and `\`-newline string continuations.** These fail loudly: the lint stops with "not supported by the science lint" rather than skipping them silently. Inline `<script>` and `<style>` bodies in HTML fail the same way.
+
+Procedure step 3 covers (a) to (c) on the caption paths; (d) is covered only by a reviewer who finds a player-facing string elsewhere.
 
 ## Source verification
 
