@@ -38,6 +38,21 @@ const MARK_MS = { hit: 250, fizzle: 300, out: 700 };
 // Loudest any tone gets (about -16 dBFS): a lab of 30 must not be startled.
 const PEAK = 0.15;
 
+// Which hint shows, highest first (docs/loop/items/I-025/spec.md, item 3;
+// supersedes I-019 item 9): banner > idle > note > locked > start. Nothing
+// under a banner; the idle hint when it is due (the player is stuck, and it
+// is newer than any note); a one-off note; how to aim (locked, until the
+// first fire is out); how to start. No Hints input: the Hints setting gates
+// the result downstream (setHint), and `note` comes back unchanged so status
+// notes stay with Hints off.
+function pickHint({ playing, idle, note, locked, extinguished, casts }) {
+  if (!playing) return '';
+  if (idle) return IDLE_HINT;
+  if (note) return note;
+  if (locked) return extinguished === 0 ? AIM_HINT : '';
+  return casts > 0 ? '' : START_HINT;
+}
+
 const reducedMotion = () => {
   try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
 };
@@ -235,6 +250,7 @@ export function startHud() {
     mode: () => ({ pointMode, lockDenied, dragging: !!drag }),
     lastSound: sound.last,
     hudState: () => drawn,
+    pickHint,
   };
 
   // Polled every frame as well as on the event (some browsers, headless
@@ -662,21 +678,14 @@ export function startHud() {
       const hovering = pointMode && !state.locked && state.hover >= 0;
       canvas.classList.toggle('hover', hovering);
       canvas.classList.toggle('hover-fire', hovering && burningAt(state.hover));
-      // Hints, highest first: nothing under a banner; the idle hint when it
-      // is due; a one-off note; how to aim (locked, until the first fire is
-      // out); how to start.
+      // Hints: banner > idle > note > locked > start (pickHint, I-025).
       const playing = state.outcome === 'playing';
       if (state.locked) note = '';
       updateIdle(now);
-      let h = '';
-      if (!playing) h = '';
-      else if (idleOn) h = IDLE_HINT;
-      else if (note) h = note;
-      else if (state.locked) h = state.extinguished === 0 ? AIM_HINT : '';
-      else h = state.casts > 0 ? '' : START_HINT;
-      setHint(h);
-      // The arrow to the nearest fire, while it is off screen.
-      const findOn = playing && state.fireOff && state.nearFire >= 0 && !state.paused && !input.paused;
+      setHint(pickHint({ playing, idle: idleOn, note, locked: state.locked, extinguished: state.extinguished, casts: state.casts }));
+      // The arrow to the nearest fire, while it is off screen and no fire is
+      // in view or aimed at (I-025).
+      const findOn = playing && state.fireOff && !state.fireInView && state.nearFire >= 0 && !state.paused && !input.paused;
       finder.classList.toggle('hidden', !findOn);
       if (findOn) {
         const right = state.fireBearing > 0;
