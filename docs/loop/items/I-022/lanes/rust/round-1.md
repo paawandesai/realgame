@@ -38,3 +38,15 @@ Correction to the spec's "Facts": at 21:9 the old horizontal angle is 105.4 deg,
 - `cargo clippy --release --locked --target wasm32-unknown-unknown -- -D warnings`: clean.
 - `build-web.sh`: OK. Brotli (q11) of `pkg-out`: base 3,566,853 B, I-022 3,567,893 B, +1,040 B (wasm +903, hud.js +137); limit is +2 KB.
 - A native `cargo build` was not run: on this 4-CPU machine it competes with the Chromium suites, and the wasm32 build and clippy cover the same code.
+
+## B2/B3 guard (test 18): `ONLY=low@4x RUNS=3 node tests/e2e/perf.mjs`, under the Chromium lock
+
+Base is `I-022/base-pkg-out` (a0e2ecb web files byte-identical; wasm from c4832d2, whose crate source equals a0e2ecb). Candidate is this branch's `pkg-out`.
+
+| build | repeats cpu p50 (ms) | median cpu p50 (ms) | perf.mjs brotli total (B) | valid |
+|---|---|---|---|---|
+| base | 33.6, 30.6, 30.0 | 30.6 | 3,562,788 | 1 of 3 repeats valid (the others flagged "machine busy", load1 2.2-2.5, while another session's perf-pairs waited) |
+| loop/I-022 | 30.6, 32.0, 29.3 | 30.6 | 3,563,772 | valid |
+| delta | | **+0.0 ms** (limit +0.5) | **+984 B** (limit +2 KB) | |
+
+A clean base re-run is queued behind another session's perf-pairs; if it lands it is added below.
