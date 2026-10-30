@@ -1297,14 +1297,13 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
     c.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
     return s0;
   });
-  // The state and the HUD in one read, taken once the HUD has drawn that
-  // same state frame (#hud's data-frame).
+  // The HUD and the state it last drew (__game.hudState), in one read. (The
+  // game and the HUD each run in their own animation-frame callback, so the
+  // newest state can be a frame ahead of the DOM.)
   const hudRead = () => page.evaluate(() => new Promise((res) => {
-    let k = 0;
     const read = () => {
-      const s = window.__game.state();
+      const s = window.__game.hudState() || window.__game.state();
       const hud = document.getElementById('hud');
-      if (+hud.dataset.frame !== s.frame && k++ < 30) { requestAnimationFrame(read); return; }
       const vis = (e) => !!e && !e.classList.contains('hidden') && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden';
       const ol = document.getElementById('obj-line');
       const ff = document.getElementById('firefinder');
@@ -1360,8 +1359,13 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
   // 9. A real click casts exactly once; a held button still repeats.
   {
     // The mouse goes to the click spot first, so the click itself carries no
-    // movement that could turn the view off the fire.
+    // movement that could turn the view off the fire. Pointer moves reach
+    // the page on the next animation frame, so the aim is taken after it
+    // and checked again a frame later.
     await page.mouse.move(VW / 2, VH / 2);
+    await frames(2);
+    await aimAt(lit[1], 2);
+    await frames(1);
     const a = await aimAt(lit[1], 2);
     await page.mouse.click(VW / 2, VH / 2);
     const r = await within(a.frame, 20, (x) => x.casts === a.casts + 1 && x.objs[lit[1]].burning === false);
@@ -1665,6 +1669,10 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
     }
     let h = (await hudWithin(x.frame, 3, (q) => q.cross.includes('on'))).h;
     const bushOk = h.s.aimObj === b && h.cross.includes('on') && !h.cross.includes('fire');
+    // A pause and resume restarts the 45 s idle clock (on a slow software GPU
+    // this section can run that long), so the idle hint does not stand in
+    // for the locked hint checked below.
+    await page.evaluate(() => { window.__game.pause(true); window.__game.pause(false); });
     await cmd(`face ${lit[0]}`);
     x = await until((q) => q.aimObj === lit[0], 10000);
     h = (await hudWithin(x.frame, 3, (q) => q.cross.includes('fire'))).h;

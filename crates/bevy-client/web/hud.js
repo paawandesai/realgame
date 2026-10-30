@@ -12,6 +12,7 @@
 //   __game.lock()           request pointer lock (needs a user gesture)
 //   __game.mode()           { pointMode, lockDenied, dragging }
 //   __game.lastSound()      { name, n, played, peak, frame } of the last sound asked for
+//   __game.hudState()       the state the HUD last drew (the DOM matches it)
 // Test commands other than select, cast, fire, tap, reset and set need `?debug`.
 //
 // Settings (pause menu): look speed, view width, hand sway, aim help, hints,
@@ -119,6 +120,9 @@ export function startHud() {
   const input = { dx: 0, dy: 0, locked: false, paused: false, fire: false, px: -1, py: -1, cmds: [] };
   window.__gameIn = input;
   let state = null;
+  // The state the HUD has finished drawing (for tests that compare the DOM
+  // with the state it shows).
+  let drawn = null;
   let lastRaw = '';
   let everLocked = false;
   // "Point and click mode" (from the pause menu): mouse clicks cast at the
@@ -230,6 +234,7 @@ export function startHud() {
     pause: showPause,
     mode: () => ({ pointMode, lockDenied, dragging: !!drag }),
     lastSound: sound.last,
+    hudState: () => drawn,
   };
 
   // Polled every frame as well as on the event (some browsers, headless
@@ -703,6 +708,7 @@ export function startHud() {
       }
       // The state frame this HUD frame has drawn (for the tests).
       hudEl.dataset.frame = String(state.frame);
+      drawn = state;
     }
     requestAnimationFrame(frame);
   };
