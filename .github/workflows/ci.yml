@@ -80,6 +80,10 @@ jobs:
               - 'dashboard/**'
               - 'test/**'
               - 'web/src/analytics.ts'
+              # The science-sources lint in test/ scans the client and register.
+              - 'content/**'
+              - 'crates/bevy-client/src/**'
+              - 'crates/bevy-client/web/**'
               - 'wrangler.toml'
               - 'tsconfig.json'
               - 'package.json'
