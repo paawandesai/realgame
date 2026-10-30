@@ -1,0 +1,9 @@
+# test 5, P1 clean build (CARGO_TERM_VERBOSE=true build-web.sh), rc=0 secs=700
+# package realgame-bevy-client has crate name bevy_client (bin)
+bevy_client: -C opt-level=3 
+bevy_reflect: -C opt-level=z 
+bevy_ecs: -C opt-level=z 
+unused manifest key warnings: 0
+rustc lines at opt-level=3: 1; at opt-level=z: 289
+wasm raw bytes: P1 18127784, base 17679322
+wasm gzip -9 bytes: P1 5164584, base 5043310

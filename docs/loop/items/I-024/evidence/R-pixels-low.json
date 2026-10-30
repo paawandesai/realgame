@@ -1,0 +1,27 @@
+{
+  "tier": "low",
+  "mean_abs_diff": {
+    "spawn": 0.0437,
+    "greenhouse": 0,
+    "lab-bench": 0,
+    "hedge-row": 0,
+    "courtyard-corner": 0.0418
+  },
+  "max": 0.0437,
+  "low_shared_mat": {
+    "a": [],
+    "b": [
+      "LOW_SHARED_MAT colours=10 pieces=91 meshes=14 candidates=91 target_skipped=0"
+    ]
+  },
+  "errors": {
+    "a": [],
+    "b": []
+  },
+  "roundtrip": {
+    "bush": 4,
+    "wet_seen": 1,
+    "normal_vs_wet": 0.2557,
+    "normal_vs_back": 0.0252
+  }
+}
