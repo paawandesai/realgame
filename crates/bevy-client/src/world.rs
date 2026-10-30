@@ -41,15 +41,6 @@ impl Aabb {
         (self.min + self.max) * 0.5
     }
 
-    pub fn overlaps(&self, o: &Aabb) -> bool {
-        self.min.x < o.max.x
-            && self.max.x > o.min.x
-            && self.min.y < o.max.y
-            && self.max.y > o.min.y
-            && self.min.z < o.max.z
-            && self.max.z > o.min.z
-    }
-
     /// Distance along the ray to the box's surface, if it hits within `max_t`.
     pub fn ray(&self, origin: Vec3, dir: Vec3, max_t: f32) -> Option<f32> {
         let inv = dir.recip();

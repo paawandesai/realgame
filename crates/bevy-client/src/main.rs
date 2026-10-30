@@ -7,12 +7,15 @@
 //!
 //! Modules: `chem` is the deterministic rules engine (no Bevy), `world`
 //! builds the courtyard and its colliders, `player` is the kinematic
-//! character, `fx` the particle pool, `bridge` the link to the page's HUD.
+//! character (its integrator is `motion`), `clock` the game clock, `fx` the
+//! particle pool, `bridge` the link to the page's HUD.
 
 mod bridge;
 mod chem;
+mod clock;
 mod feel;
 mod fx;
+mod motion;
 mod player;
 mod world;
 
@@ -149,6 +152,11 @@ struct Game {
     /// Camera and viewmodel translations this frame, for the tests.
     cam: Vec3,
     vm: Vec3,
+    /// Game seconds played since the last reset: this frame's dt is added
+    /// unless paused (`gameTime` in the state).
+    game_time: f32,
+    /// This frame's clamped dt (`clock::frame_dt`).
+    dt: f32,
 }
 
 impl Game {
@@ -240,6 +248,14 @@ fn main() {
             affects_lightmapped_meshes: true,
         })
         .insert_resource(Time::<Fixed>::from_seconds(chem::DT as f64))
+        // One ceiling for the whole game: the fixed-step chemistry (driven by
+        // the virtual clock) and every per-frame system (`clock::frame_dt`)
+        // advance at most MAX_FRAME_DT of game time per frame.
+        .insert_resource({
+            let mut t = Time::<Virtual>::default();
+            t.set_max_delta(std::time::Duration::from_secs_f32(clock::MAX_FRAME_DT));
+            t
+        })
         .insert_resource(settings)
         .init_resource::<Stats>()
         .init_resource::<Game>()
@@ -580,7 +596,7 @@ fn control(
     >,
     mouse: Res<ButtonInput<MouseButton>>,
 ) {
-    let dt = time.delta_secs().min(0.05);
+    let dt = clock::frame_dt(time.delta_secs());
     bridge::poll(&mut web);
     #[cfg(target_arch = "wasm32")]
     {
@@ -605,6 +621,10 @@ fn control(
         if game.locked {
             player.look(motion.delta.x, motion.delta.y, settings.sens);
         }
+    }
+    // The game clock: frozen while paused, back to 0 on a reset (below).
+    if !game.paused {
+        game.game_time += dt;
     }
 
     // Spell selection: 1-4 or the wheel.
@@ -715,6 +735,7 @@ fn control(
     if let Some(m) = cmd_move {
         game.scripted_move = Some(m);
     }
+    game.dt = dt;
 
     // Movement.
     let mut wish = Vec2::ZERO;
@@ -735,6 +756,7 @@ fn control(
         game.scripted_move = (secs > dt).then_some((w, secs - dt));
     }
     if !game.paused {
+        // Built once per frame; the player substeps against them.
         let ice: Vec<world::Aabb> = (0..chem.targets.len())
             .filter(|&i| {
                 let o = &chem.world.objs[i];
@@ -742,6 +764,8 @@ fn control(
             })
             .map(|i| chem.bounds(i))
             .collect();
+        let ice = player::boxes(&ice);
+        let solids = player::boxes(colliders.solid(&chem.world));
         player.step(
             player::MoveInput {
                 wish,
@@ -749,8 +773,7 @@ fn control(
                 jump: keys.pressed(KeyCode::Space),
             },
             dt,
-            &colliders,
-            &chem.world,
+            &solids,
             &ice,
         );
     }
@@ -852,7 +875,7 @@ fn aim_and_cast(
     window: Single<&Window, With<PrimaryWindow>>,
     cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
 ) {
-    let dt = time.delta_secs().min(0.05);
+    let dt = clock::frame_dt(time.delta_secs());
     game.cooldown -= dt;
     game.caption_age += dt;
     game.recoil = (game.recoil - dt * 6.0).max(0.0);
@@ -939,7 +962,17 @@ fn aim_and_cast(
             break;
         }
         let spell = Spell::ALL[game.spell];
-        game.cooldown = COOLDOWN;
+        // If the cooldown ran out during this frame, the part of the frame
+        // past zero counts toward the next one, so held fire keeps one cast
+        // per 0.3 s of game time at any frame rate (at 4 fps, a cast every
+        // 0.25 or 0.5 s rather than every 0.5 s). A cooldown that ran out on
+        // an earlier frame carries nothing.
+        let carry = if game.cooldown + dt > 0.0 {
+            game.cooldown.min(0.0)
+        } else {
+            0.0
+        };
+        game.cooldown = COOLDOWN + carry;
         game.recoil = 1.0;
         game.casts += 1;
         game.say(spell.cast_caption());
@@ -998,7 +1031,7 @@ fn projectiles(
     mut q: Query<(Entity, &mut Projectile, &mut Transform), Without<Beam>>,
     mut beams: Query<(Entity, &mut Beam, &mut Transform), Without<Projectile>>,
 ) {
-    let dt = time.delta_secs().min(0.05);
+    let dt = clock::frame_dt(time.delta_secs());
     if fx.epoch != game.epoch {
         // A reset: clear the old courtyard's smoke and sparks too.
         fx.epoch = game.epoch;
@@ -1168,7 +1201,7 @@ fn sync_visuals(
     mut q: Query<SceneParts, (Without<FireLight>, Without<fx::Particle>)>,
     mut lights: Query<(&mut PointLight, &mut Transform), With<FireLight>>,
 ) {
-    let dt = time.delta_secs().min(0.05);
+    let dt = clock::frame_dt(time.delta_secs());
     let now = time.elapsed_secs();
     let rate = if settings.low { 0.45 } else { 1.0 } * if game.paused { 0.0 } else { 1.0 };
     let Chem { world, targets, .. } = &mut *chem;
@@ -1375,7 +1408,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}]}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4}}}",
         *frame,
         w.ticks,
         game.locked,
@@ -1418,7 +1451,9 @@ fn publish(
         game.hit_x,
         game.hit_y,
         last_hit.1,
-        objs.join(",")
+        objs.join(","),
+        game.game_time,
+        game.dt
     );
     bridge::publish(&json);
 }

@@ -1,6 +1,7 @@
 //! A fixed pool of particles: one shared faceted-sphere mesh and one shared
 //! material per kind, so they batch. Spawning reuses the oldest slot.
 
+use crate::clock;
 use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 
@@ -167,7 +168,7 @@ pub fn update_fx(
         &mut MeshMaterial3d<StandardMaterial>,
     )>,
 ) {
-    let dt = time.delta_secs().min(0.05);
+    let dt = clock::frame_dt(time.delta_secs());
     if std::mem::take(&mut fx.clear) {
         fx.pending.clear();
         for (mut p, _, mut vis, _) in &mut q {
