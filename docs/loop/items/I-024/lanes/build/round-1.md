@@ -58,7 +58,7 @@ Also recorded, not gated: the default@4x CPU p50 median was 40.6 vs 39.8 for P1 
 
 **Stop order.** P1 failed rule 1 by less than 5 points (0.960 ≤ 0.97) and passed rules 2 to 5, so P2 was allowed and was built. With neither kept, there is no final verdict to run (test 11 needs at least one kept part, and Part R was reverted at test 8, see `lanes/render/round-1.md`). Quiet-box time used: about 3 h over the noise run, P1 and P2, within the 8 h budget.
 
-**What this says for a follow-up.** Our own crate's opt-level is worth about 4% at low@4x, inside the noise. The hot-crate set is worth about 9%, but it costs 0.83 MB of brotli (this lane did not split that by crate). A follow-up could try a smaller set, `bevy_ecs` plus `glam` only, to stay under +0.5 MB. Whether the 9% is real needs more than 5 pairs: P2 lost 2 of 5 pairs at low@4x, while it won 5/5 at default@4x.
+**What this says for a follow-up.** Our own crate's opt-level measured about 4% at low@4x, but the breaker's paired rerun gave 0.997, so it is inside the noise and not reproduced. The hot-crate set is worth about 9%, but it costs 0.83 MB of brotli (this lane did not split that by crate). A follow-up could try a smaller set, `bevy_ecs` plus `glam` only, to stay under +0.5 MB. Whether the 9% is real needs more than 5 pairs: P2 lost 2 of 5 pairs at low@4x, while it won 5/5 at default@4x.
 
 ## TTI phases (test 11 table, base and candidates)
 
