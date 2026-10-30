@@ -44,3 +44,22 @@ Whole suite (107 checks = 98 existing + 9 new):
 | a0e2ecb base (`I-022/base-pkg-out`), same machine, same hour | 1 | 97/98 | "cast: a real click casts exactly once" (same output: casts 1 -> 2 -> 2, lit[1] burning=true) |
 
 Both failures are I-019 checks on the locked cast path, which this item does not touch (locked casts use `game.aim`; the tap cone and the aspect only feed hover and `tap`). The machine ran at about 2-3 fps in these runs (18-19 frames in the 6 s cadence window). At that rate the 0.3 s cooldown spans two frames, so the cadence check lands at 9 or 10 casts against a need of 10 depending on phase: the base run got exactly 10/10. The real-click check fails on the base build too. So the "3/3 green" bar for test 11 is **not met in this session**: it needs a re-run when the machine renders faster (another session's main run at about 16:25 had 98/98).
+
+## Analytics e2e (tests 12-15), `npm run build:site` then `SKIP_BUILD=1 node tests/e2e/analytics-e2e.mjs`, under the Chromium lock
+
+**59/59 checks passed** (48 existing + 11 new). The playwright version is 1.63.0, so `page.clock` is available.
+
+| check | result | measured |
+|---|---|---|
+| midnight: session_start and session_end carry the same id | PASS | both `0c56fb40...3426b` |
+| midnight: session_end still carries a valid duration | PASS | `lt1m` |
+| picker: the canvas takes the lock while age.js is held back | PASS | canvas clear, locked, picker still hidden, 60 s cap not hit |
+| picker: it frees the lock within 1 s of appearing | PASS | `pointerLockElement === null` |
+| picker: #stage, #hud, #loading, #pause inert while open; #age not | PASS | all four `true`; `#age.inert` false, no inert ancestor |
+| picker: a pick closes it and sends session_start (sprout) | PASS | |
+| picker: after the pick nothing is inert and the canvas has focus | PASS | all four `false`, `activeElement` = `game` |
+| plus a second wrangler start, the playwright version check, and 0 console/page errors in both runs | PASS | |
+
+## Lane hygiene (test 17)
+
+`git diff --name-only origin/main...` lists only lane paths and `docs/loop/items/I-022/**`. `golden.mjs` +209/-0, `analytics-e2e.mjs` +137/-0.
