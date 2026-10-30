@@ -19,7 +19,22 @@
 // Retina density). Test-only hooks, each makes a run invalid on purpose:
 // PERF_NO_CAST=1 drops casts from the workload, PERF_SKIP_THROTTLE=1 never
 // sends the CDP throttle (but reports it as sent), PERF_BLANK_CANVAS=1 paints
-// the canvas black with CSS.
+// the canvas black with CSS, PERF_GL_COUNT=1 counts WebGL2 calls per frame
+// (gl_calls; the wrapper adds CPU, so the run is a diagnostic only).
+// PERF_ALLOW_LOAD=1 lets a cloud run count on a busy machine (see below).
+//
+// Machine load (I-015): every run records load_avg (1/5/15 min) and the
+// busiest other processes (busy_procs) at load start and at sampling end. A
+// cloud run is invalid (`machine busy: load1=<x>`) when the 1-minute load
+// average, less this script's own browser (an estimate kept like the
+// kernel's average), is above half the CPU count at either moment; before
+// each run the script waits up to 60 s for the machine to go quiet. A run
+// invalid only for an environment reason (machine busy, throttle not
+// verified) is re-run up to 2 times, each listed under `reruns`; a run with
+// an incomplete workload is never re-run. Workload steps wait for their
+// state change until both their wall-clock timeout and 8 game frames have
+// passed, so a slow software GPU no longer drops a cast the game would fire
+// on its next frame.
 // Flags: --bars k=v,... overrides thresholds (b3_brotli_mb, b3_tti_ms,
 // b2_cpu_p50_ms, b2_mac_p5_fps). --self-test runs the unit tests of the pure
 // helpers (no browser, no build) and lints docs/loop/mac-perf.md.
@@ -60,6 +75,30 @@ function pct(arr, p) {
 }
 function r2(x) { return x === null || x === undefined ? null : +x.toFixed(2); }
 
+// A workload step gives up only when both its wall-clock timeout and
+// `minFrames` game frames have passed since it started (I-015 D1). Injected
+// into the page with the workload.
+function stepTimedOut(elapsedMs, framesSince, ms, minFrames = 8) {
+  return elapsedMs >= ms && framesSince >= minFrames;
+}
+
+// The machine counts as quiet when the 1-minute load average (others only)
+// is at most half the CPU count (I-015 D2).
+function loadGate(load1, cpus) {
+  return typeof load1 === 'number' && Number.isFinite(load1) && cpus > 0 && load1 <= cpus * 0.5;
+}
+
+// Environment reasons a run may be repeated for; anything else (above all an
+// incomplete workload) is a product signal and is never re-run.
+const ENV_REASON = /^(machine busy|throttle not verified)/;
+// The reason to re-run an invalid run, or null (I-015 D8). `attempt` counts
+// the re-runs already made for this repeat.
+function rerunPlan(run, attempt, maxReruns = 2) {
+  if (!run || run.valid || attempt >= maxReruns || !run.workload_ok) return null;
+  const why = run.invalid_reasons || [];
+  return why.length && why.every((r) => ENV_REASON.test(r)) ? why.join('; ') : null;
+}
+
 // The workload's tp/move/look/turn/face commands work only with `?debug`
 // (it gates nothing else), like golden.mjs.
 function pageUrl(base, tier) { return base + (tier === 'low' ? '?low&debug' : '?debug'); }
@@ -87,6 +126,8 @@ function invalidReasons(r, isMac, { dpr }) {
   }
   if (!r.canvas) why.push('canvas not checked');
   else if (r.canvas.blank) why.push('blank canvas');
+  if (r.gl_calls) why.push('GL call counting on (diagnostic hook)');
+  if (!isMac && r.load_gate && !r.load_gate.ok && !r.load_gate.allowed) why.push(`machine busy: load1=${r.load_gate.load1_busy}`);
   if (isMac) {
     if (r.webgl2 !== true) why.push('not a WebGL2 build');
     if (!r.renderer) why.push('renderer unknown');
@@ -285,6 +326,10 @@ if (MAC_DPR < 1) die('MAC_DPR must be >= 1');
 const NO_CAST = env.PERF_NO_CAST === '1';
 const SKIP_THROTTLE = env.PERF_SKIP_THROTTLE === '1';
 const BLANK_CANVAS = env.PERF_BLANK_CANVAS === '1';
+const GL_COUNT = env.PERF_GL_COUNT === '1';
+const ALLOW_LOAD = env.PERF_ALLOW_LOAD === '1';
+const MAX_RERUNS = 2;
+const QUIET_WAIT_S = 60;
 const ALL_CFGS = ['default@1x', 'default@4x', 'low@1x', 'low@4x'];
 const only = env.ONLY !== undefined && env.ONLY !== '' ? env.ONLY.split(',').map((s) => s.trim()).filter(Boolean) : null;
 if (only && !only.length) die(`ONLY lists no configuration: "${env.ONLY}"`);
@@ -376,10 +421,22 @@ async function serve(root) {
 // builds its state inside one) and from a 5 ms timer, so it is not rounded up
 // to the next frame; P.tt.bound is the gap to the last failing check.
 // P.ttiRaf keeps the old stamp (start of the first tick that sees the state).
-// Injected as `(pageHook)(makeTtiTracker)`.
-function pageHook(makeTti) {
+// With glCount (PERF_GL_COUNT=1) every WebGL2RenderingContext method is
+// wrapped to count calls while P.gl.on (the sampling window).
+// Injected as `(pageHook)(makeTtiTracker, glCount)`.
+function pageHook(makeTti, glCount) {
   const P = (window.__perf = { ticks: [], firstFrameLog: null, tti: null, ttiRaf: null, tt: makeTti(), cur: null, cpuframe: [], maxTicks: 200000 });
   const now = () => performance.now();
+  if (glCount && window.WebGL2RenderingContext) {
+    const G = (P.gl = { on: false, counts: Object.create(null) });
+    const proto = WebGL2RenderingContext.prototype;
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      const d = Object.getOwnPropertyDescriptor(proto, name);
+      if (name === 'constructor' || !d || typeof d.value !== 'function') continue;
+      const f = d.value;
+      proto[name] = function (...a) { if (G.on) G.counts[name] = (G.counts[name] || 0) + 1; return f.apply(this, a); };
+    }
+  }
   // Which context types the page asks for (webgl2 for a WebGL2 build, webgpu
   // for a WebGPU one), recorded without creating any context ourselves.
   P.ctx = [];
@@ -444,7 +501,7 @@ function pageHook(makeTti) {
 // (outside requestAnimationFrame, so it is not counted as frame CPU except
 // for what the game itself does with the commands). Deterministic: the same
 // command list in the same order every run.
-function pageWorkload(noCast) {
+function pageWorkload(noCast, timedOut) {
   const W = (window.__work = { sampling: false, casts: { 1: 0, 2: 0, 3: 0, 4: 0 }, castsTotal: 0, burningMax: 0, yaw: 0, steps: 0, resets: 0,
     vis: { samples: 0, hidden: 0, unfocused: 0, hidden_events: 0 } });
   // A hidden or background window throttles rAF: count it during sampling.
@@ -487,7 +544,7 @@ function pageWorkload(noCast) {
   motion('turn -400 50', 'move 0 -1 0.4');
   spellAt(4, burningAny);
   motion('look -90 -5');
-  let i = 0, t0 = 0, active = null, lastYaw = null;
+  let i = 0, t0 = 0, fStart = 0, active = null, lastYaw = null;
   setInterval(() => {
     visSample();
     const s = st();
@@ -507,7 +564,7 @@ function pageWorkload(noCast) {
     if (active && active.reset) active = null;
     if (active) {
       const ok = active.until(s);
-      if (!ok && performance.now() - t0 < active.ms) return;
+      if (!ok && !timedOut(performance.now() - t0, s.frame - fStart, active.ms)) return;
       if (active.done) active.done(s);
       active = null;
       i = (i + 1) % steps.length;
@@ -515,8 +572,116 @@ function pageWorkload(noCast) {
     active = steps[i];
     W.steps++;
     t0 = performance.now();
+    fStart = s.frame;
     active.go(s);
   }, 50);
+}
+
+// ---- machine load -------------------------------------------------------------
+// This script's own processes (node and its browser) are every descendant of
+// this process. Their CPU is read from /proc once a second and averaged the
+// way the kernel averages load (1-minute exponential decay), so the run's
+// own browser can be taken out of the 1-minute load average. Where /proc is
+// missing (macOS) the own share is 0 and busy_procs comes from ps alone.
+const PROC = (() => { try { readFileSync('/proc/self/stat'); return true; } catch { return false; } })();
+const TICK_HZ = 100;
+function psRows() {
+  try {
+    const txt = execFileSync('ps', ['-eo', 'pid=,ppid=,pcpu=,comm='], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 });
+    return txt.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$/)).filter(Boolean)
+      .map((m) => ({ pid: +m[1], ppid: +m[2], pcpu: +m[3], comm: m[4] }));
+  } catch { return null; }
+}
+function ownPids(rows) {
+  const own = new Set([process.pid]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const r of rows) if (!own.has(r.pid) && own.has(r.ppid)) { own.add(r.pid); grew = true; }
+  }
+  return own;
+}
+function procCpuS(pid) {
+  try {
+    const t = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const f = t.slice(t.lastIndexOf(')') + 2).split(' ');
+    return (+f[11] + +f[12]) / TICK_HZ; // utime + stime
+  } catch { return null; }
+}
+const ownLoad = { ema: 0, last: null, cpu: new Map(), timer: null };
+function sampleOwnLoad() {
+  if (!PROC) return;
+  const rows = psRows();
+  if (!rows) return;
+  const now = Date.now();
+  let used = 0;
+  const seen = new Map();
+  for (const pid of ownPids(rows)) {
+    const c = procCpuS(pid);
+    if (c === null) continue;
+    seen.set(pid, c);
+    const prev = ownLoad.cpu.get(pid);
+    used += prev === undefined ? 0 : Math.max(0, c - prev);
+  }
+  ownLoad.cpu = seen;
+  if (ownLoad.last !== null) {
+    const dt = (now - ownLoad.last) / 1000;
+    if (dt > 0) {
+      const k = Math.exp(-dt / 60);
+      ownLoad.ema = ownLoad.ema * k + (used / dt) * (1 - k);
+    }
+  }
+  ownLoad.last = now;
+}
+function startOwnLoad() {
+  sampleOwnLoad();
+  ownLoad.timer = setInterval(sampleOwnLoad, 1000);
+  ownLoad.timer.unref();
+}
+// One moment: load averages, this script's estimated share and the busiest
+// other processes (name and %CPU, above 50%, at most 5; null without ps).
+function machineLoad() {
+  sampleOwnLoad();
+  const rows = psRows();
+  const own = rows ? ownPids(rows) : new Set();
+  const busy = rows ? rows.filter((r) => !own.has(r.pid) && r.pcpu > 50).sort((a, b) => b.pcpu - a.pcpu).slice(0, 5)
+    .map((r) => ({ name: r.comm, cpu: r.pcpu })) : null;
+  const la = os.loadavg();
+  const ownShare = PROC ? r2(ownLoad.ema) : 0;
+  return { load_avg: la.map(r2), own: ownShare, others: r2(Math.max(0, la[0] - ownShare)), busy_procs: busy };
+}
+// The run's load fields and the gate verdict.
+function loadRecord(start, end) {
+  const cpus = os.cpus().length;
+  const at = [start, end].filter(Boolean);
+  const busy = at.find((x) => !loadGate(x.others, cpus));
+  return {
+    load_avg: { start: start?.load_avg ?? null, end: end?.load_avg ?? null },
+    load_own_estimate: { start: start?.own ?? null, end: end?.own ?? null },
+    busy_procs: { start: start?.busy_procs ?? null, end: end?.busy_procs ?? null },
+    load_gate: { limit: cpus * 0.5, ok: at.length > 0 && !busy, allowed: env.PERF_ALLOW_LOAD === '1', load1_busy: busy ? busy.others : null,
+      others: { start: start?.others ?? null, end: end?.others ?? null } },
+  };
+}
+// Waits up to QUIET_WAIT_S for the gate to pass before a run.
+async function waitForQuiet(cfg) {
+  const cpus = os.cpus().length;
+  const t0 = Date.now();
+  let m = machineLoad();
+  let said = false;
+  while (!loadGate(m.others, cpus) && Date.now() - t0 < QUIET_WAIT_S * 1000) {
+    if (!said) { log(`${cfg}: waiting for quiet machine (load1=${m.load_avg[0]}, own ~${m.own}, limit ${cpus * 0.5})`); said = true; }
+    await sleep(2000);
+    m = machineLoad();
+  }
+  return { waited_s: +((Date.now() - t0) / 1000).toFixed(1), quiet: loadGate(m.others, cpus) };
+}
+// Per-frame GL call summary from the counts of one sampling window.
+function glSummary(counts, frames) {
+  const n = Math.max(1, frames);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const draws = (counts.drawElementsInstanced || 0) + (counts.drawArraysInstanced || 0);
+  const top = Object.fromEntries(Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => [k, r2(v / n)]));
+  return { frames, per_frame: r2(total / n), draws_per_frame: r2(draws / n), top };
 }
 
 // ---- one run ----------------------------------------------------------------
@@ -593,7 +758,7 @@ async function runOne(browser, base, cfg, collect) {
   const context = await browser.newContext(contextOptions(isMac, { vw: MAC_VW, vh: MAC_VH, dpr: MAC_DPR }));
   const page = await context.newPage();
   const out = { config: cfg, url, tti_ms: null, tti_bound_ms: null, tti_raf_tick_ms: null, first_frame_log_ms: null, frames: 0,
-    cpu_ms: { p50: null, p95: null, max: null, p50_ci95: null }, frame_interval_ms: { p50: null, p95: null }, cpuframe_log_p50_ms: null,
+    cpu_ms: { p50: null, p95: null, p99: null, max: null, p50_ci95: null }, frame_interval_ms: { p50: null, p95: null }, cpuframe_log_p50_ms: null,
     console_errors: { count: 0, first: [] }, panics: 0, workload_ok: false, workload: null, device_pixel_ratio: null, visibility: null,
     canvas: null, throttle_applied: false, throttle_verified: isMac ? null : false, throttle_calibration: null, valid: false, invalid_reasons: [] };
   const errors = [];
@@ -639,7 +804,8 @@ async function runOne(browser, base, cfg, collect) {
       out.throttle_applied = true;
       out.throttle_rate = rate;
     }
-    await page.addInitScript({ content: `(${pageHook})(${makeTtiTracker});` });
+    out.load_start = machineLoad();
+    await page.addInitScript({ content: `(${pageHook})(${makeTtiTracker}, ${JSON.stringify(GL_COUNT)});` });
     log(`${cfg}: loading ${url}`);
     const deadline = Date.now() + TTI_TIMEOUT_S * 1000;
     await page.goto(url, { timeout: TTI_TIMEOUT_S * 1000 }).catch((e) => log(`${cfg}: goto: ${e.message.split('\n')[0]}`));
@@ -665,10 +831,14 @@ async function runOne(browser, base, cfg, collect) {
       log(`${cfg}: interactive at ${out.tti_ms} ms (bound ${out.tti_bound_ms} ms, FIRST_FRAME t=${out.first_frame_log_ms})`);
       if (BLANK_CANVAS) await page.evaluate(() => document.querySelectorAll('canvas').forEach((c) => { c.style.filter = 'brightness(0)'; }));
       if (isMac) await page.bringToFront();
-      await page.evaluate(pageWorkload, NO_CAST);
+      await page.evaluate(`(${pageWorkload})(${JSON.stringify(NO_CAST)}, ${stepTimedOut})`);
       const warm = isMac ? 5 : WARMUP_S, sample = isMac ? MAC_SAMPLE_S : SAMPLE_S;
       await sleep(warm * 1000);
-      const a = await page.evaluate(() => { window.__work.sampling = true; return performance.now(); });
+      const a = await page.evaluate(() => {
+        window.__work.sampling = true;
+        if (window.__perf.gl) { window.__perf.gl.counts = Object.create(null); window.__perf.gl.on = true; }
+        return performance.now();
+      });
       // The window is SAMPLE_S long, extended (up to MAX_SAMPLE_S) until it
       // holds MIN_FRAMES frames: a software GPU may draw under 2 frames a second.
       const tEnd = Date.now() + sample * 1000, tMax = Date.now() + Math.max(sample, MAX_SAMPLE_S) * 1000;
@@ -678,7 +848,14 @@ async function runOne(browser, base, cfg, collect) {
         const n = await page.evaluate((a) => window.__perf.ticks.filter((t) => t[0] >= a).length, a);
         if (n >= MIN_FRAMES || Date.now() >= tMax) break;
       }
-      const [b, ticks, work] = await page.evaluate(() => { window.__work.sampling = false; const b = performance.now(); return [b, window.__perf.take(0, b), window.__work]; });
+      const [b, ticks, work, gl] = await page.evaluate(() => {
+        window.__work.sampling = false;
+        const b = performance.now();
+        const g = window.__perf.gl;
+        if (g) g.on = false;
+        return [b, window.__perf.take(0, b), window.__work, g ? { ...g.counts } : null];
+      });
+      out.load_end = machineLoad();
       const win = ticks.filter((t) => t[0] >= a && t[0] <= b);
       const cpu = win.map((t) => t[2]);
       const iv = [];
@@ -686,7 +863,8 @@ async function runOne(browser, base, cfg, collect) {
       out.frames = win.length;
       out.sample_s = +((b - a) / 1000).toFixed(1);
       const ci = bootstrapCI(cpu, { seed: 1 });
-      out.cpu_ms = { p50: r2(pct(cpu, 0.5)), p95: r2(pct(cpu, 0.95)), max: r2(pct(cpu, 1)), p50_ci95: ci && ci.map(r2) };
+      out.cpu_ms = { p50: r2(pct(cpu, 0.5)), p95: r2(pct(cpu, 0.95)), p99: r2(pct(cpu, 0.99)), max: r2(pct(cpu, 1)), p50_ci95: ci && ci.map(r2) };
+      if (gl) out.gl_calls = glSummary(gl, win.length);
       out.frame_interval_ms = { p50: r2(pct(iv, 0.5)), p95: r2(pct(iv, 0.95)) };
       out.cpuframe_log_p50_ms = cpuframeLog;
       out.workload = { casts: work.casts, burning_max: work.burningMax, yaw_deg: r2(work.yaw), steps: work.steps, resets: work.resets };
@@ -727,6 +905,8 @@ async function runOne(browser, base, cfg, collect) {
   }
   await Promise.race([Promise.allSettled(bodies), sleep(30000)]);
   out.console_errors = { count: errors.length, first: errors.slice(0, 5) };
+  Object.assign(out, loadRecord(out.load_start, out.load_end));
+  delete out.load_start; delete out.load_end;
   out.invalid_reasons = invalidReasons(out, isMac, { dpr: MAC_DPR });
   out.valid = out.invalid_reasons.length === 0;
   log(`${cfg}: frames=${out.frames} cpu_p50=${out.cpu_ms.p50} ci95=${JSON.stringify(out.cpu_ms.p50_ci95)} interval_p50=${out.frame_interval_ms.p50} dpr=${out.device_pixel_ratio} ` +
@@ -755,7 +935,7 @@ function merge(reps) {
   const m = JSON.parse(JSON.stringify(reps[0]));
   const at = (o, p) => p.reduce((x, k) => (x == null ? x : x[k]), o);
   for (const p of [['tti_ms'], ['tti_bound_ms'], ['tti_raf_tick_ms'], ['first_frame_log_ms'], ['frames'], ['cpuframe_log_p50_ms'], ['fps_p50'], ['fps_p5']]) m[p[0]] = median(reps.map((r) => at(r, p)));
-  for (const k of ['p50', 'p95', 'max']) m.cpu_ms[k] = median(reps.map((r) => r.cpu_ms[k]));
+  for (const k of ['p50', 'p95', 'p99', 'max']) m.cpu_ms[k] = median(reps.map((r) => r.cpu_ms[k]));
   // The envelope of the per-repeat ranges (each repeat's p50 lies in its own).
   const cis = reps.map((r) => r.cpu_ms.p50_ci95).filter(Boolean);
   m.cpu_ms.p50_ci95 = cis.length === reps.length ? [Math.min(...cis.map((c) => c[0])), Math.max(...cis.map((c) => c[1]))] : null;
@@ -768,6 +948,8 @@ function merge(reps) {
   m.throttle_applied = reps.every((r) => r.throttle_applied);
   m.throttle_verified = reps.every((r) => r.throttle_verified);
   m.canvas = reps.find((r) => !r.canvas || r.canvas.blank)?.canvas ?? reps[0].canvas;
+  if (reps.every((r) => r.gl_calls)) m.gl_calls = { ...reps[0].gl_calls, per_frame: median(reps.map((r) => r.gl_calls.per_frame)), draws_per_frame: median(reps.map((r) => r.gl_calls.draws_per_frame)) };
+  m.load_gate = { ...reps[0].load_gate, ok: reps.every((r) => r.load_gate?.ok) };
   m.repeats = reps;
   return m;
 }
@@ -936,6 +1118,43 @@ async function runSelfTest() {
   });
   t('a non-PNG buffer throws', () => { let threw = false; try { decodePng(Buffer.from('nope')); } catch { threw = true; } ok(threw); });
 
+  // 10. I-015: frame-aware step timeouts, the load gate, p99 and re-runs.
+  t('a step does not time out after 6000 ms while fewer than 8 frames have passed', () => {
+    eq([stepTimedOut(6000, 7, 6000), stepTimedOut(30000, 0, 6000), stepTimedOut(6000, 8, 6000), stepTimedOut(5999, 100, 6000)], [false, false, true, false]);
+  });
+  t('load gate: 2.5 on 4 CPUs is busy, 1.0 is quiet, 2.0 is the edge, NaN is busy', () => {
+    eq([loadGate(2.5, 4), loadGate(1.0, 4), loadGate(2.0, 4), loadGate(NaN, 4), loadGate(null, 4)], [false, true, true, false, false]);
+  });
+  t('p99 of 1..100 is 99 (pct)', () => eq(pct(Array.from({ length: 100 }, (_, i) => i + 1), 0.99), 99));
+  t('re-run plan: environment reasons re-run at most twice, an incomplete workload never', () => {
+    const busy = { valid: false, workload_ok: true, invalid_reasons: ['machine busy: load1=3.1'] };
+    const thr = { valid: false, workload_ok: true, invalid_reasons: ['throttle not verified by calibration', 'machine busy: load1=2.4'] };
+    eq(rerunPlan(busy, 0), 'machine busy: load1=3.1');
+    eq(rerunPlan(thr, 1), 'throttle not verified by calibration; machine busy: load1=2.4');
+    eq(rerunPlan(busy, 2), null);
+    eq(rerunPlan({ ...busy, workload_ok: false, invalid_reasons: ['workload incomplete', 'machine busy: load1=3'] }, 0), null);
+    eq(rerunPlan({ ...busy, invalid_reasons: ['machine busy: load1=3', '1 console error(s)'] }, 0), null);
+    eq(rerunPlan({ valid: true, workload_ok: true, invalid_reasons: [] }, 0), null);
+  });
+  t('a busy load gate and the GL hook invalidate a cloud run; PERF_ALLOW_LOAD lets it count', () => {
+    const busyGate = { limit: 2, ok: false, allowed: false, load1_busy: 3.4 };
+    ok(invalidReasons({ ...goodCloud, load_gate: busyGate }, false, { dpr: 2 }).includes('machine busy: load1=3.4'));
+    eq(invalidReasons({ ...goodCloud, load_gate: { ...busyGate, allowed: true } }, false, { dpr: 2 }), []);
+    eq(invalidReasons({ ...goodCloud, load_gate: { limit: 2, ok: true } }, false, { dpr: 2 }), []);
+    eq(invalidReasons({ ...goodMac, load_gate: busyGate }, true, { dpr: 2 }), []);
+    ok(invalidReasons({ ...goodCloud, gl_calls: { per_frame: 2000 } }, false, { dpr: 2 }).some((x) => /GL call/.test(x)));
+  });
+  t('GL summary: per-frame totals, instanced draws and the top calls', () => {
+    const g = glSummary({ texParameteri: 400, drawElementsInstanced: 30, drawArraysInstanced: 10, bindTexture: 160 }, 10);
+    eq([g.per_frame, g.draws_per_frame, Object.keys(g.top)[0], g.top.texParameteri], [60, 4, 'texParameteri', 40]);
+  });
+  t('load record: the gate fails on the busy moment and names its load', () => {
+    const cpus = os.cpus().length, lim = cpus * 0.5;
+    const r = loadRecord({ load_avg: [1, 1, 1], own: 0, others: lim - 0.5, busy_procs: [] }, { load_avg: [9, 3, 1], own: 1, others: lim + 1, busy_procs: [{ name: 'rustc', cpu: 390 }] });
+    eq([r.load_gate.ok, r.load_gate.load1_busy, r.busy_procs.end[0].name], [false, lim + 1, 'rustc']);
+    eq(loadRecord({ load_avg: [0.2, 0, 0], own: 0, others: 0.2, busy_procs: [] }, null).load_gate.ok, true);
+  });
+
   // 2. The Mac recipe gives a real exit code.
   t('mac-perf.md lint passes', () => {
     const text = readFileSync(join(here, '../../docs/loop/mac-perf.md'), 'utf8');
@@ -981,11 +1200,26 @@ const runs = {};
 // Requests and served body lengths from every run (a file one run fetches
 // lazily still counts).
 const collect = { requested: new Set(), served: new Map(), refetched: new Set() };
+const reruns = [];
+startOwnLoad();
 for (const cfg of cfgs) {
   const reps = [];
-  for (let k = 0; k < (mac ? 1 : RUNS); k++) reps.push(await runOne(browser, base, cfg, collect));
+  for (let k = 0; k < (mac ? 1 : RUNS); k++) {
+    let run;
+    for (let attempt = 0; ; attempt++) {
+      const quiet = mac ? null : await waitForQuiet(cfg);
+      run = await runOne(browser, base, cfg, collect);
+      if (quiet) run.quiet_wait = quiet;
+      const why = mac ? null : rerunPlan(run, attempt, MAX_RERUNS);
+      if (!why) break;
+      reruns.push({ config: cfg, reason: why });
+      log(`${cfg}: re-run ${attempt + 1}/${MAX_RERUNS} (environment: ${why})`);
+    }
+    reps.push(run);
+  }
   runs[cfg] = merge(reps);
 }
+clearInterval(ownLoad.timer);
 Object.assign(size, sizeAccounting(size.files, collect.requested, collect.served));
 size.served_lengths = Object.fromEntries([...collect.served.entries()].sort());
 size.served_refetched = [...collect.refetched].sort();
@@ -1032,6 +1266,7 @@ const result = {
     renderer, gpu: /swiftshader|llvmpipe/i.test(renderer || '') ? 'software' : 'hardware',
     sample_s: mac ? MAC_SAMPLE_S : SAMPLE_S, warmup_s: mac ? 5 : WARMUP_S, runs: mac ? 1 : RUNS, only, no_cast: NO_CAST,
     min_frames: MIN_FRAMES, max_sample_s: MAX_SAMPLE_S, device_scale_factor: mac ? MAC_DPR : 1, skip_throttle: SKIP_THROTTLE, blank_canvas: BLANK_CANVAS,
+    gl_count: GL_COUNT, allow_load: ALLOW_LOAD,
   },
   size,
   runs,
@@ -1042,6 +1277,7 @@ const result = {
   valid: allValid,
   pass,
   elapsed_s: +((Date.now() - t0) / 1000).toFixed(1),
+  reruns,
 };
 await browser.close();
 if (server) server.close();
