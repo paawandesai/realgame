@@ -185,6 +185,37 @@ function makeTtiTracker() {
   return k;
 }
 
+// I-024 Part T. The `t` of the `STARTUP t=<ms>` line that `setup` logs once
+// the wasm is instantiated and the app is built; null when the text has none.
+// Anchored, so STARTUPX / XSTARTUP do not match. Self-contained: its source
+// is injected into the page.
+function startupLogMs(text) {
+  const m = /\bSTARTUP t=(\d+(?:\.\d+)?)ms\b/.exec(String(text));
+  return m ? +m[1] : null;
+}
+
+// I-024 Part T. Splits TTI into four phases (all on the navigation clock):
+// fetch (wasm responseEnd), compile_init (responseEnd to STARTUP: compile
+// left after the download, instantiate, plugin build), first_frame (STARTUP
+// to FIRST_FRAME: Startup systems, pipelines, shaders, the first 3 frames)
+// and to_interactive (FIRST_FRAME to TTI). A phase is null when either end
+// is. Caveat: with streaming instantiation compile overlaps the download, so
+// compile_init is overlap-biased low and fetch includes some compile; read
+// the two together. A negative phase is kept as is and named in `warn`.
+function ttiPhases(run) {
+  const v = (x) => (x === null || x === undefined || !Number.isFinite(x) ? null : x);
+  const d = (a, b) => (v(a) === null || v(b) === null ? null : r2(b - a));
+  const p = {
+    fetch_ms: v(run.wasm_response_end_ms),
+    compile_init_ms: d(run.wasm_response_end_ms, run.startup_log_ms),
+    first_frame_ms: d(run.startup_log_ms, run.first_frame_log_ms),
+    to_interactive_ms: d(run.first_frame_log_ms, run.tti_ms),
+  };
+  const neg = Object.keys(p).filter((k) => p[k] !== null && p[k] < 0);
+  if (neg.length) p.warn = `negative ${neg.join(', ')} (streaming compile overlaps the fetch; read fetch_ms and compile_init_ms together)`;
+  return p;
+}
+
 // Seeded bootstrap range of a percentile (default: 95% range of the median).
 function bootstrapCI(xs, { iters = 2000, seed = 1, p = 0.5, level = 0.95 } = {}) {
   if (!xs.length) return null;
@@ -424,9 +455,10 @@ async function serve(root) {
 // P.ttiRaf keeps the old stamp (start of the first tick that sees the state).
 // With glCount (PERF_GL_COUNT=1) every WebGL2RenderingContext method is
 // wrapped to count calls while P.gl.on (the sampling window).
-// Injected as `(pageHook)(makeTtiTracker, glCount)`.
-function pageHook(makeTti, glCount) {
-  const P = (window.__perf = { ticks: [], firstFrameLog: null, tti: null, ttiRaf: null, tt: makeTti(), cur: null, cpuframe: [], maxTicks: 200000 });
+// I-024: also catches the STARTUP line (startupLog, parsed by startupLogMs).
+// Injected as `(pageHook)(makeTtiTracker, glCount, startupLogMs)`.
+function pageHook(makeTti, glCount, parseStartup) {
+  const P = (window.__perf = { ticks: [], firstFrameLog: null, startupLog: null, tti: null, ttiRaf: null, tt: makeTti(), cur: null, cpuframe: [], maxTicks: 200000 });
   const now = () => performance.now();
   if (glCount && window.WebGL2RenderingContext) {
     const G = (P.gl = { on: false, counts: Object.create(null) });
@@ -489,6 +521,7 @@ function pageHook(makeTti, glCount) {
       const m = /FIRST_FRAME t=(\d+(?:\.\d+)?)ms/.exec(t);
       if (m) P.firstFrameLog = +m[1];
     }
+    if (P.startupLog === null) P.startupLog = parseStartup(t);
   };
   for (const k of ['log', 'info', 'debug', 'warn']) {
     const f = console[k].bind(console);
@@ -764,6 +797,7 @@ async function runOne(browser, base, cfg, collect) {
     canvas: null, throttle_applied: false, throttle_verified: isMac ? null : false, throttle_calibration: null, valid: false, invalid_reasons: [] };
   const errors = [];
   let cpuframeLog = null, statsP5 = null;
+  let phases = { boot_ms: null, wasm_response_end_ms: null, startup_log_ms: null };
   page.on('console', (m) => {
     const t = m.text().replace(/%c/g, '').replace(/ color: .*$/, '');
     if (m.type() === 'error') errors.push(t);
@@ -806,7 +840,7 @@ async function runOne(browser, base, cfg, collect) {
       out.throttle_rate = rate;
     }
     out.load_start = machineLoad();
-    await page.addInitScript({ content: `(${pageHook})(${makeTtiTracker}, ${JSON.stringify(GL_COUNT)});` });
+    await page.addInitScript({ content: `(${pageHook})(${makeTtiTracker}, ${JSON.stringify(GL_COUNT)}, ${startupLogMs});` });
     log(`${cfg}: loading ${url}`);
     const deadline = Date.now() + TTI_TIMEOUT_S * 1000;
     await page.goto(url, { timeout: TTI_TIMEOUT_S * 1000 }).catch((e) => log(`${cfg}: goto: ${e.message.split('\n')[0]}`));
@@ -820,8 +854,12 @@ async function runOne(browser, base, cfg, collect) {
       await sleep(200);
     }
     out.contexts = ctx;
-    const pf = await page.evaluate(() => ({ ff: window.__perf.firstFrameLog, bound: window.__perf.tt.bound, raf: window.__perf.ttiRaf, dpr: window.devicePixelRatio }))
-      .catch(() => ({}));
+    const pf = await page.evaluate(() => {
+      const w = performance.getEntriesByType('resource').find((e) => { try { return new URL(e.name).pathname.endsWith('_bg.wasm'); } catch { return false; } });
+      return { ff: window.__perf.firstFrameLog, bound: window.__perf.tt.bound, raf: window.__perf.ttiRaf, dpr: window.devicePixelRatio,
+        boot: typeof window.__bootStart === 'number' ? window.__bootStart : null, wasmEnd: w ? w.responseEnd : null, startup: window.__perf.startupLog };
+    }).catch(() => ({}));
+    phases = { boot_ms: r2(pf.boot ?? null), wasm_response_end_ms: r2(pf.wasmEnd ?? null), startup_log_ms: pf.startup ?? null };
     out.first_frame_log_ms = pf.ff ?? null;
     out.device_pixel_ratio = pf.dpr ?? null;
     if (tti === null) {
@@ -908,6 +946,9 @@ async function runOne(browser, base, cfg, collect) {
   out.console_errors = { count: errors.length, first: errors.slice(0, 5) };
   Object.assign(out, loadRecord(out.load_start, out.load_end));
   delete out.load_start; delete out.load_end;
+  // I-024 Part T: load phases (appended keys; existing keys keep their order).
+  Object.assign(out, phases);
+  out.tti_phases = ttiPhases(out);
   out.invalid_reasons = invalidReasons(out, isMac, { dpr: MAC_DPR });
   out.valid = out.invalid_reasons.length === 0;
   log(`${cfg}: frames=${out.frames} cpu_p50=${out.cpu_ms.p50} ci95=${JSON.stringify(out.cpu_ms.p50_ci95)} interval_p50=${out.frame_interval_ms.p50} dpr=${out.device_pixel_ratio} ` +
@@ -951,6 +992,10 @@ function merge(reps) {
   m.canvas = reps.find((r) => !r.canvas || r.canvas.blank)?.canvas ?? reps[0].canvas;
   if (reps.every((r) => r.gl_calls)) m.gl_calls = { ...reps[0].gl_calls, per_frame: median(reps.map((r) => r.gl_calls.per_frame)), draws_per_frame: median(reps.map((r) => r.gl_calls.draws_per_frame)) };
   m.load_gate = { ...reps[0].load_gate, ok: reps.every((r) => r.load_gate?.ok) };
+  for (const k of ['boot_ms', 'wasm_response_end_ms', 'startup_log_ms']) m[k] = median(reps.map((r) => r[k]));
+  m.tti_phases = {};
+  for (const k of ['fetch_ms', 'compile_init_ms', 'first_frame_ms', 'to_interactive_ms']) m.tti_phases[k] = median(reps.map((r) => r.tti_phases?.[k] ?? null));
+  if (reps.some((r) => r.tti_phases?.warn)) m.tti_phases.warn = reps.map((r) => r.tti_phases?.warn).filter(Boolean)[0];
   m.repeats = reps;
   return m;
 }
@@ -1157,6 +1202,34 @@ async function runSelfTest() {
     const r = loadRecord({ load_avg: [1, 1, 1], own: 0, others: lim - 0.5, busy_procs: [] }, { load_avg: [9, 3, 1], own: 1, others: lim + 1, busy_procs: [{ name: 'rustc', cpu: 390 }] });
     eq([r.load_gate.ok, r.load_gate.load1_busy, r.busy_procs.end[0].name], [false, lim + 1, 'rustc']);
     eq(loadRecord({ load_avg: [0.2, 0, 0], own: 0, others: 0.2, busy_procs: [] }, null).load_gate.ok, true);
+  });
+
+  // I-024 Part T: the TTI split.
+  t('ttiPhases splits TTI into fetch, compile/init, first frame and to-interactive', () => {
+    eq(ttiPhases({ wasm_response_end_ms: 900, startup_log_ms: 2400, first_frame_log_ms: 3100, tti_ms: 3300 }),
+      { fetch_ms: 900, compile_init_ms: 1500, first_frame_ms: 700, to_interactive_ms: 200 });
+  });
+  t('ttiPhases: a null end nulls only the phases that use it', () => {
+    eq(ttiPhases({ wasm_response_end_ms: null, startup_log_ms: 2400, first_frame_log_ms: 3100, tti_ms: 3300 }),
+      { fetch_ms: null, compile_init_ms: null, first_frame_ms: 700, to_interactive_ms: 200 });
+    eq(ttiPhases({ wasm_response_end_ms: 900, startup_log_ms: null, first_frame_log_ms: 3100, tti_ms: 3300 }),
+      { fetch_ms: 900, compile_init_ms: null, first_frame_ms: null, to_interactive_ms: 200 });
+    eq(ttiPhases({ wasm_response_end_ms: 900, startup_log_ms: 2400, first_frame_log_ms: 3100, tti_ms: null }),
+      { fetch_ms: 900, compile_init_ms: 1500, first_frame_ms: 700, to_interactive_ms: null });
+    eq(ttiPhases({}), { fetch_ms: null, compile_init_ms: null, first_frame_ms: null, to_interactive_ms: null });
+  });
+  t('ttiPhases keeps a negative phase and flags it in warn (never clamped)', () => {
+    const p = ttiPhases({ wasm_response_end_ms: 2500, startup_log_ms: 2400, first_frame_log_ms: 3100, tti_ms: 3300 });
+    eq(p.compile_init_ms, -100);
+    eq(p.fetch_ms, 2500);
+    ok(typeof p.warn === 'string' && /compile_init_ms/.test(p.warn), JSON.stringify(p));
+  });
+  t('STARTUP console line: anchored parse', () => {
+    eq(startupLogMs('STARTUP t=2412ms'), 2412);
+    eq(startupLogMs('INFO realgame_bevy_client: STARTUP t=2412ms'), 2412);
+    eq(startupLogMs('STARTUPX t=1ms'), null);
+    eq(startupLogMs('XSTARTUP t=1ms'), null);
+    eq(startupLogMs('STARTUP t=abc'), null);
   });
 
   // 2. The Mac recipe gives a real exit code.
