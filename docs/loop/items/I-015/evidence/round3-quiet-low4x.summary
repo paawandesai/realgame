@@ -1,0 +1,6 @@
+quiet base-r1 low@4x p50 40.4 ci [35.3, 47] tti 8716.3 valid True others_load {'start': 1, 'end': 0.94}
+quiet base-r2 low@4x p50 43.3 ci [39.4, 48.7] tti 7948.6 valid True others_load {'start': 1.7, 'end': 1.44}
+quiet base-r3 low@4x p50 48.2 ci [41.8, 55.6] tti 8993.3 valid True others_load {'start': 1.59, 'end': 1.69}
+quiet cand-r1 low@4x p50 30.8 ci [26.8, 36.7] tti 11096.7 valid True others_load {'start': 1.34, 'end': 1.17}
+quiet cand-r2 low@4x p50 34.5 ci [30, 38.3] tti 10300 valid True others_load {'start': 1.36, 'end': 1.08}
+quiet cand-r3 low@4x p50 39.3 ci [33.7, 40.6] tti 9889 valid True others_load {'start': 1.38, 'end': 1.43}
