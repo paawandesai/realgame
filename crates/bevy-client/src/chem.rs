@@ -684,6 +684,85 @@ impl World {
     }
 }
 
+/// Geometry of the lab-bench electrolysis prop (a Hoffman voltameter).
+///
+/// 2H2O(l) -> 2H2(g) + O2(g): at the same temperature and pressure the
+/// hydrogen fills exactly twice the volume of the oxygen (Avogadro). Both
+/// tubes have the same diameter, so the gas column heights are 2:1. This is
+/// the only source of the prop's tube and column sizes; `world.rs` draws what
+/// [`tubes`] returns. Units are metres. Diameters are the cylinder mesh's
+/// `scale.x` (the mesh is radius 0.5, height 1.0).
+pub mod electrolysis {
+    /// Centre height of each glass tube.
+    pub const TUBE_Y: f32 = 1.6;
+    /// Height of each glass tube.
+    pub const TUBE_H: f32 = 1.1;
+    /// Outer diameter of each glass tube.
+    pub const TUBE_D: f32 = 0.25;
+    /// Gap between the glass ends and the water / gas inside.
+    pub const INSET: f32 = 0.025;
+    /// Diameter of the water and gas columns (inside the glass).
+    pub const FILL_D: f32 = 0.2;
+    /// Distance of each tube from the battery along z.
+    pub const TUBE_DZ: f32 = 0.9;
+    /// The cathode tube collects hydrogen.
+    pub const CATHODE_DZ: f32 = -TUBE_DZ;
+    /// The anode tube collects oxygen.
+    pub const ANODE_DZ: f32 = TUBE_DZ;
+    /// Height of the oxygen column.
+    pub const GAS_O2: f32 = 0.3;
+    /// Height of the hydrogen column: exactly twice the oxygen.
+    pub const GAS_H2: f32 = 2.0 * GAS_O2;
+
+    /// One cylinder: centre y, height and diameter.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct Piece {
+        pub y: f32,
+        pub h: f32,
+        pub d: f32,
+    }
+
+    /// One tube: its z offset from the battery and its three pieces.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct Tube {
+        pub dz: f32,
+        pub glass: Piece,
+        pub water: Piece,
+        pub gas: Piece,
+    }
+
+    /// A tube at `dz` with a gas column `gas` metres tall collected at the
+    /// top, over water filling the rest.
+    pub fn tube(dz: f32, gas: f32) -> Tube {
+        let inner_bot = TUBE_Y - TUBE_H / 2.0 + INSET;
+        let inner_top = TUBE_Y + TUBE_H / 2.0 - INSET;
+        let gas_bot = inner_top - gas;
+        Tube {
+            dz,
+            glass: Piece {
+                y: TUBE_Y,
+                h: TUBE_H,
+                d: TUBE_D,
+            },
+            water: Piece {
+                y: (inner_bot + gas_bot) / 2.0,
+                h: gas_bot - inner_bot,
+                d: FILL_D,
+            },
+            gas: Piece {
+                y: (gas_bot + inner_top) / 2.0,
+                h: gas,
+                d: FILL_D,
+            },
+        }
+    }
+
+    /// The hydrogen (cathode) tube, then the oxygen (anode) tube.
+    pub fn tubes() -> [Tube; 2] {
+        [tube(CATHODE_DZ, GAS_H2), tube(ANODE_DZ, GAS_O2)]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1029,5 +1108,48 @@ mod tests {
         for k in [EventKind::Ignited, EventKind::Froze, EventKind::Chilled] {
             assert_eq!(hit_kind(&ev(&[k])), HitKind::Hit, "{k:?}");
         }
+    }
+
+    #[test]
+    fn electrolysis_gas_is_two_to_one() {
+        use electrolysis::tubes;
+        let [h2, o2] = tubes();
+        assert!((h2.gas.h / o2.gas.h - 2.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn electrolysis_columns_fit_tube() {
+        use electrolysis::{tubes, INSET};
+        for t in tubes() {
+            assert!(t.water.h > 0.05 && t.gas.h > 0.05);
+            let glass_bot = t.glass.y - t.glass.h / 2.0;
+            let glass_top = t.glass.y + t.glass.h / 2.0;
+            let water_bot = t.water.y - t.water.h / 2.0;
+            let water_top = t.water.y + t.water.h / 2.0;
+            let gas_bot = t.gas.y - t.gas.h / 2.0;
+            let gas_top = t.gas.y + t.gas.h / 2.0;
+            assert!(water_bot >= glass_bot - 1e-5, "water below glass");
+            assert!(gas_top <= glass_top + 1e-5, "gas above glass");
+            assert!((water_top - gas_bot).abs() < 1e-5, "gap or overlap");
+            assert!((t.water.h + t.gas.h - (t.glass.h - 2.0 * INSET)).abs() < 1e-5);
+            assert!(t.water.d < t.glass.d && t.gas.d < t.glass.d);
+        }
+    }
+
+    #[test]
+    fn electrolysis_h2_at_cathode() {
+        use electrolysis::tubes;
+        let [h2, o2] = tubes();
+        assert!(h2.dz < 0.0);
+        assert!(o2.dz > 0.0);
+        assert_eq!(h2.dz, -o2.dz);
+        assert!(h2.gas.h > o2.gas.h);
+    }
+
+    #[test]
+    fn electrolysis_difference_readable() {
+        use electrolysis::tubes;
+        let [h2, o2] = tubes();
+        assert!(h2.gas.h - o2.gas.h >= 0.2);
     }
 }

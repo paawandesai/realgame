@@ -502,6 +502,14 @@ pub fn build(
         reflectance: 0.8,
         ..default()
     });
+    // Collected gas in the electrolysis tubes: a warm pale yellow so it reads
+    // apart from the blue water and the pale lavender alcove wall.
+    let gas = materials.add(StandardMaterial {
+        base_color: Color::srgba(1.0, 0.85, 0.35, 0.6),
+        alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 0.4,
+        ..default()
+    });
 
     let mut b = Builder {
         commands,
@@ -1072,32 +1080,34 @@ pub fn build(
                 Transform::from_xyz(x + dx, 0.45, z + dz).with_scale(Vec3::new(0.12, 0.9, 0.12)),
             );
         }
-        // Electrolysis: two tubes (H2 twice the O2) over a battery.
+        // Electrolysis (Hoffman voltameter): 2H2O -> 2H2 + O2, so the H2 gas
+        // column (cathode side) is exactly twice the O2 column (anode side).
+        // Geometry and the 2:1 test live in chem::electrolysis.
         b.piece(
             &cube,
             &metal,
             Transform::from_xyz(x, 1.15, z).with_scale(Vec3::new(0.6, 0.3, 0.5)),
         );
-        b.piece(
-            &cyl,
-            &glass,
-            Transform::from_xyz(x, 1.6, z - 0.9).with_scale(Vec3::new(0.25, 1.1, 0.25)),
-        );
-        b.piece(
-            &cyl,
-            &glass,
-            Transform::from_xyz(x, 1.6, z + 0.9).with_scale(Vec3::new(0.25, 1.1, 0.25)),
-        );
-        b.piece(
-            &cyl,
-            &liquid[1],
-            Transform::from_xyz(x, 1.35, z - 0.9).with_scale(Vec3::new(0.2, 0.55, 0.2)),
-        );
-        b.piece(
-            &cyl,
-            &liquid[1],
-            Transform::from_xyz(x, 1.25, z + 0.9).with_scale(Vec3::new(0.2, 0.35, 0.2)),
-        );
+        for t in chem::electrolysis::tubes() {
+            b.piece(
+                &cyl,
+                &glass,
+                Transform::from_xyz(x, t.glass.y, z + t.dz)
+                    .with_scale(Vec3::new(t.glass.d, t.glass.h, t.glass.d)),
+            );
+            b.piece(
+                &cyl,
+                &liquid[1],
+                Transform::from_xyz(x, t.water.y, z + t.dz)
+                    .with_scale(Vec3::new(t.water.d, t.water.h, t.water.d)),
+            );
+            b.piece(
+                &cyl,
+                &gas,
+                Transform::from_xyz(x, t.gas.y, z + t.dz)
+                    .with_scale(Vec3::new(t.gas.d, t.gas.h, t.gas.d)),
+            );
+        }
         b.piece(
             &ball,
             &liquid[0],
