@@ -1526,8 +1526,8 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
       await cmd('look 0 60');
       await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
       await startRec();
-      await page.mouse.down();
       const g0 = (await st()).gameTime;
+      await page.mouse.down();
       const t0 = Date.now();
       let z = await st();
       while (z.gameTime < g0 + 0.35 && Date.now() - t0 < 15000) { await sleep(20); z = await st(); }
@@ -1548,8 +1548,8 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     await cmd('look 0 60');
     await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
     await startRec();
-    await page.mouse.down();
     const g0 = (await st()).gameTime;
+    await page.mouse.down();
     const t0 = Date.now();
     let z = await st();
     while (z.gameTime < g0 + 1.6 && Date.now() - t0 < 30000) { await sleep(50); z = await st(); }

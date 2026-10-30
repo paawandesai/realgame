@@ -124,6 +124,12 @@ const COOLDOWN: f32 = 0.3;
 const STREAM_AFTER: f32 = 0.2;
 /// ...and is drawn in at least this many frames, so it is seen at 4 fps too.
 const STREAM_MIN_FRAMES: u32 = 3;
+/// Linear gain on each stream core (Fire, Water, Frost, CO2; I-025). The
+/// camera's tonemapping shows an unlit 0.95 white as about 0.69 grey, the
+/// same luminance as the sky, so the white Frost and CO2 cores are lifted
+/// until they show at about their `cues::stream_style` colour (measured
+/// 0.89-0.97 on screen at gains 4-10). Water needs none.
+const STREAM_CORE_GAIN: [f32; 4] = [1.0, 1.0, 6.0, 10.0];
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Aim {
@@ -544,15 +550,19 @@ fn setup(
         })
     });
     // Stream looks (I-025, `cues::stream_style`): opaque, unlit cores with no
-    // glow (no bloom haze), and unlit outline shells drawn from the inside
-    // (front faces culled), so they read as a dark rim (an inverted hull).
+    // emissive glow, and unlit outline shells drawn from the inside (front
+    // faces culled), so they read as a dark rim (an inverted hull). White
+    // cores are scaled by `STREAM_CORE_GAIN` so they still show white after
+    // tonemapping.
     let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let stream: [Handle<StandardMaterial>; 4] = std::array::from_fn(|i| {
         if i == 0 {
             return glow[0].clone();
         }
         materials.add(StandardMaterial {
-            base_color: srgb(cues::stream_style(i as u8).core),
+            base_color: Color::from(
+                LinearRgba::from(srgb(cues::stream_style(i as u8).core)) * STREAM_CORE_GAIN[i],
+            ),
             unlit: true,
             ..default()
         })
