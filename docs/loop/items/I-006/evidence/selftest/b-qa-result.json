@@ -2,7 +2,7 @@
   "schema": "panel-result/1",
   "persona": "qa",
   "model": "selftest-robot",
-  "artifact_sha": "877131f",
+  "artifact_sha": "66da500",
   "query": "?low",
   "throttle": 4,
   "measured": {

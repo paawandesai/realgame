@@ -118,8 +118,22 @@ const answer = { model: 'selftest-robot', clarity: 5, fun: 5, blockers: [], woul
 
   // Face a burning bush (debug), select Water, cast at the centre.
   o = cli(['observe', '--run', A, '--truth']).j;
-  const lit = o.truth.objs.find((x) => x.n === 'bush' && x.burning);
-  r = cli(['debug', '--run', A, 'face', String(lit?.i ?? 0)]);
+  // Restart with R (real input) so the courtyard is fresh: on a slow software
+  // GPU the steps above can take long enough for the fire to win.
+  for (let k = 0; k < 4; k++) {
+    cli(['act', '--run', A, 'key', 'r', '300']);
+    o = cli(['observe', '--run', A, '--truth']).j;
+    if (o.truth.outcome === 'playing' && o.truth.burning === 3) break;
+  }
+  check('R restarts the courtyard', o.truth.outcome === 'playing' && o.truth.burning === 3, `outcome=${o.truth.outcome} burning=${o.truth.burning}`);
+  // Face each burning bush (debug) until one is under the crosshair: from
+  // some spots another object (the fountain) sits in front of a bush.
+  let lit = null;
+  for (const b of o.truth.objs.filter((x) => x.n === 'bush' && x.burning)) {
+    r = cli(['debug', '--run', A, 'face', String(b.i)]);
+    lit = b;
+    if (r.j?.truth?.aimObj === b.i) break;
+  }
   cli(['act', '--run', A, 'key', 'Digit2']);
   o = cli(['observe', '--run', A, '--truth']).j;
   const c1 = o.truth.casts;

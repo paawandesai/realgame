@@ -7,7 +7,7 @@
 //                   --vw <w> --vh <h> [--base-url <url>] [--root <dir>]
 //                   [--artifact <sha>] [--freeze 1|0]
 import { createServer } from 'node:http';
-import { readFile, writeFile, appendFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, appendFile, mkdir, rm, rename } from 'node:fs/promises';
 import { extname, join, normalize, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -274,7 +274,7 @@ const handlers = {
     if (action === 'face') {
       const i = num(args[0], 'object', 0, 999);
       await page.evaluate((c) => window.__game.cmd(c), `face ${i}`);
-      await until((x) => x.aimObj === i || x.hover === i, 8000);
+      await until((x) => x.aimObj === i || x.hover === i, 30000);
     } else if (action === 'console-error') {
       await page.evaluate((m) => console.error(m), args[0] || 'x');
       await sleep(200);
@@ -389,11 +389,14 @@ process.on('SIGINT', shutdown);
   await record({ turn: 0, cmd: 'start', persona: PERSONA, throttle: THROTTLE, query: QUERY, artifact_sha: ARTIFACT, freeze: FREEZE, truth: t });
   await freeze();
   const session = { pid: process.pid, port, persona: PERSONA, throttle: THROTTLE, cdp_throttle_rate: cdpThrottle, query: QUERY, artifact_sha: ARTIFACT, freeze: FREEZE, vw: VW, vh: VH, base_url: base, started_at: new Date().toISOString() };
-  await writeFile(join(RUN, 'session.json'), JSON.stringify(session, null, 2));
+  // Write then rename, so `start` (polling for the file) never reads half of it.
+  await writeFile(join(RUN, 'session.json.tmp'), JSON.stringify(session, null, 2));
+  await rename(join(RUN, 'session.json.tmp'), join(RUN, 'session.json'));
   await log(`ready port=${port}`);
   setInterval(() => { if (Date.now() - lastActivity > IDLE_EXIT_MS) { log('idle exit'); shutdown(); } }, 60000).unref();
 })().catch(async (e) => {
-  await writeFile(join(RUN, 'start-error.json'), JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+  await writeFile(join(RUN, 'start-error.json.tmp'), JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+  await rename(join(RUN, 'start-error.json.tmp'), join(RUN, 'start-error.json'));
   await log('start failed', e && e.stack);
   try { await browser?.close(); } catch { /* ignore */ }
   process.exit(1);
