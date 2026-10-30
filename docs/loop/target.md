@@ -2,11 +2,20 @@
 
 **Done when:** every bar in bars.md passes for 3 consecutive nightly scorings. At that point all Paawan has to do is run `npm run deploy`, send the link to teachers, and read player counts and age bands on the dashboard.
 
-## Hard rule (Paawan, 2026-10-29)
-The game is a **first-person 3D game**, played like a shooter:
+## Hard rule (Paawan, 2026-10-29; reworded 2026-10-30)
+The game is a **first-person 3D game**. You move and look like a shooter, but the core is crafting and mastering real-chemistry spells; casting at a target is one way to use them, not the game.
 - WASD to move, mouse to look, a crosshair, and click to cast from the player's gauntlet.
 - It is not a 2D game drawn in 3D, and it has no 3/4 or top-down camera. Any spec that drifts from this is `wrong-thing`.
 - The 2D game (web/) is retired. It stays live only until the 3D slice passes its first playtest.
+
+## Core loop (Paawan, 2026-10-30; roadmap doc https://claude.ai/artifact/7kDsNoHNmPDVauroqLczSJ)
+- Every spell moves Unknown -> Learning -> Practised -> Mastered. You learn it by building its formula at the Formula Bench, at your age band's level (Sprout 4-7 picture cards, Seedling 8-10 atom tiles, Apprentice 11-15 typed formulas, Adept 16+ equations with conditions).
+- Before mastery every cast is a **worked cast** (rebuild the formula in a quick overlay, about 3-10 s). Worked casts earn XP even before mastery.
+- Mastery = 3 unaided correct builds spread over 2 days + 1 "predict what happens" question in a new situation. Then the spell is an **instant cast** from the hotbar and becomes moddable. Mastery never fades; an optional keep-it-sharp check only adds a bonus.
+- Crafting: free for Apprentice and Adept (the engine shows what really happens, including nothing); guided recipes for Sprout and Seedling. A spell = a real reaction + settings (amount, form, temperature, trigger); energy is the mana. Wrong or unbalanced formulas fizzle with a kind reason.
+- Levels form a chain, mapped to NGSS bands: Greenhouse, Frozen Gate, Crystal Lab, Marsh, Old Forge. Each needs the right chemistry, not good aim, and at least one non-shooting use (freeze a bridge, lift with a balloon).
+- Later order (Paawan): puzzles and rescues for the beta, then creatures in the beta, then other players in the same world (co-op MMO).
+- Saves: browser-only for the beta, then sign-in open to any user (not class codes), then a push into schools.
 
 ## Buyer and job
 - **Who chooses it:** school teachers (Paawan's contacts, mixed grades and subjects), for students aged about 4 to 18.
