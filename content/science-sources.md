@@ -48,6 +48,7 @@ The single register of every science claim the first-person 3D client shows the 
 | C-030 | `Heat spread from bush to bush. Press R to try again.` | crates/bevy-client/web/hud.js | correct | | [S6] |
 | C-031 | `cools below ignition` | crates/bevy-client/web/index.html | correct | | [S9] |
 | C-032 | `CO₂ displaces O₂` | crates/bevy-client/web/index.html | correct | | [S14] [S5] [S8] |
+| C-033 | `The greenhouse is heating up: ${state.ghTemp} °C. Wood can catch fire at about 300 °C!` | crates/bevy-client/web/hud.js | simplified | Piloted ignition of wood (a flame or spark present) that goes straight to flaming normally happens at surface temperatures of about 300 to 365 °C, and as low as about 250 °C under long, low heat flux (glowing first); autoignition with no pilot needs higher temperatures. "About 300 °C" is the typical piloted value, which is what the greenhouse frame models (P-004). The shown temperature is the game's one-number model of the frame's surface. | [S6] |
 
 ## Parameters
 
@@ -63,8 +64,8 @@ The single register of every science claim the first-person 3D client shows the 
 | P-008 | `apply(Water) clamps temp` | 100 | °C | crates/bevy-client/src/chem.rs | simplified | Not shown as text. A wet object is held at 100 °C while its water boils off, because a substance changing state stays at constant temperature; the game reaches that temperature instantly. | [S2] [S10] |
 | P-009 | `apply(Frost) sets temp` | −196 | °C | crates/bevy-client/src/chem.rs | simplified | Not shown as text. The target is set to the boiling point of liquid nitrogen instantly; real cooling is limited by heat transfer. Not a B6 error unless a caption states it. | [S1] |
 | P-010 | `apply(Fire) heating step` | 600 | °C | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: how much one Fire cast heats a dry object. (The code comment "A flame is about 900 °C at its tip" is not shown to the player; flame tips are nearer 300 to 600 °C per [S15].) | [S0] |
-| P-011 | `COOLING` | 0.05 | 1/s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
-| P-012 | `SPREAD_HEAT` | 30 | °C/s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
+| P-011 | `COOLING` | 0.02 | 1/s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
+| P-012 | `SPREAD_HEAT` | 12 | °C/s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
 | P-013 | `SMOTHER_S` | 25 | s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
 | P-014 | `NEIGHBOUR_GAP` | 2.5 | m | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
 | P-015 | `electrolysis prop H2:O2 tube volume ratio` | 2 | ratio | crates/bevy-client/src/world.rs | correct | Shown visually (the H2 tube holds twice the O2). 2H2O(l) → 2H2(g) + O2(g) gives 2 mol H2 per mol O2, and by Avogadro's law equal moles of gas fill equal volumes at the same T and p. | [S13] [S12] |
@@ -74,6 +75,7 @@ The single register of every science claim the first-person 3D client shows the 
 | text | where | reason |
 |---|---|---|
 | `Fires put out: ${Math.min(state.extinguished, state.goal)} / ${state.goal} · burning now: ${state.burning}` | crates/bevy-client/web/hud.js | Status counter (fires put out, fires burning). Flagged only by the keyword `burn`; it states no science. |
+| `The greenhouse is heating up!` | crates/bevy-client/web/index.html | Placeholder of the warning banner, replaced by C-033 before it is shown. A narrative warning with no number or mechanism. |
 
 ## Sources
 

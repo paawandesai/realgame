@@ -166,7 +166,7 @@ export function startHud() {
       const danger = state.outcome === 'playing' && (state.ghDanger || state.ghTemp > 60);
       warn.classList.toggle('hidden', !danger);
       if (danger) {
-        warn.querySelector('.text').textContent = `The greenhouse is heating up: ${state.ghTemp} °C. Wood catches fire at 300 °C!`;
+        warn.querySelector('.text').textContent = `The greenhouse is heating up: ${state.ghTemp} °C. Wood can catch fire at about 300 °C!`;
         warn.querySelector('.fill').style.width = `${Math.min(100, Math.max(0, (state.ghTemp - 20) / 2.8)).toFixed(0)}%`;
       }
       const banner = $('banner');
