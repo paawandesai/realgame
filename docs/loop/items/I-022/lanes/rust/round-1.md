@@ -22,7 +22,7 @@ Commits: eb848f0 (tests 1-3, failing), b9074c8 (`tap_cone`, `vfov_for`, `Setting
 | 4:3 (960x720) | 58.72 | 73.74 | 73.74 | 90.00 | 73.74 |
 | 16:9 (1280x720) | 58.72 | 90.00 | 58.72 | 90.00 | 58.72 |
 | 21:9 (1680x720) | 58.72 | 105.39 | 46.40 | 90.00 | 46.40 |
-| 4:3 at View width 100 | 67.40 | 83.58 | 83.58 | 100.00 | 83.58 |
+| 4:3 at View width 100 | 67.67 | 83.58 | 83.58 | 100.00 | 83.58 |
 
 Correction to the spec's "Facts": at 21:9 the old horizontal angle is 105.4 deg, not "about 113". It is still above GS-1's "about 100 deg" ceiling, so the case and the fix stand.
 
