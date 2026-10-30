@@ -55,6 +55,15 @@ bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
 # Size-optimised. opt-level 3 cut the CPU frame median at low@4x by about
 # 20% but grew brotli from 3.56 to 4.60 MB and TTI by about 1.4 s (see
 # docs/loop/items/I-015/); that trade is item I-024.
+# I-024 (docs/loop/items/I-024/lanes/build/round-1.md) measured per-crate
+# overrides in paired rounds against this profile and kept none:
+#   P1, our crate at 3 and deps at z: CPU 0.960 x base at low@4x (30.9 vs
+#     32.2 ms), brotli +0.06 MB; misses the 0.92 bar. A breaker rerun gave
+#     0.997 (28.7 vs 28.8 ms), so the gain is inside the noise, not reproduced.
+#   P2, P1 plus ten hot bevy/wgpu/glam crates at 3: CPU 0.909 x (29.0 vs
+#     31.9 ms) but only 3/5 paired wins and brotli +0.83 MB (3.56 -> 4.39).
+#     Base vs base spread was 1.055 at 5 pairs, so P2 is plausible but
+#     unproven; a follow-up needs more rounds.
 [profile.release]
 opt-level = "z"
 lto = "fat"

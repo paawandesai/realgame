@@ -1,0 +1,218 @@
+{
+  "base": "/tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/I-024/base-pkg-out",
+  "cand": "/tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/I-024/P1-pkg-out",
+  "rounds": 5,
+  "configs": [
+    "low@4x"
+  ],
+  "runs": [
+    {
+      "config": "low@4x",
+      "round": 1,
+      "side": "base",
+      "cpu_p50_ms": 29.9,
+      "p99_ms": 49.6,
+      "tti_ms": 5865.6,
+      "tti_phases": {
+        "fetch_ms": 474.4,
+        "compile_init_ms": 1588.6,
+        "first_frame_ms": 3724,
+        "to_interactive_ms": 78.6
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 1,
+      "side": "cand",
+      "cpu_p50_ms": 30.8,
+      "p99_ms": 65.1,
+      "tti_ms": 5720.2,
+      "tti_phases": {
+        "fetch_ms": 449.5,
+        "compile_init_ms": 1667.5,
+        "first_frame_ms": 3501,
+        "to_interactive_ms": 102.2
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 2,
+      "side": "cand",
+      "cpu_p50_ms": 28.7,
+      "p99_ms": 47,
+      "tti_ms": 5641.6,
+      "tti_phases": {
+        "fetch_ms": 414.1,
+        "compile_init_ms": 1723.9,
+        "first_frame_ms": 3432,
+        "to_interactive_ms": 71.6
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 2,
+      "side": "base",
+      "cpu_p50_ms": 29,
+      "p99_ms": 44.5,
+      "tti_ms": 5260,
+      "tti_phases": {
+        "fetch_ms": 401.5,
+        "compile_init_ms": 1520.5,
+        "first_frame_ms": 3256,
+        "to_interactive_ms": 82
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 3,
+      "side": "base",
+      "cpu_p50_ms": 28.8,
+      "p99_ms": 48.4,
+      "tti_ms": 5233.9,
+      "tti_phases": {
+        "fetch_ms": 436.3,
+        "compile_init_ms": 1431.7,
+        "first_frame_ms": 3304,
+        "to_interactive_ms": 61.9
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 3,
+      "side": "cand",
+      "cpu_p50_ms": 28.1,
+      "p99_ms": 79.3,
+      "tti_ms": 5064.6,
+      "tti_phases": {
+        "fetch_ms": 447.6,
+        "compile_init_ms": 1567.4,
+        "first_frame_ms": 2980,
+        "to_interactive_ms": 69.6
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 4,
+      "side": "cand",
+      "cpu_p50_ms": 28.1,
+      "p99_ms": 95.9,
+      "tti_ms": 5406.1,
+      "tti_phases": {
+        "fetch_ms": 530.3,
+        "compile_init_ms": 1479.7,
+        "first_frame_ms": 3323,
+        "to_interactive_ms": 73.1
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 4,
+      "side": "base",
+      "cpu_p50_ms": 28.4,
+      "p99_ms": 52.5,
+      "tti_ms": 5686.3,
+      "tti_phases": {
+        "fetch_ms": 434.1,
+        "compile_init_ms": 1636.9,
+        "first_frame_ms": 3542,
+        "to_interactive_ms": 73.3
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 5,
+      "side": "base",
+      "cpu_p50_ms": 27.8,
+      "p99_ms": 54.6,
+      "tti_ms": 5391.7,
+      "tti_phases": {
+        "fetch_ms": 439.2,
+        "compile_init_ms": 1616.8,
+        "first_frame_ms": 3265,
+        "to_interactive_ms": 70.7
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 5,
+      "side": "cand",
+      "cpu_p50_ms": 29.2,
+      "p99_ms": 54.1,
+      "tti_ms": 5575.9,
+      "tti_phases": {
+        "fetch_ms": 406.1,
+        "compile_init_ms": 1623.9,
+        "first_frame_ms": 3478,
+        "to_interactive_ms": 67.9
+      },
+      "valid": true,
+      "rerun": false
+    }
+  ],
+  "medians": {
+    "base": {
+      "low@4x": {
+        "cpu_p50_ms": 28.8,
+        "tti_ms": 5391.7,
+        "p99_ms": 49.6,
+        "tti_phases": {
+          "fetch_ms": 436.3,
+          "compile_init_ms": 1588.6,
+          "first_frame_ms": 3304,
+          "to_interactive_ms": 73.3
+        }
+      }
+    },
+    "cand": {
+      "low@4x": {
+        "cpu_p50_ms": 28.7,
+        "tti_ms": 5575.9,
+        "p99_ms": 65.1,
+        "tti_phases": {
+          "fetch_ms": 447.6,
+          "compile_init_ms": 1623.9,
+          "first_frame_ms": 3432,
+          "to_interactive_ms": 71.6
+        }
+      }
+    }
+  },
+  "paired_tti_diff_ms": {
+    "low@4x": -145.4
+  },
+  "tti_spread_ms": {
+    "low@4x": 661.8
+  },
+  "low_tti_limit_ms": 500,
+  "brotli_mb": {
+    "base": 3.563,
+    "cand": 3.621
+  },
+  "wins": {
+    "low@4x": 3
+  },
+  "keep": false,
+  "reasons": [
+    "cpu 0.997 > 0.92",
+    "wins 3/5",
+    "p99 1.31 > 1.10"
+  ]
+}

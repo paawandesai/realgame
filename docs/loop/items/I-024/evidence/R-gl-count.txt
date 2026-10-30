@@ -1,0 +1,8 @@
+# test 8: PERF_GL_COUNT=1 ONLY=low@1x RUNS=1 perf.mjs, base = c4832d2 (code-identical to a0e2ecb), R = de4648f; same box, serial under the Chromium lock
+run side frames gl_per_frame draws_per_frame texParameteri bindSampler bindTexture
+1 base 43 2109.21 45.51 501.07 267.28 251.58
+1 R 55 1879.96 43.05 387.16 210.16 194.62
+2 base 56 2107.61 45.68 504.14 268.64 253.11
+2 R 54 1903.81 43.83 399.3 216.11 200.69
+3 base 57 2093.26 45.39 499.54 266.33 250.81
+3 R 56 1869.13 42.88 387.04 209.96 194.55

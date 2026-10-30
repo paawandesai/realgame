@@ -1,0 +1,19 @@
+# test 5, P2 clean build (CARGO_TERM_VERBOSE=true build-web.sh), rc=0 secs=584; first attempt died with ENOSPC (disk full, shared box) and was re-run clean
+# all ten P2 names are present once in crates/bevy-client/Cargo.lock: bevy_ecs bevy_render bevy_pbr bevy_core_pipeline bevy_transform bevy_mesh glam wgpu wgpu-core wgpu-hal
+bevy_client: -C opt-level=3 
+bevy_reflect: -C opt-level=z 
+bevy_ecs: -C opt-level=3 
+bevy_render: -C opt-level=3 
+bevy_pbr: -C opt-level=3 
+bevy_core_pipeline: -C opt-level=3 
+bevy_transform: -C opt-level=3 
+bevy_mesh: -C opt-level=3 
+glam: -C opt-level=3 
+wgpu: -C opt-level=3 
+wgpu_core: -C opt-level=3 
+wgpu_hal: -C opt-level=3 
+naga: -C opt-level=z 
+unused manifest key warnings: 0
+rustc lines at opt-level=3: 14; at opt-level=z: 276
+wasm raw bytes: P2 27191626, base 17679322
+wasm gzip -9 bytes: P2 7047484, base 5043310

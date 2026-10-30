@@ -1,0 +1,20 @@
+{
+  "tier": "default",
+  "mean_abs_diff": {
+    "spawn": 0.0721,
+    "greenhouse": 0.0223,
+    "lab-bench": 0.0141,
+    "hedge-row": 0.0097,
+    "courtyard-corner": 0.0533
+  },
+  "max": 0.0721,
+  "low_shared_mat": {
+    "a": [],
+    "b": []
+  },
+  "errors": {
+    "a": [],
+    "b": []
+  },
+  "roundtrip": null
+}
