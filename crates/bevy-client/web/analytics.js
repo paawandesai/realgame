@@ -227,11 +227,12 @@ function storage() {
  * body goes as text/plain, which needs no preflight), otherwise fetch with
  * keepalive. Never throws.
  * @param {PlayEvent} event
+ * @param {string} [id] the session's daily id; read from storage when left out
  */
-export function send(event) {
+export function send(event, id = dailyId(storage(), new Date())) {
   try {
     if (typeof navigator === 'undefined' || optedOut(/** @type {PrivacySignals} */ (navigator))) return;
-    const body = eventBody(event, dailyId(storage(), new Date()));
+    const body = eventBody(event, id);
     if (body === null) return;
     if (typeof navigator.sendBeacon === 'function' && navigator.sendBeacon(ENDPOINT, body)) return;
     void fetch(ENDPOINT, {
@@ -244,6 +245,22 @@ export function send(event) {
   } catch {
     // Analytics must never break the game.
   }
+}
+
+/** A session's pinned id stops sending after this long (24 h). */
+export const SESSION_ID_MAX_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Wraps a session's send so it drops every event once SESSION_ID_MAX_MS has
+ * passed since startedAt.
+ * @param {(e: any) => void} sendFn
+ * @param {number} startedAt
+ * @param {() => number} now
+ */
+export function capped(sendFn, startedAt, now) {
+  return (/** @type {any} */ e) => {
+    if (now() - startedAt <= SESSION_ID_MAX_MS) sendFn(e);
+  };
 }
 
 /** @type {ReturnType<typeof createSession> | null} */
@@ -262,9 +279,15 @@ export function start(band) {
     if (session || !BANDS.includes(band)) return false;
     if (!analyticsOn(document) || optedOut(/** @type {PrivacySignals} */ (navigator))) return false;
     const w = /** @type {any} */ (window);
+    // One id for the whole session, read once: a session that runs past UTC
+    // midnight keeps the id it started with. A page left open longer than
+    // SESSION_ID_MAX_MS sends nothing more, so no id outlives one session or
+    // reaches past the day after it started (docs/ANALYTICS.md).
+    const startedAt = Date.now();
+    const id = dailyId(storage(), new Date(startedAt));
     const s = createSession({
       band,
-      send,
+      send: capped((e) => send(e, id), startedAt, () => Date.now()),
       now: () => performance.now(),
       getState: () => (w.__gameState && w.__game ? w.__game.state() : null),
     });

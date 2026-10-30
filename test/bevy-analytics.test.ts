@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   analyticsOn,
+  capped,
   createSession,
   dailyId,
   durationBucket,
@@ -11,6 +12,8 @@ import {
   optedOut,
   questEvents,
   randomId,
+  send,
+  SESSION_ID_MAX_MS,
 } from "../crates/bevy-client/web/analytics.js";
 
 type Store = { data: Map<string, string>; getItem(k: string): string | null; setItem(k: string, v: string): void };
@@ -167,4 +170,35 @@ test("a session sends session_start once after the first state, quests once, and
     { type: "session_end", band: "seedling", dur: "lt1m" },
     { type: "session_end", band: "seedling", dur: "5to15m" },
   ]);
+});
+
+test("send uses the id it is given (one id per session)", () => {
+  const bodies: string[] = [];
+  const before = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    value: { sendBeacon: (_u: string, b: string) => (bodies.push(b), true) },
+    configurable: true,
+  });
+  try {
+    assert.equal(typeof (globalThis as { localStorage?: unknown }).localStorage, "undefined");
+    send({ type: "session_end", band: "seedling", dur: "lt1m" }, ID);
+    assert.equal(bodies.length, 1);
+    assert.equal(JSON.parse(bodies[0]!).id, ID);
+  } finally {
+    if (before) Object.defineProperty(globalThis, "navigator", before);
+    else delete (globalThis as { navigator?: unknown }).navigator;
+  }
+});
+
+test("a session's pinned id stops sending after 24 hours", () => {
+  const sent: string[] = [];
+  let t = 1_000;
+  const f = capped((e: { type: string }) => sent.push(e.type), 1_000, () => t);
+  f({ type: "session_start" });
+  t = 1_000 + SESSION_ID_MAX_MS;
+  f({ type: "quest_complete" });
+  t = 1_000 + SESSION_ID_MAX_MS + 1;
+  f({ type: "session_end" });
+  assert.equal(SESSION_ID_MAX_MS, 24 * 60 * 60 * 1000);
+  assert.deepEqual(sent, ["session_start", "quest_complete"]);
 });

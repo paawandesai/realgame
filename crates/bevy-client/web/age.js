@@ -103,6 +103,20 @@ export function startAgePicker() {
     const buttons = /** @type {HTMLButtonElement[]} */ ([...root.querySelectorAll('button[data-band]')]);
     if (buttons.length !== 3) return false;
     style(root);
+    // Free a pointer lock taken before the picker appeared (a click on the
+    // canvas while age.js was still loading), and make the game behind the
+    // picker inert so assistive tech cannot reach it either.
+    if (document.pointerLockElement) document.exitPointerLock();
+    const behind = /** @type {HTMLElement[]} */ (
+      ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id)).filter(Boolean)
+    );
+    const wasInert = behind.map((el) => el.inert);
+    for (const el of behind) el.inert = true;
+    // A lock request already in flight can land after this: free it too.
+    const onLock = () => {
+      if (document.pointerLockElement) document.exitPointerLock();
+    };
+    document.addEventListener('pointerlockchange', onLock);
     root.hidden = false;
 
     const move = (/** @type {number} */ step) => {
@@ -153,6 +167,9 @@ export function startAgePicker() {
         window.removeEventListener('keydown', onKey, true);
         window.removeEventListener('keyup', onKey, true);
         document.removeEventListener('focusin', onFocusIn, true);
+        document.removeEventListener('pointerlockchange', onLock);
+        // Before the focus call below: focus on an inert element is ignored.
+        behind.forEach((el, i) => (el.inert = wasInert[i] ?? false));
         root.hidden = true;
         css(root, { display: 'none' });
         start(b.dataset.band ?? '');

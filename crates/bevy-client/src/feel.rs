@@ -23,9 +23,34 @@ pub const ASSIST_FULL_M: f32 = 20.0;
 /// ...and falls linearly to nothing at this one.
 pub const ASSIST_ZERO_M: f32 = 60.0;
 
-/// Vertical field of view (degrees) for a horizontal one at 16:9.
+/// Vertical field of view (degrees) for a horizontal one at 16:9. The game
+/// uses `vfov_for` with the live aspect; this 16:9 form is kept for the tests.
+#[allow(dead_code)]
 pub fn vfov_from_h(h_deg: f32) -> f32 {
-    (2.0 * ((h_deg.to_radians() * 0.5).tan() * 9.0 / 16.0).atan()).to_degrees()
+    vfov_for(h_deg, 16.0 / 9.0)
+}
+
+/// Vertical field of view (degrees) that gives `h_deg` horizontally at
+/// this aspect (width / height). A non-finite or non-positive aspect
+/// counts as 16:9; the aspect is clamped to [1.0, 4.0], so in a portrait
+/// window the view is as tall as it is wide and never stretches upward.
+pub fn vfov_for(h_deg: f32, aspect: f32) -> f32 {
+    let a = if aspect.is_finite() && aspect > 0.0 {
+        aspect.clamp(1.0, 4.0)
+    } else {
+        16.0 / 9.0
+    };
+    (2.0 * ((h_deg.to_radians() * 0.5).tan() / a).atan()).to_degrees()
+}
+
+/// The cone for point-and-click taps and hover: 1.5x the aim-assist cone,
+/// at least 4.5 deg, when Aim help is on; 0 when it is off.
+pub fn tap_cone(assist: f32) -> f32 {
+    if assist.is_finite() && assist > 0.0 {
+        assist.max(3f32.to_radians()) * 1.5
+    } else {
+        0.0
+    }
 }
 
 /// A horizontal field of view from a setting or command: clamped to the
@@ -140,5 +165,51 @@ mod tests {
         assert_eq!(ray_dir(-0.1, 0.5, v, 1.0), None);
         assert_eq!(ray_dir(0.5, 1.1, v, 1.0), None);
         assert_eq!(ray_dir(f32::NAN, 0.5, v, 1.0), None);
+    }
+
+    #[test]
+    fn tap_cone_follows_aim_help() {
+        let d = |x: f32| x.to_radians();
+        assert!(near(tap_cone(d(4.0)), d(6.0), 1e-6), "{}", tap_cone(d(4.0)));
+        assert!(near(tap_cone(d(1.0)), d(4.5), 1e-6), "{}", tap_cone(d(1.0)));
+        assert_eq!(tap_cone(0.0), 0.0);
+        assert_eq!(tap_cone(-0.1), 0.0);
+        assert_eq!(tap_cone(f32::NAN), 0.0);
+        // Never narrower than the 4 deg locked cone when Aim help is on.
+        assert!(tap_cone(d(4.0)) >= d(4.0));
+    }
+
+    #[test]
+    fn view_width_holds_at_any_aspect() {
+        let w = 16.0 / 9.0;
+        let v = |h: f32, a: f32| vfov_for(h, a);
+        assert!(near(v(90.0, w), 58.72, 0.05), "{}", v(90.0, w));
+        assert_eq!(v(90.0, w), vfov_from_h(90.0));
+        assert!(
+            near(v(90.0, 4.0 / 3.0), 73.74, 0.05),
+            "{}",
+            v(90.0, 4.0 / 3.0)
+        );
+        assert!(
+            near(v(90.0, 21.0 / 9.0), 46.40, 0.05),
+            "{}",
+            v(90.0, 21.0 / 9.0)
+        );
+        assert!(near(v(70.0, w), 43.0, 0.1), "{}", v(70.0, w));
+        assert!(near(v(110.0, 1.0), 110.0, 0.05), "{}", v(110.0, 1.0));
+        assert_eq!(v(90.0, 0.5), v(90.0, 1.0));
+        assert_eq!(v(90.0, 9.0), v(90.0, 4.0));
+        assert_eq!(v(90.0, f32::NAN), v(90.0, w));
+        assert_eq!(v(90.0, 0.0), v(90.0, w));
+        assert_eq!(v(90.0, -1.0), v(90.0, w));
+    }
+
+    #[test]
+    fn ray_and_projection_agree_at_any_aspect() {
+        for a in [4.0 / 3.0, 16.0 / 9.0, 21.0 / 9.0] {
+            let e = ray_dir(1.0, 0.5, vfov_for(90.0, a), a).unwrap();
+            let ang = (-e[2]).acos().to_degrees();
+            assert!(near(ang, 45.0, 0.01), "aspect {a}: {ang}");
+        }
     }
 }

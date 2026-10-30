@@ -438,9 +438,15 @@ export function startHud() {
   const cross = $('crosshair');
   const hudEl = $('hud');
   const hint = $('hint');
+  // Hints off (settings): coaching hints are hidden. Status notes (`note`)
+  // and the start line (unlocked, nothing cast yet) stay: they say how to
+  // play at all, not how to play better. The idle hint is gated in updateIdle.
+  const hintAllowed = (text) => settings.hints || !text || text === note
+    || (!input.locked && !!state && state.casts === 0);
   const setHint = (text) => {
-    if (hint.textContent !== text) hint.textContent = text;
-    hint.classList.toggle('hidden', !text);
+    const shown = hintAllowed(text) ? text : '';
+    if (hint.textContent !== shown) hint.textContent = shown;
+    hint.classList.toggle('hidden', !shown);
   };
 
   // Settings block, built here (the page's CSP allows no inline styles and
