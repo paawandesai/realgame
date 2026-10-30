@@ -345,14 +345,14 @@ export async function handleStats(request: Request, env: Env, now = Date.now()):
     db.prepare("DELETE FROM events WHERE day < ?1").bind(daysBefore(today, RETENTION_DAYS - 1)),
     db
       .prepare(
-        `SELECT day, COUNT(DISTINCT daily_id) AS players,
+        `SELECT day, COUNT(DISTINCT CASE WHEN type = 'session_start' THEN daily_id END) AS players,
                 SUM(type = 'session_start') AS sessions
          FROM events WHERE day >= ?1 GROUP BY day`,
       )
       .bind(since),
     db
       .prepare(
-        `SELECT day, band, COUNT(DISTINCT daily_id) AS players
+        `SELECT day, band, COUNT(DISTINCT CASE WHEN type = 'session_start' THEN daily_id END) AS players
          FROM events WHERE day >= ?1 GROUP BY day, band`,
       )
       .bind(since),

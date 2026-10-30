@@ -117,7 +117,7 @@ Raw events are kept for **90 days** (today plus the previous 89 UTC days) and th
 - the longest session per player per day, by bucket
 - a table view of the daily numbers
 
-Counts across days are **player-days** (one device on one UTC day), since no identifier spans days by design. A device that switches bands within a day counts once in the day's total but in each band it played.
+A player is counted on the UTC day their session started; a session that runs past midnight is not counted again on the next day. Counts across days are **player-days** (one device on one UTC day), since no identifier spans days by design. A device that switches bands within a day counts once in the day's total but in each band it played.
 
 The page itself holds no data, so it is not secret; the data is behind `/api/stats`. That Function compares the bearer token with `DASHBOARD_TOKEN` in constant time (both SHA-256 hashed, then compared byte by byte without an early exit), and refuses with 503 if the secret is missing or shorter than 32 characters. It is drawn with hand-written SVG and HTML, with no inline scripts or styles and no chart library, so it runs under the same strict CSP as the game.
 

@@ -227,11 +227,12 @@ function storage() {
  * body goes as text/plain, which needs no preflight), otherwise fetch with
  * keepalive. Never throws.
  * @param {PlayEvent} event
+ * @param {string} [id] the session's daily id; read from storage when left out
  */
-export function send(event) {
+export function send(event, id = dailyId(storage(), new Date())) {
   try {
     if (typeof navigator === 'undefined' || optedOut(/** @type {PrivacySignals} */ (navigator))) return;
-    const body = eventBody(event, dailyId(storage(), new Date()));
+    const body = eventBody(event, id);
     if (body === null) return;
     if (typeof navigator.sendBeacon === 'function' && navigator.sendBeacon(ENDPOINT, body)) return;
     void fetch(ENDPOINT, {
@@ -262,9 +263,12 @@ export function start(band) {
     if (session || !BANDS.includes(band)) return false;
     if (!analyticsOn(document) || optedOut(/** @type {PrivacySignals} */ (navigator))) return false;
     const w = /** @type {any} */ (window);
+    // One id for the whole session, read once: a session that runs past UTC
+    // midnight keeps the id it started with.
+    const id = dailyId(storage(), new Date());
     const s = createSession({
       band,
-      send,
+      send: (e) => send(e, id),
       now: () => performance.now(),
       getState: () => (w.__gameState && w.__game ? w.__game.state() : null),
     });
