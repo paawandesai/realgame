@@ -1,505 +1,490 @@
-# I-008: Quests 2 and 3, spells 5 and 6, free-play yard, skill-tree screen
+# I-008: Quest 2, "Split the Water", at the lab bench
 
-**based_on:** main f6504c4, 2026-10-29. Code read from `claude/fps-prototype` at 6d5463e (I-001, not merged yet).
-**Revision:** r2, applies `critique.md` (see "Critique: accepted and rejected" at the bottom).
-**After:** I-001 must be merged.
-**Stale check:** before dispatch, the planner re-reads I-001 as merged and refreshes this spec if any of these names differ: `chem::{Kind, Spell, EventKind, Fizzle, Obj, World, Outcome, DT}`, `World::apply/step/outcome`, `world::{Aabb, Chem, Target, Collider, Colliders, solid_obj, build}`, `player::{Player, RADIUS, HEIGHT, WALK, SPRINT, JUMP, GRAVITY}`, `Player::step(.., jump: bool, ..)`, `Game`, `control`, `aim_and_cast`, `projectiles`, `react`, `sync_visuals`, `publish`, the `__gameState` fields, the `__game.cmd` grammar, the `CPUFRAME` console line in `web/boot.js`, or the `1 << 30` captioned-event flag. Do not dispatch on this text if I-001 landed with different names.
-**Overlap with I-007:** both items touch `main.rs`, `hud.js`, `index.html` and `style.css`. Whichever merges second rebases onto the other. If I-007 merges first:
-- the core lane adds `Hydrogen => 0.55` and `Oxygen => 0.55` to `feel::recoil_strength`;
-- `feel::hit_kind` needs no change, because every new `Fizzle(_)` already maps to `fizzle` and every other new event to `hit`;
-- the web lane keeps I-007's DOM ids (`#sens`, `#fov`, `#hitmarker`, `#crosshair.cooling` and `#crosshair.pulse`).
+**based_on:** origin/main 265a93e3c53c0046bf2493e52bc85f6d984676fd (2026-10-30, merge of PR #27 `loop/I-023`; I-005, I-007, I-018 and I-023 are all merged).
+
+**Revision 3 (refresh).** r2 (2026-10-29, critiqued) was written against the unmerged I-001 branch. It had 3 quests, 6 spells, a south zone, a free-play yard and a skill tree in one item. Since then these merged: the first-person client, I-007 (feel), I-005 (analytics with `quest_complete`), I-018 (`chem::electrolysis` tubes) and I-023 (game clock). The panel also found that kids could not see their own casting, which I-019 fixes and which is building now. r3 cuts the item to the **smallest next content step**: one quest at the existing lab bench, using the existing electrolysis prop, counted by the existing `quest_complete` event, and built on I-019's stream and visibility contract. Everything else from r2 moves to the follow-up rows listed under "Out of scope". r2's critique points that still apply are kept: an exact step table, pinned gas arithmetic, Na2SO4 rather than NaCl, the golden path walking every quest, no auto-continue, and sources verified by the builder.
+
+**Revision 4 (2026-10-30, planner response to the r3 critique).** Every must-fix is taken. M1 is fixed the smaller way: "Keep exploring" is dropped, and a quest 2 win ends the game like a quest 0 win. Other changes: the cell pick box is tall (M5), tests use deltas, ratios and a debug `lab gas` command (M3), the `I008_KEYS` order and the `keysOk` edit are in the Contract (M4), pointer lock is released for the banner button (M2), test amounts are 10/5 mL (S1), `gasH` comes from the drawn transforms (S2), plus S3 to S7 and the lane gaps. See the "Planner response" section in `critique.md`.
+
+**Depends on I-019** (casting you can see; critiqued, building). Builders branch from origin/main **after I-019 merges**. Before dispatch, the planner moves `based_on` to that merge commit and re-checks the facts below and the "Relied on from I-019" list. If I-019's merged contract differs from that list, the planner refreshes this spec first. Do not dispatch on this text otherwise.
+
+## Facts from 265a93e this spec relies on
+
+- **The lab is already built, but it is a placeholder.**
+  - The east alcove (`world.rs` line 768) is closed by the ice wall at x 17.6 (half 0.45, z 3..9). Three Fire casts melt the wall (`ice -= 0.34` per cast).
+  - The lab bench is a `Target` named `"lab bench"`, `Kind::LabBench`, at (21.8, 6.0). Its pick box is centred at (21.8, 1.2, 6.0) with half extents (0.75, 1.0, 1.8). That box encloses both tubes.
+  - `World::apply_inner` answers **any** spell on a `LabBench` with `EventKind::Station`. Its caption is `"Water-splitting station (coming soon): 2H₂O → 2H₂ + O₂ with electricity."` (register row C-026).
+- **The electrolysis prop is static.** `world.rs` (lines 1084–1110) draws `chem::electrolysis::tubes()` once at build time: glass, water and gas cylinders at a fixed 0.6 m (H2) and 0.3 m (O2) gas height. `tube(dz, gas)` already takes the gas height as an argument. I-018's test 5 greps that block for numeric literals, so the block must stay free of them.
+- **The game ends at the first win.**
+  - `World` latches `ended` on the first Won or Lost.
+  - `apply` does nothing once ended. `chem_tick` and the `tick` command step only while `outcome() == Playing`. `aim_and_cast` casts nothing once ended (`let ended = chem.world.outcome() != Outcome::Playing`).
+  - So after "You saved the greenhouse!" the only things left to do are look around and press R. The win banner reads `"{n} fires put out. Press R to play again."`
+- **`reseed`** relights the bush farthest from the greenhouse whenever nothing burns and `extinguished < GOAL_FIRES`. A calm courtyard would therefore relight on its own unless reseed is turned off.
+- **Analytics already handles more than one quest.**
+  - `analytics.js` `questEvents(prev, state, sent)` sends `quest_complete` when `outcome` goes from `'playing'` to `'won'`. The quest index is `state.quest` when it is an integer from 0 to 15, otherwise 0. Each quest is sent at most once per session.
+  - The server accepts quest 0..15 and stores it in `room`. `/api/stats` returns `funnel.quests[q]`.
+  - `__gameState` has no `quest` field today, so every completion counts as quest 0. Publishing `quest` is the whole client-side analytics change. **`analytics.js` and `functions/**` are not edited.** The data collected does not change: quest indexes 0–15 are already in the documented contract, so this is not a human-only privacy change.
+  - `tests/e2e/analytics-e2e.mjs` main run (with `?debug`) wins quest 0 with `tp`/`face`/`select`/`cast` and asserts "D1 main: exactly 1 quest_complete (seedling, room 0)" and `funnel.quests[0].seedling === 1`.
+- **The golden path pokes the bench.** `golden.mjs` line 264 casts Water at `lab bench` during the fire quest and checks `/splitting/` in the caption.
+- **Game clock (I-023).** `clock::frame_dt` clamps dt to 0.25 s. The chemistry is a fixed 30 Hz step (`chem::DT`). `gameTime` is published.
+- **Hint plumbing (I-007).** `hud.js` has one idle hint, `IDLE_HINT` ("Look for a fire. Press 2 for Water…"), and `IDLE_SLOT = 1`. The comment at line 24 says "a new quest brings its own idle hint and slot". `MARK_MS` has `hit`, `fizzle` and `out`, and `out` gets the star marker and the cheer.
+- **DOM.** `index.html` has `#objective .title` ("Save the Greenhouse"), `#obj-line` and `#banner .big/.small`. The banner has no button. `chem.rs` tests run in CI with `rustc --edition 2021 --test src/chem.rs`.
+- **B8 today:** nightly 1 measured about 1 minute of play. The 9-year-old ran out of things to do after the single quest.
+
+## Relied on from I-019 (its contract; not rebuilt here)
+
+- The **`fire` command** (latched click), so every click on a lab target casts once.
+- **`cues::flight_secs`**, so spells land within 0.25 s, and **`spawn_stream(material)`**, a visible Water or Fire stream from the hand. Lab casts get both for free, and this item adds no stream code.
+- **`cues::bearing_deg(px, pz, yaw, tx, tz)`** and **`cues::off_screen(bearing, elev, hfov, vfov)`**.
+- **`#firefinder`** (`.left` / `.right`, at least 56 px, slow pulse, `animation: none` under reduced motion, hidden while paused or under a banner).
+- The **hint priority** (a visible `#banner` hides every hint, `#firefinder` and the nudge), and **Water as the default spell**.
+- `#obj-line` showing `Fires to put out: N` plus `.fire-pip` icons in the fire quest, and the `firesLeft` field.
+- Esc/P pause, and the `castingYouCanSee(...)` section of `golden.mjs`.
+- **`I019_KEYS`** and the I-019 stub's edit to `golden.mjs` `keysOk`, which requires exactly `[...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS]` in order (I-019's last key is `fxWater`). This item appends `I008_KEYS` (Contract).
+- I-019 moves the `Look` enum from `world.rs` to `cues.rs`. The rust lane rebases its `world.rs` edits on the merged file.
+
+If I-019 merges without any of these, the planner refreshes this spec. Lanes do not rebuild them.
 
 ## Problem
-Today the slice holds one quest (Save the Greenhouse, about 4 to 6 minutes for a 9-year-old) and 4 spells. It has nothing to do after the win: `chem_tick` stops stepping once `outcome != Playing`, and casting is blocked. B8 needs at least 15 minutes of guided play with at least 3 quests, 6 spells, a free-play area and a skill-tree screen. As it stands B8 cannot pass, whatever the persona panel says. The lab bench says "coming soon", which promises content that does not exist. Fun (B5) also suffers: a first-person game with a single 5-minute objective gives a child no reason to keep playing, nothing to unlock and nowhere to experiment.
+
+The slice has one 1-to-5-minute quest. After the win it freezes: casting is blocked, nothing steps, and the only option is R. Nightly 1 measured about 1 minute for B8, and the 13-year-old's fun was 4. Meanwhile the lab bench, which kids can already reach by melting the ice wall, says "coming soon", which promises content that does not exist. The electrolysis prop shows a correct 2:1 that nobody can do anything with.
+
+**Goal:** after saving the greenhouse, the player *chooses* to start a second quest. In it they melt their way into the lab, fill the water splitter with Water, watch hydrogen and oxygen bubble into the two tubes at 2:1, and test each gas with Fire: a squeaky pop for hydrogen, a brighter flame for oxygen. Finishing it is counted as `quest_complete` with quest 1.
 
 ## Bars moved and expected movement
-- **B8 (Enough to play):** this item moves B8 from "structurally impossible" to "measurable". Prediction for the first I-006 panel run on this artifact: the 9-year-old persona plays at least 15 minutes, split roughly as Q1 4 to 6 min, Q2 3 to 4 min, Q3 3 to 5 min, and the tree plus free play 3 or more min. All four structural parts exist (3 quests, 6 spells, free play, skill tree), so the B8 checklist is satisfied apart from the time measurement.
-- **B5 (Fun):** prediction for a paired panel run (same seed, before vs after): median fun rises at least 1 point. No persona reports "nothing to do after the greenhouse". Spells 5 and 6 are not required by any quest in this version: they are rewards to play with in the yard and courtyard. The Q2 reward is therefore a caption, a science point and two hotbar slots. That is enough for B8 but will move B5 only a little; a later item can give them a quest use.
-- **B6 (Science):** every new claim is added to `content/science-sources.md` with a citation (test 20), so the item adds 13 claims without adding an unsourced one. The "coming soon" lab caption is removed.
-- **B4 guard:** the Q3 step line names the puzzle's clue (the hot spring melts nearby ice), so a 6-year-old is not left to discover it only through a failure hint.
-- **Guards:** B1 (no panics or console errors on the new paths, test 19), B2 and B3 (tests 21 and 22).
-- **B1 goes red after this merge, and who fixes it.** B1 requires the smoke playthrough to "complete every quest in the slice". After this item the slice has three quests, and I-002's golden path (out of scope here) only knows Q1. So B1 cannot pass until the smoke walks Q2 and Q3. The fix: if I-002 is still unbuilt when I-008 merges, I-002's spec takes Q2 and Q3, reusing the sequences of e2e tests 14 and 15. Otherwise the planner adds a backlog item "Smoke: walk quests 2 and 3 in `tests/e2e/golden.mjs`" directly after I-008, scheduled next. (This spec does not edit the backlog; the planner does.)
+
+- **B8 (enough to play):** the intended movement. It is a panel bar, so nothing is reported as moved at merge.
+  - Prediction for the first paired panel run (same seed, I-019 merge artifact vs this one): the 9-year-old's measured play time rises by **at least 2 minutes**, with Q2 taking about 2 to 4 minutes: walk to the alcove, melt the wall if it is still standing, fill, watch about 5 s of bubbles until both tubes are half full, test both tubes.
+  - B8 **stays red**: it needs 15 minutes, 3 quests, 6 spells, free play and a skill tree. This item takes it from 1 quest to 2, and the follow-up rows carry the rest.
+- **B5 (fun):** secondary. Prediction: median fun rises by at least 0.5. No persona reports "nothing to do after the greenhouse" or "the lab says coming soon". The pop and flare are the new "wow" moments, sized for under-6s (GS-17).
+- **B7 (analytics):** `analytics-e2e` now proves a real `quest_complete` with quest 1, from a scripted run, through to D1 and `/api/stats` (test 17).
+- **B1 (golden path):** B1 requires the smoke run to "complete every quest in the slice". This item adds Q2 to `golden.mjs` in the same PR (tests 10–16), so **B1 does not go red**.
+- **B6 (science):** stays at 0 errors and 100% sourced. It adds 5 claim rows (C-027 to C-031) with builder-verified sources, re-pins P-015 to the live columns, retires C-026 ("coming soon") and adds not-claims rows.
+- **B2, B3:** must not regress (tests 20 and 21). The item adds 2 pick targets, 4 per-frame transform updates, and no assets.
+- **B4:** guard. Q1 is unchanged, and the Q2 objective line, the arrow and the slot nudge keep it legible.
 
 ## Smallest version
 
-### 1. Map: a south zone through two gates
-- The courtyard stays as it is (x and z from −24 to 24).
-- The south wall (z = 24.5) gets two 4 m gates: a west gate at x −10..−6 and an east gate at x 6..10. The gates are open to the sky (no lintel).
-- A new walled south zone covers x −24..24, z 25..53. A divider wall at x = 0 (x −0.5..0.5, z 24.5..53, no gaps) splits it into the **Frozen Pond** (west) and the **Free-play yard** (east).
-- **Wall height:** every new wall (the south zone's west, east and south walls, the divider, and the courtyard south wall's pieces either side of the gates) is at least 3.0 m tall. The highest a player's head can reach is `JUMP²/(2·GRAVITY) + HEIGHT` = 1.0 + 1.75 = 2.75 m, so no jump clears a wall. The pond can only be reached through the west gate, and the south shore only by crossing the pond.
-- The new walls come from a pure function `world::south_walls() -> Vec<Aabb>` (no Bevy app; `Aabb` is the existing pure box type), which `build()` turns into plain `Collider { obj: None }` boxes and meshes.
-- The player clamp in `player.rs` changes from a ±(24 − r) square to x ∈ [−24 + r, 24 − r] and z ∈ [−24 + r, 53 − r]. The walls still do the real containment.
+### 1. The lab state machine (`chem::lab`, pure, in `chem.rs`)
 
-### 2. Zones by position
-One function decides where the player is, used by the `zone` state field, the Q2 and Q3 step logic, and nothing else:
+A new `pub mod lab` inside `chem.rs`, next to `pub mod electrolysis`, with no Bevy types. CI's existing `rustc --test src/chem.rs` step therefore covers it with no CI change.
 
-```
-pub fn zone_at(p: [f32; 2]) -> Zone   // in quest.rs; p = [x, z]
-  if p[1] > 24.5 && p[0] < 0.0                    -> Pond
-  if p[1] > 24.5 && p[0] >= 0.0                   -> Yard
-  if p[0] >= 17.5 && p[1] >= 3.0 && p[1] <= 9.0   -> Lab
-  otherwise                                       -> Courtyard
-```
+- **Constants:**
 
-A player standing in a gate opening (z between 24.5 − r and 24.5) is still `Courtyard`; that is intended.
+  | constant | value |
+  |----------|-------|
+  | `H2_RATE_ML` | 2.0 (mL/s) |
+  | `O2_RATE_ML` | `H2_RATE_ML / 2.0` |
+  | `H2_CAP_ML` | 20.0 |
+  | `O2_CAP_ML` | 10.0 |
+  | `H2_TEST_ML` | 10.0 |
+  | `O2_TEST_ML` | 5.0 |
 
-### 3. Quest 2: "Split the Water" (east alcove lab; real electrolysis)
-These objects are in zone `Lab`:
-- the existing ice wall;
-- the lab bench, renamed "water splitter" (`Kind::LabBench` keeps its kind);
-- a new "battery switch" (`Kind::Switch`) on the alcove's north wall at (20.0, 3.3);
-- two new gas tubes on the bench: "hydrogen tube" (`Kind::GasTube`) at (21.8, 5.1) and "oxygen tube" (`Kind::GasTube`) at (21.8, 6.9).
+  The test amounts are half of each tube, so step 3 starts 5 s after the fill with a clearly visible 0.3 m vs 0.15 m pair.
 
-The steps, in order:
-1. **Reach the lab.** Melt the ice wall with Fire, as today. This step also passes if `zone_at(player) == Lab` or the cell is already filled.
-2. **Fill the cell.** Water on the water splitter sets `level = 1` and emits `Filled`. Water on an already-full splitter emits `Filled` again and changes nothing. The caption names the electrolyte: sodium sulfate (Na2SO4). It must not be table salt, because NaCl solution gives chlorine at the anode, not oxygen.
-3. **Switch on.** Any spell on the battery switch sets `power = true` on the water splitter and emits `Powered`. The switch only turns on; there is no toggle, so a child spamming casts cannot turn it off by accident.
-4. **Wait for the gases.** While `power && level > 0`, each tick does `h2 = (h2 + H2_RATE_ML·DT).min(H2_CAP_ML)` on the hydrogen tube and `o2 = (o2 + H2_RATE_ML·DT/2).min(O2_CAP_ML)` on the oxygen tube. The `min` clamp makes the full values exact. From empty, O2 is exactly half of H2 at every tick: equal gas volumes hold equal moles (Avogadro's law), and 2H2O → 2H2 + O2. The first tick on which H2 equals `H2_CAP_ML`, the world emits `TubesFull` once (once per world lifetime until a `Lab` reset). The tube gauges in the world show the H2 column twice as tall as the O2 column.
-5. **Test the gases with Fire.**
-   - Fire on the hydrogen tube with at least 5 mL emits `Popped` (a squeaky pop: 2H2 + O2 → 2H2O) and empties the tube.
-   - Fire on the oxygen tube with at least 2.5 mL emits `Flared` (oxygen makes the flame burn brighter, though oxygen itself does not burn) and empties the tube.
-   - Below those amounts, Fire gives `Fizzle(Empty)`.
-   - Any other spell on a tube or on the splitter (apart from Water on the splitter) gives `Fizzle(NotHere)`.
-   - Electrolysis keeps running, so the tubes refill.
+- `pub enum Part { Cell, H2Tube, O2Tube }`
+- `pub enum LabEvent { Closed, Filled, AlreadyFull, GasReady, Popped, Flared, TooLittle, UseWater, UseFire, Done }`, with `fn caption(self) -> &'static str` (exact strings in the Contract).
+- `#[derive(Clone, Debug, Default, PartialEq)] pub struct Lab { pub open: bool, pub level: f32, pub h2_ml: f32, pub o2_ml: f32, pub h2_tested: bool, pub o2_tested: bool, pub done: bool, pub ready_sent: bool }`. `Lab::default()` is closed. `Lab::opened()` is a default with `open = true`.
+- **`apply(&mut self, part: Part, spell: Spell, ev: &mut Vec<LabEvent>)`:**
+  - Closed lab: any part and spell gives `[Closed]`, with no state change.
+  - `Cell`:
+    - Water at `level == 0` sets `level = 1` and gives `[Filled]`.
+    - Water at `level == 1` gives `[AlreadyFull]`.
+    - Any other spell gives `[UseWater]`.
+  - `H2Tube` / `O2Tube`:
+    - Fire with gas ≥ the test amount empties that tube (`ml = 0`), sets its `*_tested`, and gives `[Popped]` (H2) or `[Flared]` (O2). If both are now tested and `!done`, it also sets `done = true` and appends `Done`.
+    - Fire below the test amount gives `[TooLittle]`.
+    - Water, Frost or Foam gives `[UseFire]`.
+    - After `done`, the pure model still pops and flares, and `Done` is never emitted again. (In the game no cast reaches the lab after `done`, because a quest 2 win ends the game; see section 4.)
+- **`step(&mut self, ev: &mut Vec<LabEvent>)`**, one `chem::DT`. While `open && level > 0`:
+  - `h2_ml = (h2_ml + H2_RATE_ML·DT).min(H2_CAP_ML)` and `o2_ml = (o2_ml + O2_RATE_ML·DT).min(O2_CAP_ML)`.
+  - From empty tubes this keeps `o2 = h2/2` on every tick (2H2O → 2H2 + O2, with equal volumes for equal moles), and both tubes fill in the same 10 s.
+  - The first tick on which `h2_ml ≥ H2_TEST_ML`, it emits `GasReady` once (`ready_sent`).
+- **`set_gas(&mut self, h2_ml: f32)`** sets `h2_ml = h2_ml.clamp(0, H2_CAP_ML)` and `o2_ml = h2_ml / 2`, and leaves `ready_sent` alone. It backs the debug `lab gas` command, so e2e tests set exact amounts instead of counting real-time ticks.
+  - Electrolysis keeps running, so a tested tube refills.
+- **`gas_heights(&self) -> (f32, f32)`** = `(electrolysis::GAS_H2 · h2_ml / H2_CAP_ML, electrolysis::GAS_O2 · o2_ml / O2_CAP_ML)`. These are the drawn column heights, in metres. They are 2:1 whenever both tubes filled from empty.
+- **`step_index(&self, wall_standing: bool, in_lab: bool) -> u8`:**
 
-The quest is done when both tests have happened: a `Popped` event whose `obj` is the hydrogen tube's index, and a `Flared` event whose `obj` is the oxygen tube's index, in either order. `Popped` or `Flared` from spells 5 and 6 on other objects do not count. Completion unlocks spells 5 and 6 and gives 1 science point. The old `EventKind::Station` and its "coming soon" caption are deleted.
+  | step | when | meaning |
+  |------|------|---------|
+  | 0 | `level == 0 && wall_standing && !in_lab` | reach the lab |
+  | 1 | `level == 0` (wall melted or `in_lab`) | fill the cell |
+  | 2 | `level > 0 && !done` and some untested tube is below its test amount | wait for gas |
+  | 3 | `level > 0 && !done` and every untested tube is at or above its test amount | test with Fire |
+  | 4 | `done` | done |
 
-### 4. Spells 5 and 6: Hydrogen and Oxygen (locked until Q2 is done)
-Hotbar order, fixed: 1 Fire, 2 Water, 3 Frost, 4 Foam, 5 Hydrogen, 6 Oxygen. `select N` and `__gameState.spell` use it (`spell` is 0-based).
+- `in_lab` is `x ≥ 18.1 && 3.0 ≤ z ≤ 9.0`, defined once as `pub fn in_lab(x: f32, z: f32) -> bool` in `chem::lab`.
 
-**Hydrogen (5)** is a slow, floaty bubble projectile (14 m/s). Cast caption: "Hydrogen, H2: the lightest gas. With a flame it burns: 2H2 + O2 → 2H2O."
-- On a burning object: emits `Popped`. No state change. The `Popped` caption says a little hydrogen burns in one quick pop, so a child does not expect it to feed the fire.
-- On anything else, including the 110 °C steam vent and the 80 °C hot spring: emits `Fizzle(NoFlame)`, whose caption says H2 is about 14 times lighter than air. No state change.
+### 2. A calm courtyard for quest 2 (`chem::World`)
 
-**Oxygen (6)**, 28 m/s. Cast caption: "Oxygen, O2: it does not burn, but it makes fuels burn faster and hotter."
-- On a burning flammable object: `fuel -= min(fuel, OXY_BURN_S)` and emits `Flared`. If fuel reaches 0, it also sets `burning = false` and emits `BurntOut`, in that order.
-- On anything else: emits `Fizzle(NoFuel)`. No state change.
+- New field `pub calm: bool` (`Default` false, `World::new` false).
+- While `calm`:
+  - `outcome()` returns `Playing`;
+  - `latch` latches nothing;
+  - `reseed` returns at once.
+  - Spread, melting, freezing and every spell rule are unchanged. A fire the player lights can still spread, but it can no longer win or lose anything.
+- `pub fn calmed(&self) -> World`: a clone with `calm = true` and `ended = None`. Every burning object gets `burning = false`, `temp = AMBIENT_C` and `counts = false`. Nothing else changes, so the ice wall, puddles and fuel keep their state.
+- `apply_inner`'s `LabBench` branch returns with **no** event, because `main.rs` routes lab hits to `chem::lab` (section 4). `EventKind::Station` and its "coming soon" caption are **deleted**. The one existing test that names `Station` (`hit_kind(&ev(&[EventKind::Station]))`, line 1095) switches to `EventKind::Soaked`, with the same expected `HitKind::Hit`. That is the only edit to an existing test.
 
-Keys 5 and 6 and the mouse wheel select only unlocked spells. `select 5` or `select 6` while locked is ignored. The hotbar shows 6 slots, and slots 5 and 6 carry the `locked` class until they unlock.
+### 3. The tubes become live, and two tubes become targets (`world.rs`)
 
-### 5. Quest 3: "The Frozen Pond" (liquid-nitrogen puzzle)
-The pond has three `Kind::Pond` segments in zone `Pond`. Each spans the full zone width (x −24..−0.5):
+- `electrolysis::tube(dz, gas)` must accept `gas = 0.0`: `gas.h == 0`, and the water fills the inner tube. `tubes()` is unchanged, as the full 2:1 reference for P-015.
+- The electrolysis block keeps its single `for t in chem::electrolysis::tubes()` loop and its I-018 comment. Its water and gas pieces get a component `TubePiece { tube: 0|1, gas: bool }` (tube 0 = H2 on the `CATHODE_DZ` side, tube 1 = O2) so that `main.rs` can update them. The glass stays static. I-018's test 5 greps must still pass. Any new number (pick boxes) lives in `chem::electrolysis` as a named constant, not in the block.
+- **Pick targets** (appended **after** `"lab bench"`, so every existing object index is unchanged):
+  - `"lab bench"` keeps its name and `Kind::LabBench`. Its pick box becomes `CELL_PICK_C = (0.0, 0.85, 0.0)` offset from the bench, with half extents `CELL_PICK_H = (0.75, 0.65, 0.45)`: y 0.2 to 1.5, covering the bench body under the cell and the battery between the tubes. It is tall so the first lab target is easy to hit (GS-10, GS-11). It no longer encloses the tubes.
+  - `"hydrogen tube"` and `"oxygen tube"`: `Kind::LabBench`, `Obj::new(Kind::LabBench, [21.8, 6.0 + dz], [0.3, 0.3])`. Their pick boxes are centred at `(21.8, TUBE_Y, 6.0 + dz)` with half extents `TUBE_PICK_H = (0.3, TUBE_H/2, 0.3)`, where `dz` is `CATHODE_DZ` or `ANODE_DZ`. They have no collider of their own, because the bench block already blocks the player.
+  - No pick box overlaps another: the cell spans z 5.55–6.45, and the tubes span 4.8–5.4 and 6.6–7.2 (a 0.15 m gap on each side).
+- The ice wall is found as **the object with `Kind::IceWall`** (`world.rs` line 81; there is exactly one). Both `goalObj` and `wall_standing` (its `wall` flag) use that lookup, never a hard-coded index.
+- `Chem` gains `pub lab: chem::lab::Lab` (`Default`: closed).
 
-| name | z range |
-|------|---------|
-| "pond north" | 31..35 |
-| "pond middle" | 35..43 |
-| "pond south" | 43..47 |
+### 4. Quest flow (`main.rs`)
 
-**Liquid pond.** A pond with `ice ≤ 0` is a solid collider at least 3.0 m tall: the water is too deep to wade. A frozen pond (`ice > 0`) is walkable and slippery: it is passed to `player.step` as an ice sheet, the same as a frozen puddle.
+- `Game` gains `quest: u8` (0 = Save the Greenhouse, 1 = Split the Water). `reset` carries it over, the way it carries `spell`.
+- **Choosing quest 2 (GS-28: no auto-continue):** the command `quest next` (not debug-gated) acts only when `quest == 0 && chem.world.outcome() == Won`. Otherwise it is ignored with a `warn!`. It does all of the following:
+  - sets `quest = 1`;
+  - replaces `chem.world` with `chem.world.calmed()`, keeping the courtyard the player saved;
+  - sets `chem.lab = Lab::opened()`;
+  - leaves the player where they are;
+  - says `"Quest 2: Split the Water! The lab is behind the ice wall, to the east."`
+- **R / `reset`** restarts the *active* quest:
+  - Quest 0: exactly as today.
+  - Quest 1: `chem.world = chem.initial.calmed()` (the ice wall stands again), `chem.lab = Lab::opened()`, the player at (8.0, 6.0) facing +x (`yaw = −π/2`), a new epoch, and the quest 2 start caption.
+  - **`reset all`** (new) is a fresh game at quest 0, the same as today's `reset` with `quest = 0` and `lab = Lab::default()`.
+  - Existing callers of `reset` all run in quest 0, so their behaviour does not change.
+- **Routing hits:** in the projectile impact path, an impact on an object of kind `LabBench` calls `chem.lab.apply(part, spell, &mut lev)` and **not** `world.apply`. `part` comes from the target name: `"lab bench"` is `Cell`, `"hydrogen tube"` is `H2Tube`, `"oxygen tube"` is `O2Tube`.
+  - The last lab event's caption is said.
+  - `hit_kind` for the hit marker and sound: `Popped`, `Flared` and `Done` give `out` (I-007's star and cheer, the "it worked" reaction). `Filled` and `GasReady` give `hit`. All others give `fizzle`.
+- **Quest end gating (one rule for both quests).** Define `fn quest_outcome(&self) -> Outcome` in `main.rs`: quest 0 gives `chem.world.outcome()`, and quest 1 gives `Won` iff `chem.lab.done`, else `Playing`. Every place that today checks `chem.world.outcome() != Playing` to stop the game uses `quest_outcome()` instead: `chem_tick`, the `tick` command and `aim_and_cast` (`let ended = ...`). So after the quest 2 win, exactly as after the quest 0 win, casting is blocked, the courtyard and the lab stop stepping, and the only things left are to look around and press R. Pause therefore never has a live world behind a banner (GS-7).
+- **Stepping:** `chem_tick` also calls `chem.lab.step` when `quest == 1`, not paused, and `quest_outcome() == Playing`. The `tick N` command steps the lab N times too under the same condition. That is the existing loop, plus the lab.
+- **`lab gas <h2_ml>`** (debug-gated, like `tp`): in quest 1 calls `chem.lab.set_gas(h2_ml)`; otherwise it is ignored with a `warn!`.
+- **Effects** (in `react`, from lab events; existing `P` kinds only, no `fx.rs` change):
+  - `Filled`: `P::Water` burst, 20 particles, at the bench top.
+  - `Popped`: `P::Fire` 18 plus `P::Spark` 10, at the H2 tube top.
+  - `Flared`: `P::Fire` 28 at the O2 tube top, size at least 0.35.
+  - While gas forms: one `P::Steam` bubble per tube every 0.25 s game time, rising inside the tube (8 particles/s at most, within I-019's `?low` pool budget).
+  - All of these stay within GS-6 (test 19).
+- **Live columns:** a system (in `sync_visuals` or one next to it) sets each `TubePiece` transform from `electrolysis::tube(dz, h)`, where `h` comes from `chem.lab.gas_heights()`. Water pieces are `Visibility::Hidden` while `lab.level == 0`. A gas piece is hidden while its height is below 0.001.
+- **Published `gasH` is what is drawn:** the same system records, per tube, the gas height it actually applied (the gas piece's `Transform` y scale times the unit cylinder height, or 0 while the piece is hidden) into a `Resource` `DrawnGas([f32; 2])`, and the publisher reads `gasH` from that resource, not from `gas_heights()`. A plain state check on `gasH` therefore proves the render link.
+- **Strings live in `main.rs`.** `questTitle`, `questLine` and every caption are produced by the rust lane and published. The web lane only displays them and never hard-codes a step line.
+- **Greenhouse line:** the `"Oh no! Heat from the fire reached the greenhouse. Press R to try again."` caption is said only in quest 0. In a calm world the generic neighbour line is used.
+- **The quest 2 objective target (reusing I-019's finder maths):** every frame, `goalObj` is:
+  - step 0: the index of the `Kind::IceWall` object;
+  - step 1: the lab bench;
+  - step 2: −1 (watch, no arrow);
+  - step 3: the first untested tube (H2 before O2);
+  - step 4, and in quest 0: −1.
 
-**Freezing and melting.**
-- Frost on a pond sets `ice = 1` and emits `Froze`.
-- Pond ice melts by itself: each tick `ice = (ice − DT/POND_ICE_S).max(0.0)` with `POND_ICE_S = 40`. `Melted` is emitted on the tick `ice` first becomes 0.
-- Fire melts it, as with other water bodies.
-- When a pond melts it stays `Kind::Pond`; it never becomes a Puddle.
+  `goalBearing`, `goalElev` and `goalOff` come from `cues::bearing_deg` and `cues::off_screen` against that object's bounds centre, with the live hfov and aspect, exactly as I-019 computes `fireBearing`.
 
-**Hot spring.**
-- A "hot spring" (`Kind::HotSpring`, zone `Pond`) is a solid rock chimney at least 3.0 m tall with footprint centre (−21, 39) and half extents (1, 1). Its footprint overlaps pond middle only; the gap to the other two ponds is ≥ 2 m.
-- It sits at `SPRING_C = 80` °C. Frost sets it to 0 °C and emits `Chilled`. It then rewarms with `temp += (80 − temp)·0.05·DT`.
-- While its temperature is above 40 °C, every pond whose footprint overlaps it (gap = 0) loses ice at an extra `SPRING_MELT_RATE = 4` per second (on top of the self-melt, same clamp). Pond middle's ice therefore lasts at most 8 ticks.
-- After a chill the spring passes 40 °C after about 13.9 s (tick 416), so the player has a 13.9 s window.
+### 5. Published state
 
-**The puzzle.** The player freezes north and south, chills the spring, freezes the middle, then crosses. The step line names the clue (Contract, Q3 s1). Freezing the middle while the spring is hot fails at once and also gives a hint caption.
+`outcome` becomes **per active quest**, from `quest_outcome()`:
+- quest 0: from the world, as today;
+- quest 1: `"won"` iff `lab.done`, otherwise `"playing"`.
 
-**Jump check.** Pond middle is 8 m deep. A sprint jump covers at most 2·8.5·6/18 + 2·0.35 ≈ 6.4 m, so the middle cannot be jumped. North and south can be jumped, which is fine, because the spring is the puzzle.
+Because a won quest stops the game (section 4), `outcome !== 'playing'` keeps meaning "a banner is up and nothing is live" in both quests. `hud.js`'s existing `outcome` gates (`syncLock`, warning, hints, I-019's banner suppression) stay correct with no new flag.
 
-**Melting under the player.** If the player's body overlaps a solid pond after a step (the ice melted under them, or a `tp`), the player moves to (x, 0, 29.0) with zero velocity. The caption reads: "Splash! The ice melted under you. Back to the shore."
+`quest` is published, so `analytics.js` sends `quest_complete` with quest 1 unchanged. See the Contract for every new field.
 
-**Completion.** The quest is done when the player stands at z ≥ 47.5 and x < −0.5 (the south shore, with a decorative "Frost Vault" arch and no sign text). That gives 1 point.
+### 6. HUD (`hud.js`, `style.css`; all new DOM via `createElement`)
 
-### 6. Free-play yard (east half of the south zone, zone `Yard`)
-- **Objects:** "yard bush 1", "yard bush 2" and "yard bush 3" (a row 3 m apart, gap 1.2 m, so fire spreads), "yard hedge" (DryHedge), "yard puddle 1", "yard puddle 2", "ice block" (`IceWall`, half extents 0.45 × 1.0) and "reset lever" (`Kind::Switch`).
-- **No objective and no fail.** Yard fires never count toward `extinguished`.
-- **Reset lever:** any spell on it restores every `Yard` object to its initial state and emits `YardReset`.
-- **Isolation:** no `Yard` object is within `NEIGHBOUR_GAP` of an object in another zone. Heat must not cross the walls.
+- **`#objective .title`** is set from `state.questTitle`.
+- **`#obj-line`:**
+  - quest 0: I-019's counter and pips, unchanged;
+  - quest 1: `state.questLine` as text, preceded by one spell icon (`.obj-icon.fire` or `.obj-icon.water`, reusing the hotbar icon classes) when `questSpell ≥ 0`. The icon is the pre-reader cue (GS-21, GS-32).
+- **Win banner, quest 0:**
+  - `.big` stays `You saved the greenhouse!`.
+  - `.small` becomes `${extinguished} fires put out. Next: the water lab. Press Enter, or R to play again.`
+  - A new button `#banner-next` reads `Next quest` with a flask icon. It is at least 40 px tall (GS-22), its click calls `stopPropagation` and `preventDefault`, and it sends `quest next`.
+  - **Pointer lock is released for the button (GS-11).** When this banner first shows with `#banner-next` and `document.pointerLockElement` is set, `hud.js` calls `document.exitPointerLock()` once. `syncLock` already skips the pause overlay while `outcome !== 'playing'`, so this does not pause. A mouse-only child sees the cursor and clicks the button. Re-locking happens on the next canvas click, as today. A click on `#banner-next` never reaches the canvas, so it never casts and never re-locks.
+  - **Enter** (`e.code === 'Enter'`) sends `quest next` while this banner shows, locked or not (GS-13). It is a keyboard shortcut, not the main route. Nothing advances by itself.
+- **Win banner, quest 1:**
+  - `.big` reads `You split water!` and `.small` reads `Hydrogen went pop. Oxygen made the flame brighter. Press R to do it again.`
+  - There is **no** `#banner-next` (it is hidden), and Enter does nothing. The game is ended exactly as after quest 0 (section 4). Free play is a separate backlog row.
+- **Greenhouse warning:** `#warning` is shown only when `state.quest === 0` (plus today's `outcome === 'playing' && ghTemp > 60`). In calm quest 2 nothing can happen to the greenhouse, so the pulsing warning would mislead (GS-6).
+- **Arrow:** in quest 1, `#firefinder` ignores `fireOff`, `nearFire` and `firesLeft` and is driven only by `goalObj`/`goalOff`. It is shown iff `goalOff && goalObj ≥ 0 && outcome === 'playing' && !paused`, with the class `lab` (a flask icon in place of the flame) and the side class from the sign of `goalBearing`. A bush the player lit in quest 2 never drives it. I-019's banner suppression still applies. In quest 0, I-019's rule is unchanged.
+- **Text size (GS-18):** `#banner-next`, `#banner .small`, the quest 1 `#obj-line` text and `#objective .title` all compute to `font-size ≥ 18px`. The pre-existing 15 px quest 0 `#obj-line` belongs to another item; the quest 1 line must not use it.
+- **Idle hint (GS-24):** in quest 1, `updateIdle` uses a per-step hint and slot:
+  - step 0: `Melt the ice wall with Fire. Press 1, aim, click.` and slot 0;
+  - step 1: `Press 2 for Water and click the lab bench.` and slot 1;
+  - step 2: no idle hint (the bubbles are progress);
+  - step 3: `Press 1 for Fire and click a gas tube.` and slot 0.
 
-### 7. Skill-tree screen
-- **Opening:** press `K`, or click the HUD button `#skills-btn`, to open the full-screen `#skills` overlay. It sets `paused` (the chemistry, movement and casting stop) and releases pointer lock **without** showing the pause card. `K` or `Esc` closes it. After closing, the player is in point-and-click mode, and a click on the canvas re-locks.
-- **Branches:** three columns, each a spell with an optional upgrade under it.
-  - Heat: Fire, Hydrogen, Oxygen.
-  - Water and ice: Water with the upgrade **Big Splash**, Frost with the upgrade **Deep Freeze**.
-  - Smother: Foam with the upgrade **Thick Foam**.
-- **Spell node states:** `learned` for the four start spells, plus Hydrogen and Oxygen once Q2 is done (labelled "From: Split the Water"), and `locked` otherwise.
-- **Upgrade node states:** `bought`, `buyable` (points ≥ 1) or `locked`.
-- **Points:** the header `#skill-points` shows "Science points: N", where N = quests done − upgrades bought. Clicking a buyable upgrade sends `buy splash|freeze|foam`, and Rust is authoritative.
-- **Upgrade effects:** upgrades are pure gameplay and carry no science claims in their text.
-  - **Big Splash:** Water on object i also applies Water's effect to every other flammable object j with `gap(i,j) ≤ SPLASH_GAP`, emitting events for j too.
-  - **Deep Freeze:** Frost on a water body i also freezes every water body j with `gap(i,j) == 0`.
-  - **Thick Foam:** the CO2 blanket from Foam lasts 40 s instead of 25 s.
-- There is no Discoveries panel in this item (cut; see the bottom).
-
-### 8. Quest flow
-- **Order:** quests are done in any order. The active quest is the lowest incomplete one. Its title and step line drive the HUD objective box.
-- **Q1 latch:** Q1 done latches the first time `outcome() == Won`. `Lost` is possible only while Q1 is not done.
-- **The world keeps running:** the chemistry steps unless the game is paused, including after the Q1 win and after a loss. Casting is blocked only while paused.
-- **Banner:** on a win, the Q1 banner hides itself after 4 s. The objective then switches to the next incomplete quest.
-- **R / `reset`:** restarts the active quest only. It restores that quest's zone (Q1: `Courtyard` plus `extinguished = 0`; Q2: `Lab`, including the `TubesFull` latch; Q3: `Pond`), puts the player at the quest's start ((0, 18), (14, 6) or (−12, 28)), and keeps progress, points, unlocks and upgrades. With every quest done, `reset` restores the `Yard`.
-- **`reset all`:** a fresh game. Progress, points, upgrades and unlocks are all cleared.
+  A change in `questStep` or `lab.h2`/`lab.o2` counts as progress and restarts the idle clock. Quest 0 keeps `IDLE_HINT` and `IDLE_SLOT` as today.
 
 ## Acceptance tests
-How each kind of test runs:
-- **Rust:** `cargo test --manifest-path crates/bevy-client/Cargo.toml --locked`.
-- **Web unit tests:** `node --test crates/bevy-client/web/`.
-- **e2e:** `node tests/e2e/content.mjs <artifact dir>` serves the built `web/pkg-out` and drives headless Chromium in point-and-click mode (not locked) through `window.__game.cmd` and `.state()`. Objects are always looked up by `objs[].n`, never by index. Each e2e scenario starts with `reset all`. "Cast X at Y" means `select <N of X>` (hotbar order above), `face <i of Y>`, then `cast`, then wait until `impacts` has risen by 1 (at most 3 s). "Cast any spell at Y" uses whatever spell is selected. Every `select` is written out in the steps below.
 
-### Rust (lane: world; in `chem.rs`, `quest.rs`, `world.rs`)
-1. **Electrolysis.** Build a world with a splitter, a switch and the two tubes in zone `Lab`.
-   - Water on the splitter gives `[Filled]` and `level == 1.0`. A second Water gives `[Filled]` and `level == 1.0`.
-   - Any spell on the switch gives `[Powered]` and `power == true`. A second cast gives `[Powered]` again, and `power` stays true.
-   - From both tubes empty, at every tick for 300 ticks: `|o2_ml − h2_ml/2| < 1e-4`.
+**Unit tests** go in `chem.rs`'s existing `mod tests` and run with `rustc --edition 2021 --test crates/bevy-client/src/chem.rs -o /tmp/chem && /tmp/chem` (CI's command). Tests 1 to 8 fail on the base because `chem::lab`, `World::calm` and `calmed` do not exist.
+
+1. **`lab_closed`.** `Lab::default()`: every `Part` × every `Spell` gives exactly `[Closed]`, and the `Lab` equals its value before the cast.
+2. **`lab_fill`.** With `Lab::opened()`:
+   - Fire, Frost or Foam on `Cell` gives `[UseWater]` with `level == 0`.
+   - Water gives `[Filled]` with `level == 1`.
+   - A second Water gives `[AlreadyFull]` with `level == 1`.
+3. **`lab_gas_two_to_one`.** Opened and filled, then step 600 times:
+   - On every tick, `|o2_ml − h2_ml/2| < 1e-4`, and while `h2_ml > 0`, `|gas_heights().0 / gas_heights().1 − 2| < 1e-3`.
    - After 150 ticks, `h2_ml` is 10.0 ± 0.1.
-   - After 600 ticks, `h2_ml == 20.0` and `o2_ml == 10.0` exactly (the `min` clamp), and `TubesFull` has been emitted exactly once.
-   - With `power` on and `level == 0`, 300 ticks give `h2_ml == 0`.
-2. **Gas tests.**
-   - Fire on the hydrogen tube at 20 mL gives `[Popped]` and the tube is at 0. A second Fire gives `[Fizzle(Empty)]`.
-   - Fire on the hydrogen tube at 4.9 mL gives `[Fizzle(Empty)]` and the gas is unchanged.
-   - Fire on the oxygen tube at 2.5 mL gives `[Flared]` and the tube is at 0.
-   - Water, Frost or Foam on a tube gives `[Fizzle(NotHere)]`. Fire on the splitter gives `[Fizzle(NotHere)]`.
-   - The string "coming soon" appears nowhere in `chem.rs`.
-3. **Hydrogen spell.**
-   - On a burning bush: `[Popped]`, and the `Obj` is otherwise unchanged (compare before and after with `burning`, `temp` and `fuel` equal).
-   - On a non-burning bush, the steam vent and a hot spring: `[Fizzle(NoFlame)]`, and the `Obj` equals itself before the cast.
-4. **Oxygen spell.**
-   - On a burning bush with fuel 60: `[Flared]`, fuel 50.0, still burning.
-   - On a burning bush with fuel 4: `[Flared, BurntOut]`, fuel 0, not burning.
-   - On a non-burning bush, and on a smothered non-burning bush: `[Fizzle(NoFuel)]`, and the `Obj` is unchanged (the smothered one is still smothered).
-5. **Pond ice life.** Ice decrements by exactly `DT/POND_ICE_S` per tick, clamped at 0. Nominally it reaches 0 at tick 1200; f32 accumulation may move that by a tick, so the test uses a window.
-   - A lone pond starts with `ice == 0`, and `world::solid_obj` returns true for it.
-   - After Frost: `[Froze]`, `ice == 1`, and it is not solid.
-   - At tick 1190, `ice > 0` and no `Melted` yet. By tick 1210, `ice == 0` with exactly one `Melted` event, emitted on the first tick `ice == 0`, and the kind is still `Pond`.
-   - Three Fire casts on a frozen pond give a melted pond whose kind is still `Pond`.
-6. **Hot spring.**
-   - Ponds north, middle and south plus the spring, using the layout coordinates. The spring at 80 °C: Frost on pond middle leaves `ice == 0` by tick 8. Frost on north leaves `ice > 0.9` after 100 ticks, because the spring only affects ponds it overlaps.
-   - Frost on the spring gives `[Chilled]` and `temp == 0`. Its temperature first exceeds 40.0 at a tick in 410..=420.
-   - Chill the spring at tick 0 and freeze the middle at tick 1. The middle's ice is > 0 at tick 405 and == 0 by tick 430.
-7. **Upgrades.**
-   - Big Splash: three bushes in a row at gaps 0.8 m and 1.5 m, with A and B burning. Water on A with `splash` puts out both A and B, emitting two `Extinguished(Water)` events. C is not wet. Without `splash` only A is out.
-   - Deep Freeze: Frost on pond north also freezes middle (they touch). South stays liquid, because only direct `gap == 0` neighbours of the target freeze. Frost on middle freezes all three. Without `freeze`, only the target freezes.
-   - Thick Foam: a Foam cast gives `smothered == 40.0`. Without it, `smothered == 25.0`.
-8. **Zone scoping.**
-   - 3 burning `Courtyard` bushes, the greenhouse and 1 burning `Yard` bush (all far apart). Putting out the 3 courtyard bushes gives `outcome() == Won` while the yard bush still burns. Putting out the yard bush leaves `extinguished == 3`.
-   - Igniting the greenhouse gives `Lost`.
-9. **Layout.** `world::chem_objects() -> Vec<(&'static str, Obj)>` and `world::south_walls() -> Vec<Aabb>` are pure (no Bevy app) and are the sources `build()` uses. Checks (using the `player` constants, which the contract lane makes `pub`):
-   - all object names are unique;
-   - every name listed in the Contract exists with its kind and zone;
-   - every `Yard` object has `gap ≥ NEIGHBOUR_GAP` to every non-`Yard` object;
-   - the spring has gap 0 to pond middle and ≥ 2.0 to north and south;
-   - the ponds' x extents cover [−24.0, −0.5] within 0.05;
-   - pond middle's z extent is ≥ `2·SPRINT·JUMP/GRAVITY + 2·RADIUS + 1.0`;
-   - north is 4.0 and south is 4.0 (±0.01);
-   - every `south_walls()` box has `max.y ≥ 3.0` and `max.y ≥ JUMP²/(2·GRAVITY) + HEIGHT + 0.25`;
-   - the divider boxes (those with `min.x ≥ −0.5` and `max.x ≤ 0.5`) together cover z [24.5, 53.0] with no gap wider than 0.01;
-   - the courtyard south wall has exactly two openings, x −10..−6 and 6..10 (±0.05).
-10. **Quest flow** (`quest.rs`). Each Q2 row below uses a world from `World::with_names(chem_objects())`, with only the listed fields changed from the fresh layout, then calls `update(w, p, events)` and checks `step(2, w, p)`. Rows run in sequence on one `Quests` value.
+   - After 600 ticks, `h2_ml == 20.0` and `o2_ml == 10.0` exactly (the `min` clamp).
+   - `GasReady` is emitted exactly once, on a tick in 149..=151 (10 mL at 2 mL/s is 150 ticks at 30 Hz; the window allows for f32 accumulation). This window is checked only here, never in e2e.
+   - `set_gas(4.0)` gives `h2_ml == 4.0`, `o2_ml == 2.0`; `set_gas(99.0)` gives 20.0 and 10.0.
+4. **`lab_no_gas_without_water`.** Opened and not filled: 300 steps leave `h2_ml == 0`, `o2_ml == 0` and no events.
+5. **`lab_tests`.** Opened, filled, then set `h2_ml = 9.9`:
+   - Fire on `H2Tube` gives `[TooLittle]` and the gas is unchanged.
+   - With `h2_ml = 10.0`, Fire gives `[Popped]`, `h2_ml == 0` and `h2_tested`.
+   - Water, Frost or Foam on either tube gives `[UseFire]`.
+   - With `o2_ml = 5.0`, Fire on `O2Tube` gives `[Flared, Done]` and `done`.
+   - Refill and pop H2 again: `[Popped]` only, with no second `Done`.
+6. **`lab_either_order`.** Oxygen tested first, then hydrogen: `Done` exactly once, on the second test.
+7. **`lab_step_index`.** Each of these is checked:
+   - (wall standing, outside the lab) gives 0;
+   - wall melted gives 1;
+   - `in_lab` with the wall standing gives 1;
+   - filled gives 2;
+   - `h2 = 10, o2 = 5` gives 3;
+   - `h2_tested` with `o2 = 1.0` gives 2;
+   - `done` gives 4.
 
-    | row | world fields set | player p | events fed | expected |
-    |-----|------------------|----------|------------|----------|
-    | a | (fresh) | [0, 18] | [] | step 0 |
-    | b | ice wall `wall = false` | [0, 18] | [] | step 1 |
-    | b2 | (fresh; separate fresh `Quests`) | [19.5, 6] | [] | step 1 (lab by position) |
-    | c | + splitter `level = 1` | [19.5, 6] | [Filled on splitter] | step 2 |
-    | d | + splitter `power = true`, tubes 0 / 0 | [19.5, 6] | [Powered on switch] | step 3 |
-    | e | + h2 = 5.0, o2 = 2.5 | [19.5, 6] | [] | step 4 |
-    | f | + h2 = 0.0 | [19.5, 6] | [Popped on a courtyard bush] | step 3, `h2_tested == false` |
-    | g | (same) | [19.5, 6] | [Popped on hydrogen tube] | step 4, `h2_tested`, `done[1] == false` |
-    | h | + o2 = 0.0 | [19.5, 6] | [Flared on oxygen tube] | `done[1]`, `unlocked()[4..6] == [T, T]`, `points() == 1`, `done_id` +1, notices contain `QuestDone(2)` |
+   Also `in_lab`: (18.0, 6) false, (18.2, 6) true, (20, 2.9) false, (20, 9.1) false.
+8. **`world_calmed`.** Build the test courtyard used by `courtyard_pacing` with its 3 starting fires, then `calmed()`:
+   - `burning() == 0`, `outcome() == Playing` and `ended == None`.
+   - Step 3000 ticks: no `Reseeded` event, and `outcome()` is still `Playing`.
+   - Then ignite the greenhouse with `ignite(gh)` and step once: `outcome()` is still `Playing`.
+   - On an uncalmed copy, the same ignite gives `Lost` (guard).
+9. **`electrolysis_tube_empty_and_partial`.** `tube(dz, 0.0)`: `gas.h == 0`, and `water.h == TUBE_H − 2·INSET` within 1e-5. For `g` in {0.1, 0.3, 0.6}: `water.h + gas.h == TUBE_H − 2·INSET` within 1e-5, and the gas top equals the inner top. I-018's tests 1–4 still pass unchanged.
+10. **`apply_ignores_lab_bench`.** `World::apply` on a `LabBench` object, with every spell, pushes no event and leaves the object unchanged. `EventKind` has no `Station` variant: the string `coming soon` is absent from `chem.rs` (`grep -c 'coming soon' crates/bevy-client/src/chem.rs` gives 0).
 
-    Also:
-    - Fresh state: `active() == Some(1)`, `unlocked() == [T,T,T,T,F,F]`, `points() == 0`.
-    - Reversed order (Flared on the oxygen tube, then Popped on the hydrogen tube, from row e) also latches `done[1]`.
-    - `buy(Foam)` returns true and sets `world.upgrades.foam`. A second `buy(Foam)` returns false. `buy(Splash)` with 0 points returns false.
-    - Q3: `step(3)` is 0 at [−12, 20] and 1 at [−12, 26]. Done latches when `player_xz = [-12.0, 47.6]`, and not at `[-12.0, 47.4]` or `[0.6, 48.0]`.
-    - Q1: `step(1)` equals `extinguished.min(3)`. `Lost` while `done[0]` is false is reported. After `done[0]`, a burning greenhouse does not unset `done[0]`, and `quest1_lost()` is false.
-    - `zone_at`: [0, 0] Courtyard, [19, 6] Lab, [19, 10] Courtyard, [−3, 24.4] Courtyard, [−3, 25] Pond, [0, 30] Yard, [−0.01, 30] Pond.
-    - `reset_all()` restores the fresh state.
+**e2e checks** are new `check(...)` calls in `tests/e2e/golden.mjs`. They go in a function `labQuest(...)` called **after** I-019's `castingYouCanSee(...)` and before `no console errors`, so that check covers them too. They run as `QUERY=?low node tests/e2e/golden.mjs`, in isolation (I-017). The code uses golden's existing `castAt`, `until` and `frames` helpers. Objects are looked up by `objs[].n`. Existing, I-007 and I-019 checks are not edited; the line-264 bench check still passes because the `Closed` caption contains "splitting". The section starts with `reset all`.
 
-### Web unit (lane: web; `crates/bevy-client/web/skilltree.test.mjs` against `skilltree.js`)
-11. `treeModel(state)`:
-    - The fresh state (`unlocked` [T,T,T,T,F,F], points 0, no upgrades) gives 6 spell nodes, where `hydrogen` and `oxygen` are `locked` and the others are `learned`, and 3 upgrade nodes, all `locked`.
-    - With points 1, all three upgrades are `buyable`.
-    - With `upgrades.foam` true, `foam-up` is `bought`.
-    - `canBuy(state, 'foam')` is false at 0 points and false when already bought.
-12. `slotLocked(state, i)` is true for i = 4 while `unlocked[4]` is false, and false once it is true. `pointsText(state)` gives "Science points: 2" for points 2.
+11. **Quest 2 is offered, not forced (GS-28).**
+    - Win Q1 with three Water `castAt`s on `lit`.
+    - Within 10 frames:
+      - `outcome === 'won'` and `quest === 0`;
+      - `#banner-next` is visible, its box is at least 40 px tall, and its text contains `Next quest`;
+      - `#banner .small` contains `Enter`;
+      - computed `font-size ≥ 18px` for `#banner-next` and `#banner .small` (GS-18).
+    - Wait 300 frames: `quest` is still 0 and the banner still shows.
+    - On the base, `#banner-next` does not exist.
+12. **Enter starts quest 2.**
+    - `page.keyboard.press('Enter')`. Within 10 frames:
+      - `quest === 1`, `outcome === 'playing'`, `questTitle === 'Split the Water'`;
+      - `#objective .title` reads `Split the Water`;
+      - `lab.open === true`;
+      - the banner is hidden;
+      - `caption` starts with `Quest 2: Split the Water!`;
+      - computed `font-size ≥ 18px` for `#objective .title` and `#obj-line` (GS-18).
+    - Then `reset`: `quest` is still 1, `pos` is (8, 0, 6) ± 0.1, and the `Kind::IceWall` object has `wall === true`.
+    - Then `reset all`: `quest === 0`, `burning === 3`, `lab.open === false`.
+    - **Mouse route under lock (GS-11).** Win Q1 again while pointer-locked (lock with a canvas click first; if the headless run cannot hold a real lock, the check records `pointerLockElement` and asserts the code path by spying on `document.exitPointerLock`). Within 10 frames of the win: `exitPointerLock` was called once (or `document.pointerLockElement === null`). Record `c0 = casts`, then **click** `#banner-next` with `page.click`: `quest === 1`, `casts === c0`, and `document.pointerLockElement === null` (the click did not re-lock).
+    - **Enter under lock.** `reset all`, win Q1 again while locked (or with the lock spy in place), record `c0 = casts`, press Enter: `quest === 1` and `casts === c0`.
+13. **Step 0 to 1, and the arrow points to the wall.**
+    - In quest 1 from `reset` (wall standing), `tp 0 6`, then `look 90 0` (facing −x, away from the alcove). Within 5 frames:
+      - `questStep === 0`, `goalObj` is the ice wall's index, `goalOff === true`;
+      - `#firefinder` is visible with the class `lab`, and with `right` iff `goalBearing > 0`.
+    - `castAt(iceWall, 1)` three times, then `until(questStep === 1)`. `questLine` is `Fill the water splitter: cast Water at it.`, `questSpell === 1`, and `#obj-line .obj-icon.water` exists.
+14. **Fill, then gas at 2:1 that you can see.** (The lab steps in real time at 30 Hz, so this test asserts deltas and ratios, never absolutes that depend on frame counts.)
+    - **Assisted near miss (GS-10).** `tp 20 6`, `face` the bench, then turn the yaw 2.5° off the cell's centre (`look` by the bench bearing ± 2.5) and cast Water with assist on (the default). Within 12 frames:
+      - `lab.level === 1`, `questStep === 2`, `hitKind === 'hit'`, and the caption is the `Filled` caption;
+      - `streams ≥ 1` was seen between the cast and the impact (I-019);
+      - the caption contains `Na2SO4` or `Na₂SO₄`.
+    - Read `h0 = lab.h2`, then `tick 150`, and read one state frame. In that frame:
+      - `lab.h2 − h0` is 10.0 ± 0.1 (unless `lab.h2` is 20, the clamp);
+      - `|lab.o2 − lab.h2 / 2| ≤ 0.1`;
+      - `gasH[0] / gasH[1]` is 2 ± 0.01, and `gasH[0]` is `0.6 · lab.h2 / 20` ± 0.01 (published `gasH` is the drawn transform, section 4, so this is the render check);
+      - `until(questStep === 3)` within 30 frames, and `questLine` starts with `Test each gas with Fire`.
+    - **Screenshot (non-gating):** from `tp 19.6 6` facing the H2 tube, after `__game.pause(true)`, save one screenshot to the run's artifacts and log the path. It is not a check.
+15. **Test both gases; quest 2 completes, and the game ends cleanly.**
+    - `lab gas 12` (exactly 12 mL H2 and 6 mL O2, both above the test amounts). `castAt(h2Tube, 1)`. Within 12 frames:
+      - the caption matches `/squeaky pop/i`, `lab.h2Tested`, `lab.h2 < 1`, `hitKind === 'out'`;
+      - `#hitmarker` shows the star (I-007).
+    - `lab gas 12` again (so the O2 amount is exact), then `castAt(o2Tube, 1)`. Within 12 frames:
+      - `lab.done`, `outcome === 'won'`, `quest === 1`, `questStep === 4`;
+      - `#banner .big` reads `You split water!`, and `#banner-next` is hidden.
+    - **Ended, like quest 0 (GS-7).** Record `h = lab.h2`, `t = gameTime`, `c = casts`. Over 30 frames: `lab.h2 === h`. Press Enter and cast Fire at the H2 tube: `quest === 1`, `outcome === 'won'`, `lab.h2Tested` unchanged, and no new lab caption (casting is blocked). Then press R: `outcome === 'playing'`, `questStep === 0` and the banner is hidden.
+16. **Wrong spells explain and do not progress.**
+    - From quest 1 `reset`, `tp 20 6` with the wall melted by `castAt` × 3. Then:
+      - `castAt(bench, 1)` gives a caption of `Use Water on the cell.` and `lab.level === 0`;
+      - `castAt(h2Tube, 2)` gives `Test a gas tube with Fire.`;
+      - after filling, `lab gas 4` (exactly 4 mL H2, well under 10), then `castAt(h2Tube, 1)` within the same few frames gives `Not enough gas yet. Watch the bubbles.` with `h2Tested === false`.
+    - Each of these has `hitKind === 'fizzle'`.
+16b. **No greenhouse warning in calm quest 2 (S3).** In quest 1, cast Fire at the bush nearest the greenhouse and at the greenhouse until `ghTemp > 60` (or 900 frames). Assert `ghTemp > 60` was reached (the check fails, not skips, if it never is), and on every frame where it held, `#warning` is hidden and `outcome === 'playing'`.
+17. **Analytics counts quest 1** (`tests/e2e/analytics-e2e.mjs`, main run).
+    - After `Save the Greenhouse is won`, press Enter. Then use the same `tp`/`face`/`select`/`cast` pattern the run uses for quest 0:
+      - melt the wall;
+      - Water on the bench;
+      - `lab gas 12` before each Fire test (the run already loads `?debug`);
+      - Fire on each tube.
+    - Wait for `outcome === 'won' && quest === 1`.
+    - Checks:
+      - the run's captured events include `quest_complete` with `quest: 1`, exactly once;
+      - **edited check:** "D1 main: exactly 2 quest_complete (seedling, rooms 0 and 1)";
+      - **new check:** `stats.funnel.quests[1].seedling === 1`.
+    - The two existing quest-0 checks are replaced only by these, and every other check is untouched.
+    - On the base, quest 1 is never sent.
+18. **Science lint.** `npm test` passes:
+    - rows C-027 to C-031 are present (Contract);
+    - row C-026 is removed (its id is not reused);
+    - row P-015's note describes the live columns and names `lab_gas_two_to_one`;
+    - every new HUD or caption string the lint flags has a claim or not-claims row.
+19. **No flashing from pop and flare (GS-6).** Use I-019 test 19's in-Node PNG method. Take 20 consecutive-frame screenshots through a `Popped` and 20 through a `Flared`, from 2 m. The fraction of pixels whose relative luminance changes by 10% or more stays under 20% of the frame for every pair.
+20. **B2 guard (tester, no script change).**
+    - Base is the I-019 merge commit, built into `<scratchpad>/I-008/base-pkg-out`.
+    - Run `ONLY=low@4x RUNS=3 node tests/e2e/perf.mjs`, 3 interleaved pairs. The median CPU-frame p50 must be ≤ base + 1.0 ms.
+    - Also run one pair standing in the lab during step 2 (bubbles plus live columns) with the same limit, measured on the same machine.
+21. **B3 guard.** Brotli of `pkg-out` grows by at most 15 KB. No new binary assets.
+22. **Golden still green.** All existing, I-007, I-019 and new checks pass 3/3 with `QUERY=?low`, with no threshold edits. The `clock and budget` section's `keysOk` passes with the Contract's `I008_KEYS` order (its one edit is the contract stub's, below).
 
-### e2e (lane: contract; `tests/e2e/content.mjs`)
-13. **Locked spells.** On a fresh game:
-    - `unlocked` is `[true,true,true,true,false,false]`.
-    - `select 5` leaves `spell == 0`.
-    - The `.slot[data-spell="5"]` and `.slot[data-spell="6"]` buttons have class `locked`.
-    - `objs` contains every Contract name.
-14. **Quest 2, all the way through.**
-    - `tp 19.5 6` → `quests[1].step >= 1` and `zone == "lab"`. Q1 is not done, so `quest` stays 1; quests can be completed in any order.
-    - Cast Water at the "water splitter" (`select 2`) → `level` is 1.
-    - Cast Water at the "battery switch" → `power` is true.
-    - `tick 300` → the hydrogen tube's `gas` is 20.0 and the oxygen tube's `gas` is 10.0.
-    - Cast Fire at the "hydrogen tube" (`select 1`) → `caption` contains "2H2 + O2 → 2H2O", and the tube's `gas` is 0.
-    - Cast Fire at the "oxygen tube" → within 2 s `quests[1].done` is true, `unlocked[4]` and `unlocked[5]` are true, `points == 1`, and `questDoneId` has risen by exactly 1.
-    - `select 5` → `spellName == "Hydrogen"` and `formula == "2H2 + O2 → 2H2O"`.
-    - `select 6` → `spellName == "Oxygen"`.
-    - The slot `locked` classes are gone.
-15. **Quest 3, success.**
-    - `tp -12 28` → `zone == "pond"`.
-    - Cast Frost (`select 3`) at pond north, then pond south, then the hot spring → the spring's `temp` is ≤ 1.
-    - Cast Frost at pond middle → `frozen` is true.
-    - `look 180 0` and `move 0 1 7` → within 9 s of the move, `quests[2].done` is true, `pos[2] ≥ 47.5`, and no "Splash" caption has appeared.
-16. **Quest 3, the spring defeats a naive crossing.**
-    - `tp -12 28`. Cast Frost (`select 3`) at north, middle and south (the spring stays hot).
-    - `look 180 0` and `move 0 1 7`, sampling every frame for 9 s.
-    - `quests[2].done` stays false, and `pos[2]` stays below 35.0 on every sample (the player is stopped at the melted middle's edge, about 34.65).
-    - No caption starting "Splash!" appears during the walk.
-    - The middle's `frozen` is false within 0.5 s of its cast.
-    - Then `tp -12 39` → within 2 frames `pos[2]` is 29.0 ± 0.05, and `caption` starts with "Splash!".
-17. **Free play, the divider and the reset lever.**
-    - `tp 12 30` → `zone == "yard"`. Save `extinguished`.
-    - Cast Fire at "yard bush 1" (`select 1`) → `burning`.
-    - Cast Water at it (`select 2`) → `extinguished` is unchanged.
-    - Cast Fire at "yard hedge" (`select 1`) → `burning`.
-    - Cast any spell at the "reset lever" → within 2 frames every yard object has `burning:false`, the bushes have `fuel` 60.0, and the hedge has fuel 45.0.
-    - **Divider:** `tp 3 40`, `look 90 0` (facing −x), `move 0 1 3`, and send `jump` every 10 frames for 3 s, sampling every frame. `pos[1]` exceeds 0.5 on at least one sample (the jumps happen), `pos[0]` stays ≥ 0.8 on every sample, and `zone` is "yard" throughout.
-18. **Skill tree.**
-    - Press `K` → `#skills` is not hidden, `state.paused` is true, the `#pause` card stays hidden, and a `cast` command leaves `casts` unchanged. `#skill-points` text is "Science points: 0".
-    - Click `[data-node="foam-up"]` with 0 points → `upgrades.foam` is false.
-    - Press `K` → closed and `paused` false.
-    - After the test 14 steps (points 1): open, click `foam-up` → within 2 frames `upgrades.foam` is true, `points` is 0, and the node has class `bought`. Close.
-    - `tp 12 30`, cast Foam (`select 4`) at "yard bush 2" → its `smothered` is ≥ 39.0.
-19. **Flow and robustness.**
-    - Win Q1: `select 2`, then `face` each burning bush and cast, until `quests[0].done`. Then `tick 30` raises `tick` by 30 (the chemistry is not frozen after the win). `#banner` is hidden within 6 s. `#objective .title` text is "Split the Water".
-    - Then `tp -12 28`, cast Frost (`select 3`) at pond north, and send `reset`. The objective is now Q2's, so pond north is untouched (still frozen) and `pos` is (14, 0, 6) ± 0.1.
-    - `reset all` → `quests` are all not done, `points` is 0, and `unlocked[4]` is false.
-    - Across scenarios 13–19: 0 console errors, 0 `pageerror`, and no "panicked" in the console.
-20. **Science sources.**
-    - `content/science-sources.md` contains a row for every claim id C-I008-01 … C-I008-13 (Contract), each with at least one `https://` URL.
-    - Every caption string in the Contract's caption table appears verbatim in `chem.rs` or `quest.rs`. Strings with `{}` are checked as the literal format string, placeholders included.
-    - The test reads both files and fails, listing what is missing.
-21. **Perf guard (B2).** Same machine, `?low`, headless Chromium at 4x CPU throttle. Take 5 interleaved runs each of base (main at the merge base) and this artifact; each run gives one `CPUFRAME p50_ms` value (the line `web/boot.js` logs). Let `spread` = max − min of the base's 5 spawn values.
-    - At spawn (30 s idle): median of the artifact's 5 values ≤ median of the base's + max(1.0 ms, 2·spread).
-    - In the south zone (`tp 0 30`, `look 180 0`, 30 s idle): the artifact's median ≤ the base's spawn median + max(2.0 ms, 2·spread).
-    - If base does not log `CPUFRAME`, the test fails with "base has no CPUFRAME" rather than passing; if I-003's perf script has merged, use its runner for the measurement with these limits.
-22. **Size guard (B3).** Brotli of `pkg-out` (wasm + js + css + html) grows ≤ 60 KB against base. No new binary assets.
+## GS walk (screens, controls and effects this item touches)
+
+| GS | P | status |
+|----|---|--------|
+| 6 | P0 | met for pop, flare and bubbles (test 19). The finder pulse is I-019's. The greenhouse warning pulse is off in calm quest 2 (test 16b) |
+| 7 | P1 | met: quest 2 starts only on a choice, and each quest end is a clean stopping point. A won quest stops the world and the lab in both quests (`quest_outcome`), so no live world sits behind an unpausable banner (test 15) |
+| 10 | P0 | met: the cell pick box is tall (y 0.2–1.5), and an assisted 2.5° near miss still fills (test 14) |
+| 11 | P0 | met: the whole quest needs only mouse look and click plus one movement key (or point mode). The banner releases pointer lock so `#banner-next` is clickable with a mouse, and the click never casts (test 12). Enter is an optional shortcut |
+| 12 | P0 | kept via I-019 (latched click, flight ≤ 0.25 s) |
+| 13 | P1 | met for the new UI: Enter drives `#banner-next`, which is a focusable `<button>` |
+| 15 | P0 | met: each lab result has a caption, a particle burst, I-007's marker shape (star for success, slash for fizzle) and a sound |
+| 17 | P0 | met: the pop and flare are large bursts with the star and cheer. The tubes visibly fill. The quest end is a big banner |
+| 18 | P0 | met for the new text: `#banner-next`, `#banner .small`, `#objective .title` and the quest 1 `#obj-line` compute to ≥ 18 px (tests 11, 12). The pre-existing 15 px quest 0 `#obj-line` is another item's fix |
+| 19 | P0 | met: the gas tint differs from the water by luminance, not only hue (I-018). The arrow `.lab` uses a flask *shape*. The objective icon is a shape |
+| 21 | P0 | met: new lines are short; the longest caption (`Filled`) is split down to 14 words with one formula. Each step has an icon (objective icon, slot nudge, arrow). Captions do not auto-dismiss faster than today |
+| 22 | P1 | met: `#banner-next` is at least 40 px tall |
+| 24 | P0 | **met**: a specific step line with numbers ("hydrogen 10 mL, oxygen 5 mL"), an arrow to the next object, and a per-step idle hint plus slot nudge |
+| 25 | P1 | met: quest 2 has no timer and no fail |
+| 27 | P0 | met: lab glassware only, and the tone is not babyish |
+| 28 | P0 | **met**: no auto-continue (test 11 waits 300 frames). No lure copy |
+| 30 | P0 | **met**: the player must pick Water to fill and Fire to test. Other spells explain and do nothing (test 16). The 2:1 columns and the pop-vs-flare result *are* the lesson |
+| 31 | P1 | **partial, deferred**: meaningful (water, fire) and discussable (2:1, pop test), but both spells are named in the step line and the hint, so there is no prediction. A prediction prompt belongs with the hydrogen/oxygen spells follow-up; no quiz is bolted on here |
+| 32 | P1 | met: H2/O2 numbers sit next to visibly growing columns |
+| 23 | P0 | unchanged: the safe first minute is I-020's |
+| 2, 8, 9, 14, 20, 26 | P1 | unchanged (no new settings or controls beyond Enter) |
 
 ## Out of scope
-- Saving progress across reloads.
-- Quests 4 and later, NPCs and dialogue.
-- A Spark or electricity spell.
-- Modelling the real moles or the water used up in electrolysis.
-- Audio, including the pop sound.
-- New art assets or textures (I-009).
-- A Discoveries panel (cut from this item; a candidate for a later B5 item).
-- A quest that requires spells 5 or 6.
-- Editing I-002's smoke script so it walks quests 2 and 3. Tests 14–15 are written to be reused there. B1 is red until that lands (see "Bars moved").
-- Analytics events for the new quests. I-005 consumes `questDoneId` and `quests`.
-- Touch-specific skill-tree layout beyond tap = click.
-- Balancing play time (the I-006 panel measures it).
-- Wiring these tests into CI.
+
+- **Follow-up rows the planner files in the backlog** (the rest of r2, re-scoped against the merged client):
+  - **"Spells 5 and 6 (Hydrogen, Oxygen) unlocked by Split the Water, plus a 6-slot hotbar with locked slots"** (B8, B5). Hydrogen on a flame pops; Oxygen makes a burning fuel flare. Reuse r2's Contract rows for `Spell::Hydrogen`/`Oxygen` and claims C-I008-08/09/11 (H2 about 14× lighter than air, O2 an oxidiser, H2 the lightest gas), and give them a quest use.
+  - **"Quest 3, The Frozen Pond: liquid-nitrogen bridge puzzle with a hot spring"** (B8, B5). It needs the south zone (walls ≥ 3.0 m, divider, gates) and r2's pond, spring and step tables. **Science that must stay correct:**
+    - LN2 boils at 77 K (−196 °C), per [S1].
+    - Where the game shows LN2 meeting warmer water or ground, the **Leidenfrost effect** applies: a vapour layer forms under the liquid nitrogen and insulates it, so droplets skate and the first contact transfers heat slowly. Any "freezes instantly" outcome must be registered as `simplified` (as C-016 is), never as `correct`.
+    - The 80 °C spring is a game value, checked for plausibility.
+  - **"Free-play yard with reset lever"** (B8, B5) and **"Skill-tree screen with three upgrades and science points"** (B8, B5), from r2 sections 6 and 7.
+  - **"Smoke and panel walk quests 3+"**: each content item adds its own golden section, as this one does.
+  - A one-line docs follow-up: `crates/bevy-client/README.md` controls (Enter for the next quest, `reset all`).
+- Saving progress across reloads, so quest 2 must be reached again after a reload.
+- **Free play after the quest 2 win** ("Keep exploring" with a live lab). A won quest 2 ends the game like quest 0; free experimenting belongs to the free-play yard row.
+- **A HUD route back to quest 0.** `reset all` is a command only; nothing in the HUD sends it, so a child returns to quest 0 by reloading. A menu button is not expected here; the README follow-up documents the command.
+- Polarity marks, wires or a switch on the battery. The circuit closes when the cell is filled, which is true of the prop as drawn. The prop stays unlabeled, as I-018 left it.
+- Modelling the water used up: 20 mL of H2 at room conditions comes from about 0.015 mL of water, so the cell level is not changed.
+- A greenhouse that catches fire in the calm quest-2 courtyard (from a fire the player lit) has no consequence. That is acceptable for this step, and the panel brief notes it.
+- New sounds (I-007's set covers it), new art (I-009), and age-band caption variants (I-021).
+- `analytics.js`, `functions/**`, `dashboard/**`, `migrations/**`, `index.html` (all new DOM is built by `hud.js`), the panel harness (`tests/e2e/panel/**`) and `.github/**`.
+- **Panel brief note:** the panel brief must say the slice now has two quests, and that quest 2 starts from the win banner ("Next quest" button, or Enter).
 
 ## Contract
 
-### Rust types (`crates/bevy-client/src/chem.rs`; no Bevy)
-**New `Kind` variants:** `Switch`, `GasTube`, `Pond`, `HotSpring`. Which gas a tube holds comes from its name, through the lab ids below.
+A stub, landed by the contract builder on the branch base (after I-019 merges) before the lanes start. It has no gameplay behaviour. Both lanes code against it.
 
-**`Spell`:** adds `Hydrogen` and `Oxygen`, with `Spell::ALL: [Spell; 6] = [Fire, Water, Frost, Foam, Hydrogen, Oxygen]` (hotbar order). `name()` returns "Hydrogen" and "Oxygen". `formula()` returns "2H2 + O2 → 2H2O" and "O2 helps fuels burn".
+### Rust (stub signatures with neutral bodies; no `todo!()`)
 
-**`EventKind` changes:**
-- adds `Filled`, `Powered`, `TubesFull`, `Popped`, `Flared`, `Chilled` and `YardReset`;
-- removes `Station`.
+- `chem::lab`: `Part`, `LabEvent`, `Lab` (fields as in section 1), `Lab::opened()`, `apply`, `step`, `set_gas`, `gas_heights`, `step_index`, `in_lab`, the six constants, and `LabEvent::caption` returning the exact strings below.
+- `chem::World::calm: bool` and `World::calmed(&self) -> World`.
+- `chem::electrolysis::{CELL_PICK_C, CELL_PICK_H, TUBE_PICK_H}` with the section 3 values.
+- `world::Chem::lab: chem::lab::Lab`, and `world::TubePiece { tube: u8, gas: bool }` (a `Component`).
+- `Game::quest: u8`, `quest_outcome()` (stub: returns `chem.world.outcome()`), and the `DrawnGas([f32; 2])` resource. The commands `quest next`, `reset all` and `lab gas <h2_ml>` (debug-gated) are parsed. In the stub, `quest next` and `lab gas` are no-ops with a `warn!`, and `reset all` behaves like today's `reset`.
+- The publisher emits every `I008_KEYS` field (below) with its neutral value, in order.
 
-**`Fizzle`:** adds `NoFlame`, `NoFuel`, `Empty` and `NotHere`.
+### `golden.mjs` key order (the stub's one edit to an existing check)
 
-**Zones:** `pub enum Zone { Courtyard, Lab, Pond, Yard }`.
+The contract stub changes `keysOk` in `golden.mjs`'s `clock and budget` section from `[...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS]` to `[...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I008_KEYS]`, with
 
-**New `Obj` fields:** `zone: Zone`, `level: f32` (splitter, 0..1), `power: bool` (splitter) and `gas_ml: f32` (tubes). `Obj::new` keeps its signature and defaults to `Courtyard`, and `fn in_zone(self, Zone) -> Self` sets the zone.
-
-**New `World` fields:**
-- `upgrades: Upgrades { splash, freeze, foam: bool }`;
-- `lab: Option<Lab { splitter, switch, h2_tube, o2_tube: usize }>`, which `World::with_names(objs: Vec<(&'static str, Obj)>)` resolves from the names "water splitter", "battery switch", "hydrogen tube" and "oxygen tube" (`World::new` sets `None`);
-- `tubes_full_sent: bool`, the `TubesFull` latch, cleared by `reset_zone(Lab)`;
-- `initial: Vec<Obj>`, a copy used for zone resets;
-- `fn reset_zone(&mut self, Zone)`, which restores that zone's objects from `initial`, and also zeroes `extinguished` for `Courtyard`.
-
-**`extinguished`:** counts `Courtyard` objects only. `burning()` and `outcome()` consider `Courtyard` objects only.
-
-**Constants:**
-
-| constant | value |
-|----------|-------|
-| `H2_RATE_ML` | 2.0 |
-| `H2_CAP_ML` | 20.0 |
-| `O2_CAP_ML` | 10.0 |
-| `H2_TEST_ML` | 5.0 |
-| `O2_TEST_ML` | 2.5 |
-| `OXY_BURN_S` | 10.0 |
-| `POND_ICE_S` | 40.0 |
-| `SPRING_C` | 80.0 |
-| `SPRING_REWARM` | 0.05 |
-| `SPRING_MELT_C` | 40.0 |
-| `SPRING_MELT_RATE` | 4.0 |
-| `SMOTHER_S` | 25.0 |
-| `SMOTHER_THICK_S` | 40.0 |
-| `SPLASH_GAP` | 1.0 |
-
-**Captioned-event flag.** I-001 marks events that already got a caption by OR-ing `1 << 30` into `Event::obj` (`aim_and_cast`, `main.rs` line 876 at 6d5463e) and strips it in `react` (line 887). The contract lane names it `pub const CAPTIONED: usize = 1 << 30;` in `chem.rs`; core replaces the two literals with it. Core strips the flag from each event before passing events to `Quests::update`, so `update` always sees real object indices.
-
-**`world::solid_obj`:**
-- `Pond` → `ice <= 0.0`;
-- `HotSpring`, `Switch` and `GasTube` → true;
-- `Puddle` → false (unchanged);
-- `IceWall` → `wall` (unchanged).
-
-`world::chem_objects()` and `world::south_walls()` are pure, as in test 9.
-
-### `player.rs` constants
-`WALK`, `SPRINT`, `JUMP` and `GRAVITY` become `pub` (values unchanged: 5.0, 8.5, 6.0, 18.0). The contract lane makes this one edit so the world lane's test 9 compiles before core lands.
-
-### Quest module (`crates/bevy-client/src/quest.rs`; no Bevy)
-```
-pub enum Upgrade { Splash, Freeze, Foam }
-pub enum Notice { QuestDone(u8), Hint(&'static str), Splash }
-pub struct Quests { pub done: [bool; 3], pub h2_tested: bool, pub o2_tested: bool,
-                    pub bought: [bool; 3], pub done_id: u32 }
-pub fn zone_at(p: [f32; 2]) -> Zone;              // section 2 of Smallest version
-impl Quests {
-  fn active(&self) -> Option<u8>;                 // 1..=3, lowest not done
-  fn step(&self, q: u8, w: &World, p: [f32; 2]) -> u8;
-  fn title(q: Option<u8>) -> &'static str;        // "Save the Greenhouse" | "Split the Water" | "The Frozen Pond" | "Free play"
-  fn line(&self, w: &World, p: [f32; 2]) -> String;
-  fn update(&mut self, w: &World, p: [f32; 2], events: &[Event]) -> Vec<Notice>; // events with CAPTIONED already stripped
-  fn unlocked(&self) -> [bool; 6];
-  fn points(&self) -> u8;                         // done count − bought count
-  fn buy(&mut self, w: &mut World, u: Upgrade) -> bool;
-  fn quest1_lost(&self, w: &World) -> bool;
-  fn reset_all(&mut self);
-}
+```js
+const I008_KEYS = ['quest', 'questTitle', 'questStep', 'questLine', 'questSpell',
+                   'lab', 'gasH', 'goalObj', 'goalBearing', 'goalElev', 'goalOff'];
 ```
 
-**Step rules:**
-- **Q1:** `step = extinguished.min(3)`.
-- **Q2:** 0 while the ice wall stands, the player is not in `Lab` and `level == 0`; 1 once reached while `level == 0`; 2 while `level > 0 && !power`; 3 while `power` and some untested tube is below its test amount; 4 while `power` and every untested tube is at or above its test amount. After done, step stays 4.
-- **Q3:** 0 until `zone_at(p) == Pond`, then 1. After done, step stays 1.
+appended after I-019's last key (`fxWater`). `outcome` stays in its base position. `lab` is a nested object with the key order `open, level, h2, o2, h2Tested, o2Tested, done`. This is the only edit to an existing check, made once by the stub; neither lane redoes it.
 
-**Step lines (exact; `{}` are rounded to integers):**
-- **Q1:** the existing "Fires put out: n / 3  ·  burning now: b".
-- **Q2:**
-  - s0 "Melt the ice wall (east) to reach the lab"
-  - s1 "Fill the water splitter: cast Water at it"
-  - s2 "Cast any spell at the battery switch to turn it on"
-  - s3 "Splitting water... H2: {} / 20 mL, O2: {} / 10 mL"
-  - s4 "Test each gas with Fire: hydrogen tube {}, oxygen tube {}" (each `{}` is ✓ or ○)
-- **Q3:**
-  - s0 "Go through the south-west gate to the Frozen Pond"
-  - s1 "Freeze the pond to cross. The hot spring melts ice near it: cool it with Frost first. Spring: {} °C"
-- **All quests done:** "Free play: try every spell on everything in the yard (south-east gate)."
+### `LabEvent` captions (exact; the science review checks these)
 
-**Hint:** when pond middle melts while the spring is above 40 °C, `Notice::Hint("The 80 °C hot spring melted the ice right away. Cool the spring with Frost first!")`.
+| event | caption | register |
+|-------|---------|----------|
+| `Closed` | `The water-splitting lab opens after you save the greenhouse.` | not-claims |
+| `Filled` | `Water in! A little Na₂SO₄ lets electricity split it: 2H₂O → 2H₂ + O₂.` | C-027 |
+| `AlreadyFull` | `The cell is already full of water.` | not-claims |
+| `GasReady` | `Bubbles! Hydrogen fills one tube twice as fast as oxygen fills the other.` | C-028 |
+| `Popped` | `Squeaky pop! Hydrogen burns with oxygen from the air: 2H₂ + O₂ → 2H₂O.` | C-029 |
+| `Flared` | `The flame burns brighter: oxygen helps things burn, but it does not burn by itself.` | C-030 |
+| `TooLittle` | `Not enough gas yet. Watch the bubbles.` | not-claims |
+| `UseWater` | `Use Water on the cell.` | not-claims |
+| `UseFire` | `Test a gas tube with Fire.` | not-claims |
+| `Done` | `You split water into hydrogen and oxygen!` | C-031 |
+| quest 2 start | `Quest 2: Split the Water! The lab is behind the ice wall, to the east.` | not-claims |
 
-### Captions (exact strings; the science review checks these)
+### Quest 2 step lines (`questLine`; exact, `{}` rounded to integers)
 
-| event or text | caption | claim ids |
-|---------------|---------|-----------|
-| `Filled` | "The cell is full of water with a little sodium sulfate (Na2SO4) dissolved in it, so electricity can flow. Pure water barely conducts." | C-I008-01, 02 |
-| `Powered` | "Current on! Water splits: 2H2O → 2H2 + O2. Hydrogen bubbles up at the − electrode, oxygen at the + electrode." | C-I008-03, 04 |
-| `TubesFull` | "Tubes full: 20 mL of hydrogen, 10 mL of oxygen. Two H2 for every O2, just like 2H2O → 2H2 + O2." | C-I008-05 |
-| `Popped` | "Squeaky pop! A little hydrogen burns in one quick pop: 2H2 + O2 → 2H2O." | C-I008-06 |
-| `Flared` | "The flame flares up: more oxygen makes a fuel burn faster and hotter." | C-I008-07 |
-| `Chilled` | "Liquid nitrogen cooled the hot spring right down. It will warm up again soon!" | C-I008-12 |
-| `Fizzle(NoFlame)` | "No flame here, so the hydrogen just floats up: H2 is about 14 times lighter than air." | C-I008-08 |
-| `Fizzle(NoFuel)` | "Oxygen does not burn by itself: it only helps a fuel burn." | C-I008-09 |
-| `Fizzle(Empty)` | "Not enough gas in the tube yet. Wait for more bubbles." | none |
-| `Fizzle(NotHere)` | "Use Water on the cell, and Fire to test the gases." | none |
-| `YardReset` | "The free-play yard is fresh again." | none |
-| `Melted` (changed: drops "Now it is a puddle.") | "The ice melted at 0 °C: H2O(s) → H2O(l)." | C-I008-10 |
-| Hydrogen cast | "Hydrogen, H2: the lightest gas. With a flame it burns: 2H2 + O2 → 2H2O." | C-I008-11, 06 |
-| Oxygen cast | "Oxygen, O2: it does not burn, but it makes fuels burn faster and hotter." | C-I008-09, 07 |
-| Q2 done | "You made hydrogen and oxygen from water! New spells: 5 Hydrogen, 6 Oxygen." | C-I008-03 |
-| Q3 step s1 | "Freeze the pond to cross. The hot spring melts ice near it: cool it with Frost first. Spring: {} °C" | C-I008-13 |
-| Q3 done | "You crossed! Liquid nitrogen (−196 °C) froze the water, and cooling the hot spring kept it frozen." | C-I008-12 |
-| Q3 hint | "The 80 °C hot spring melted the ice right away. Cool the spring with Frost first!" | C-I008-13 |
-| `Splash` | "Splash! The ice melted under you. Back to the shore." | none |
+- 0: `Melt the ice wall (east) with Fire to reach the lab.`
+- 1: `Fill the water splitter: cast Water at it.`
+- 2: `Splitting water... hydrogen {} mL, oxygen {} mL`
+- 3: `Test each gas with Fire: hydrogen {}, oxygen {}` (each `{}` is `✓` or `○`)
+- 4: `Water split! Press R to do it again.`
 
-### Science claims for `content/science-sources.md`
-The contract lane creates the file, or adds an `## I-008` section if I-004 created it first, with columns `| id | claim | source(s) |`. The URLs below are **candidates**: the contract lane must open each one and confirm it says what the row claims, or replace it.
+All five are not-claims rows. The step 2 numbers are the live gas.
 
-| id | claim | candidate sources |
-|----|-------|-------------------|
-| C-I008-01 | Pure water is a poor conductor; electrolysis needs a dissolved electrolyte such as Na2SO4. NaCl is avoided because chloride is oxidised to Cl2 at the anode. | https://en.wikipedia.org/wiki/Electrolysis_of_water ; https://chem.libretexts.org (Electrolysis of water) |
-| C-I008-02 | Na2SO4 does not take part: the products are still H2 and O2. | same |
-| C-I008-03 | 2H2O(l) → 2H2(g) + O2(g) with electrical energy. | same ; https://www.bbc.co.uk/bitesize (GCSE electrolysis of aqueous solutions) |
-| C-I008-04 | H2 forms at the cathode (−), O2 at the anode (+). | same |
-| C-I008-05 | The gas volume ratio H2 : O2 is 2 : 1, because equal volumes of gas at the same T and p hold equal moles (Avogadro). | https://en.wikipedia.org/wiki/Avogadro%27s_law ; Electrolysis of water |
-| C-I008-06 | A lit splint makes a small amount of hydrogen burn with a squeaky pop; 2H2 + O2 → 2H2O. | https://www.bbc.co.uk/bitesize (GCSE tests for gases) ; https://edu.rsc.org |
-| C-I008-07 | Extra oxygen makes a fuel burn faster and hotter; it relights a glowing splint. | BBC Bitesize tests for gases ; https://en.wikipedia.org/wiki/Oxygen |
-| C-I008-08 | H2 density about 0.084 kg/m³ vs air about 1.20 kg/m³ at 20 °C and 1 atm, a ratio of about 14. | https://www.engineeringtoolbox.com/gas-density-d_158.html ; https://webbook.nist.gov |
-| C-I008-09 | Oxygen is an oxidiser, not a fuel: it does not burn by itself. | https://en.wikipedia.org/wiki/Oxygen ; https://en.wikipedia.org/wiki/Fire_triangle |
-| C-I008-10 | Ice melts at 0 °C at 1 atm: H2O(s) → H2O(l). | https://webbook.nist.gov (water) |
-| C-I008-11 | Hydrogen is the lightest gas (lowest molar mass, 2.016 g/mol). | https://en.wikipedia.org/wiki/Hydrogen ; https://pubchem.ncbi.nlm.nih.gov/compound/Hydrogen |
-| C-I008-12 | Liquid nitrogen boils at −195.8 °C (77.4 K); it freezes water and cools warmer things on contact. | https://webbook.nist.gov (nitrogen) ; https://en.wikipedia.org/wiki/Liquid_nitrogen |
-| C-I008-13 | Water above 0 °C melts ice; hotter water melts it faster. The 80 °C spring is a game value, which the reviewer checks only for plausibility: natural hot springs reach about 40 to 100 °C. | https://en.wikipedia.org/wiki/Hot_spring |
+### Science rows (`content/science-sources.md`)
 
-### Commands (`__game.cmd`; unknown values are ignored)
-- `select 1..6`: hotbar order 1 Fire, 2 Water, 3 Frost, 4 Foam, 5 Hydrogen, 6 Oxygen; 5 and 6 are ignored while locked.
-- `buy splash|freeze|foam`.
-- `reset`: restarts the active quest. `reset all`: a fresh game.
-- `tick N`: now always steps.
-- `jump` (new): passes `jump = true` to `player.step` on the next frame, exactly as holding Space for one frame.
-- `tp`, `face`, `look`, `turn`, `move` and `cast` are unchanged, apart from the new clamp.
-- Keys: `5` and `6` select spells, `K` opens the tree. The wheel skips locked spells.
+The builder opens every source and confirms it says what the row claims, or replaces it. New sources take the next free `[S<n>]` ids.
 
-### New `__gameState` fields (existing fields keep their meaning)
+| id | claim (exact text above) | where | verdict | sources |
+|----|--------------------------|-------|---------|---------|
+| C-027 | `Filled` caption: Na2SO4 is an inert electrolyte that lets water conduct, and 2H2O → 2H2 + O2 under current. NaCl is deliberately not used, because chloride gives Cl2 at the anode | crates/bevy-client/src/chem.rs | correct | [S13] [S7], plus a source that names Na2SO4 (or another sulfate) as the electrolyte for water electrolysis, for example the RSC "Electrolysis of water" practical |
+| C-028 | `GasReady` caption: H2 forms at twice the volume rate of O2 | crates/bevy-client/src/chem.rs | correct | [S13] [S12] |
+| C-029 | `Popped` caption: a lit splint gives a squeaky pop with hydrogen (which burns with oxygen from the air mixed into the tube), and 2H2 + O2 → 2H2O | crates/bevy-client/src/chem.rs | correct | [S7], plus a new source for the hydrogen pop test that mentions the air/oxygen mixture (for example BBC Bitesize GCSE "Tests for gases" or the RSC) |
+| C-030 | `Flared` caption: oxygen supports combustion (a flame burns brighter in it) but is not itself a fuel | crates/bevy-client/src/chem.rs | **simplified** | a new source (for example OpenStax *Chemistry 2e* § 18.10 on oxygen, or the oxygen test for gases). Note: the school test is a glowing splint that relights; the game uses a flame that burns brighter, which is true of flames in oxygen but is not the standard test |
+| C-031 | `Done` caption: electrolysis splits water into hydrogen and oxygen | crates/bevy-client/src/chem.rs | correct | [S13] |
 
-| field | type | meaning |
-|-------|------|---------|
-| `unlocked` | bool[6] | spells usable |
-| `quest` | 0..3 | active quest, 0 = all done |
-| `questTitle`, `questLine` | string | HUD objective box |
-| `quests` | [{`id`: "greenhouse" \| "split" \| "frost", `done`: bool, `step`: u8}] ×3 | per-quest status |
-| `questDoneId` | u32 | +1 per quest completion |
-| `points` | u8 | unspent science points |
-| `upgrades` | {`splash`, `freeze`, `foam`: bool} | upgrades bought |
-| `zone` | "courtyard" \| "lab" \| "pond" \| "yard" | `zone_at(player xz)` |
-| `objs[]` adds | `z` (zone string), `level` (2 dp), `power` (bool), `gas` (mL, 1 dp) | per-object state |
+- **P-015:** the value (2) and verdict (`correct`) are unchanged. `where` stays `crates/bevy-client/src/chem.rs, crates/bevy-client/src/world.rs`. The note is rewritten to say: "the gas columns are drawn live from `chem::lab::gas_heights` (H2 rate = 2 × O2 rate, equal tubes), so from empty tubes the H2 column is twice the O2 column at every tick (test `lab_gas_two_to_one`). After one gas is tested, that tube refills from zero while the other keeps its gas, as in a real voltameter after venting one tube." Keep the Avogadro sentence.
+- **C-026** is removed.
 
-`outcome` stays: "won" once Q1 is done, "lost" only while `quest1_lost`, otherwise "playing". `extinguished`, `goal` and `burning` cover the courtyard only.
+### New `__gameState` fields (existing fields keep their meaning, except `outcome`, below)
 
-### Visuals (core lane applies them in `sync_visuals`; world lane provides the entities)
-- `Target` gains `pub gauge: Option<(Entity, f32)>`. It is `Some` only for the hydrogen tube, the oxygen tube and the water splitter, and `None` for every other target. The `Entity` is a gauge mesh built by the world lane with its origin at the bottom (vertices span y 0..h), so scaling y alone grows it upward; the `f32` is h, its full height in metres. Core sets the entity's `Transform.scale.y` to `max(frac, 0.001)` each frame, where `frac` is `gas_ml / cap` for a tube (H2_CAP_ML or O2_CAP_ML by lab id) and `level` for the splitter.
-- Ponds reuse `puddle`, which is shown as the ice sheet while `ice > 0`, with the water material otherwise.
-- The battery switch uses its existing `mats` normal (off) or hot (on) look.
+| field | type | stub (neutral) value | meaning |
+|-------|------|----------------------|---------|
+| `quest` | u8 | 0 | 0 = Save the Greenhouse, 1 = Split the Water |
+| `questTitle` | string | `"Save the Greenhouse"` | the HUD title |
+| `questStep` | u8 | 0 | quest 1: `lab.step_index(..)`. Quest 0: `min(extinguished, 3)` |
+| `questLine` | string | `""` | quest 1 step line. `""` in quest 0 (the HUD keeps I-019's counter) |
+| `questSpell` | i32 | −1 | 0-based spell for this step (quest 1: steps 0 and 3 give 0, step 1 gives 1), else −1 |
+| `lab` | `{open, level, h2, o2, h2Tested, o2Tested, done}` | closed and zeros | `h2`/`o2` in mL, 1 dp |
+| `gasH` | [f32; 2], 3 dp | [0, 0] | gas column heights in m as actually applied to the `TubePiece` transforms (`DrawnGas`), H2 then O2 |
+| `goalObj` | i32 | −1 | the quest 1 object to act on (section 4) |
+| `goalBearing`, `goalElev` | f32, 1 dp | 0 | as I-019's `fireBearing`/`fireElev`, for `goalObj` |
+| `goalOff` | bool | false | as I-019's `fireOff`, for `goalObj` |
 
-### Web (`crates/bevy-client/web/skilltree.js`; an ES module with no DOM access)
-- **Functions:** `treeModel(state) -> {spells: [{id, status}], upgrades: [{id, status}]}`, `canBuy(state, id)`, `slotLocked(state, i)` and `pointsText(state)`.
-- **Ids:** spell ids are `fire`, `water`, `frost`, `foam`, `hydrogen` and `oxygen`. Upgrade ids are `splash-up`, `freeze-up` and `foam-up`, which map to the `buy` argument with "-up" removed.
-- **DOM:** `#skills` (with `.hidden`), `#skills-btn`, `[data-node=<id>]` with class `learned`, `locked`, `buyable` or `bought`, `#skill-points`, and `.slot.locked`.
+The table order is the `I008_KEYS` order. `outcome` is per active quest (section 5). In quest 0 it is identical to today.
+
+### Commands (`__game.cmd`)
+
+- `quest next`: starts quest 2, only from a quest 0 win. It is not debug-gated.
+- `reset`: restarts the active quest.
+- `reset all`: a fresh game at quest 0.
+- `tick N`: also steps the lab in quest 1 (only while `quest_outcome() == Playing`).
+- `lab gas <h2_ml>`: debug-gated. In quest 1 sets `h2_ml` (clamped to 0..20) and `o2_ml = h2_ml / 2`. Used by tests 15–17 so amounts are exact.
+
+### DOM (web lane; listed so tests and the panel can rely on them)
+
+`#banner-next` (a `<button>`, shown only on the quest 0 win banner), `#firefinder.lab`, and `#obj-line .obj-icon.fire|.water`. `#warning` is gated on `quest === 0`.
 
 ## Lanes
-Merge order is the row order. The contract step lands first. world, core and web then build in parallel against the Contract: core and web use the Contract's types and state fields, and web tests use fake state objects.
 
-| lane | owns globs | builds |
-|------|-----------|--------|
-| contract | `crates/bevy-client/src/chem.rs` and `crates/bevy-client/src/quest.rs` (type and signature stubs only, with bodies that compile and return defaults), `tests/e2e/content.mjs`, `content/science-sources.md`, `package.json`, `package-lock.json`; plus two one-off edits outside its globs: the `mod quest;` line in `crates/bevy-client/src/main.rs` and `pub` on the four constants in `crates/bevy-client/src/player.rs` | Contract types, enums, constants and `CAPTIONED`; `zone_at` stub; `world::south_walls` and `chem_objects` signatures may be stubbed by world instead; e2e tests 13–22 as written; claim rows with verified URLs; a pinned `playwright` devDependency only if I-002 or I-007 has not added one. After the contract step merges, `main.rs` and `player.rs` belong to core, which rebases over those two edits |
-| world | `crates/bevy-client/src/chem.rs`, `crates/bevy-client/src/quest.rs`, `crates/bevy-client/src/world.rs` | electrolysis, gas tests, spells 5–6, pond and spring, upgrades, zone scoping, `reset_zone`, the quest state machine and `zone_at`, the south-zone layout (walls via `south_walls()`, gates, pond, spring chimney, vault arch, yard, lever), `chem_objects()`, gauge entities; Rust tests 1–10 |
-| core | `crates/bevy-client/src/main.rs`, `crates/bevy-client/src/player.rs`, `crates/bevy-client/src/fx.rs`, `crates/bevy-client/src/bridge.rs`, `crates/bevy-client/src/feel.rs` (only if I-007 merged) | `Quests` resource and wiring in `react` (stripping `CAPTIONED`); chemistry stepping unless paused; casting unless paused; spells 5–6 selection, projectiles and glow materials ([_; 6]); commands including `jump`; new state fields; the new player clamp; frozen ponds as ice sheets; splash relocation; gauges in `sync_visuals`; `reset`/`reset all` semantics |
-| web | `crates/bevy-client/web/**` | 6-slot hotbar with locked slots; objective box from `questTitle`/`questLine`; banner auto-hide on the Q1 win; `skilltree.js` with tests 11–12; `#skills` overlay, K/Esc/button, pointer-lock release without the pause card, buy clicks |
+| lane | owns | builds |
+|------|------|--------|
+| rust | `crates/bevy-client/src/chem.rs` (`pub mod lab`, `World::calm`/`calmed`, `Station` removal, `apply_inner` LabBench branch, `electrolysis` constants and the `tube(.., 0)` support, unit tests 1–10, and the one `Station`→`Soaked` test edit); `crates/bevy-client/src/world.rs` (the two tube targets, the cell pick box, `TubePiece`, `Chem::lab`); `crates/bevy-client/src/main.rs` (quest flow, `quest_outcome` gating, routing, stepping, `tick`, `reset`/`reset all`/`quest next`/`lab gas`, `react` effects and captions, every published string, live columns and `DrawnGas`, `goal*` fields via the `Kind::IceWall` lookup, publish in `I008_KEYS` order) | Unit tests 1–10 first, then the rest. Must keep I-018's test 5 greps clean and every existing object index unchanged. Must not touch `cues.rs` (it uses I-019's functions as they are), `fx.rs`, `player.rs`, `bridge.rs`, `web/**`, `tests/**` or `content/**` |
+| web | `crates/bevy-client/web/hud.js`, `crates/bevy-client/web/style.css`, `tests/e2e/golden.mjs` (`labQuest`, tests 11–16, 16b and 19; not the `keysOk` edit, which is the stub's), `tests/e2e/analytics-e2e.mjs` (test 17 only), `content/science-sources.md` (the rows in the Contract only) | Title from `questTitle`; quest 1 `#obj-line` with icon (text from `questLine`, never hard-coded); `#banner-next`, pointer-lock release and Enter on the quest 0 banner; the quest 1 banner without a button; `#warning` gated on `quest === 0`; `#firefinder.lab` driven only by `goal*` in quest 1; ≥ 18 px for the new text; per-step idle hint and slot; e2e tests written against the Contract fields; science rows with verified sources. Must not touch `index.html`, `boot.js`, `analytics.js`, `age.js` or the panel harness |
 
-## Critique: accepted and rejected
-Applied from `critique.md` (r1 → r2):
-- **Cut the Discoveries panel** (`DISCOVERIES`, `discovery_of`, the `discovered` field and state, `#disc-*` DOM, old tests 11, 13 and the 19 tail). Tests are renumbered: Rust 1–10, web 11–12, e2e 13–22.
-- **Dropped C-I008-14** (ice density). The vault arch has no sign text.
-- **Walls ≥ 3.0 m**, pure `south_walls()`, layout checks in test 9, and an e2e jump-at-divider check in test 17 (with a new `jump` command, since the grammar had none).
-- **Test 16 (was 17)** now asserts `pos[2] < 35.0` and no Splash caption during the walk.
-- **`select` steps** written out in every e2e scenario; hotbar order stated in the Contract.
-- **Test 10** has a concrete row table, plus explicit step rules, and states that only `Popped`/`Flared` on the tubes count.
-- **Ice and gas arithmetic pinned** (`max(0)` / `min(cap)` clamps, `Melted` on the first zero tick).
-- **Q3 s1 line names the clue** and is in the caption table under C-I008-13.
-- **Perf test** uses 5 interleaved runs, medians, a limit of max(fixed, 2·spread), and fails loudly without `CPUFRAME`.
-- **B1 red** stated, with the fix named.
-- **`zone_at`** defined once, used for the state field and the quest steps; `zone` gains "lab".
-- **Player constants and `mod quest`:** the contract lane makes both one-off edits; core owns the files afterwards.
-- **Water on a full splitter** re-emits `Filled`; **`Target.gauge`** fully specified; **`CAPTIONED`** flag named and located.
-- **Spells 5 and 6 not required by a quest:** said so under B5 and Out of scope.
-- **Hydrogen on a burning bush:** the `Popped` caption now says a little hydrogen burns in one quick pop (C-I008-06 adjusted).
-- Added a `Chilled` caption (it existed as an event but had none) and listed `Chilled` in the `EventKind` additions, where r1 used it without declaring it.
-
-Rejected or changed:
-- **Optional split into I-008a and I-008b: rejected.** B8 needs all four parts at once to be measured, so a split adds a merge cycle and a second rebase against I-007 without letting any bar move sooner. With the Discoveries cut, the item is smaller and the lanes stay independent.
-- **"State the result at tick 1200" (test 5): changed.** 1200 f32 subtractions of `DT/40` can land on 1199, 1200 or 1201, so an exact tick would make the test fail on rounding rather than on behaviour. The test pins the decrement rule and uses a 1190 / 1210 window, which still fails any wrong rate (a 10% error moves the zero by 120 ticks).
-- **Gate lintels:** not added. The gates are open to the sky; the walls either side are ≥ 3.0 m, which is what closes the bypass.
+**Seam:** the web lane's tests 11–17 need the rust lane's fields. Each lane builds against the contract stub, and the shared build after both lanes merge runs the full golden and analytics-e2e (isolated). The seam breaker checks:
+- `outcome`/`quest` transitions give exactly one `quest_complete` per quest: Q1 won, then `quest next`, then Q2 won. R and replays send nothing new.
+- Enter on the quest 0 banner never also casts or locks.
+- A mouse click on `#banner-next` never casts and never re-locks.
+- After the quest 2 win, Esc/P and R behave as after the quest 0 win, and nothing (lab gas, `gameTime`-driven bubbles, casts) advances behind the banner.
+- Published `gasH` equals the drawn `TubePiece` gas heights.
+- No lab hit ever reaches `World::apply`.
