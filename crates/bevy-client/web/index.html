@@ -24,7 +24,7 @@
     <button class="slot" data-spell="1"><span class="key">1</span><span class="icon fire"></span><span class="name">Fire</span><span class="formula">CH₄ + 2O₂ → CO₂ + 2H₂O</span></button>
     <button class="slot" data-spell="2"><span class="key">2</span><span class="icon water"></span><span class="name">Water</span><span class="formula">cools below ignition</span></button>
     <button class="slot" data-spell="3"><span class="key">3</span><span class="icon frost"></span><span class="name">Frost</span><span class="formula">N₂(l) boils at −196 °C</span></button>
-    <button class="slot" data-spell="4"><span class="key">4</span><span class="icon foam"></span><span class="name">Foam</span><span class="formula">CO₂ displaces O₂</span></button>
+    <button class="slot" data-spell="4"><span class="key">4</span><span class="icon foam"></span><span class="name">CO₂</span><span class="formula">CO₂ displaces O₂</span></button>
   </div>
   <div id="banner" class="hidden"><div class="big"></div><div class="small"></div></div>
 </div>
@@ -37,10 +37,12 @@
       <tr><td>Jump / Sprint</td><td>Space / Shift</td></tr>
       <tr><td>Cast</td><td>Left click (hold to keep casting)</td></tr>
       <tr><td>Change spell</td><td>1 to 4 or the mouse wheel</td></tr>
+      <tr><td>Read the last message again</td><td>C</td></tr>
       <tr><td>Restart</td><td>R</td></tr>
       <tr><td>Free the mouse</td><td>Esc</td></tr>
     </table>
     <p>Without locking the mouse you can also click (or tap) a glowing target to cast at it.</p>
+    <div id="history-box" class="hidden"><h2>Recent messages</h2><ol id="history"></ol></div>
     <button id="resume">Click to play</button>
     <button id="pointmode" class="ghost">Point and click mode</button>
   </div>

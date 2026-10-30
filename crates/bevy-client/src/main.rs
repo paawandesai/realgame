@@ -87,6 +87,9 @@ struct Settings {
     /// Anti-aliasing: 4x MSAA and/or FXAA (`?aa=msaa|fxaa|both|off`).
     msaa: bool,
     fxaa: bool,
+    /// `?debug`: enables the test commands (tp, tick, look, turn, face,
+    /// move) on `window.__game.cmd`.
+    debug: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -113,6 +116,9 @@ struct Game {
     events: Vec<chem::Event>,
     /// Holds the movement keys down from a test command: (right, fwd, secs).
     scripted_move: Option<(Vec2, f32)>,
+    /// Bumped by every reset: spells and beams from before it vanish
+    /// instead of landing in the new courtyard.
+    epoch: u32,
 }
 
 impl Game {
@@ -140,11 +146,13 @@ struct Projectile {
     t: f32,
     dur: f32,
     obj: Option<usize>,
+    epoch: u32,
 }
 
 #[derive(Component)]
 struct Beam {
     life: f32,
+    epoch: u32,
 }
 
 #[derive(Resource)]
@@ -270,6 +278,7 @@ fn read_settings() -> Settings {
         low,
         msaa,
         fxaa,
+        debug: param("debug").is_some_and(|v| !matches!(v.as_str(), "0" | "false")),
     }
 }
 
@@ -591,12 +600,28 @@ fn control(
     let cmds = std::mem::take(&mut web.cmds);
     for c in &cmds {
         let a: Vec<&str> = c.split_whitespace().collect();
-        let f = |i: usize| a.get(i).and_then(|s| s.parse::<f32>().ok()).unwrap_or(0.0);
-        match a.first().copied() {
+        // Numbers only: NaN and infinities read as 0.
+        let f = |i: usize| {
+            a.get(i)
+                .and_then(|s| s.parse::<f32>().ok())
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.0)
+        };
+        let name = a.first().copied();
+        // Test commands that move the player or the clock need `?debug`.
+        let debug_only = matches!(
+            name,
+            Some("look" | "turn" | "face" | "tp" | "move" | "tick")
+        );
+        if debug_only && !settings.debug {
+            warn!("command {c:?} needs ?debug");
+            continue;
+        }
+        match name {
             Some("select") => game.spell = (f(1) as usize).clamp(1, 4) - 1,
             Some("look") => {
                 player.yaw = f(1).to_radians();
-                player.pitch = f(2).to_radians();
+                player.pitch = f(2).clamp(-89.0, 89.0).to_radians();
             }
             Some("turn") => player.look(f(1), f(2), settings.sens),
             Some("face") => {
@@ -607,13 +632,18 @@ fn control(
                 }
             }
             Some("tp") => {
-                player.pos = Vec3::new(f(1), 0.0, f(2));
+                let edge = world::HALF - player::RADIUS;
+                player.pos = Vec3::new(f(1).clamp(-edge, edge), 0.0, f(2).clamp(-edge, edge));
                 player.vel = Vec3::ZERO;
             }
-            Some("move") => cmd_move = Some((Vec2::new(f(1), f(2)), f(3))),
+            Some("move") => {
+                let w = Vec2::new(f(1), f(2)).clamp_length_max(1.0);
+                cmd_move = Some((w, f(3).clamp(0.0, 10.0)));
+            }
             Some("tick") => {
+                // At most 20 000 steps (11 minutes of game time) per command.
                 let mut ev = Vec::new();
-                for _ in 0..f(1) as usize {
+                for _ in 0..f(1).clamp(0.0, 20_000.0) as usize {
                     if chem.world.outcome() == Outcome::Playing {
                         chem.world.step(&mut ev);
                     }
@@ -686,6 +716,8 @@ fn reset(chem: &mut Chem, game: &mut Game, player: &mut Player) {
     *game = Game {
         spell,
         locked: game.locked,
+        paused: game.paused,
+        epoch: game.epoch.wrapping_add(1),
         ..default()
     };
     game.say("Save the Greenhouse! Put out 3 fires before they spread.");
@@ -827,7 +859,10 @@ fn aim_and_cast(
                     .looking_at(aim.point, Vec3::Y)
                     .with_scale(Vec3::new(0.07, 0.07, dist)),
                 NotShadowCaster,
-                Beam { life: 0.25 },
+                Beam {
+                    life: 0.25,
+                    epoch: game.epoch,
+                },
             ));
         }
         let (speed, size) = match spell {
@@ -848,6 +883,7 @@ fn aim_and_cast(
                 t: 0.0,
                 dur: (dist / speed).max(0.03),
                 obj: aim.obj,
+                epoch: game.epoch,
             },
         ));
     }
@@ -869,7 +905,7 @@ fn projectiles(
         b.life -= dt;
         t.scale.x *= 0.85;
         t.scale.y *= 0.85;
-        if b.life <= 0.0 {
+        if b.life <= 0.0 || b.epoch != game.epoch {
             commands.entity(e).despawn();
         }
     }
@@ -877,6 +913,11 @@ fn projectiles(
         return;
     }
     for (e, mut p, mut t) in &mut q {
+        if p.epoch != game.epoch {
+            // Cast before a reset: it never lands.
+            commands.entity(e).despawn();
+            continue;
+        }
         p.t += dt;
         let a = (p.t / p.dur).min(1.0);
         let pos =
@@ -974,7 +1015,9 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>) {
     }
     match chem.world.outcome() {
         Outcome::Won if !game.caption.starts_with("You saved") => {
-            game.say("You saved the greenhouse! Water, frost and CO₂ foam each stop fire in their own way.");
+            game.say(
+                "You saved the greenhouse! Water, frost and CO₂ each stop fire in their own way.",
+            );
         }
         _ => {}
     }

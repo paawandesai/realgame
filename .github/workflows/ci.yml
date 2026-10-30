@@ -363,6 +363,12 @@ jobs:
           tool: cargo-deny@0.20.2
       - name: cargo-deny (advisories, bans, licenses, sources)
         run: cargo deny --locked check advisories bans licenses sources
+      # The Bevy client and its benchmark are separate workspaces with their
+      # own lockfiles: same checks, same deny.toml (from the repo root).
+      - name: cargo-deny, Bevy client (advisories, bans, licenses, sources)
+        run: cargo deny --manifest-path crates/bevy-client/Cargo.toml --locked check advisories bans licenses sources
+      - name: cargo-deny, Bevy benchmark (advisories, bans, licenses, sources)
+        run: cargo deny --manifest-path crates/bevy-client/bench3d/Cargo.toml --locked check advisories bans licenses sources
       # npm audit reads the lockfile; no install needed.
       - name: Audit npm dependencies (web)
         working-directory: web
