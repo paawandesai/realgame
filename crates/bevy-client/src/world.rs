@@ -18,6 +18,7 @@ use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::math::Affine2;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use std::collections::{HashMap, HashSet};
 
 pub const HALF: f32 = 24.0;
 const WALL_H: f32 = 3.6;
@@ -341,10 +342,100 @@ fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color)
     }
 }
 
+/// `?low` only (I-024 Part R): one shared white `toon` material for the
+/// untextured palette scenery, with each piece's colour moved into a
+/// vertex-colour copy of its kit mesh. Every palette switch on WebGL2
+/// rebinds the material group's textures and samplers; one material removes
+/// those switches. Vertex colour x white base is the same product as the
+/// palette base colour, so the picture does not change.
+struct LowShare {
+    shared: Handle<StandardMaterial>,
+    /// Palette material -> its linear base colour.
+    palette: HashMap<AssetId<StandardMaterial>, LinearRgba>,
+    /// (kit mesh, colour bits) -> vertex-colour copy of that mesh.
+    cache: HashMap<(AssetId<Mesh>, [u32; 4]), Handle<Mesh>>,
+    /// Palette pieces spawned through `Builder::piece`; the end-of-`build`
+    /// post-pass swaps those no `Target` references.
+    candidates: Vec<(Entity, Handle<Mesh>, Handle<StandardMaterial>)>,
+    /// Swapped entities.
+    pieces: usize,
+}
+
+impl LowShare {
+    fn new(
+        materials: &mut Assets<StandardMaterial>,
+        palette: &[(&Handle<StandardMaterial>, Color)],
+    ) -> Self {
+        LowShare {
+            shared: toon(materials, Color::WHITE),
+            palette: palette
+                .iter()
+                .map(|(h, c)| (h.id(), c.to_linear()))
+                .collect(),
+            cache: HashMap::new(),
+            candidates: Vec::new(),
+            pieces: 0,
+        }
+    }
+
+    /// Swaps every candidate no `Target` references to the shared material
+    /// and a vertex-colour copy of its mesh. Kit meshes are never edited in
+    /// place (streams and projectiles draw them at runtime).
+    fn apply(&mut self, commands: &mut Commands, meshes: &mut Assets<Mesh>, targets: &[Target]) {
+        let mut used: HashSet<Entity> = HashSet::new();
+        for t in targets {
+            used.extend(t.bodies.iter().copied());
+            used.extend(t.flames.iter().copied());
+            used.extend(t.foam);
+            used.extend(t.wall);
+            used.extend(t.puddle);
+        }
+        for (e, mesh, mat) in std::mem::take(&mut self.candidates) {
+            if used.contains(&e) {
+                continue;
+            }
+            let Some(&c) = self.palette.get(&mat.id()) else {
+                continue;
+            };
+            let key = (
+                mesh.id(),
+                [
+                    c.red.to_bits(),
+                    c.green.to_bits(),
+                    c.blue.to_bits(),
+                    c.alpha.to_bits(),
+                ],
+            );
+            let coloured = match self.cache.get(&key) {
+                Some(h) => h.clone(),
+                None => {
+                    let Some(src) = meshes.get(&mesh) else {
+                        continue;
+                    };
+                    let mut m = src.clone();
+                    let n = m.count_vertices();
+                    m.insert_attribute(
+                        Mesh::ATTRIBUTE_COLOR,
+                        vec![[c.red, c.green, c.blue, c.alpha]; n],
+                    );
+                    let h = meshes.add(m);
+                    self.cache.insert(key, h.clone());
+                    h
+                }
+            };
+            commands
+                .entity(e)
+                .insert((Mesh3d(coloured), MeshMaterial3d(self.shared.clone())));
+            self.pieces += 1;
+        }
+    }
+}
+
 struct Builder<'a, 'w, 's> {
     commands: &'a mut Commands<'w, 's>,
     kit: Kit,
     colliders: Vec<Collider>,
+    low: Option<LowShare>,
 }
 
 impl Builder<'_, '_, '_> {
@@ -354,9 +445,16 @@ impl Builder<'_, '_, '_> {
         mat: &Handle<StandardMaterial>,
         t: Transform,
     ) -> Entity {
-        self.commands
+        let e = self
+            .commands
             .spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat.clone()), t))
-            .id()
+            .id();
+        if let Some(low) = &mut self.low {
+            if low.palette.contains_key(&mat.id()) {
+                low.candidates.push((e, mesh.clone(), mat.clone()));
+            }
+        }
+        e
     }
 
     /// A solid box: drawn and collided.
@@ -459,11 +557,14 @@ impl Builder<'_, '_, '_> {
 }
 
 /// Spawns the courtyard. Returns the colliders and the chemistry objects.
+/// `low` (the `?low` tier) draws the untextured palette scenery with one
+/// shared material (see [`LowShare`]).
 pub fn build(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     images: &mut Assets<Image>,
+    low: bool,
 ) -> (Kit, Colliders, Chem) {
     let kit = make_kit(meshes, materials);
     commands.insert_resource(kit.clone());
@@ -479,17 +580,44 @@ pub fn build(
     let wall_tint = Color::srgb(0.84, 0.8, 0.92);
     let wall_long = textured(materials, wall_tint, &stone_tex, Vec2::new(25.0, 2.0));
     let wall_short = textured(materials, wall_tint, &stone_tex, Vec2::new(3.25, 2.0));
-    let trim = toon(materials, Color::srgb(0.6, 0.55, 0.72));
-    let cap = toon(materials, Color::srgb(0.95, 0.92, 1.0));
-    let path = toon(materials, Color::srgb(0.93, 0.84, 0.66));
-    let stone = toon(materials, Color::srgb(0.78, 0.74, 0.86));
-    let stone_dark = toon(materials, Color::srgb(0.56, 0.52, 0.68));
-    let wood = toon(materials, Color::srgb(0.62, 0.4, 0.24));
-    let white = toon(materials, Color::srgb(0.96, 0.96, 0.98));
-    let leaf = toon(materials, Color::srgb(0.25, 0.7, 0.42));
-    let leaf2 = toon(materials, Color::srgb(0.5, 0.82, 0.3));
+    let trim_c = Color::srgb(0.6, 0.55, 0.72);
+    let cap_c = Color::srgb(0.95, 0.92, 1.0);
+    let path_c = Color::srgb(0.93, 0.84, 0.66);
+    let stone_c = Color::srgb(0.78, 0.74, 0.86);
+    let stone_dark_c = Color::srgb(0.56, 0.52, 0.68);
+    let wood_c = Color::srgb(0.62, 0.4, 0.24);
+    let white_c = Color::srgb(0.96, 0.96, 0.98);
+    let leaf_c = Color::srgb(0.25, 0.7, 0.42);
+    let leaf2_c = Color::srgb(0.5, 0.82, 0.3);
+    let metal_c = Color::srgb(0.32, 0.34, 0.4);
+    let trim = toon(materials, trim_c);
+    let cap = toon(materials, cap_c);
+    let path = toon(materials, path_c);
+    let stone = toon(materials, stone_c);
+    let stone_dark = toon(materials, stone_dark_c);
+    let wood = toon(materials, wood_c);
+    let white = toon(materials, white_c);
+    let leaf = toon(materials, leaf_c);
+    let leaf2 = toon(materials, leaf2_c);
     let lamp = glow(materials, Color::srgb(1.0, 0.86, 0.5), 4.0);
-    let metal = toon(materials, Color::srgb(0.32, 0.34, 0.4));
+    let metal = toon(materials, metal_c);
+    let low_share = low.then(|| {
+        LowShare::new(
+            materials,
+            &[
+                (&trim, trim_c),
+                (&cap, cap_c),
+                (&path, path_c),
+                (&stone, stone_c),
+                (&stone_dark, stone_dark_c),
+                (&wood, wood_c),
+                (&white, white_c),
+                (&leaf, leaf_c),
+                (&leaf2, leaf2_c),
+                (&metal, metal_c),
+            ],
+        )
+    });
     let vent_hot = glow(materials, Color::srgb(1.0, 0.5, 0.2), 2.5);
     let flower = [
         glow(materials, Color::srgb(1.0, 0.4, 0.6), 0.4),
@@ -520,6 +648,7 @@ pub fn build(
         commands,
         kit: kit.clone(),
         colliders: Vec::new(),
+        low: low_share,
     };
     let cube = kit.cube.clone();
     let ball = kit.ball.clone();
@@ -1141,6 +1270,18 @@ pub fn build(
         world.ignite(i);
     }
     let colliders = Colliders(std::mem::take(&mut b.colliders));
+    if let Some(mut share) = b.low.take() {
+        let candidates = share.candidates.len();
+        share.apply(b.commands, meshes, &targets);
+        info!(
+            "LOW_SHARED_MAT colours={} pieces={} meshes={} candidates={} target_skipped={}",
+            share.palette.len(),
+            share.pieces,
+            share.cache.len(),
+            candidates,
+            candidates - share.pieces
+        );
+    }
     (
         kit,
         colliders,

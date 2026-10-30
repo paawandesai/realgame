@@ -460,8 +460,13 @@ fn setup(
     mut game: ResMut<Game>,
 ) {
     info!("STARTUP t={:.0}ms", now_ms());
-    let (kit, colliders, chem) =
-        world::build(&mut commands, &mut meshes, &mut materials, &mut images);
+    let (kit, colliders, chem) = world::build(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        &mut images,
+        settings.low,
+    );
     commands.insert_resource(colliders);
     commands.insert_resource(chem);
     fx::setup_fx(
