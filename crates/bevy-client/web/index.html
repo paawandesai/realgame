@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Alchemist's Trial: first person</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./boot.js"></script>
+</head>
+<body>
+<div id="stage"><canvas id="game" tabindex="0"></canvas></div>
+<div id="hud" class="hidden">
+  <div id="objective">
+    <div class="title">Save the Greenhouse</div>
+    <div id="obj-line">Fires put out: 0 / 3</div>
+  </div>
+  <div id="warning" class="hidden"><div class="text">The greenhouse is heating up!</div><div class="meter"><div class="fill"></div></div></div>
+  <div id="crosshair"><span></span></div>
+  <div id="hint">Click to look around. Esc shows the controls and point-and-click mode.</div>
+  <div id="caption"></div>
+  <div id="hotbar">
+    <button class="slot" data-spell="1"><span class="key">1</span><span class="icon fire"></span><span class="name">Fire</span><span class="formula">CH₄ + 2O₂ → CO₂ + 2H₂O</span></button>
+    <button class="slot" data-spell="2"><span class="key">2</span><span class="icon water"></span><span class="name">Water</span><span class="formula">cools below ignition</span></button>
+    <button class="slot" data-spell="3"><span class="key">3</span><span class="icon frost"></span><span class="name">Frost</span><span class="formula">N₂(l) boils at −196 °C</span></button>
+    <button class="slot" data-spell="4"><span class="key">4</span><span class="icon foam"></span><span class="name">CO₂</span><span class="formula">CO₂ displaces O₂</span></button>
+  </div>
+  <div id="banner" class="hidden"><div class="big"></div><div class="small"></div></div>
+</div>
+<div id="pause" class="hidden">
+  <div class="card">
+    <h1>Paused</h1>
+    <table>
+      <tr><td>Move</td><td>W A S D or arrow keys</td></tr>
+      <tr><td>Look</td><td>Mouse</td></tr>
+      <tr><td>Jump / Sprint</td><td>Space / Shift</td></tr>
+      <tr><td>Cast</td><td>Left click (hold to keep casting)</td></tr>
+      <tr><td>Change spell</td><td>1 to 4 or the mouse wheel</td></tr>
+      <tr><td>Read the last message again</td><td>C</td></tr>
+      <tr><td>Restart</td><td>R</td></tr>
+      <tr><td>Free the mouse</td><td>Esc</td></tr>
+    </table>
+    <p>Without locking the mouse you can also click (or tap) a glowing target to cast at it.</p>
+    <div id="history-box" class="hidden"><h2>Recent messages</h2><ol id="history"></ol></div>
+    <button id="resume">Click to play</button>
+    <button id="pointmode" class="ghost">Point and click mode</button>
+  </div>
+</div>
+<div id="loading">Loading…</div>
+</body>
+</html>

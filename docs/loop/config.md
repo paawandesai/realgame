@@ -37,8 +37,8 @@ weekly_budget_tokens: 30000000   # confirm with Paawan
 planner: opus   critic: sonnet   arbiter: opus (fresh)   builder: opus   breaker: sonnet   panel: haiku (6yo, 9yo), sonnet (13yo, teacher), opus (QA)
 
 ## Commands
-build: todo   # will be `ARTIFACT=$ARTIFACT bash crates/bevy-client/build-web.sh` once I-001 lands
-smoke: todo   # will be the Playwright golden path from I-001
+build: `bash crates/bevy-client/build-web.sh`   # output: crates/bevy-client/web/pkg-out
+smoke: `QUERY=?low node tests/e2e/golden.mjs`   # after build; SHOTS=<dir> saves screenshots
 test: `cargo fmt --all --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked && npm run typecheck && npm test`
 lint: `bash .husky/pre-push`
 perf: todo

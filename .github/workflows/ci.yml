@@ -43,6 +43,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       deps: ${{ steps.filter.outputs.deps }}
       analytics: ${{ steps.filter.outputs.analytics }}
+      bevy: ${{ steps.filter.outputs.bevy }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,6 +70,9 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'web/**'
+            bevy:
+              - *ci
+              - 'crates/bevy-client/**'
             analytics:
               - *ci
               - 'functions/**'
@@ -253,6 +257,58 @@ jobs:
           # Peak RSS of the whole job (runner included), as an annotation.
           awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
 
+  # The first-person 3D client (Bevy). It is its own Cargo workspace, so the
+  # Rust jobs above never build it; this job is its fmt, clippy and release
+  # WebAssembly build, and only runs when that crate changes.
+  bevy-client:
+    name: Bevy client (fmt + clippy wasm32 + release build)
+    needs: changes
+    if: needs.changes.outputs.bevy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: crates/bevy-client
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch as of 2026-10-29
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      # Must match wasm-bindgen in crates/bevy-client/Cargo.lock.
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: wasm-bindgen@0.2.129
+      - name: Format
+        run: cargo fmt --check
+      - name: Chemistry rules tests (src/chem.rs has no dependencies)
+        run: |
+          rustc --edition 2021 --test src/chem.rs -o "$RUNNER_TEMP/chem-test"
+          "$RUNNER_TEMP/chem-test"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/bevy-client -> target
+      - name: Lint the WebAssembly build (warnings are errors)
+        run: cargo clippy --target wasm32-unknown-unknown --locked -- -D warnings
+      - name: Release build for the web
+        run: bash build-web.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bevy-client-web
+          path: crates/bevy-client/web/pkg-out
+          if-no-files-found: error
+          retention-days: 3
+      - name: Peak memory (cgroup)
+        if: always()
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)"
+          # Peak RSS of the whole job (runner included), as an annotation.
+          awk '{printf "::notice title=Peak job memory::%.0f MB\n", $1/1048576}' "$cg/memory.peak" || true
+
   # Pages Functions (event intake, stats), their tests, the dashboard script
   # and the D1 migration. Node only: no Rust or wasm needed.
   analytics:
@@ -307,6 +363,12 @@ jobs:
           tool: cargo-deny@0.20.2
       - name: cargo-deny (advisories, bans, licenses, sources)
         run: cargo deny --locked check advisories bans licenses sources
+      # The Bevy client and its benchmark are separate workspaces with their
+      # own lockfiles: same checks, same deny.toml (from the repo root).
+      - name: cargo-deny, Bevy client (advisories, bans, licenses, sources)
+        run: cargo deny --manifest-path crates/bevy-client/Cargo.toml --locked check advisories bans licenses sources
+      - name: cargo-deny, Bevy benchmark (advisories, bans, licenses, sources)
+        run: cargo deny --manifest-path crates/bevy-client/bench3d/Cargo.toml --locked check advisories bans licenses sources
       # npm audit reads the lockfile; no install needed.
       - name: Audit npm dependencies (web)
         working-directory: web
@@ -319,7 +381,7 @@ jobs:
   # failed or was cancelled.
   ci-ok:
     name: CI result
-    needs: [changes, lint-rust, lint-wasm, test-rust, build-wasm, web, analytics, supply-chain]
+    needs: [changes, lint-rust, lint-wasm, test-rust, build-wasm, web, bevy-client, analytics, supply-chain]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
