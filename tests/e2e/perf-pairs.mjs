@@ -3,6 +3,7 @@
 //
 //   node tests/e2e/perf-pairs.mjs --base <WEB_DIR> --cand <WEB_DIR> [--rounds 5]
 //     [--configs low@4x,default@4x] [--noise <noise-pairs.json>] [--out <file.json>]
+//     [--keep-runs <dir>]
 //   node tests/e2e/perf-pairs.mjs --self-test
 //
 // For each round and config it runs tests/e2e/perf.mjs as a child (WEB_DIR as
@@ -26,13 +27,17 @@
 // Output: one line per run on stderr, the verdict JSON on stdout (and in
 // --out). With --base equal to --cand, tti_spread_ms is the noise figure that
 // --noise reads back. Exit: 0 kept, 1 not kept, 2 usage or environment error
-// (including a run still invalid after its re-run). --self-test: 0 when every
+// (including a run still invalid after its re-run). --keep-runs <dir> keeps
+// every perf.mjs result as <dir>/<config>-r<round>-<side>-a<attempt>.json and
+// reuses one that is already there, so a verdict killed half way (container
+// restart) resumes from its last finished run with the same schedule.
+// --self-test: 0 when every
 // unit test passes, 1 otherwise.
 //
 // Run it under the Chromium lock, alone on the box:
 //   bash -c 'exec 9>/tmp/claude-0/chromium.lock; flock 9; node tests/e2e/perf-pairs.mjs ...'
 import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -198,6 +203,15 @@ export async function drivePairs({ base, cand, rounds, configs, noise, runOnce, 
   return { code: verdict.keep ? 0 : 1, verdict };
 }
 
+// Runs `run(file)` for one slot attempt unless `file` already holds a parsed
+// perf.mjs result (a resumed verdict); returns {result, reused}.
+export async function cachedRun(file, run) {
+  if (file) {
+    try { return { result: JSON.parse(readFileSync(file, 'utf8')), reused: true }; } catch {}
+  }
+  return { result: await run(file), reused: false };
+}
+
 // ---- self-test --------------------------------------------------------------
 async function selfTest() {
   let passed = 0, failed = 0;
@@ -316,6 +330,18 @@ async function selfTest() {
     for (const k of ['base', 'cand', 'rounds', 'configs', 'runs', 'medians', 'paired_tti_diff_ms', 'tti_spread_ms', 'low_tti_limit_ms', 'brotli_mb', 'wins', 'keep', 'reasons'])
       ok(k in r.verdict, `verdict lacks ${k}`);
   });
+  await t('cachedRun reuses a kept result and runs a missing one', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'perf-pairs-test-'));
+    try {
+      const f = join(dir, 'low@4x-r1-base-a1.json');
+      writeFileSync(f, JSON.stringify({ size: {}, runs: { 'low@4x': { valid: true } } }));
+      let ran = 0;
+      const a = await cachedRun(f, async () => { ran++; return null; });
+      eq([a.reused, ran, a.result.runs['low@4x'].valid], [true, 0, true]);
+      const b = await cachedRun(join(dir, 'missing.json'), async () => { ran++; return { x: 1 }; });
+      eq([b.reused, ran, b.result], [false, 1, { x: 1 }]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
   await t('runFields reads a perf.mjs result', () => {
     const res = { size: { requested_brotli_mb: 3.557 }, runs: { 'low@4x': { cpu_ms: { p50: 41.2, p99: 70 }, tti_ms: 9100, tti_phases: { fetch_ms: 1 }, valid: true, invalid_reasons: [] } } };
     eq(runFields(res, 'low@4x'), { cpu_p50_ms: 41.2, p99_ms: 70, tti_ms: 9100, tti_phases: { fetch_ms: 1 }, valid: true, brotli_mb: 3.557, invalid_reasons: [] });
@@ -328,13 +354,15 @@ async function selfTest() {
 
 // ---- CLI --------------------------------------------------------------------
 function usage(msg) {
-  console.error(`perf-pairs: ${msg}\nusage: node tests/e2e/perf-pairs.mjs --base <WEB_DIR> --cand <WEB_DIR> [--rounds 5] [--configs low@4x,default@4x] [--noise <noise-pairs.json>] [--out <file.json>] | --self-test`);
+  console.error(`perf-pairs: ${msg}\nusage: node tests/e2e/perf-pairs.mjs --base <WEB_DIR> --cand <WEB_DIR> [--rounds 5] [--configs low@4x,default@4x] [--noise <noise-pairs.json>] [--out <file.json>] [--keep-runs <dir>] | --self-test`);
   process.exit(2);
 }
 
-function perfChild(webDir, config) {
-  const dir = mkdtempSync(join(tmpdir(), 'perf-pairs-'));
-  const out = join(dir, 'run.json');
+// One perf.mjs child; resolves to its parsed result, or {exit} with no output.
+// With `keep` (a file path) the result is written there and kept.
+function perfChild(webDir, config, keep) {
+  const dir = keep ? null : mkdtempSync(join(tmpdir(), 'perf-pairs-'));
+  const out = keep || join(dir, 'run.json');
   return new Promise((res) => {
     const env = { ...process.env, ONLY: config, RUNS: '1', OUT: out };
     delete env.BASE_URL;
@@ -342,11 +370,17 @@ function perfChild(webDir, config) {
     ch.on('close', (code) => {
       let result = null;
       try { result = JSON.parse(readFileSync(out, 'utf8')); } catch {}
-      rmSync(dir, { recursive: true, force: true });
-      if (!result) return res({ valid: false, invalid_reasons: [`perf.mjs exit ${code} with no output`] });
-      res(runFields(result, config));
+      if (dir) rmSync(dir, { recursive: true, force: true });
+      res(result || { exit: code });
     });
   });
+}
+
+async function perfSlot(webDir, config, keep) {
+  const { result, reused } = await cachedRun(keep, (f) => perfChild(webDir, config, f));
+  if (!result || !result.runs) return { valid: false, invalid_reasons: [`perf.mjs exit ${result?.exit} with no output`] };
+  if (reused) console.error(`[pairs] reusing ${keep}`);
+  return runFields(result, config);
 }
 
 async function main() {
@@ -362,6 +396,7 @@ async function main() {
     else if (a === '--configs') opt.configs = val().split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--noise') opt.noise = val();
     else if (a === '--out') opt.out = val();
+    else if (a === '--keep-runs') opt.keepRuns = val();
     else usage(`unknown argument ${a}`);
   }
   if (!opt.base || !opt.cand) usage('--base and --cand are required');
@@ -376,9 +411,18 @@ async function main() {
     try { noise = JSON.parse(readFileSync(opt.noise, 'utf8')); } catch (e) { usage(`cannot read --noise: ${e.message}`); }
   }
   const dirOf = { base: opt.base, cand: opt.cand };
+  if (opt.keepRuns) mkdirSync(opt.keepRuns, { recursive: true });
+  const attempts = new Map();
+  const slotFile = (side, config, round) => {
+    if (!opt.keepRuns) return null;
+    const key = `${config}-r${round}-${side}`;
+    const n = (attempts.get(key) || 0) + 1;
+    attempts.set(key, n);
+    return join(opt.keepRuns, `${key}-a${n}.json`);
+  };
   const r = await drivePairs({
     base: opt.base, cand: opt.cand, rounds: opt.rounds, configs: opt.configs, noise,
-    runOnce: (side, config) => perfChild(dirOf[side], config),
+    runOnce: (side, config, round) => perfSlot(dirOf[side], config, slotFile(side, config, round)),
     onLine: (l) => console.error(`[pairs] ${l}`),
   });
   if (r.code === 2) { console.error(`perf-pairs: ${r.error}; no verdict`); process.exit(2); }
