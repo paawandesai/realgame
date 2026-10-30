@@ -1,0 +1,409 @@
+{
+  "base": "/tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/I-024/base-pkg-out",
+  "cand": "/tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/I-024/P1-pkg-out",
+  "rounds": 5,
+  "configs": [
+    "low@4x",
+    "default@4x"
+  ],
+  "runs": [
+    {
+      "config": "low@4x",
+      "round": 1,
+      "side": "base",
+      "cpu_p50_ms": 30.5,
+      "p99_ms": 54,
+      "tti_ms": 5407.5,
+      "tti_phases": {
+        "fetch_ms": 364.4,
+        "compile_init_ms": 1827.6,
+        "first_frame_ms": 3145,
+        "to_interactive_ms": 70.5
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 1,
+      "side": "cand",
+      "cpu_p50_ms": 28.5,
+      "p99_ms": 56.7,
+      "tti_ms": 5657.8,
+      "tti_phases": {
+        "fetch_ms": 506.4,
+        "compile_init_ms": 1743.6,
+        "first_frame_ms": 3347,
+        "to_interactive_ms": 60.8
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 1,
+      "side": "base",
+      "cpu_p50_ms": 38.4,
+      "p99_ms": 84.2,
+      "tti_ms": 6575.1,
+      "tti_phases": {
+        "fetch_ms": 484.9,
+        "compile_init_ms": 1443.1,
+        "first_frame_ms": 4388,
+        "to_interactive_ms": 259.1
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 1,
+      "side": "cand",
+      "cpu_p50_ms": 38.7,
+      "p99_ms": 75.3,
+      "tti_ms": 7047.5,
+      "tti_phases": {
+        "fetch_ms": 648.7,
+        "compile_init_ms": 1652.3,
+        "first_frame_ms": 4484,
+        "to_interactive_ms": 262.5
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 2,
+      "side": "cand",
+      "cpu_p50_ms": 30.1,
+      "p99_ms": 59.2,
+      "tti_ms": 5761.2,
+      "tti_phases": {
+        "fetch_ms": 480,
+        "compile_init_ms": 1532,
+        "first_frame_ms": 3673,
+        "to_interactive_ms": 76.2
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 2,
+      "side": "base",
+      "cpu_p50_ms": 30.8,
+      "p99_ms": 49.5,
+      "tti_ms": 6239.5,
+      "tti_phases": {
+        "fetch_ms": 479.9,
+        "compile_init_ms": 1922.1,
+        "first_frame_ms": 3742,
+        "to_interactive_ms": 95.5
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 2,
+      "side": "cand",
+      "cpu_p50_ms": 39.1,
+      "p99_ms": 56.1,
+      "tti_ms": 6656.1,
+      "tti_phases": {
+        "fetch_ms": 450.4,
+        "compile_init_ms": 1519.6,
+        "first_frame_ms": 4428,
+        "to_interactive_ms": 258.1
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 2,
+      "side": "base",
+      "cpu_p50_ms": 37.9,
+      "p99_ms": 60.7,
+      "tti_ms": 6784.9,
+      "tti_phases": {
+        "fetch_ms": 424.7,
+        "compile_init_ms": 1481.3,
+        "first_frame_ms": 4589,
+        "to_interactive_ms": 289.9
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 3,
+      "side": "base",
+      "cpu_p50_ms": 32.2,
+      "p99_ms": 62.5,
+      "tti_ms": 5634,
+      "tti_phases": {
+        "fetch_ms": 451,
+        "compile_init_ms": 1747,
+        "first_frame_ms": 3373,
+        "to_interactive_ms": 63
+      },
+      "valid": true,
+      "rerun": true
+    },
+    {
+      "config": "low@4x",
+      "round": 3,
+      "side": "cand",
+      "cpu_p50_ms": 30.9,
+      "p99_ms": 51.6,
+      "tti_ms": 5642.1,
+      "tti_phases": {
+        "fetch_ms": 439.5,
+        "compile_init_ms": 1663.5,
+        "first_frame_ms": 3466,
+        "to_interactive_ms": 73.1
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 3,
+      "side": "base",
+      "cpu_p50_ms": 40.2,
+      "p99_ms": 64.1,
+      "tti_ms": 7099.6,
+      "tti_phases": {
+        "fetch_ms": 436.7,
+        "compile_init_ms": 1851.3,
+        "first_frame_ms": 4575,
+        "to_interactive_ms": 236.6
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 3,
+      "side": "cand",
+      "cpu_p50_ms": 40.6,
+      "p99_ms": 77.4,
+      "tti_ms": 6597.6,
+      "tti_phases": {
+        "fetch_ms": 459,
+        "compile_init_ms": 1653,
+        "first_frame_ms": 4266,
+        "to_interactive_ms": 219.6
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 4,
+      "side": "cand",
+      "cpu_p50_ms": 33.1,
+      "p99_ms": 59.8,
+      "tti_ms": 5921.2,
+      "tti_phases": {
+        "fetch_ms": 454.9,
+        "compile_init_ms": 1707.1,
+        "first_frame_ms": 3663,
+        "to_interactive_ms": 96.2
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 4,
+      "side": "base",
+      "cpu_p50_ms": 33.9,
+      "p99_ms": 70.1,
+      "tti_ms": 5708.7,
+      "tti_phases": {
+        "fetch_ms": 495.7,
+        "compile_init_ms": 1647.3,
+        "first_frame_ms": 3492,
+        "to_interactive_ms": 73.7
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 4,
+      "side": "cand",
+      "cpu_p50_ms": 46.2,
+      "p99_ms": 68,
+      "tti_ms": 7081.6,
+      "tti_phases": {
+        "fetch_ms": 431.7,
+        "compile_init_ms": 1824.3,
+        "first_frame_ms": 4549,
+        "to_interactive_ms": 276.6
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 4,
+      "side": "base",
+      "cpu_p50_ms": 39.8,
+      "p99_ms": 65.3,
+      "tti_ms": 7339.7,
+      "tti_phases": {
+        "fetch_ms": 454.5,
+        "compile_init_ms": 1745.5,
+        "first_frame_ms": 4897,
+        "to_interactive_ms": 242.7
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 5,
+      "side": "base",
+      "cpu_p50_ms": 32.7,
+      "p99_ms": 62.2,
+      "tti_ms": 6295,
+      "tti_phases": {
+        "fetch_ms": 456.5,
+        "compile_init_ms": 1924.5,
+        "first_frame_ms": 3836,
+        "to_interactive_ms": 78
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 5,
+      "side": "cand",
+      "cpu_p50_ms": 33.6,
+      "p99_ms": 64.2,
+      "tti_ms": 6891.4,
+      "tti_phases": {
+        "fetch_ms": 487.5,
+        "compile_init_ms": 2038.5,
+        "first_frame_ms": 4295,
+        "to_interactive_ms": 70.4
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 5,
+      "side": "base",
+      "cpu_p50_ms": 49.9,
+      "p99_ms": 78.8,
+      "tti_ms": 8498.5,
+      "tti_phases": {
+        "fetch_ms": 493.5,
+        "compile_init_ms": 2118.5,
+        "first_frame_ms": 5572,
+        "to_interactive_ms": 314.5
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "default@4x",
+      "round": 5,
+      "side": "cand",
+      "cpu_p50_ms": 41.7,
+      "p99_ms": 76.9,
+      "tti_ms": 7491.1,
+      "tti_phases": {
+        "fetch_ms": 483.8,
+        "compile_init_ms": 1833.2,
+        "first_frame_ms": 4853,
+        "to_interactive_ms": 321.1
+      },
+      "valid": true,
+      "rerun": false
+    }
+  ],
+  "medians": {
+    "base": {
+      "low@4x": {
+        "cpu_p50_ms": 32.2,
+        "tti_ms": 5708.7,
+        "p99_ms": 62.2,
+        "tti_phases": {
+          "fetch_ms": 456.5,
+          "compile_init_ms": 1827.6,
+          "first_frame_ms": 3492,
+          "to_interactive_ms": 73.7
+        }
+      },
+      "default@4x": {
+        "cpu_p50_ms": 39.8,
+        "tti_ms": 7099.6,
+        "p99_ms": 65.3,
+        "tti_phases": {
+          "fetch_ms": 454.5,
+          "compile_init_ms": 1745.5,
+          "first_frame_ms": 4589,
+          "to_interactive_ms": 259.1
+        }
+      }
+    },
+    "cand": {
+      "low@4x": {
+        "cpu_p50_ms": 30.9,
+        "tti_ms": 5761.2,
+        "p99_ms": 59.2,
+        "tti_phases": {
+          "fetch_ms": 480,
+          "compile_init_ms": 1707.1,
+          "first_frame_ms": 3663,
+          "to_interactive_ms": 73.1
+        }
+      },
+      "default@4x": {
+        "cpu_p50_ms": 40.6,
+        "tti_ms": 7047.5,
+        "p99_ms": 75.3,
+        "tti_phases": {
+          "fetch_ms": 459,
+          "compile_init_ms": 1653,
+          "first_frame_ms": 4484,
+          "to_interactive_ms": 262.5
+        }
+      }
+    }
+  },
+  "paired_tti_diff_ms": {
+    "low@4x": 212.5,
+    "default@4x": -258.1
+  },
+  "tti_spread_ms": {
+    "low@4x": 1074.7,
+    "default@4x": 1479.8
+  },
+  "low_tti_limit_ms": 900,
+  "brotli_mb": {
+    "base": 3.563,
+    "cand": 3.621
+  },
+  "wins": {
+    "low@4x": 4,
+    "default@4x": 1
+  },
+  "keep": false,
+  "reasons": [
+    "cpu 0.960 > 0.92"
+  ],
+  "noise_input": {
+    "file": "/tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/I-024/noise-pairs.json",
+    "tti_spread_ms": {
+      "low@4x": 892.7,
+      "default@4x": 2472.2
+    }
+  }
+}
