@@ -1,6 +1,9 @@
 # Needs Paawan
 Newest first. Answer an ACTION by writing under it (or doing the thing); the next wave reads it.
 
+## 2026-10-30 ACTION: privacy notice wording changed (PR #36)
+The analytics id is now read once per play session, so a session that crosses UTC midnight keeps its id until it ends; a session stops sending after 24 h. docs/ANALYTICS.md (including the suggested notice text) was reworded to say so. No new fields are collected. Please include this in the legal review before deploy.
+
 ## 2026-10-30 ACTION: privacy review for mastery analytics (I-042)
 I-042 would add two anonymous events, spell_learned and spell_mastered (spell id, age band, no PII), to the analytics pipeline. Changing what data is collected is human-only, so I-042 waits for your OK; nothing else waits on it. Spec: docs/loop/items/I-042/spec.md.
 
