@@ -375,3 +375,5 @@ Re-checked against origin/main 265a93e (I-007, I-005, I-018, I-023 merged since 
 - **Bars:** the B4 paired-run base is now the 265a93e artifact; blocker and clarity numbers are stated relative to that base.
 - **Out of scope:** adds `clock.rs`/`motion.rs`/the clock ceiling/carry, `IDLE_HINT` and `age.js`/`analytics.js`; the rust lane also does not edit `feel.rs` or `player.rs`.
 - I-018 (electrolysis) touches no code this spec depends on.
+
+Amended by I-025: hint priority is banner > idle > note > locked > start (item 9 is superseded); a held press repeats after 0.5 s of game time, not 0.3 s (item 1).
