@@ -9,8 +9,7 @@
 /// the level is won (`extinguished >= goal` and nothing burns), and never 0
 /// while anything burns.
 pub fn fires_left(goal: u32, ext: u32, burning: u32) -> u32 {
-    let _ = (goal, ext, burning);
-    0
+    goal.saturating_sub(ext).max(burning)
 }
 
 /// Signed degrees from the view's forward direction to a point, in the
@@ -18,16 +17,25 @@ pub fn fires_left(goal: u32, ext: u32, burning: u32) -> u32 {
 /// `(-sin yaw, -cos yaw)` and right is `(cos yaw, -sin yaw)` (x, z), as in
 /// `player.rs`.
 pub fn bearing_deg(px: f32, pz: f32, yaw: f32, tx: f32, tz: f32) -> f32 {
-    let _ = (px, pz, yaw, tx, tz);
-    0.0
+    let (dx, dz) = (tx - px, tz - pz);
+    let fwd = dx * -yaw.sin() + dz * -yaw.cos();
+    let right = dx * yaw.cos() + dz * -yaw.sin();
+    let deg = right.atan2(fwd).to_degrees();
+    if deg <= -180.0 {
+        180.0
+    } else {
+        deg
+    }
 }
 
 /// True when a point at `bearing`/`elev` degrees from the view centre is
 /// outside the view (with a 5° margin) for the given fields of view
 /// (degrees). Any non-finite input gives false.
 pub fn off_screen(bearing: f32, elev: f32, hfov: f32, vfov: f32) -> bool {
-    let _ = (bearing, elev, hfov, vfov);
-    false
+    if !(bearing.is_finite() && elev.is_finite() && hfov.is_finite() && vfov.is_finite()) {
+        return false;
+    }
+    bearing.abs() > hfov / 2.0 - 5.0 || elev.abs() > vfov / 2.0 - 5.0
 }
 
 /// Spell flight speeds (m/s) in `Spell::ALL` order: Fire, Water, Frost, CO2.
@@ -40,8 +48,12 @@ pub const MAX_FLIGHT: f32 = 0.25;
 /// `Spell::ALL` (0..4); an unknown index, or a distance that is not positive
 /// and finite, gives the shortest flight.
 pub fn flight_secs(spell: u8, dist: f32) -> f32 {
-    let _ = (spell, dist, SPEEDS, MAX_FLIGHT);
-    MIN_FLIGHT
+    match SPEEDS.get(spell as usize) {
+        Some(&speed) if dist.is_finite() && dist > 0.0 => {
+            (dist / speed).clamp(MIN_FLIGHT, MAX_FLIGHT)
+        }
+        _ => MIN_FLIGHT,
+    }
 }
 
 /// What an object looks like right now.
@@ -61,8 +73,11 @@ pub enum Look {
 /// wood that hot gives off no visible light. A fire stays the brightest
 /// thing in the courtyard.
 pub fn look_emissive(look: Look) -> f32 {
-    let _ = look;
-    0.0
+    match look {
+        Look::Burning => 1.2,
+        Look::Frosty => 0.25,
+        Look::Normal | Look::Charred | Look::Wet | Look::Foamed | Look::Hot => 0.0,
+    }
 }
 
 #[cfg(test)]
@@ -102,19 +117,42 @@ mod tests {
         assert!(near(bearing_deg(0.0, 0.0, 0.0, 0.0, -10.0), 0.0, 0.01));
         assert!(near(bearing_deg(0.0, 0.0, 0.0, 10.0, -10.0), 45.0, 0.01));
         assert!(near(bearing_deg(0.0, 0.0, 0.0, -10.0, -10.0), -45.0, 0.01));
-        assert!(near(bearing_deg(0.0, 0.0, 0.0, 0.0, 10.0).abs(), 180.0, 0.01));
-        assert!(near(bearing_deg(0.0, 0.0, FRAC_PI_2, -10.0, 0.0), 0.0, 0.01));
-        assert!(near(bearing_deg(0.0, 0.0, FRAC_PI_2, 0.0, -10.0), 90.0, 0.01));
+        assert!(near(
+            bearing_deg(0.0, 0.0, 0.0, 0.0, 10.0).abs(),
+            180.0,
+            0.01
+        ));
+        assert!(near(
+            bearing_deg(0.0, 0.0, FRAC_PI_2, -10.0, 0.0),
+            0.0,
+            0.01
+        ));
+        assert!(near(
+            bearing_deg(0.0, 0.0, FRAC_PI_2, 0.0, -10.0),
+            90.0,
+            0.01
+        ));
         // Agreement with player.rs: a point straight along right = (cos yaw,
         // -sin yaw) is at +90 for any yaw.
         for k in 0..12 {
             let yaw = k as f32 * 0.5;
             let (rx, rz) = (yaw.cos(), -yaw.sin());
             let (fx, fz) = (-yaw.sin(), -yaw.cos());
-            assert!(near(bearing_deg(1.0, 2.0, yaw, 1.0 + 7.0 * rx, 2.0 + 7.0 * rz), 90.0, 0.01));
-            assert!(near(bearing_deg(1.0, 2.0, yaw, 1.0 + 7.0 * fx, 2.0 + 7.0 * fz), 0.0, 0.01));
+            assert!(near(
+                bearing_deg(1.0, 2.0, yaw, 1.0 + 7.0 * rx, 2.0 + 7.0 * rz),
+                90.0,
+                0.01
+            ));
+            assert!(near(
+                bearing_deg(1.0, 2.0, yaw, 1.0 + 7.0 * fx, 2.0 + 7.0 * fz),
+                0.0,
+                0.01
+            ));
             let b = bearing_deg(1.0, 2.0, yaw, 1.0 - 7.0 * fx, 2.0 - 7.0 * fz);
-            assert!(b > -180.0 && b <= 180.0 && near(b.abs(), 180.0, 0.01), "behind: {b}");
+            assert!(
+                b > -180.0 && b <= 180.0 && near(b.abs(), 180.0, 0.01),
+                "behind: {b}"
+            );
         }
     }
 
@@ -161,7 +199,14 @@ mod tests {
     fn hot_does_not_glow_and_fire_keeps_its_glow() {
         assert_eq!(look_emissive(Look::Hot), 0.0);
         assert_eq!(look_emissive(Look::Burning), 1.2);
-        for l in [Look::Normal, Look::Charred, Look::Wet, Look::Frosty, Look::Foamed, Look::Hot] {
+        for l in [
+            Look::Normal,
+            Look::Charred,
+            Look::Wet,
+            Look::Frosty,
+            Look::Foamed,
+            Look::Hot,
+        ] {
             assert!(look_emissive(l) < look_emissive(Look::Burning), "{l:?}");
         }
     }

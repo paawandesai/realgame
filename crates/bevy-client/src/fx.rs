@@ -49,6 +49,8 @@ pub struct Fx {
     pub clear: bool,
     /// The game's reset counter when the particles were last cleared.
     pub epoch: u32,
+    /// Live `Water` particles after this frame's update (`fxWater`).
+    pub water_live: u32,
 }
 
 impl Fx {
@@ -154,6 +156,7 @@ pub fn setup_fx(
         pending: Vec::new(),
         clear: false,
         epoch: 0,
+        water_live: 0,
     });
 }
 
@@ -208,6 +211,7 @@ pub fn update_fx(
             *vis = Visibility::Visible;
         }
     }
+    let mut water = 0;
     for (mut p, mut t, mut vis, _) in &mut q {
         if p.life <= 0.0 {
             continue;
@@ -216,6 +220,9 @@ pub fn update_fx(
         if p.life <= 0.0 {
             *vis = Visibility::Hidden;
             continue;
+        }
+        if p.kind == P::Water {
+            water += 1;
         }
         let g = p.gravity;
         p.vel.y += g * dt;
@@ -228,4 +235,5 @@ pub fn update_fx(
         let a = 1.0 - p.life / p.max;
         t.scale = Vec3::splat(p.size * (1.0 + (p.grow - 1.0) * a) * (1.0 - a * a).max(0.05));
     }
+    fx.water_live = water;
 }

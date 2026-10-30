@@ -8,11 +8,14 @@
 //! Modules: `chem` is the deterministic rules engine (no Bevy), `world`
 //! builds the courtyard and its colliders, `player` is the kinematic
 //! character (its integrator is `motion`), `clock` the game clock, `fx` the
-//! particle pool, `bridge` the link to the page's HUD.
+//! particle pool, `bridge` the link to the page's HUD, `cues` the numbers
+//! that make a cast legible (fires left, the nearest fire's bearing, flight
+//! time).
 
 mod bridge;
 mod chem;
 mod clock;
+mod cues;
 mod feel;
 mod fx;
 mod motion;
@@ -113,6 +116,12 @@ impl Settings {
 const ASSIST: f32 = 4.0 * std::f32::consts::PI / 180.0;
 /// Seconds between casts.
 const COOLDOWN: f32 = 0.3;
+/// A spell's stream stays this long (game seconds) after its impact.
+const STREAM_AFTER: f32 = 0.2;
+/// ...and is drawn in at least this many frames, so it is seen at 4 fps too.
+const STREAM_MIN_FRAMES: u32 = 3;
+/// The stream's thickness at the hand (m); it tapers to the spell's head.
+const STREAM_THICK: f32 = 0.13;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Aim {
@@ -157,6 +166,16 @@ struct Game {
     game_time: f32,
     /// This frame's clamped dt (`clock::frame_dt`).
     dt: f32,
+    /// `fire` commands received (one per locked left click), counted before
+    /// a pause drops them.
+    clicks: u32,
+    /// The nearest burning object (horizontal distance), or -1, and where it
+    /// is from the view centre: degrees right of forward, degrees above, and
+    /// whether that is off screen. Updated every frame in `aim_and_cast`.
+    near_fire: i32,
+    fire_bearing: f32,
+    fire_elev: f32,
+    fire_off: bool,
 }
 
 impl Game {
@@ -191,6 +210,65 @@ struct Projectile {
 struct Beam {
     life: f32,
     epoch: u32,
+}
+
+/// The visible jet of a Water, Fire or CO2 cast: a cone from the hand
+/// (thick end) to the spell's head as it flies, kept `STREAM_AFTER` game
+/// seconds past the impact. Its clock stops while paused.
+#[derive(Component)]
+struct Stream {
+    from: Vec3,
+    to: Vec3,
+    t: f32,
+    dur: f32,
+    frames: u32,
+    epoch: u32,
+}
+
+/// Where a spell is on its way from `from` to `to` (fraction `a`): a straight
+/// line with a slight arc.
+fn spell_path(from: Vec3, to: Vec3, a: f32) -> Vec3 {
+    from.lerp(to, a) + Vec3::Y * (a * (1.0 - a) * 0.6 * from.distance(to) * 0.05)
+}
+
+/// The stream's cone from the hand to the head (the cone mesh's axis is +Y,
+/// with its base at -0.5 and its tip at +0.5).
+fn stream_transform(tail: Vec3, head: Vec3) -> Transform {
+    let v = head - tail;
+    let len = v.length();
+    if len < 1e-3 {
+        return Transform::from_translation(tail).with_scale(Vec3::ZERO);
+    }
+    Transform::from_translation((tail + head) * 0.5)
+        .with_rotation(Quat::from_rotation_arc(Vec3::Y, v / len))
+        .with_scale(Vec3::new(STREAM_THICK, len, STREAM_THICK))
+}
+
+/// One helper for every spell's stream; only the material differs.
+fn spawn_stream(
+    commands: &mut Commands,
+    kit: &Kit,
+    material: Handle<StandardMaterial>,
+    from: Vec3,
+    to: Vec3,
+    dur: f32,
+    epoch: u32,
+) {
+    commands.spawn((
+        Mesh3d(kit.cone.clone()),
+        MeshMaterial3d(material),
+        stream_transform(from, from),
+        NotShadowCaster,
+        NotShadowReceiver,
+        Stream {
+            from,
+            to,
+            t: 0.0,
+            dur,
+            frames: 0,
+            epoch,
+        },
+    ));
 }
 
 #[derive(Resource)]
@@ -552,7 +630,12 @@ fn setup(
         })
         .id();
     commands.entity(cam_id).add_child(root);
-    game.say("Save the Greenhouse! Put out 3 fires before they spread. Press 2 for Water.");
+    // Water is ready on boot (a reset keeps whatever spell is selected).
+    game.spell = 1;
+    game.near_fire = -1;
+    game.say(
+        "Save the Greenhouse! Put out 3 fires before they spread. Water is ready: aim at a fire and click.",
+    );
     info!(
         "tier={} sens={} cm360@800cpi={:.1} assist={} msaa={} fxaa={}",
         if settings.low { "low" } else { "full" },
@@ -732,7 +815,7 @@ fn control(
     }
     web.cmds = cmds
         .into_iter()
-        .filter(|c| c.starts_with("tap") || c == "cast")
+        .filter(|c| c.starts_with("tap") || c == "cast" || c == "fire")
         .collect();
     if let Some(m) = cmd_move {
         game.scripted_move = Some(m);
@@ -902,6 +985,36 @@ fn aim_and_cast(
         feel::ray_dir(f.x, f.y, fov_y, aspect).map(|v| rot * Vec3::from_array(v))
     };
     let tap_assist = settings.assist.max(3f32.to_radians()) * 1.5;
+
+    // The nearest fire, for the HUD's arrow: its bearing and elevation from
+    // the view centre, and whether that is off screen at the live FOV.
+    let near = (0..chem.targets.len())
+        .filter(|&i| chem.world.objs[i].burning)
+        .map(|i| (i, chem.bounds(i).center()))
+        .min_by(|a, b| {
+            let da = a.1.xz().distance_squared(player.pos.xz());
+            let db = b.1.xz().distance_squared(player.pos.xz());
+            da.total_cmp(&db)
+        });
+    (
+        game.near_fire,
+        game.fire_bearing,
+        game.fire_elev,
+        game.fire_off,
+    ) = match near {
+        Some((i, c)) => {
+            let bearing = cues::bearing_deg(eye.x, eye.z, player.yaw, c.x, c.z);
+            let horiz = (c.xz() - eye.xz()).length();
+            let elev = (c.y - eye.y).atan2(horiz).to_degrees() - player.pitch.to_degrees();
+            let hfov = 2.0
+                * ((fov_y.to_radians() / 2.0).tan() * aspect)
+                    .atan()
+                    .to_degrees();
+            let off = cues::off_screen(bearing, elev, hfov, fov_y);
+            (i as i32, bearing, elev, off)
+        }
+        None => (-1, 0.0, 0.0, false),
+    };
     game.hover = None;
     if !game.locked {
         #[cfg(target_arch = "wasm32")]
@@ -921,6 +1034,9 @@ fn aim_and_cast(
     // (so a stale click never fires later), and one runs per cooldown (so
     // tap spam cannot fire an unlimited stream of spells).
     let incoming = std::mem::take(&mut web.cmds);
+    // A `fire` is one locked left click (hud.js): counted when it arrives,
+    // before a pause drops it.
+    game.clicks += incoming.iter().filter(|c| c.as_str() == "fire").count() as u32;
     if game.paused {
         game.cast_queue.clear();
     } else {
@@ -939,7 +1055,9 @@ fn aim_and_cast(
     };
     for c in cmds {
         let a: Vec<&str> = c.split_whitespace().collect();
-        if a.first() == Some(&"cast") {
+        // `fire` (a click) is a queued cast: it waits at most 0.3 s for the
+        // cooldown, so a click between two frames is never lost.
+        if matches!(a.first(), Some(&"cast") | Some(&"fire")) {
             casts.push(game.aim);
         } else if a.first() == Some(&"tap") && a.len() == 3 {
             let p = Vec2::new(a[1].parse().unwrap_or(0.0), a[2].parse().unwrap_or(0.0));
@@ -996,12 +1114,26 @@ fn aim_and_cast(
                 },
             ));
         }
-        let (speed, size) = match spell {
-            Spell::Fire => (32.0, 0.32),
-            Spell::Water => (30.0, 0.26),
-            Spell::Frost => (120.0, 0.12),
-            Spell::Foam => (20.0, 0.4),
+        let size = match spell {
+            Spell::Fire => 0.32,
+            Spell::Water => 0.26,
+            Spell::Frost => 0.12,
+            Spell::Foam => 0.4,
         };
+        // Every spell lands within 0.25 s of game time (speeds in `cues`).
+        let dur = cues::flight_secs(game.spell as u8, dist);
+        if spell != Spell::Frost {
+            // Frost's beam is its stream.
+            spawn_stream(
+                &mut commands,
+                &kit,
+                mats.glow[game.spell].clone(),
+                hand,
+                aim.point,
+                dur,
+                game.epoch,
+            );
+        }
         commands.spawn((
             Mesh3d(kit.ball.clone()),
             MeshMaterial3d(mats.glow[game.spell].clone()),
@@ -1012,7 +1144,7 @@ fn aim_and_cast(
                 from: hand,
                 to: aim.point,
                 t: 0.0,
-                dur: (dist / speed).max(0.03),
+                dur,
                 obj: aim.obj,
                 epoch: game.epoch,
             },
@@ -1020,7 +1152,14 @@ fn aim_and_cast(
     }
 }
 
-/// Moves projectiles and beams; applies spells on arrival.
+/// A moving thing of kind `C` (its entity, state and placement), never one
+/// of the other two kinds, so the three queries in `projectiles` are disjoint.
+type Moving<'w, 's, C, A, B> =
+    Query<'w, 's, (Entity, &'static mut C, &'static mut Transform), (Without<A>, Without<B>)>;
+/// Live streams and beams (the `streams` count).
+type StreamsAndBeams<'w, 's> = Query<'w, 's, (), Or<(With<Stream>, With<Beam>)>>;
+
+/// Moves projectiles, beams and streams; applies spells on arrival.
 #[allow(clippy::too_many_arguments)]
 fn projectiles(
     mut commands: Commands,
@@ -1030,8 +1169,9 @@ fn projectiles(
     mut chem: ResMut<Chem>,
     mut fx: ResMut<Fx>,
     cam: Query<&Camera, With<FpsCam>>,
-    mut q: Query<(Entity, &mut Projectile, &mut Transform), Without<Beam>>,
-    mut beams: Query<(Entity, &mut Beam, &mut Transform), Without<Projectile>>,
+    mut q: Moving<Projectile, Beam, Stream>,
+    mut beams: Moving<Beam, Projectile, Stream>,
+    mut streams: Moving<Stream, Projectile, Beam>,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     if fx.epoch != game.epoch {
@@ -1047,6 +1187,24 @@ fn projectiles(
             commands.entity(e).despawn();
         }
     }
+    // Streams: game time only (frozen while paused), gone on a reset.
+    for (e, mut st, mut t) in &mut streams {
+        if st.epoch != game.epoch {
+            commands.entity(e).despawn();
+            continue;
+        }
+        if game.paused {
+            continue;
+        }
+        st.t += dt;
+        st.frames += 1;
+        if st.t >= st.dur + STREAM_AFTER && st.frames > STREAM_MIN_FRAMES {
+            commands.entity(e).despawn();
+            continue;
+        }
+        let head = spell_path(st.from, st.to, (st.t / st.dur).min(1.0));
+        *t = stream_transform(st.from, head);
+    }
     if game.paused {
         return;
     }
@@ -1058,8 +1216,7 @@ fn projectiles(
         }
         p.t += dt;
         let a = (p.t / p.dur).min(1.0);
-        let pos =
-            p.from.lerp(p.to, a) + Vec3::Y * (a * (1.0 - a) * 0.6 * p.from.distance(p.to) * 0.05);
+        let pos = spell_path(p.from, p.to, a);
         t.translation = pos;
         // A short trail.
         let trail = match p.spell {
@@ -1099,7 +1256,15 @@ fn projectiles(
             Spell::Frost => P::Frost,
             Spell::Foam => P::Foam,
         };
-        fx.burst(burst, p.to, 14, 3.0, 0.22);
+        if p.spell == Spell::Water {
+            // A big splash, and steam where it hit a fire.
+            fx.burst(burst, p.to, 24, 3.0, 0.38);
+            if p.obj.is_some_and(|i| chem.world.objs[i].burning) {
+                fx.burst(P::Steam, p.to, 8, 1.5, 0.45);
+            }
+        } else {
+            fx.burst(burst, p.to, 14, 3.0, 0.22);
+        }
         if p.spell == Spell::Fire {
             fx.burst(P::Spark, p.to, 6, 5.0, 0.07);
         }
@@ -1377,6 +1542,7 @@ fn esc(s: &str) -> String {
 }
 
 /// Writes the state the HUD and tests read.
+#[allow(clippy::too_many_arguments)]
 fn publish(
     mut frame: Local<u64>,
     mut last_hit: Local<(u32, u64)>,
@@ -1384,6 +1550,8 @@ fn publish(
     chem: Res<Chem>,
     player: Res<Player>,
     settings: Res<Settings>,
+    fx: Res<Fx>,
+    streams: StreamsAndBeams,
 ) {
     *frame += 1;
     // The frame in which the latest impact landed.
@@ -1410,7 +1578,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4}}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{}}}",
         *frame,
         w.ticks,
         game.locked,
@@ -1455,7 +1623,15 @@ fn publish(
         last_hit.1,
         objs.join(","),
         game.game_time,
-        game.dt
+        game.dt,
+        game.clicks,
+        cues::fires_left(chem::GOAL_FIRES, w.extinguished, w.burning() as u32),
+        game.near_fire,
+        game.fire_bearing,
+        game.fire_elev,
+        game.fire_off,
+        streams.iter().count(),
+        fx.water_live
     );
     bridge::publish(&json);
 }
