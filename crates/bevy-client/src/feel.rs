@@ -23,7 +23,9 @@ pub const ASSIST_FULL_M: f32 = 20.0;
 /// ...and falls linearly to nothing at this one.
 pub const ASSIST_ZERO_M: f32 = 60.0;
 
-/// Vertical field of view (degrees) for a horizontal one at 16:9.
+/// Vertical field of view (degrees) for a horizontal one at 16:9. The game
+/// uses `vfov_for` with the live aspect; this 16:9 form is kept for the tests.
+#[allow(dead_code)]
 pub fn vfov_from_h(h_deg: f32) -> f32 {
     vfov_for(h_deg, 16.0 / 9.0)
 }
