@@ -7,7 +7,8 @@
 // Environment (all optional):
 //   SCIENCE_SCAN_ROOT       where the client tree is read from (default: repo root)
 //   SCIENCE_SOURCES_FILE    the register (default: content/science-sources.md)
-//   SCIENCE_SOURCES_VERBOSE 1 prints the inventory as `claim: <text>` lines
+//   SCIENCE_SOURCES_VERBOSE 1 prints the inventory as `claim: <text>` lines and
+//                           every string skipped as machine output as `skipped: <text>`
 //
 // The test never fails on `error` verdicts: those are a B6 score input and a
 // backlog trigger, not a CI break.
@@ -37,17 +38,33 @@ function normalize(s: string): string {
     .trim();
 }
 
-/** Machine output: format strings and JSON templates. Nothing else is skipped. */
+/**
+ * Machine output, in exactly the two shapes the client uses: a JSON template
+ * (starts with `{{"`) or a log line (`TAG key=...`: an upper-case tag, a space,
+ * then a lower-case `key=`), and only in `.rs` files. Nothing else is skipped; a string merely containing
+ * `{:` goes through the claim test like any other. See docs/loop/science-review.md
+ * § Lint limits (c).
+ */
+const LOG_LINE = /^[A-Z][A-Z0-9_]{2,} [a-z_][a-z0-9_]*=/;
 function isSkipped(s: string): boolean {
-  return s.includes("{:") || s.startsWith("{{");
+  return s.startsWith('{{"') || LOG_LINE.test(s);
 }
 
 const TEMPERATURE = /-?\d+(\.\d+)?\s*°\s*[CF]\b|\b\d+(\.\d+)?\s*K\b/;
 const FORMULA = /\b(?:[A-Z][a-z]?\d*)+(?:\((?:s|l|g|aq)\))?/g;
-const KEYWORD = /ignit|combust|burn|fuel|boil|melt|freez|froze|latent|oxygen|nitrogen|electroly|smother|heavier than air|\bheat/i;
+const KEYWORD =
+  /ignit|combust|burn|fuel|boil|melt|freez|froze|latent|oxygen|nitrogen|electroly|smother|heavier than air|\bheat|react|\brust|corro|acid|alkal|litmus|\bpH\b|oxidi|dissolv|evapor|condens|sublim|ca(?:ught|tch(?:es)?) fire/i;
+
+/** Sentence shape: at least 3 tokens with a letter, ending in . ! ? or … once trailing quotes and brackets are trimmed. */
+function isSentence(s: string): boolean {
+  const words = s.split(/\s+/).filter((w) => /\p{L}/u.test(w));
+  if (words.length < 3) return false;
+  const end = s.replace(/["'`\u2018\u2019\u201c\u201d)\]}>»\s]+$/u, "");
+  return /[.!?\u2026]$/.test(end);
+}
 
 function isClaim(s: string): boolean {
-  if (TEMPERATURE.test(s) || KEYWORD.test(s)) return true;
+  if (TEMPERATURE.test(s) || KEYWORD.test(s) || isSentence(s)) return true;
   for (const m of s.matchAll(FORMULA)) {
     if (/\d/.test(m[0]) || /\((?:s|l|g|aq)\)$/.test(m[0])) return true;
   }
@@ -443,13 +460,20 @@ function walk(dir: string, ext: string): string[] {
 
 const rel = (abs: string) => abs.slice(SCAN_ROOT.length + 1).split("\\").join("/");
 
-/** All extracted strings of one client file, normalized, after skips. */
-function extractFile(relPath: string, src: string): string[] {
+/** All extracted strings of one client file, normalized, with the machine-output skips split off. */
+function extractFileAll(relPath: string, src: string): { kept: string[]; skipped: string[] } {
   const raw = relPath.endsWith(".rs") ? rustStrings(src) : relPath.endsWith(".html") ? htmlTexts(src) : jsStrings(src);
-  return raw.map(normalize).filter((s) => s !== "" && !isSkipped(s));
+  const all = raw.map(normalize).filter((s) => s !== "");
+  // Both skip shapes are Rust format strings (`{{` is Rust's escaped brace); .html and .js strings are never skipped.
+  if (!relPath.endsWith(".rs")) return { kept: all, skipped: [] };
+  return { kept: all.filter((s) => !isSkipped(s)), skipped: all.filter(isSkipped) };
 }
 
-function scanClient(root: string): { perFile: Map<string, Set<string>>; found: Found[] } {
+function extractFile(relPath: string, src: string): string[] {
+  return extractFileAll(relPath, src).kept;
+}
+
+function scanClient(root: string): { perFile: Map<string, Set<string>>; found: Found[]; skipped: Found[] } {
   const files = [
     ...walk(join(root, CLIENT, "src"), ".rs"),
     ...walk(join(root, CLIENT, "web"), ".html"),
@@ -457,18 +481,20 @@ function scanClient(root: string): { perFile: Map<string, Set<string>>; found: F
   ];
   const perFile = new Map<string, Set<string>>();
   const found: Found[] = [];
+  const skipped: Found[] = [];
   for (const abs of files) {
     const file = rel(abs);
-    let strings: string[];
+    let strings: { kept: string[]; skipped: string[] };
     try {
-      strings = extractFile(file, readFileSync(abs, "utf8"));
+      strings = extractFileAll(file, readFileSync(abs, "utf8"));
     } catch (e) {
       throw new UnsupportedSyntax(`${file}: ${(e as Error).message}`);
     }
-    perFile.set(file, new Set(strings));
-    for (const text of strings) if (isClaim(text)) found.push({ file, text });
+    perFile.set(file, new Set(strings.kept));
+    for (const text of strings.kept) if (isClaim(text)) found.push({ file, text });
+    for (const text of strings.skipped) skipped.push({ file, text });
   }
-  return { perFile, found };
+  return { perFile, found, skipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -635,7 +661,7 @@ try {
   registerLoadError = `cannot read register ${SOURCES_FILE}: ${(e as Error).message}`;
 }
 
-let scan: ReturnType<typeof scanClient> = { perFile: new Map(), found: [] };
+let scan: ReturnType<typeof scanClient> = { perFile: new Map(), found: [], skipped: [] };
 let scanError = "";
 try {
   scan = scanClient(SCAN_ROOT);
@@ -685,6 +711,8 @@ if (existsSync(chemPath)) {
 }
 
 if (VERBOSE) for (const t of distinctClaims) console.log(`claim: ${t}`);
+if (VERBOSE) for (const f of scan.skipped) console.log(`skipped: ${f.text}`);
+console.log(`science-sources: ${scan.skipped.length} skipped as machine output`);
 if (missingFiles > 0) {
   console.log(`science-sources: warning: ${missingFiles} register file reference(s) not found under ${SCAN_ROOT} (client tree absent?); stale checks skipped for them`);
 }
@@ -758,16 +786,33 @@ fn b() -> &'static str { "CO2 sinks" }`;
   assert.deepEqual(rustStrings(src), ["H2O boils", "CO2 sinks"]);
 });
 
-test("fixture: only {: and leading {{ strings are skipped as machine output", () => {
+test("fixture: only {{\" JSON templates and TAG key= log lines are skipped as machine output", () => {
   const src = String.raw`fn f() {
     info!("IMPACT obj={} {:?} -> {:?}", 1, 2, 3);
     info!("STATS fps={:.1} burning={}", 1.0, 2);
-    let j = format!("{{\"i\":{i},\"burning\":{},\"temp\":{:.0}}}", 1, 2.0);
+    let j = format!("{{\"i\":{i},\"burning\":{}}}", 1);
+    info!("Water is H2O: {:?}", 1);
+    let m = format!("Ice melts at {:.0} °C", 0.0);
+    info!("note: N2 boils {:?}", 1);
     let c = "Dry \"fuel\" catches fire fast.";
 }`;
   const all = rustStrings(src).map(normalize);
-  assert.equal(all.filter(isSkipped).length, 3);
-  assert.deepEqual(claimsOfRust(src), ['Dry "fuel" catches fire fast.']);
+  assert.deepEqual(all.filter(isSkipped), ["IMPACT obj={} {:?} -> {:?}", "STATS fps={:.1} burning={}", '{{"i":{i},"burning":{}}}']);
+  for (const s of ["Water is H2O: {:?}", "Ice melts at {:.0} °C", "note: N2 boils {:?}"]) {
+    assert.equal(isSkipped(s), false, s);
+    assert.equal(isClaim(s), true, s);
+  }
+  assert.deepEqual(claimsOfRust(src), ["Water is H2O: {:?}", "Ice melts at {:.0} °C", "note: N2 boils {:?}", 'Dry "fuel" catches fire fast.']);
+  // Skip-shaped prose stays invisible (Lint limits (c)); the same prose off the shape is flagged.
+  assert.equal(isSkipped("STATS fps=1 copper turns green"), true);
+  assert.equal(isSkipped("STATS copper turns green."), false);
+  assert.equal(isClaim("STATS copper turns green."), true);
+  assert.equal(isSkipped("stats fps=1 copper turns green."), false);
+  // Skips apply to Rust strings only: a JS log line is kept (and judged by the claim test).
+  assert.deepEqual(extractFileAll("web/boot.js", "console.log(`CPUFRAME n=${s.length} p50_ms=${q(0.5)}`);"), {
+    kept: ["CPUFRAME n=${s.length} p50_ms=${q(0.5)}"],
+    skipped: [],
+  });
 });
 
 test("fixture: HTML text nodes are extracted one per node", () => {
@@ -806,10 +851,40 @@ test("fixture: normalization folds subscripts, U+2212 and whitespace", () => {
 });
 
 test("fixture: the claim test", () => {
-  for (const s of ["Fire", "ice wall", "steam vent", "Click to look around", "Frost", "Fires put out: 0 / 3", "Greenhouse saved!"]) {
+  for (const s of [
+    "Fire",
+    "ice wall",
+    "steam vent",
+    "Click to look around",
+    "Frost",
+    "Fires put out: 0 / 3",
+    "Greenhouse saved!",
+    "Loading…",
+    "Click to play",
+    "Paused",
+    // Lint limits (a): no temperature, formula, keyword or sentence punctuation.
+    "copper turns green",
+  ]) {
     assert.equal(isClaim(normalize(s)), false, s);
   }
-  for (const s of ["N₂(l) boils at −196 °C", "CO₂ displaces O₂", "cools below ignition", "Copper melts at 1085 °C.", "77 K", "H2O(s)"]) {
+  for (const s of [
+    "N₂(l) boils at −196 °C",
+    "CO₂ displaces O₂",
+    "cools below ignition",
+    "Copper melts at 1085 °C.",
+    "77 K",
+    "H2O(s)",
+    // Keyword-free claims from the I-004 break report, and the new keywords.
+    "Iron rusts in water.",
+    "Sodium reacts violently with water.",
+    "Acids turn litmus red; pH 3.",
+    "The greenhouse caught fire",
+    "Salt dissolves",
+    "Water evaporates",
+    // Prose net: three words ending in sentence punctuation, trailing quotes and brackets trimmed.
+    "Copper turns green.",
+    "(Copper turns green!)",
+  ]) {
     assert.equal(isClaim(normalize(s)), true, s);
   }
 });
