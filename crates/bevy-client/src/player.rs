@@ -1,17 +1,15 @@
 //! The first-person kinematic character: mouse look, walking, sprinting and
-//! jumping, with move-and-slide against axis-aligned boxes. No physics crate.
+//! jumping, with move-and-slide against axis-aligned boxes (`motion`). No physics crate.
 
-use crate::chem;
-use crate::world::{Aabb, Colliders, HALF};
+use crate::motion::{self, Body, Box3};
+use crate::world::{Aabb, HALF};
 use bevy::prelude::*;
 
-pub const RADIUS: f32 = 0.35;
-pub const HEIGHT: f32 = 1.75;
+/// Body size and the jump/gravity arithmetic live in `motion`.
+pub use crate::motion::RADIUS;
 pub const EYE: f32 = 1.6;
 const WALK: f32 = 5.0;
 const SPRINT: f32 = 8.5;
-const JUMP: f32 = 6.0;
-const GRAVITY: f32 = 18.0;
 /// Radians per CSS pixel of mouse movement at `?sens=1` (about 21 cm per
 /// turn at 800 CPI; defined with the other comfort numbers in `feel`).
 pub use crate::feel::LOOK_PER_PX;
@@ -79,90 +77,47 @@ impl Player {
         self.pitch = (d.y / d.xz().length().max(1e-3)).atan().clamp(-1.55, 1.55);
     }
 
-    fn body(&self) -> Aabb {
-        Aabb {
-            min: self.pos - Vec3::new(RADIUS, 0.0, RADIUS),
-            max: self.pos + Vec3::new(RADIUS, HEIGHT, RADIUS),
-        }
-    }
-
-    /// One movement step against the world's solid boxes.
-    pub fn step(
-        &mut self,
-        input: MoveInput,
-        dt: f32,
-        colliders: &Colliders,
-        chem: &chem::World,
-        ice_sheets: &[Aabb],
-    ) {
+    /// One frame of movement against the world's solid boxes: `dt` (the
+    /// clamped frame time, up to `clock::MAX_FRAME_DT`) is split into
+    /// steps of at most 1/60 s by `motion::advance`. `solids` and
+    /// `ice_sheets` are built once per frame (`boxes`).
+    pub fn step(&mut self, input: MoveInput, dt: f32, solids: &[Box3], ice_sheets: &[Box3]) {
         let MoveInput { wish, sprint, jump } = input;
         let fwd = Vec3::new(-self.yaw.sin(), 0.0, -self.yaw.cos());
         let right = Vec3::new(self.yaw.cos(), 0.0, -self.yaw.sin());
         let wish = wish.clamp_length_max(1.0);
         let speed = if sprint { SPRINT } else { WALK };
         let target = (right * wish.x + fwd * wish.y) * speed;
-        // Snappy on the ground, slippery on ice, a little air control.
-        let feet = Aabb {
-            min: self.pos - Vec3::new(0.1, 0.3, 0.1),
-            max: self.pos + Vec3::new(0.1, 0.3, 0.1),
+        let mut body = Body {
+            pos: self.pos.to_array(),
+            vel: self.vel.to_array(),
+            grounded: self.grounded,
+            on_ice: self.on_ice,
         };
-        self.on_ice = self.grounded && ice_sheets.iter().any(|a| a.overlaps(&feet));
-        let accel = match (self.grounded, self.on_ice) {
-            (true, false) => 60.0,
-            (true, true) => 4.0,
-            (false, _) => 12.0,
-        };
-        let mut h = Vec3::new(self.vel.x, 0.0, self.vel.z);
-        let diff = target - h;
-        h += diff.clamp_length_max(accel * dt);
-        self.vel.x = h.x;
-        self.vel.z = h.z;
-        if jump && self.grounded {
-            self.vel.y = JUMP;
-            self.grounded = false;
-        }
-        self.vel.y -= GRAVITY * dt;
-
-        // Move one axis at a time, pushing out of any box we end up inside.
-        let solids: Vec<Aabb> = colliders.solid(chem).copied().collect();
         let before = self.pos;
-        self.grounded = false;
-        for axis in [0usize, 2, 1] {
-            let d = self.vel[axis] * dt;
-            if d == 0.0 {
-                continue;
-            }
-            self.pos[axis] += d;
-            let mut b = self.body();
-            for s in &solids {
-                if !b.overlaps(s) {
-                    continue;
-                }
-                let (lo, hi) = match axis {
-                    0 => (s.min.x - RADIUS, s.max.x + RADIUS),
-                    2 => (s.min.z - RADIUS, s.max.z + RADIUS),
-                    _ => (s.min.y - HEIGHT, s.max.y),
-                };
-                if d > 0.0 {
-                    self.pos[axis] = lo - 1e-4;
-                } else {
-                    self.pos[axis] = hi + 1e-4;
-                    if axis == 1 {
-                        self.grounded = true;
-                    }
-                }
-                self.vel[axis] = 0.0;
-                b = self.body();
-            }
-        }
-        if self.pos.y <= 0.0 {
-            self.pos.y = 0.0;
-            self.vel.y = 0.0;
-            self.grounded = true;
-        }
-        let lim = HALF - RADIUS;
-        self.pos.x = self.pos.x.clamp(-lim, lim);
-        self.pos.z = self.pos.z.clamp(-lim, lim);
+        motion::advance(
+            &mut body,
+            [target.x, target.z],
+            jump,
+            dt,
+            solids,
+            ice_sheets,
+            HALF,
+        );
+        self.pos = Vec3::from_array(body.pos);
+        self.vel = Vec3::from_array(body.vel);
+        self.grounded = body.grounded;
+        self.on_ice = body.on_ice;
         self.stride += (self.pos - before).xz().length();
     }
+}
+
+/// World boxes as the integrator's plain boxes.
+pub fn boxes<'a>(it: impl IntoIterator<Item = &'a Aabb>) -> Vec<Box3> {
+    it.into_iter()
+        .map(|a| Box3 {
+            min: a.min.to_array(),
+            max: a.max.to_array(),
+        })
+        .collect()
 }

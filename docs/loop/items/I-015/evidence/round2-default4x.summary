@@ -1,0 +1,13 @@
+r2tti base r1 default@4x p50 65.7 ci [60.4,72.3] p99 129.1 iv 2083.2 tti 11226.7 cpuframe 60.2 valid true [] load {"start":2,"end":1.57} thr 4.33
+r2tti base r1 brotli_mb 3.557 reruns []
+r2tti b2 r1 default@4x p50 50.8 ci [43,54.1] p99 80.7 iv 1949.9 tti 12659.6 cpuframe 42.6 valid true [] load {"start":1.53,"end":1.22} thr 5.33
+r2tti b2 r1 brotli_mb 4.6 reruns []
+r2tti base r2 default@4x p50 63 ci [49.3,65.8] p99 122.9 iv 1933.3 tti 11743.9 cpuframe 46.3 valid true [] load {"start":1.85,"end":0.95} thr 4.18
+r2tti base r2 brotli_mb 3.557 reruns []
+r2tti b2 r2 default@4x p50 46.8 ci [40.5,53.4] p99 88.1 iv 2099.9 tti 11511.6 cpuframe 37 valid true [] load {"start":1.63,"end":1.27} thr 4.75
+r2tti b2 r2 brotli_mb 4.6 reruns []
+r2tti base r3 default@4x p50 58.9 ci [50,68.3] p99 116.7 iv 2016.6 tti 10488.4 cpuframe 48.2 valid true [] load {"start":0.9,"end":0.6} thr 4.21
+r2tti base r3 brotli_mb 3.557 reruns [{"config":"default@4x","reason":"machine busy: load1=2.28"}]
+r2tti b2 r3 default@4x p50 34.7 ci [31.3,43] p99 61.8 iv 1683.2 tti 10898 cpuframe 26.6 valid true [] load {"start":1.52,"end":0.61} thr 4.85
+r2tti b2 r3 brotli_mb 4.6 reruns []
+DONE

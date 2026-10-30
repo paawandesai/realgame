@@ -1,0 +1,413 @@
+diff --git a/crates/bevy-client/src/world.rs b/crates/bevy-client/src/world.rs
+index 5fe1b79..4bd42ae 100644
+--- a/crates/bevy-client/src/world.rs
++++ b/crates/bevy-client/src/world.rs
+@@ -2,7 +2,12 @@
+ //!
+ //! Everything is built from a handful of shared unit meshes (cube, faceted
+ //! sphere, cylinder, cone) scaled by `Transform`, and a small palette of
+-//! shared materials, so Bevy batches draws by mesh and material.
++//! shared materials. Static scenery that never changes (ground, walls,
++//! pillars, lamps, the greenhouse frame, trees, benches, the fountain) is
++//! baked at startup into one mesh per material (`Builder::scenery`), so it
++//! costs one draw per material instead of one per piece (I-015 step B3).
++//! Everything the game changes (targets, flames, foam, the ice wall,
++//! puddles) and everything transparent keeps its own entity.
+ //!
+ //! Layout (metres, y up, the player starts at z = +18 looking toward -z):
+ //! the greenhouse fills the north side (x -8..8, z -22..-12); three chains of
+@@ -16,6 +21,7 @@ use bevy::asset::RenderAssetUsages;
+ use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
+ use bevy::light::{NotShadowCaster, NotShadowReceiver};
+ use bevy::math::Affine2;
++use bevy::mesh::{Indices, PrimitiveTopology};
+ use bevy::prelude::*;
+ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+ 
+@@ -319,20 +325,38 @@ pub fn make_kit(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMateri
+     }
+ }
+ 
+-fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color) -> StateMats {
+-    StateMats {
+-        normal: toon(materials, base),
+-        hot: glow(materials, Color::srgb(0.75, 0.38, 0.12), 0.35),
+-        burning: glow(materials, Color::srgb(0.55, 0.2, 0.05), 1.2),
+-        charred: toon(materials, Color::srgb(0.12, 0.1, 0.1)),
+-        wet: materials.add(StandardMaterial {
+-            base_color: wet,
+-            perceptual_roughness: 0.2,
+-            reflectance: 0.6,
+-            ..default()
+-        }),
+-        frosty: glow(materials, Color::srgb(0.8, 0.93, 1.0), 0.25),
+-        foamed: toon(materials, Color::srgb(0.9, 0.93, 0.95)),
++/// The per-state materials of a burnable kind. Only `normal` and `wet`
++/// depend on the kind; the other five states look the same on every kind,
++/// so they are made once and shared through `like` (one material, and so one
++/// bind group, per look instead of one per kind; I-015 step B3).
++fn state_mats(
++    materials: &mut Assets<StandardMaterial>,
++    base: Color,
++    wet: Color,
++    like: Option<&StateMats>,
++) -> StateMats {
++    let wet = materials.add(StandardMaterial {
++        base_color: wet,
++        perceptual_roughness: 0.2,
++        reflectance: 0.6,
++        ..default()
++    });
++    let normal = toon(materials, base);
++    match like {
++        Some(l) => StateMats {
++            normal,
++            wet,
++            ..l.clone()
++        },
++        None => StateMats {
++            normal,
++            hot: glow(materials, Color::srgb(0.75, 0.38, 0.12), 0.35),
++            burning: glow(materials, Color::srgb(0.55, 0.2, 0.05), 1.2),
++            charred: toon(materials, Color::srgb(0.12, 0.1, 0.1)),
++            wet,
++            frosty: glow(materials, Color::srgb(0.8, 0.93, 1.0), 0.25),
++            foamed: toon(materials, Color::srgb(0.9, 0.93, 0.95)),
++        },
+     }
+ }
+ 
+@@ -340,9 +364,78 @@ struct Builder<'a, 'w, 's> {
+     commands: &'a mut Commands<'w, 's>,
+     kit: Kit,
+     colliders: Vec<Collider>,
++    /// CPU copies of the kit's unit meshes, for baking scenery.
++    unit: Vec<(AssetId<Mesh>, Mesh)>,
++    /// Baked static scenery: one growing mesh per material.
++    baked: Vec<(Handle<StandardMaterial>, Mesh)>,
++    /// How many scenery pieces went into `baked`.
++    baked_pieces: usize,
++}
++
++/// `src` moved into place by `t`, reduced to positions, normals and UVs with
++/// a u32 index list, so pieces of any unit mesh can be appended to each
++/// other. Normals go through the rotation and the inverse scale (as the
++/// shader does for a scaled entity), so the lighting is unchanged.
++fn bake(src: &Mesh, t: Transform) -> Mesh {
++    let m = src.clone().transformed_by(t);
++    let n = m.count_vertices();
++    let pos = m
++        .attribute(Mesh::ATTRIBUTE_POSITION)
++        .cloned()
++        .expect("unit mesh has positions");
++    let normal = m
++        .attribute(Mesh::ATTRIBUTE_NORMAL)
++        .cloned()
++        .expect("unit mesh has normals");
++    let uv = m
++        .attribute(Mesh::ATTRIBUTE_UV_0)
++        .cloned()
++        .unwrap_or_else(|| vec![[0.0f32, 0.0]; n].into());
++    let idx: Vec<u32> = match m.indices() {
++        Some(i) => i.iter().map(|k| k as u32).collect(),
++        None => (0..n as u32).collect(),
++    };
++    Mesh::new(
++        PrimitiveTopology::TriangleList,
++        RenderAssetUsages::default(),
++    )
++    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
++    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normal)
++    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
++    .with_inserted_indices(Indices::U32(idx))
+ }
+ 
+ impl Builder<'_, '_, '_> {
++    /// A static, opaque piece of scenery that never changes: baked into the
++    /// one mesh of its material instead of getting its own entity.
++    fn scenery(&mut self, mesh: &Handle<Mesh>, mat: &Handle<StandardMaterial>, t: Transform) {
++        let src = &self
++            .unit
++            .iter()
++            .find(|(id, _)| *id == mesh.id())
++            .expect("scenery uses a kit mesh")
++            .1;
++        let piece = bake(src, t);
++        match self.baked.iter_mut().find(|(m, _)| m.id() == mat.id()) {
++            Some((_, acc)) => acc.merge(&piece).expect("baked meshes share one layout"),
++            None => self.baked.push((mat.clone(), piece)),
++        }
++        self.baked_pieces += 1;
++    }
++
++    /// Spawns one entity per baked material and logs the count.
++    fn finish_scenery(&mut self, meshes: &mut Assets<Mesh>) {
++        let n = self.baked.len();
++        for (mat, mesh) in std::mem::take(&mut self.baked) {
++            self.commands.spawn((
++                Mesh3d(meshes.add(mesh)),
++                MeshMaterial3d(mat),
++                Transform::IDENTITY,
++            ));
++        }
++        info!("STATIC_MERGE pieces={} meshes={}", self.baked_pieces, n);
++    }
++
+     fn piece(
+         &mut self,
+         mesh: &Handle<Mesh>,
+@@ -354,18 +447,18 @@ impl Builder<'_, '_, '_> {
+             .id()
+     }
+ 
+-    /// A solid box: drawn and collided.
+-    fn block(&mut self, center: Vec3, size: Vec3, mat: &Handle<StandardMaterial>) -> Entity {
++    /// A solid, static box: collided, and drawn as baked scenery.
++    fn block(&mut self, center: Vec3, size: Vec3, mat: &Handle<StandardMaterial>) {
+         self.colliders.push(Collider {
+             aabb: Aabb::new(center, size * 0.5),
+             obj: None,
+         });
+         let cube = self.kit.cube.clone();
+-        self.piece(
++        self.scenery(
+             &cube,
+             mat,
+             Transform::from_translation(center).with_scale(size),
+-        )
++        );
+     }
+ 
+     fn tree(
+@@ -381,17 +474,17 @@ impl Builder<'_, '_, '_> {
+             self.kit.ball.clone(),
+             self.kit.cone.clone(),
+         );
+-        self.piece(
++        self.scenery(
+             &cyl,
+             trunk,
+             Transform::from_xyz(x, 1.1 * s, z).with_scale(Vec3::new(0.45 * s, 2.2 * s, 0.45 * s)),
+         );
+-        self.piece(
++        self.scenery(
+             &cone,
+             leaf,
+             Transform::from_xyz(x, 3.2 * s, z).with_scale(Vec3::new(2.8 * s, 2.6 * s, 2.8 * s)),
+         );
+-        self.piece(
++        self.scenery(
+             &ball,
+             leaf,
+             Transform::from_xyz(x, 2.3 * s, z).with_scale(Vec3::splat(2.6 * s)),
+@@ -503,17 +596,23 @@ pub fn build(
+         ..default()
+     });
+ 
++    let unit = [&kit.cube, &kit.ball, &kit.cyl, &kit.cone]
++        .map(|h| (h.id(), meshes.get(h).expect("kit mesh").clone()))
++        .into();
+     let mut b = Builder {
+         commands,
+         kit: kit.clone(),
+         colliders: Vec::new(),
++        unit,
++        baked: Vec::new(),
++        baked_pieces: 0,
+     };
+     let cube = kit.cube.clone();
+     let ball = kit.ball.clone();
+     let cyl = kit.cyl.clone();
+ 
+     // Ground and paths.
+-    b.piece(
++    b.scenery(
+         &cube,
+         &grass,
+         Transform::from_xyz(0.0, -0.25, 0.0).with_scale(Vec3::new(
+@@ -522,12 +621,12 @@ pub fn build(
+             2.0 * HALF + 2.0,
+         )),
+     );
+-    b.piece(
++    b.scenery(
+         &cube,
+         &path,
+         Transform::from_xyz(0.0, 0.01, 3.0).with_scale(Vec3::new(3.0, 0.02, 30.0)),
+     );
+-    b.piece(
++    b.scenery(
+         &cube,
+         &path,
+         Transform::from_xyz(0.0, 0.012, 8.0).with_scale(Vec3::new(40.0, 0.02, 3.0)),
+@@ -559,21 +658,21 @@ pub fn build(
+             aabb: Aabb::new(c, half),
+             obj: None,
+         });
+-        b.piece(
++        b.scenery(
+             &cube,
+             &wall_long,
+             Transform::from_translation(c)
+                 .with_rotation(rot)
+                 .with_scale(size),
+         );
+-        b.piece(
++        b.scenery(
+             &cube,
+             &trim,
+             Transform::from_translation(Vec3::new(c.x, 0.25, c.z))
+                 .with_rotation(rot)
+                 .with_scale(Vec3::new(wl, 0.5, 1.16)),
+         );
+-        b.piece(
++        b.scenery(
+             &cube,
+             &cap,
+             Transform::from_translation(Vec3::new(c.x, WALL_H + 0.08, c.z))
+@@ -584,7 +683,7 @@ pub fn build(
+     for k in 0..7 {
+         let a = -HALF + k as f32 * 8.0;
+         for (x, z) in [(a, -HALF), (a, HALF), (-HALF, a), (HALF, a)] {
+-            b.piece(
++            b.scenery(
+                 &cube,
+                 &stone_dark,
+                 Transform::from_xyz(x, WALL_H / 2.0 + 0.3, z).with_scale(Vec3::new(
+@@ -593,7 +692,7 @@ pub fn build(
+                     1.4,
+                 )),
+             );
+-            b.piece(
++            b.scenery(
+                 &ball,
+                 &lamp,
+                 Transform::from_xyz(x, WALL_H + 0.9, z).with_scale(Vec3::splat(0.55)),
+@@ -642,7 +741,7 @@ pub fn build(
+         );
+     }
+     // Lintel over the door.
+-    b.piece(
++    b.scenery(
+         &cube,
+         &white,
+         Transform::from_xyz(0.0, 3.0, gz1).with_scale(Vec3::new(3.2, 0.2, 0.25)),
+@@ -667,7 +766,7 @@ pub fn build(
+     for k in 0..=4 {
+         let x = gx0 + k as f32 * 4.0;
+         for z in [gz0, gz1] {
+-            b.piece(
++            b.scenery(
+                 &cube,
+                 &white,
+                 Transform::from_xyz(x, gh / 2.0, z).with_scale(Vec3::new(0.22, gh, 0.22)),
+@@ -677,7 +776,7 @@ pub fn build(
+     for k in 1..=2 {
+         let z = gz0 + k as f32 * (gz1 - gz0) / 3.0;
+         for x in [gx0, gx1] {
+-            b.piece(
++            b.scenery(
+                 &cube,
+                 &white,
+                 Transform::from_xyz(x, gh / 2.0, z).with_scale(Vec3::new(0.22, gh, 0.22)),
+@@ -685,13 +784,13 @@ pub fn build(
+         }
+     }
+     for z in [gz0, gz1] {
+-        b.piece(
++        b.scenery(
+             &cube,
+             &white,
+             Transform::from_xyz(0.0, gh, z).with_scale(Vec3::new(gx1 - gx0 + 0.3, 0.25, 0.25)),
+         );
+     }
+-    b.piece(
++    b.scenery(
+         &cube,
+         &white,
+         Transform::from_xyz(0.0, gh + ridge, (gz0 + gz1) / 2.0).with_scale(Vec3::new(
+@@ -706,7 +805,7 @@ pub fn build(
+     for (k, x) in [-5.5f32, -2.0, 2.0, 5.5].into_iter().enumerate() {
+         b.block(Vec3::new(x, 0.3, -14.2), Vec3::new(2.4, 0.6, 1.2), &wood);
+         for j in 0..3 {
+-            b.piece(
++            b.scenery(
+                 &ball,
+                 &flower[(k + j) % 3],
+                 Transform::from_xyz(x - 0.7 + j as f32 * 0.7, 0.8, -14.2)
+@@ -721,12 +820,12 @@ pub fn build(
+     b.tree(-19.0, -18.0, 1.0, &wood, &leaf2);
+     for (x, z) in [(-6.0, 14.0), (6.0, 14.0)] {
+         b.block(Vec3::new(x, 0.45, z), Vec3::new(2.4, 0.15, 0.7), &wood);
+-        b.piece(
++        b.scenery(
+             &cube,
+             &stone_dark,
+             Transform::from_xyz(x - 1.0, 0.2, z).with_scale(Vec3::new(0.2, 0.4, 0.6)),
+         );
+-        b.piece(
++        b.scenery(
+             &cube,
+             &stone_dark,
+             Transform::from_xyz(x + 1.0, 0.2, z).with_scale(Vec3::new(0.2, 0.4, 0.6)),
+@@ -736,7 +835,7 @@ pub fn build(
+         aabb: Aabb::new(Vec3::new(0.0, 0.35, 3.0), Vec3::new(1.6, 0.35, 1.6)),
+         obj: None,
+     });
+-    b.piece(
++    b.scenery(
+         &cyl,
+         &stone,
+         Transform::from_xyz(0.0, 0.35, 3.0).with_scale(Vec3::new(3.2, 0.7, 3.2)),
+@@ -746,12 +845,12 @@ pub fn build(
+         &kit.water,
+         Transform::from_xyz(0.0, 0.71, 3.0).with_scale(Vec3::new(2.7, 0.02, 2.7)),
+     );
+-    b.piece(
++    b.scenery(
+         &cyl,
+         &stone,
+         Transform::from_xyz(0.0, 1.2, 3.0).with_scale(Vec3::new(0.5, 1.6, 0.5)),
+     );
+-    b.piece(
++    b.scenery(
+         &ball,
+         &liquid[1],
+         Transform::from_xyz(0.0, 2.1, 3.0).with_scale(Vec3::splat(0.6)),
+@@ -768,7 +867,7 @@ pub fn build(
+         Vec3::new(6.5, WALL_H, 0.6),
+         &wall_short,
+     );
+-    b.piece(
++    b.scenery(
+         &cube,
+         &stone_dark,
+         Transform::from_xyz(20.75, WALL_H + 0.1, 6.0).with_scale(Vec3::new(6.5, 0.2, 7.2)),
+@@ -782,16 +881,19 @@ pub fn build(
+         materials,
+         Color::srgb(0.2, 0.66, 0.3),
+         Color::srgb(0.1, 0.42, 0.28),
++        None,
+     );
+     let hedge_mats = state_mats(
+         materials,
+         Color::srgb(0.82, 0.7, 0.32),
+         Color::srgb(0.52, 0.46, 0.26),
++        Some(&bush_mats),
+     );
+     let gh_mats = state_mats(
+         materials,
+         Color::srgb(0.62, 0.4, 0.24),
+         Color::srgb(0.42, 0.28, 0.2),
++        Some(&bush_mats),
+     );
+     let plain = |m: Handle<StandardMaterial>| StateMats {
+         normal: m.clone(),
+@@ -1125,6 +1227,7 @@ pub fn build(
+     for i in burning_at_start {
+         world.ignite(i);
+     }
++    b.finish_scenery(meshes);
+     let colliders = Colliders(std::mem::take(&mut b.colliders));
+     (
+         kit,

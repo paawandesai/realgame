@@ -336,6 +336,8 @@ function check(name, ok, detail = '') {
   const stats = logs.filter((l) => /STATS|CPUFRAME/.test(l)).slice(-6);
   console.log(stats.join('\n'));
 
+  await clockAndBudget({ page, st, cmd, until, frames, sleep, logs });
+
   await feelAndStandards({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
@@ -963,4 +965,264 @@ async function feelAndStandards({ page, st, cmd, until, frames, sleep, idx, lit,
     await ctx.close();
   }
   void soundOk; void errors;
+}
+
+// ---------------------------------------------------------------------------
+// Clock and budget (docs/loop/items/I-015/spec.md, tests 4-9 and 13): game
+// time keeps up with the wall clock down to 4 fps (`gameTime`, `dt`), walking
+// and casting keep their wall-clock rates, thin walls hold at large dt, no
+// 0.05 s clamp is left, memory stays flat and the state JSON only gains the
+// two new keys at the end. Written from the spec's Contract alone.
+// ---------------------------------------------------------------------------
+const MAX_DT = 0.25;
+// Keys the merge base (a3e50b1) publishes, in order; I-015 appends gameTime, dt.
+const BASE_KEYS = ['frame', 'tick', 'locked', 'paused', 'spell', 'spellName', 'formula', 'aimObj', 'assisted', 'hover',
+  'extinguished', 'goal', 'burning', 'ghTemp', 'ghDanger', 'outcome', 'caption', 'captionId', 'casts', 'impacts', 'pos',
+  'yaw', 'pitch', 'onIce', 'low', 'sens', 'assist', 'fov', 'sway', 'cam', 'vm', 'cooldown', 'cooldownMax', 'hitKind',
+  'hitX', 'hitY', 'hitFrame', 'objs'];
+const OBJ_KEYS = ['i', 'n', 'burning', 'temp', 'wet', 'ice', 'wall', 'frozen', 'smothered', 'fuel'];
+
+// Text of `fn <name>` up to the next top-level `fn`/`pub fn` (null if absent).
+function fnBody(src, name) {
+  const m = new RegExp(`\\n(?:pub )?fn ${name}\\b`).exec(src);
+  if (!m) return null;
+  const rest = src.slice(m.index + 1);
+  const next = rest.slice(1).search(/\n(?:pub )?fn /);
+  return next < 0 ? rest : rest.slice(0, next + 1);
+}
+
+async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
+  console.log('  -- clock and budget (I-015) --');
+  // In-page sampler: one row per new state.frame, [wall ms, frame, gameTime,
+  // dt, pos, paused, casts], plus a JSON.parse check of every frame's raw
+  // state string (test 13) for as long as the section runs.
+  await page.evaluate(() => {
+    const S = (window.__clk = { rows: [], on: false, parsed: 0, parseErr: 0, badKeys: [], last: -1, keyOrder: null });
+    const step = () => {
+      if (S.stop) return;
+      const raw = window.__gameState;
+      if (raw) {
+        let s = null;
+        try { s = JSON.parse(raw); } catch { S.parseErr++; }
+        if (s && s.frame !== S.last) {
+          S.last = s.frame;
+          S.parsed++;
+          if (!S.keyOrder) S.keyOrder = Object.keys(s);
+          else if (Object.keys(s).join() !== S.keyOrder.join() && S.badKeys.length < 3) S.badKeys.push(Object.keys(s).join());
+          if (S.on) S.rows.push([performance.now(), s.frame, s.gameTime, s.dt, s.pos, s.paused, s.casts]);
+        }
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+  const startRows = () => page.evaluate(() => { window.__clk.rows = []; window.__clk.on = true; return window.__clk.last; });
+  const stopRows = () => page.evaluate(() => { window.__clk.on = false; return window.__clk.rows; });
+  // Drops the first row; expectedGame = sum of min(interval, 0.25) over the rest.
+  const span = (rows) => {
+    let expected = 0, wall = 0;
+    for (let k = 1; k < rows.length; k++) { const iv = (rows[k][0] - rows[k - 1][0]) / 1000; expected += Math.min(iv, MAX_DT); wall += iv; }
+    return { expected, wall, n: rows.length };
+  };
+  const unpause = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((x) => !x.paused, 8000); } };
+  const fresh = async () => {
+    await unpause();
+    await cmd('reset');
+    await until((x) => x.outcome === 'playing' && x.burning === 3 && x.casts === 0, 20000);
+  };
+  const tp = async (x, z) => { await cmd(`tp ${x} ${z}`); await until((q) => Math.abs(q.pos[0] - x) < 0.5 && Math.abs(q.pos[2] - z) < 0.5, 10000); };
+  const fmt = (v, d = 3) => (Number.isFinite(v) ? v.toFixed(d) : String(v));
+
+  // 13 (first half). The state JSON keeps every base key, in order, and only
+  // appends gameTime and dt; objs keep their keys.
+  await fresh();
+  const s0 = await st();
+  const keys = Object.keys(s0);
+  const keysOk = keys.length === BASE_KEYS.length + 2 && BASE_KEYS.every((k, i) => keys[i] === k)
+    && keys[BASE_KEYS.length] === 'gameTime' && keys[BASE_KEYS.length + 1] === 'dt';
+  const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
+
+  // 4. Game time keeps up with the wall clock, and stops while paused. The
+  // page is idle (no command) while it samples.
+  {
+    await fresh();
+    await frames(2);
+    await startRows();
+    await sleep(8000);
+    const rows = await stopRows();
+    const w = span(rows);
+    const dg = rows.length > 1 ? rows.at(-1)[2] - rows[0][2] : NaN;
+    const dtOk = rows.every((r) => typeof r[3] === 'number' && r[3] <= 0.2501);
+    const ok = rows.length >= 3 && dg >= 0.9 * w.expected && dg <= 1.1 * w.wall && dtOk;
+    // Pause with Esc (the pointer is free here), as the golden path does.
+    await page.keyboard.press('Escape');
+    let p = await until((x) => x.paused, 3000);
+    if (!p.paused) { await page.evaluate(() => document.exitPointerLock()); p = await until((x) => x.paused, 3000); }
+    await startRows();
+    await sleep(3000);
+    const prow = (await stopRows()).filter((r) => r[5] === true);
+    const dPaused = prow.length > 1 ? prow.at(-1)[2] - prow[0][2] : NaN;
+    await unpause();
+    check('clock: game time keeps up with the wall clock and stops while paused',
+      ok && p.paused && prow.length >= 2 && dPaused <= 0.001,
+      `frames=${rows.length} dGame=${fmt(dg)} expected=${fmt(w.expected)} wall=${fmt(w.wall)} maxDt=${Math.max(...rows.map((r) => r[3] ?? NaN))} ` +
+      `paused=${p.paused} paused frames=${prow.length} dGame paused=${fmt(dPaused, 4)}`);
+  }
+
+  // 5. Walking covers the right distance in wall time. From (-12, 17) facing
+  // +x (look 270): z = 17 is clear and flat from x = -17 to x = 17 (benches
+  // at z = 14, trees at (-18, 19) and (18.5, 18.5), wall pillars at
+  // |x| = 24; no puddle or ice), and a 3 s hold covers at most 15 m.
+  // Checked by hand against world.rs.
+  {
+    await fresh();
+    await tp(-12, 17);
+    await cmd('look 270 0');
+    await until((x) => Math.abs(x.yaw - 270) < 0.5, 5000);
+    await frames(2);
+    await page.evaluate(() => document.getElementById('game').focus());
+    await startRows();
+    await page.keyboard.down('w');
+    // The window: rows from the first frame after key-down to the last frame
+    // before key-up.
+    const fDown = (await st()).frame;
+    const t0 = Date.now();
+    const after = () => page.evaluate((f) => window.__clk.rows.filter((r) => r[1] > f).length, fDown);
+    // Hold 3 s, extended until the window has 4 rows (cap 12 s).
+    while (Date.now() - t0 < 3000 || ((await after()) < 4 && Date.now() - t0 < 12000)) await sleep(100);
+    const fUp = (await st()).frame;
+    await page.keyboard.up('w');
+    const rows = (await stopRows()).filter((r) => r[1] > fDown && r[1] <= fUp);
+    if (rows.length < 4) {
+      check('clock: walking covers 5 m/s of game time', false, `invalid: too few frames (${rows.length} in ${Date.now() - t0} ms)`);
+    } else {
+      const w = span(rows);
+      const a = rows[0][4], b = rows.at(-1)[4];
+      const dist = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      const lo = 0.85 * 5.0 * w.expected - 0.3, hi = 1.1 * 5.0 * w.expected + 0.2;
+      check('clock: walking covers 5 m/s of game time', dist >= lo && dist <= hi,
+        `dist=${fmt(dist, 2)} m expectedGame=${fmt(w.expected)} s frames=${rows.length} bounds [${fmt(lo, 2)}, ${fmt(hi, 2)}]`);
+    }
+    await frames(2);
+  }
+
+  // 6. No tunnelling through the greenhouse's 0.1 m west pane (x = -8) at
+  // large dt: sprinting at it, then a scripted strafe into it. A guard: the
+  // old 0.05 s clamp also held; unit test 3b proves the substeps matter.
+  {
+    const limit = -8 - 0.35 + 0.01;
+    await fresh();
+    await tp(-12, -17);
+    await cmd('look 270 0');
+    await until((x) => Math.abs(x.yaw - 270) < 0.5, 5000);
+    await page.evaluate(() => document.getElementById('game').focus());
+    await startRows();
+    await page.keyboard.down('Shift');
+    await page.keyboard.down('w');
+    await sleep(4000);
+    await page.keyboard.up('w');
+    await page.keyboard.up('Shift');
+    let rows = await stopRows();
+    const sprintMax = Math.max(...rows.map((r) => r[4][0]));
+    const sprintOk = rows.length >= 2 && sprintMax <= limit;
+    // Turned to face north (yaw 0), a scripted strafe right (+x) into the pane.
+    await tp(-12, -17);
+    await cmd('look 0 0');
+    await until((x) => Math.abs(x.yaw) < 0.5 || Math.abs(x.yaw - 360) < 0.5, 5000);
+    const g0 = (await st()).gameTime;
+    await startRows();
+    await cmd('move 1 0 3');
+    const t0 = Date.now();
+    while (Date.now() - t0 < 4000 || (((await st()).gameTime - g0) < 3.2 && Date.now() - t0 < 40000)) await sleep(150);
+    rows = await stopRows();
+    const strafeMax = Math.max(...rows.map((r) => r[4][0]));
+    check('clock: no tunnelling through the 0.1 m greenhouse pane at large dt', sprintOk && rows.length >= 2 && strafeMax <= limit,
+      `sprint max x=${fmt(sprintMax)} strafe max x=${fmt(strafeMax)} (limit ${fmt(limit, 2)})`);
+  }
+
+  // 7. Cast cadence in wall time: a cast command every 100 ms for 6 s.
+  {
+    await fresh();
+    await frames(2);
+    await cmd('select 2');
+    await cmd('face 0');
+    await frames(1);
+    const c0 = (await st()).casts;
+    await startRows();
+    await page.evaluate(() => {
+      const id = setInterval(() => window.__game.cmd('cast'), 100);
+      setTimeout(() => clearInterval(id), 6000);
+      window.__game.cmd('cast');
+    });
+    await sleep(6000);
+    const rows = await stopRows();
+    const w = span(rows);
+    const casts = (await st()).casts - c0;
+    const need = Math.max(2, Math.floor(0.8 * w.expected / 0.3) - 1);
+    check('clock: cast cadence keeps the 0.3 s cooldown in wall time', casts >= need,
+      `casts=${casts} need ${need} expectedGame=${fmt(w.expected)} frames=${rows.length}`);
+    await cmd('reset');
+  }
+
+  // 7b. Spells land at large dt: water at target 0 (the lit bush at
+  // (-13.5, -3)) from (-13.5, 12), 15 m away down a clear line (the steam
+  // vent's box ends at x = -14, the path is flat).
+  {
+    await fresh();
+    await tp(-13.5, 12);
+    await cmd('face 0');
+    await cmd('select 2');
+    const a = await until((x) => x.spell === 1 && x.aimObj === 0 && x.cooldown === 0, 15000);
+    await cmd('cast');
+    const f0 = a.frame;
+    const t0 = Date.now();
+    let z = await st();
+    while (!(z.impacts > a.impacts) && (Date.now() - t0 < 4000 || z.frame < f0 + 8) && Date.now() - t0 < 60000) { await sleep(100); z = await st(); }
+    const dist = Math.hypot(a.pos[0] + 13.5, a.pos[2] + 3);
+    check('clock: a spell lands on a target 15 m away at large dt', z.impacts === a.impacts + 1 && a.aimObj === 0 && Math.abs(dist - 15) <= 1,
+      `impacts ${a.impacts} -> ${z.impacts} after ${z.frame - f0} frames, ${Date.now() - t0} ms; aim=${a.aimObj} dist=${fmt(dist, 2)}`);
+    await cmd('reset');
+  }
+
+  // 8. No 0.05 s clamp left in the client (static check of the sources).
+  {
+    const { readdir } = await import('node:fs/promises');
+    const dir = join(here, '../../crates/bevy-client/src');
+    const src = {};
+    for (const f of (await readdir(dir)).filter((f) => f.endsWith('.rs'))) src[f] = await readFile(join(dir, f), 'utf8');
+    const clamp = Object.entries(src).filter(([, t]) => /min\(\s*0\.05/.test(t) || /f32::min\([^)]*,\s*0\.05/.test(t)).map(([f]) => f);
+    const sites = [['main.rs', 'control'], ['main.rs', 'aim_and_cast'], ['main.rs', 'projectiles'], ['main.rs', 'sync_visuals'], ['fx.rs', 'update_fx']];
+    const missing = sites.filter(([f, n]) => { const b = src[f] && fnBody(src[f], n); return !b || !b.includes('clock::frame_dt('); }).map(([, n]) => n);
+    const maxDelta = !!src['main.rs'] && src['main.rs'].includes('MAX_FRAME_DT');
+    check('clock: no 0.05 s dt clamp left; every per-frame system uses clock::frame_dt',
+      clamp.length === 0 && missing.length === 0 && maxDelta && !!src['clock.rs'] && !!src['motion.rs'],
+      `clamped in [${clamp}] missing frame_dt in [${missing}] MAX_FRAME_DT=${maxDelta} clock.rs=${!!src['clock.rs']} motion.rs=${!!src['motion.rs']}`);
+  }
+
+  // 13 (second half). Every frame's state string parses: at least 200
+  // consecutive frames (the sampler has counted since the section began).
+  {
+    const t0 = Date.now();
+    let n = await page.evaluate(() => window.__clk.parsed);
+    while (n < 200 && Date.now() - t0 < 240000) { await sleep(500); n = await page.evaluate(() => window.__clk.parsed); }
+    const c = await page.evaluate(() => ({ parsed: window.__clk.parsed, err: window.__clk.parseErr, bad: window.__clk.badKeys }));
+    check('clock: state JSON keeps the base keys in order, appends gameTime and dt, and parses every frame',
+      keysOk && objKeysOk && c.parsed >= 200 && c.err === 0 && c.bad.length === 0,
+      `keys ok=${keysOk} (n=${keys.length}, last=${keys.slice(-3)}) objs ok=${objKeysOk} parsed=${c.parsed} errors=${c.err} key changes=${c.bad.length}`);
+  }
+
+  // 9. Memory guard: from the game's STATS lines so far (the first 5 lines,
+  // about 10 s of startup, are skipped), the live heap grows by at most 8 MB
+  // and wasm memory stays at or under 96 MB.
+  {
+    const rows = logs.filter((l) => /STATS /.test(l)).map((l) => ({
+      live: +(/heap_live_mb=([\d.]+)/.exec(l) || [])[1], wasm: +(/wasm_mem_mb=([\d.]+)/.exec(l) || [])[1],
+    })).slice(5).filter((r) => Number.isFinite(r.live) && Number.isFinite(r.wasm));
+    const first = rows[0], last = rows.at(-1);
+    const wasmMax = rows.length ? Math.max(...rows.map((r) => r.wasm)) : NaN;
+    check('clock: memory stays flat (heap +8 MB at most, wasm memory at most 96 MB)', rows.length >= 2 && last.live <= first.live + 8 && wasmMax <= 96,
+      `${rows.length} STATS lines, heap_live ${first && first.live} -> ${last && last.live} MB, wasm max ${wasmMax} MB`);
+  }
+  await page.evaluate(() => { window.__clk.on = false; window.__clk.stop = true; });
+  await fresh();
 }

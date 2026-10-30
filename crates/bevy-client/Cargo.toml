@@ -52,6 +52,9 @@ wasm-bindgen = "0.2"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
 
+# Size-optimised. opt-level 3 cut the CPU frame median at low@4x by about
+# 20% but grew brotli from 3.56 to 4.60 MB and TTI by about 1.4 s (see
+# docs/loop/items/I-015/); that trade is item I-024.
 [profile.release]
 opt-level = "z"
 lto = "fat"

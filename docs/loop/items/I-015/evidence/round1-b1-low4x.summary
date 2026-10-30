@@ -1,0 +1,30 @@
+b1 base r1 low@4x p50 47.7 p99 93.6 iv 766.6 tti 11361.7 valid true [] load {"start":1.93,"end":1.98}
+b1 base r1 brotli_mb 3.557 reruns [{"config":"low@4x","reason":"machine busy: load1=2.8"},{"config":"low@4x","reason":"machine busy: load1=2.52"}]
+b1 z r1 low@4x p50 59.9 p99 92.5 iv 833.3 tti 11657 valid true [] load {"start":1.99,"end":1.35}
+b1 z r1 brotli_mb 3.559 reruns []
+b1 s r1 low@4x p50 47.8 p99 87.6 iv 783.3 tti 11560.5 valid true [] load {"start":1.5,"end":1.25}
+b1 s r1 brotli_mb 3.937 reruns []
+b1 o2 r1 low@4x p50 32.2 p99 46.6 iv 633.4 tti 10345.6 valid true [] load {"start":1.45,"end":1.49}
+b1 o2 r1 brotli_mb 4.533 reruns []
+b1 o3 r1 low@4x p50 35.1 p99 99.1 iv 699.9 tti 11059.3 valid true [] load {"start":1.17,"end":1.91}
+b1 o3 r1 brotli_mb 4.599 reruns [{"config":"low@4x","reason":"machine busy: load1=2.01"}]
+b1 base r2 low@4x p50 43.2 p99 86.9 iv 749.9 tti 11328.1 valid true [] load {"start":1.86,"end":1.53}
+b1 base r2 brotli_mb 3.557 reruns []
+b1 z r2 low@4x p50 49.2 p99 98 iv 700 tti 9248.8 valid true [] load {"start":1.73,"end":1.67}
+b1 z r2 brotli_mb 3.559 reruns []
+b1 s r2 low@4x p50 38.3 p99 63.9 iv 700 tti 10241.2 valid true [] load {"start":1.6,"end":1.7}
+b1 s r2 brotli_mb 3.937 reruns []
+b1 o2 r2 low@4x p50 30.5 p99 53.5 iv 566.5 tti 9840.8 valid true [] load {"start":1.4,"end":0.79}
+b1 o2 r2 brotli_mb 4.533 reruns []
+b1 o3 r2 low@4x p50 29.2 p99 50.8 iv 533.3 tti 8839.8 valid true [] load {"start":1.31,"end":1.59}
+b1 o3 r2 brotli_mb 4.599 reruns []
+b1 base r3 low@4x p50 32.8 p99 74.2 iv 566.6 tti 7928 valid true [] load {"start":1.8,"end":1.61}
+b1 base r3 brotli_mb 3.557 reruns []
+b1 z r3 low@4x p50 33.6 p99 66.5 iv 516.7 tti 8006.1 valid true [] load {"start":1.87,"end":1.69}
+b1 z r3 brotli_mb 3.559 reruns []
+b1 s r3 low@4x p50 33.7 p99 54.1 iv 566.6 tti 7875.7 valid true [] load {"start":1.71,"end":0.91}
+b1 s r3 brotli_mb 3.937 reruns []
+b1 o2 r3 low@4x p50 27.8 p99 43.5 iv 516.7 tti 8455.3 valid true [] load {"start":1.35,"end":1.08}
+b1 o2 r3 brotli_mb 4.533 reruns []
+b1 o3 r3 low@4x p50 26.9 p99 41.1 iv 500 tti 8380.6 valid true [] load {"start":1.44,"end":1.38}
+b1 o3 r3 brotli_mb 4.599 reruns []

@@ -1,0 +1,4 @@
+opt=s secs=941 wasm=23161541 br=3948131
+opt=2 secs=1259 wasm=32608092 br=4591863
+opt=3 secs=1193 wasm=34743889 br=4673893
+opt=z secs=272 wasm=17667734 br=3536378
