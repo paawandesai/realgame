@@ -34,7 +34,7 @@ canvas.hover { cursor: pointer; }
 #caption { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); max-width: min(760px, 92vw); text-align: center; background: var(--panel); padding: 8px 14px; border-radius: 10px; font-size: 18px; line-height: 1.35; opacity: 0; transition: opacity 0.25s; }
 #caption.show { opacity: 1; }
 #hotbar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto; }
-.slot { position: relative; width: 172px; padding: 8px 6px 6px; background: var(--panel); border: 2px solid rgba(255,255,255,0.25); border-radius: 12px; color: var(--ink); font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.slot { position: relative; width: 190px; padding: 8px 6px 6px; background: var(--panel); border: 2px solid rgba(255,255,255,0.25); border-radius: 12px; color: var(--ink); font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .slot.sel { border-color: var(--on); box-shadow: 0 0 12px rgba(255, 225, 74, 0.6); transform: translateY(-4px); }
 .slot .key { position: absolute; top: 4px; left: 8px; font-size: 12px; opacity: 0.8; }
 .slot .name { font-weight: 700; font-size: 15px; }
@@ -64,7 +64,7 @@ canvas.hover { cursor: pointer; }
    the key number and name make room. */
 @media (max-width: 760px) {
   #hotbar { gap: 4px; width: calc(100vw - 16px); justify-content: center; }
-  .slot { width: 24%; max-width: 172px; padding: 6px 3px 4px; }
+  .slot { width: 24%; max-width: 190px; padding: 6px 3px 4px; }
   .slot .key { display: none; }
   .slot .name { font-size: 13px; }
   .slot .formula { font-size: 12px; white-space: normal; text-align: center; line-height: 1.2; }
