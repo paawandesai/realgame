@@ -44,6 +44,10 @@ pub struct Fx {
     /// Cheap deterministic noise for spread.
     pub seed: u32,
     pub pending: Vec<(P, Vec3, Vec3, f32, f32)>,
+    /// Set to hide every live particle on the next update (after a reset).
+    pub clear: bool,
+    /// The game's reset counter when the particles were last cleared.
+    pub epoch: u32,
 }
 
 impl Fx {
@@ -147,6 +151,8 @@ pub fn setup_fx(
         mats,
         seed: 0x9E37_79B9,
         pending: Vec::new(),
+        clear: false,
+        epoch: 0,
     });
 }
 
@@ -162,6 +168,13 @@ pub fn update_fx(
     )>,
 ) {
     let dt = time.delta_secs().min(0.05);
+    if std::mem::take(&mut fx.clear) {
+        fx.pending.clear();
+        for (mut p, _, mut vis, _) in &mut q {
+            p.life = 0.0;
+            *vis = Visibility::Hidden;
+        }
+    }
     let pending = std::mem::take(&mut fx.pending);
     for (k, pos, vel, size, life) in pending {
         let e = fx.slots[fx.next];

@@ -116,6 +116,9 @@ struct Game {
     events: Vec<chem::Event>,
     /// Holds the movement keys down from a test command: (right, fwd, secs).
     scripted_move: Option<(Vec2, f32)>,
+    /// `cast`/`tap` commands waiting for the cooldown, with their age in
+    /// seconds. Dropped after 0.3 s, and cleared by a reset (a new Game).
+    cast_queue: Vec<(String, f32)>,
     /// Bumped by every reset: spells and beams from before it vanish
     /// instead of landing in the new courtyard.
     epoch: u32,
@@ -389,7 +392,7 @@ fn setup(
     let mut camera = commands.spawn((
         Camera3d::default(),
         Projection::Perspective(PerspectiveProjection {
-            fov: 70f32.to_radians(),
+            fov: FOV_Y,
             near: 0.05,
             far: 250.0,
             ..default()
@@ -772,6 +775,9 @@ fn pick(chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32
     }
 }
 
+/// Vertical field of view of the first-person camera.
+const FOV_Y: f32 = 70.0 * std::f32::consts::PI / 180.0;
+
 /// Aims, and casts on click (pointer locked) or tap (pointer free).
 #[allow(clippy::too_many_arguments)]
 fn aim_and_cast(
@@ -797,10 +803,25 @@ fn aim_and_cast(
     game.aim = pick(&chem, &colliders, eye, player.forward(), settings.assist);
 
     // Pointer free: what is under the cursor (kids can just click things).
-    let _ = &window;
-    let ray_at = |p: Vec2| -> Option<Vec3> {
-        let (c, gt) = cam.single().ok()?;
-        c.viewport_to_world(gt, p).ok().map(|r| *r.direction)
+    // The cursor arrives as a fraction of the canvas (0..1 each way), and
+    // the ray is built from the player's current view, not the camera's
+    // transform from the last frame or the canvas's pixel size (which mixes
+    // logical, physical and render-scaled pixels).
+    let aspect = cam
+        .single()
+        .ok()
+        .and_then(|(c, _)| c.logical_viewport_size())
+        .map_or(window.width() / window.height().max(1.0), |s| {
+            s.x / s.y.max(1.0)
+        });
+    let rot = player.rotation();
+    let ray_at = |f: Vec2| -> Option<Vec3> {
+        if !(0.0..=1.0).contains(&f.x) || !(0.0..=1.0).contains(&f.y) {
+            return None;
+        }
+        let t = (FOV_Y * 0.5).tan();
+        let v = Vec3::new((f.x * 2.0 - 1.0) * t * aspect, (1.0 - f.y * 2.0) * t, -1.0);
+        Some((rot * v).normalize())
     };
     let tap_assist = settings.assist.max(3f32.to_radians()) * 1.5;
     game.hover = None;
@@ -808,14 +829,36 @@ fn aim_and_cast(
         #[cfg(target_arch = "wasm32")]
         let cursor = web.pointer.map(|(x, y)| Vec2::new(x, y));
         #[cfg(not(target_arch = "wasm32"))]
-        let cursor = window.cursor_position();
+        let cursor = window
+            .cursor_position()
+            .map(|p| p / Vec2::new(window.width(), window.height()).max(Vec2::ONE));
         if let Some(dir) = cursor.and_then(ray_at) {
             game.hover = pick(&chem, &colliders, eye, dir, tap_assist).obj;
         }
     }
 
     let mut casts: Vec<Aim> = Vec::new();
-    let cmds = std::mem::take(&mut web.cmds);
+    // `cast` and `tap` obey the same cooldown and pause as the mouse. While
+    // paused they are dropped; during the cooldown they wait at most 0.3 s
+    // (so a stale click never fires later), and one runs per cooldown (so
+    // tap spam cannot fire an unlimited stream of spells).
+    let incoming = std::mem::take(&mut web.cmds);
+    if game.paused {
+        game.cast_queue.clear();
+    } else {
+        game.cast_queue
+            .extend(incoming.into_iter().map(|c| (c, 0.0)));
+        for q in &mut game.cast_queue {
+            q.1 += dt;
+        }
+        game.cast_queue.retain(|q| q.1 <= 0.3 + dt);
+        game.cast_queue.truncate(8);
+    }
+    let cmds: Vec<String> = if game.cooldown <= 0.0 && !game.cast_queue.is_empty() {
+        vec![game.cast_queue.remove(0).0]
+    } else {
+        Vec::new()
+    };
     for c in cmds {
         let a: Vec<&str> = c.split_whitespace().collect();
         if a.first() == Some(&"cast") {
@@ -834,7 +877,7 @@ fn aim_and_cast(
     };
     #[cfg(not(target_arch = "wasm32"))]
     let firing = mouse.pressed(MouseButton::Left);
-    if game.locked && !game.paused && firing && game.cooldown <= 0.0 {
+    if casts.is_empty() && game.locked && !game.paused && firing && game.cooldown <= 0.0 {
         casts.push(game.aim);
     }
     let ended = chem.world.outcome() != Outcome::Playing;
@@ -901,6 +944,11 @@ fn projectiles(
     mut beams: Query<(Entity, &mut Beam, &mut Transform), Without<Projectile>>,
 ) {
     let dt = time.delta_secs().min(0.05);
+    if fx.epoch != game.epoch {
+        // A reset: clear the old courtyard's smoke and sparks too.
+        fx.epoch = game.epoch;
+        fx.clear = true;
+    }
     for (e, mut b, mut t) in &mut beams {
         b.life -= dt;
         t.scale.x *= 0.85;
@@ -992,6 +1040,11 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>) {
             EventKind::Ignited => fx.burst(P::Fire, top, 16, 2.5, 0.35),
             EventKind::BurntOut => fx.burst(P::Smoke, top, 14, 1.2, 0.5),
             _ => {}
+        }
+        if e.kind == EventKind::Reseeded {
+            // Always said: the player must know where the new fire is.
+            game.say(e.kind.caption());
+            continue;
         }
         if !captioned
             && matches!(

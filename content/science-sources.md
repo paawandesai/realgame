@@ -83,6 +83,7 @@ The single register of every science claim the first-person 3D client shows the 
 | `Aim at a glowing target: the crosshair turns yellow. Left click casts.` | crates/bevy-client/web/hud.js | Game instruction (aiming). Flagged by sentence shape; it states no science. |
 | `Mouse lock is blocked here: hold a mouse button and drag to look. Click to cast.` | crates/bevy-client/web/hud.js | Game instruction (controls when the browser refuses pointer lock). Flagged by sentence shape; it states no science. |
 | `Point and click: click a glowing target to cast at it. Drag to look.` | crates/bevy-client/web/hud.js | Game instruction (point-and-click mode). Flagged by sentence shape; it states no science. |
+| `Another bush is on fire! Put it out before it spreads.` | crates/bevy-client/src/chem.rs | Game event: a new fire started so the level can still be won after a fire burnt out by itself. Flagged by sentence shape and `fire`; it states no science. |
 | `Click again to lock the mouse.` | crates/bevy-client/web/hud.js | Game instruction (the browser refused a new pointer lock right after Esc). Flagged by sentence shape; it states no science. |
 | `CO2` | crates/bevy-client/src/chem.rs, crates/bevy-client/web/index.html | Name of spell 4 on the hotbar (carbon dioxide from an extinguisher). A label naming the substance; it asserts nothing. Its science is C-004, C-032 and C-035. |
 | `Save the Greenhouse! Put out 3 fires before they spread. Press 2 for Water.` | crates/bevy-client/src/main.rs | Game instruction (the objective and a key hint). Flagged by sentence shape; it states no science. |
@@ -93,6 +94,8 @@ The single register of every science claim the first-person 3D client shows the 
 | `Without locking the mouse you can also click (or tap) a glowing target to cast at it.` | crates/bevy-client/web/index.html | Game instruction (controls). Flagged by sentence shape; it states no science. |
 
 ## Sources
+
+[S17] and [S20] were removed in I-012 once no row cited them; their ids are not reused.
 
 - [S0] Design choice: gameplay tuning or scenario assumption, no physical claim.
 - [S1] NIST Chemistry WebBook, SRD 69, Nitrogen, phase change data (Tboil = 77.34 K, Jacobsen, Stewart, et al., 1986): https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379&Mask=4
@@ -111,7 +114,5 @@ The single register of every science claim the first-person 3D client shows the 
 - [S14] U.S. EPA, Office of Air and Radiation, *Carbon Dioxide as a Fire Suppressant: Examining the Risks*, EPA430-R-00-002, February 2000: https://www.epa.gov/sites/production/files/2015-06/documents/co2report.pdf
 - [S15] Babrauskas, V., "Temperatures in flames and fires", Fire Science and Technology Inc., 1997, revised 2006: https://doctorfire.com/temperatures-in-flames-and-fires/
 - [S16] Fletcher, T. H., Pickett, B. M., Smith, S. G., Spittle, G. S., Woodhouse, M. M., Haake, E., Weise, D. R., "Effects of moisture on ignition behavior of moist California chaparral and Utah leaves", Combustion Science and Technology, 1183–1203, 2007. Record: https://research.fs.usda.gov/treesearch/30610
-- [S17] NIST, "NIST Researchers Develop Standards to Help Eliminate 'Forever Chemicals' in Firefighting Foams", news release, 18 September 2023: https://www.nist.gov/news-events/news/2023/09/nist-researchers-develop-standards-help-eliminate-forever-chemicals
 - [S18] Ohlemiller, T. J., *Modeling of Smoldering Combustion Propagation*, NBSIR 84-2895, National Bureau of Standards, 1984. doi:10.6028/NBS.IR.84-2895
 - [S19] U.S. Federal Aviation Administration, Advisory Circular 150/5210-6E, *Aircraft Fire Extinguishing Agents for Airports*, 27 November 2023: § 1.2 (foams "are produced by incorporation of air into a solution of foam concentrate and water"; "They extinguish fire by physically separating the fuel vapors from the heat and oxygen necessary for combustion"), § 1.4.2 (carbon dioxide "extinguishes fire by reducing the concentration of oxygen, the vapor phase of the fuel, or both"), App. C item 9 (foam: "An aggregation of small bubbles used to form an air-excluding, vapor-suppressing blanket"): https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC-150-5210-6e-arff-ext-agents.pdf
-- [S20] U.S. EPA, *Phase I Final Rule and Technical Development Document of Uniform National Discharge Standards (UNDS)*, Appendix A, "Aqueous Film-Forming Foam: Nature of Discharge", April 1999, § 2.1 ("The foam layer effectively excludes oxygen from the surface of the fuel, while the high water content cools the surface."): https://www.epa.gov/sites/default/files/2015-08/documents/2007_07_10_oceans_regulatory_unds_tdddocuments_appaafffnod.pdf

@@ -72,7 +72,12 @@ function check(name, ok, detail = '') {
   });
   page.on('pageerror', (e) => { errors.push(e.message); console.log('  pageerror:', e.message); });
   await page.goto(base);
-  await page.waitForFunction(() => window.__gameState, null, { timeout: 120000 });
+  // Polled with evaluate, not waitForFunction: the page's CSP (no
+  // 'unsafe-eval') blocks waitForFunction's string evaluation in some setups.
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState));) {
+    if (Date.now() - t0 > 120000) throw new Error('game did not start within 120 s');
+    await sleep(250);
+  }
   const st = () => page.evaluate(() => window.__game.state());
   const cmd = (c) => page.evaluate((c) => window.__game.cmd(c), c);
   // Polls the game state until pred(state) holds (frames are slow on a software GPU).

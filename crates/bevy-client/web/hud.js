@@ -4,7 +4,8 @@
 // window.__gameState (game -> JS): JSON string written every frame.
 // window.__game: a small debug and test hook:
 //   __game.state()          parsed state
-//   __game.cmd('select 2')  commands: select N, cast, tap X Y, look YAW PITCH,
+//   __game.cmd('select 2')  commands: select N, cast, tap FX FY (fractions of
+//                           the canvas, 0..1), look YAW PITCH,
 //                           turn DX DY, face I, tp X Z, move RIGHT FWD SECS,
 //                           tick N, reset
 //   __game.lock()           request pointer lock (needs a user gesture)
@@ -54,25 +55,46 @@ export function startHud() {
   }
 
   const cmd = (c) => input.cmds.push(c);
-  // requestPointerLock returns a promise in current browsers (and nothing in
-  // older ones). Every rejection is caught: a failed lock (no user gesture,
-  // or the page lost focus) just leaves the game in click-to-target mode.
-  const tryLock = (opts) => {
+  // The lock request in flight: settled by the promise requestPointerLock
+  // returns (current Chrome and Firefox), or else by the pointerlockchange /
+  // pointerlockerror events (Safari and older Firefox return undefined and
+  // only report a refusal through pointerlockerror).
+  let pending = null;
+  // A short click made while the lock was refused before and a new request is
+  // still open: it casts only if that request is refused too.
+  let castIfRefused = false;
+  const settle = (ok) => {
+    const p = pending;
+    pending = null;
+    if (p) (ok ? p.resolve : p.reject)();
+  };
+  document.addEventListener('pointerlockerror', () => { if (pending && !pending.promised) settle(false); });
+  const tryLock = (opts) => new Promise((resolve, reject) => {
+    pending = { resolve, reject, promised: false };
     try {
       const p = opts ? canvas.requestPointerLock(opts) : canvas.requestPointerLock();
-      return p && typeof p.then === 'function' ? p : Promise.resolve();
+      if (p && typeof p.then === 'function') {
+        pending.promised = true;
+        p.then(() => settle(true), () => settle(false));
+      } else {
+        // No promise and no event within 1.5 s: treat it as refused.
+        const mine = pending;
+        setTimeout(() => { if (pending === mine) settle(false); }, 1500);
+      }
     } catch (e) {
-      return Promise.reject(e);
+      settle(false);
     }
-  };
+  });
   const lock = () => {
     canvas.focus();
     pointMode = false;
     // Raw, unaccelerated deltas where supported; plain lock otherwise.
     tryLock({ unadjustedMovement: true })
       .catch(() => tryLock())
-      .then(() => { lockDenied = false; note = ''; })
+      .then(() => { lockDenied = false; note = ''; castIfRefused = false; })
       .catch(() => {
+        if (castIfRefused) cmd('cast');
+        castIfRefused = false;
         if (everLocked) {
           // Browsers refuse a new lock for about a second after Esc.
           note = 'Click again to lock the mouse.';
@@ -114,6 +136,11 @@ export function startHud() {
     input.fire = false;
     if (locked) {
       everLocked = true;
+      settle(true);
+      // A lock that arrives late (after the refusal timeout) still wins.
+      lockDenied = false;
+      note = '';
+      castIfRefused = false;
       showPause(false);
     } else if (everLocked && !(state && state.outcome !== 'playing')) {
       // Esc released the mouse: pause with the controls help.
@@ -121,10 +148,31 @@ export function startHud() {
     }
   };
   document.addEventListener('pointerlockchange', syncLock);
+  // One event's movement: a number, and not one of the huge jumps some
+  // browsers report on the first event after the lock.
+  const delta = (v) => (Number.isFinite(v) ? Math.max(-200, Math.min(200, v)) : 0);
+  // An event's movement, including the moves the browser merged into it
+  // (with a button held, Chrome merges pointer moves to one per frame, and
+  // the merged event's own movementX can hold only the last of them, which
+  // made aiming while holding fire turn far too slowly). When the parts
+  // are there, their sum is used (clamped like a single event).
+  const movement = (e) => {
+    const parts = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+    if (parts.length > 1) {
+      let sx = 0;
+      let sy = 0;
+      for (const c of parts) { sx += delta(c.movementX); sy += delta(c.movementY); }
+      return [delta(sx), delta(sy)];
+    }
+    return [delta(e.movementX), delta(e.movementY)];
+  };
+  // Set once pointermove has reported movement while locked.
+  let moveWorks = false;
+  // Where the event is on the canvas, as fractions (0..1) of its width and
+  // height: the game builds the ray from these, whatever the pixel scale.
   const local = (e) => {
     const r = canvas.getBoundingClientRect();
-    const k = canvas.clientWidth / r.width;
-    return [(e.clientX - r.left) * k, (e.clientY - r.top) * k];
+    return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
   };
   // All mouse movement is read here, from pointermove in the capture phase
   // on window, and then stopped so it never reaches winit's listeners on the
@@ -138,26 +186,39 @@ export function startHud() {
   //   heap by hundreds of MB. The game never reads Bevy's cursor events.
   const onMove = (e) => {
     e.stopImmediatePropagation();
+    const [dx, dy] = movement(e);
     if (input.locked) {
-      input.dx += e.movementX;
-      input.dy += e.movementY;
+      if (dx || dy) moveWorks = true;
+      input.dx += dx;
+      input.dy += dy;
       return;
     }
     if (drag) {
       // Drag-to-look: works with no pointer lock at all.
-      input.dx += e.movementX;
-      input.dy += e.movementY;
-      drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
+      input.dx += dx;
+      input.dy += dy;
+      drag.moved += Math.abs(dx) + Math.abs(dy);
     }
     // The free cursor position, for hover and click-to-target. Checked
-    // against the canvas rectangle (not e.target), so HUD overlays and
-    // synthetic events still count.
+    // against the canvas rectangle (not e.target), so synthetic events
+    // count; the hotbar and the pause card do not.
     const r = canvas.getBoundingClientRect();
     const inside = e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom;
-    if (inside) [input.px, input.py] = local(e);
+    const overUi = !!(e.target && e.target.closest && e.target.closest('#hotbar, #pause'));
+    if (inside && !overUi && !input.paused) [input.px, input.py] = local(e);
     else { input.px = -1; input.py = -1; }
   };
   window.addEventListener('pointermove', onMove, { capture: true });
+  // Fallback for browsers whose pointermove carries no movement under lock:
+  // mousemove deltas count only until pointermove has reported any movement
+  // (never both, so nothing is counted twice).
+  document.addEventListener('mousemove', (e) => {
+    if (!input.locked || moveWorks) return;
+    input.dx += delta(e.movementX);
+    input.dy += delta(e.movementY);
+  });
+  // The cursor left the window: nothing is hovered.
+  document.documentElement.addEventListener('pointerleave', () => { input.px = -1; input.py = -1; });
   // pointerrawupdate carries the same moves again, and the browser only
   // produces it while someone listens. winit listens (for raw motion the
   // game never reads on the web), so listeners for it are not registered at
@@ -187,7 +248,7 @@ export function startHud() {
     const [x, y] = local(e);
     if (e.pointerType !== 'mouse') {
       // Touch or pen: tap a target to cast at it.
-      cmd(`tap ${x.toFixed(1)} ${y.toFixed(1)}`);
+      cmd(`tap ${x.toFixed(4)} ${y.toFixed(4)}`);
       return;
     }
     if (e.button !== 0 && e.button !== 2) return;
@@ -205,10 +266,12 @@ export function startHud() {
     if (input.locked || d.button !== 0 || d.moved > 6) return;
     if (pointMode) {
       // Point and click: cast at the target under the cursor.
-      cmd(`tap ${d.x.toFixed(1)} ${d.y.toFixed(1)}`);
+      cmd(`tap ${d.x.toFixed(4)} ${d.y.toFixed(4)}`);
     } else if (lockDenied) {
-      // No lock available: a click casts at the crosshair.
-      cmd('cast');
+      // No lock available: a click casts at the crosshair. If this click's
+      // own lock request is still open, cast only once it is refused.
+      if (pending) castIfRefused = true;
+      else cmd('cast');
     }
   });
   const caption = $('caption');
