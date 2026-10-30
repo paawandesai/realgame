@@ -1045,8 +1045,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   // I-019 appends its keys after dt, in this order (the one sanctioned edit
   // to this check: docs/loop/items/I-019/spec.md, Contract).
   const I019_KEYS = ['clicks', 'firesLeft', 'nearFire', 'fireBearing', 'fireElev', 'fireOff', 'streams', 'fxWater'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS].every((k, i) => keys[i] === k);
+  // I-025 appends fireInView after them (its Contract item 3).
+  const I025_KEYS = ['fireInView'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The
@@ -1616,9 +1618,12 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
       if (h.ff && h.ff.vis && h.ff.right !== (h.s.fireBearing > 0)) consistent = false;
       log.push(`${h.s.fireBearing}${h.ff && h.ff.vis ? (h.ff.right ? 'R' : 'L') : '-'}`);
     }
-    const found = !!h.ff && !h.ff.vis && h.s.fireOff === false && Math.abs(h.s.fireBearing) <= hfovOf(h.s.fov) / 2;
+    // I-025 (Contract item 3): the arrow may also hide because another
+    // fire came into view before the nearest one did.
+    const found = !!h.ff && !h.ff.vis && h.s.fireInView === true && (h.s.fireOff === true || Math.abs(h.s.fireBearing) <= hfovOf(h.s.fov) / 2);
+    const why = h.s.fireOff === false ? 'nearest fire in view' : 'another fire in view';
     check('cast: turning toward the arrow brings the fire into view', found && consistent && steps <= 40,
-      `${steps} steps, consistent=${consistent}, bearing=${h.s.fireBearing} fireOff=${h.s.fireOff} [${log.join(' ')}]`);
+      `${steps} steps, consistent=${consistent}, bearing=${h.s.fireBearing} fireOff=${h.s.fireOff} fireInView=${h.s.fireInView} hid: ${why} [${log.join(' ')}]`);
     // A fire off screen again, then pause: the arrow hides.
     await cmd(`look ${(f.yaw + 180).toFixed(2)} 0`);
     await hudWithin((await st()).frame, 5, (q) => q.ff && q.ff.vis);

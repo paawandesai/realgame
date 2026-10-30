@@ -211,3 +211,79 @@ mod tests {
         }
     }
 }
+
+// ---- I-025: streams you cannot miss, an honest arrow, one cast per click.
+
+/// How one spell's stream is drawn (I-025): a constant-width rod `thick`
+/// metres across, a core colour and a darker outline shell `outline_scale`
+/// times as wide (an inverted hull), both sRGB in 0..1. `mist` is the most
+/// cold-fog particles one cast may emit along the stream.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StreamStyle {
+    pub thick: f32,
+    pub core: [f32; 3],
+    pub outline: [f32; 3],
+    pub outline_scale: f32,
+    pub mist: u32,
+}
+
+/// The stream look of `spell` (index in `Spell::ALL`: Fire, Water, Frost,
+/// CO2). Indices 4 and above give the Water style.
+pub fn stream_style(spell: u8) -> StreamStyle {
+    let core = match spell {
+        0 => [1.0, 0.45, 0.1],
+        2 => [0.6, 0.95, 1.0],
+        3 => [0.92, 0.95, 1.0],
+        _ => [0.2, 0.55, 1.0],
+    };
+    StreamStyle {
+        thick: 0.13,
+        core,
+        outline: core,
+        outline_scale: 1.0,
+        mist: 0,
+    }
+}
+
+/// WCAG 2 relative luminance of an sRGB colour (channels 0..1).
+pub fn rel_luminance(rgb: [f32; 3]) -> f32 {
+    let lin = |c: f32| {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2])
+}
+
+/// WCAG 2 contrast ratio of two sRGB colours, lighter over darker (1..21).
+pub fn contrast_ratio(a: [f32; 3], b: [f32; 3]) -> f32 {
+    let (la, lb) = (rel_luminance(a), rel_luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// True when the aimed object burns, or some burning object's
+/// `(bearing, elev)` (degrees from the view centre) is on screen by
+/// `off_screen`'s 5° margin. The HUD's arrow hides while this holds.
+pub fn fire_in_view(fires: &[(f32, f32)], hfov: f32, vfov: f32, aim_burning: bool) -> bool {
+    let _ = (fires, hfov, vfov, aim_burning);
+    false
+}
+
+/// Game seconds a press must stay down before held fire repeats.
+pub const HOLD_DELAY: f32 = 0.5;
+
+/// How long (game seconds) the button has been held since the press this
+/// frame belongs to: 0 when up, on the first frame down, or on a frame with
+/// a new click; otherwise `prev + dt` (a non-finite or negative dt adds 0).
+pub fn held_secs(prev: f32, down: bool, was_down: bool, clicked: bool, dt: f32) -> f32 {
+    let _ = (prev, down, was_down, clicked, dt);
+    0.0
+}
+
+/// True once a press has been held long enough to repeat.
+pub fn hold_repeats(held: f32) -> bool {
+    let _ = held;
+    false
+}

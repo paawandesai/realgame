@@ -179,6 +179,9 @@ struct Game {
     fire_bearing: f32,
     fire_elev: f32,
     fire_off: bool,
+    /// Some burning object is on screen, or the aimed object burns (I-025):
+    /// the HUD's arrow hides while this holds.
+    fire_in_view: bool,
 }
 
 impl Game {
@@ -1583,7 +1586,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{}}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{}}}",
         *frame,
         w.ticks,
         game.locked,
@@ -1636,7 +1639,8 @@ fn publish(
         game.fire_elev,
         game.fire_off,
         streams.iter().count(),
-        fx.water_live
+        fx.water_live,
+        game.fire_in_view
     );
     bridge::publish(&json);
 }
