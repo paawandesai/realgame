@@ -247,6 +247,22 @@ export function send(event, id = dailyId(storage(), new Date())) {
   }
 }
 
+/** A session's pinned id stops sending after this long (24 h). */
+export const SESSION_ID_MAX_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Wraps a session's send so it drops every event once SESSION_ID_MAX_MS has
+ * passed since startedAt.
+ * @param {(e: any) => void} sendFn
+ * @param {number} startedAt
+ * @param {() => number} now
+ */
+export function capped(sendFn, startedAt, now) {
+  return (/** @type {any} */ e) => {
+    if (now() - startedAt <= SESSION_ID_MAX_MS) sendFn(e);
+  };
+}
+
 /** @type {ReturnType<typeof createSession> | null} */
 let session = null;
 
@@ -264,11 +280,14 @@ export function start(band) {
     if (!analyticsOn(document) || optedOut(/** @type {PrivacySignals} */ (navigator))) return false;
     const w = /** @type {any} */ (window);
     // One id for the whole session, read once: a session that runs past UTC
-    // midnight keeps the id it started with.
-    const id = dailyId(storage(), new Date());
+    // midnight keeps the id it started with. A page left open longer than
+    // SESSION_ID_MAX_MS sends nothing more, so no id outlives one session or
+    // reaches past the day after it started (docs/ANALYTICS.md).
+    const startedAt = Date.now();
+    const id = dailyId(storage(), new Date(startedAt));
     const s = createSession({
       band,
-      send: (e) => send(e, id),
+      send: capped((e) => send(e, id), startedAt, () => Date.now()),
       now: () => performance.now(),
       getState: () => (w.__gameState && w.__game ? w.__game.state() : null),
     });

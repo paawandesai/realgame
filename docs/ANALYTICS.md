@@ -50,7 +50,7 @@ Five event types, and nothing else. The 3D game sends `session_start`, `quest_co
 - `v` is always `1` (the format version).
 - `band` is one of `sprout` (ages 4 to 7), `seedling` (8 to 10), `apprentice` (11 and up): the age band the player picked, not an age or birth date.
 - `dur` is one of `lt1m`, `1to5m`, `5to15m`, `15to30m`, `30mplus`. The server keeps the longest bucket per device per day.
-- `id` is 32 random hex characters (128 bits from `crypto.getRandomValues`) made on the device and replaced the first time it is read on a new UTC day. It lets the server count a day's unique players. Because it changes every day and is derived from nothing about the device, it cannot link one day's play to the next, and it is never shared with anyone.
+- `id` is 32 random hex characters (128 bits from `crypto.getRandomValues`) made on the device and replaced the first time it is read on a new UTC day. A play session reads it once when it starts, so a session that runs past UTC midnight keeps its id until it ends, and a page left open more than 24 hours sends nothing more. It lets the server count a day's unique players. Because it changes every day (apart from that one session crossing midnight) and is derived from nothing about the device, it cannot link one day's play to the next, and it is never shared with anyone.
 
 - `quest` is a small progress index, stored in the existing `room` column (migration 0002 adds no column and no new kind of data).
 
@@ -108,7 +108,7 @@ Raw events are kept for **90 days** (today plus the previous 89 UTC days) and th
 
 `/dashboard/` is a static page (in `dashboard/`, copied into `web/dist/dashboard/` by `scripts/build-site.sh`). It asks once for the `DASHBOARD_TOKEN`, keeps it in `sessionStorage` for that tab only, and calls `/api/stats` with it. It shows:
 
-- players today (unique daily ids) and today's split by band
+- players today (devices with a session_start that UTC day) and today's split by band
 - sessions today and over 30 days
 - daily unique players for 30 days, stacked by age band
 - age-band totals over 30 days
@@ -117,7 +117,7 @@ Raw events are kept for **90 days** (today plus the previous 89 UTC days) and th
 - the longest session per player per day, by bucket
 - a table view of the daily numbers
 
-A player is counted on the UTC day their session started; a session that runs past midnight is not counted again on the next day. Counts across days are **player-days** (one device on one UTC day), since no identifier spans days by design. A device that switches bands within a day counts once in the day's total but in each band it played.
+A player is counted on the UTC day their session started; a session that runs past midnight is not counted again on the next day. Counts across days are **player-days** (one device on one UTC day), since no identifier spans days by design, except that one session crossing midnight keeps its id until it ends (at most 24 hours). A device that switches bands within a day counts once in the day's total but in each band it played.
 
 The page itself holds no data, so it is not secret; the data is behind `/api/stats`. That Function compares the bearer token with `DASHBOARD_TOKEN` in constant time (both SHA-256 hashed, then compared byte by byte without an early exit), and refuses with 503 if the secret is missing or shorter than 32 characters. It is drawn with hand-written SVG and HTML, with no inline scripts or styles and no chart library, so it runs under the same strict CSP as the game.
 
@@ -185,10 +185,10 @@ Every new field needs a written purpose and a deletion date before it ships (`do
 
 This is the reasoning, not legal advice; have counsel review the published privacy notice before a wide launch.
 
-- **COPPA (16 CFR Part 312, as amended in 2025; compliance date April 22, 2026).** "Personal information" includes a persistent identifier that can recognise a user over time and across different websites. The daily id is random, first-party, never shared, and replaced every day, so it is designed not to be one. Even if a regulator read it as one, it is used only for the "support for the internal operations" of the site (counting use to maintain and improve the game, 16 CFR 312.2 and 312.5(c)(7)), with no other personal information, no contact, no profiling and no advertising, which is the use the rule allows without parental consent. The amended rule asks operators relying on that exception to say in their online notice which internal operations it serves and how they keep the identifier to that purpose; the suggested notice text below does that. The written data-retention policy the amended rule requires is the Retention section above, and it should also appear in the notice.
+- **COPPA (16 CFR Part 312, as amended in 2025; compliance date April 22, 2026).** "Personal information" includes a persistent identifier that can recognise a user over time and across different websites. The daily id is random, first-party, never shared, and replaced every day (a single session crossing midnight keeps it until that session ends, capped at 24 hours), so it is designed not to be one. Even if a regulator read it as one, it is used only for the "support for the internal operations" of the site (counting use to maintain and improve the game, 16 CFR 312.2 and 312.5(c)(7)), with no other personal information, no contact, no profiling and no advertising, which is the use the rule allows without parental consent. The amended rule asks operators relying on that exception to say in their online notice which internal operations it serves and how they keep the identifier to that purpose; the suggested notice text below does that. The written data-retention policy the amended rule requires is the Retention section above, and it should also appear in the notice.
 - **Third parties.** Cloudflare hosts the site and the database as a service provider. Like any web host, its edge sees each visitor's IP address in transit; this project stores none of it. Name Cloudflare in the privacy notice as the hosting provider.
 - **Student privacy (FERPA, state laws such as SOPIPA, the NDPA).** No student records, accounts or identifiers are created; no data is sold, used for advertising, or used to build a profile of a student.
 
 Suggested text for the privacy notice:
 
-> We count how many people play, which age band they pick (4 to 7, 8 to 10, or 11 and up), which quests or rooms they finish, and roughly how long they play, so we can fix and improve the game. To count each day's players without knowing who they are, the game keeps a random number in the browser that it replaces every day. We do not collect names, email addresses, anything typed into the game, cookies, IP addresses or location, and we never sell or share this data or use it for advertising. If your browser sends Do Not Track or Global Privacy Control, the game sends nothing. The counts are stored with our hosting provider, Cloudflare, and deleted after 90 days.
+> We count how many people play, which age band they pick (4 to 7, 8 to 10, or 11 and up), which quests or rooms they finish, and roughly how long they play, so we can fix and improve the game. To count each day's players without knowing who they are, the game keeps a random number in the browser that it replaces every day (a game left running past midnight keeps it until it is closed, for at most a day). We do not collect names, email addresses, anything typed into the game, cookies, IP addresses or location, and we never sell or share this data or use it for advertising. If your browser sends Do Not Track or Global Privacy Control, the game sends nothing. The counts are stored with our hosting provider, Cloudflare, and deleted after 90 days.
