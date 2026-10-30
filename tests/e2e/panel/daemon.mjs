@@ -3,7 +3,12 @@
 // apart). Started detached by `panel.mjs start`; listens on 127.0.0.1 and
 // takes one command at a time. See docs/loop/panel.md.
 //
-//   node daemon.mjs --run <dir> --persona <id> --throttle <n> --query <q>
+// Information barrier (I-014): the run dir gets only session.json and
+// shots/; the truth log, daemon logs, start errors and operator.json (token,
+// CPU benchmark) go to the operator dir. Truth observes and debug commands
+// need the token (barrier.mjs authorize).
+//
+//   node daemon.mjs --run <dir> [--operator-dir <odir>] --persona <id> --throttle <n> --query <q>
 //                   --vw <w> --vh <h> [--base-url <url>] [--root <dir>]
 //                   [--artifact <sha>] [--freeze 1|0]
 import { createServer } from 'node:http';
@@ -11,6 +16,8 @@ import { readFile, writeFile, appendFile, mkdir, rm, rename } from 'node:fs/prom
 import { extname, join, normalize, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { randomBytes } from 'node:crypto';
+import { authorize, layout } from './barrier.mjs';
 import { costMs, MAX_WAIT_MS, MAX_HOLD_MS, DEFAULT_KEY_MS, DEFAULT_DRAG_MS } from './clock.mjs';
 import { TURN_CAP, TIME_CAP_S } from './personas.mjs';
 import { SEL, STATE_GLOBAL, CONSOLE, readView, truthSummary } from './hud.mjs';
@@ -21,7 +28,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 const argv = process.argv.slice(2);
 const opt = (k, d) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : d; };
-const RUN = resolve(opt('run'));
+const { run: RUN, op: OP } = layout(opt('run'), opt('operator-dir'));
+const TOKEN = randomBytes(24).toString('hex');
 const PERSONA = opt('persona', '9yo');
 const THROTTLE = +opt('throttle', '1');
 const QUERY = opt('query', '');
@@ -36,8 +44,8 @@ const SELFTEST = process.env.PANEL_SELFTEST === '1';
 const IDLE_EXIT_MS = 60 * 60 * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const log = (...a) => appendFile(join(RUN, 'daemon.log'), `${new Date().toISOString()} ${a.join(' ')}\n`);
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml' };
+const log = (...a) => appendFile(join(OP, 'daemon.log'), `${new Date().toISOString()} ${a.join(' ')}\n`);
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png' };
 
 async function serveStatic() {
   const server = createServer(async (req, res) => {
@@ -102,7 +110,7 @@ const view = () => page.evaluate(readView, SEL);
 const summary = async () => { const v = await view(); return { v, t: truthSummary(await state(), v.quest) }; };
 
 async function record(entry) {
-  await appendFile(join(RUN, 'log.jsonl'), `${JSON.stringify({ ...entry, errors, panics, ts: new Date().toISOString() })}\n`);
+  await appendFile(join(OP, 'log.jsonl'), `${JSON.stringify({ ...entry, errors, panics, ts: new Date().toISOString() })}\n`);
 }
 
 function capCheck() {
@@ -215,6 +223,29 @@ async function perform(action, a) {
 
 // Gives the game a moment (wall time, not panel time) to show the input's
 // effect: a couple of frames, and a projectile in flight a chance to land.
+// A frame counter that does not move means the game is frozen or gone. This
+// is a harness flag ("stalled"), not game state.
+const advanced = (before, after) => !!(before && after) && after.frame > before.frame;
+
+// A fixed JavaScript loop timed in the page, so the CDP CPU throttle is
+// checked by what it does, not by the call that set it. Fastest of 7 runs, on
+// the blank page before the game loads: neither the game's own frames nor a
+// busy box (other sessions starting) should inflate the unthrottled run.
+async function cpuBench() {
+  const runs = [];
+  for (let k = 0; k < 7; k++) {
+    runs.push(await page.evaluate(() => {
+      const t0 = performance.now();
+      let x = 0;
+      for (let i = 0; i < 3e6; i++) x += Math.sqrt(i) % 7;
+      const ms = performance.now() - t0;
+      return x > 0 ? ms : ms + 1e-9;
+    }));
+  }
+  runs.sort((a, b) => a - b);
+  return Math.round(runs[0] * 10) / 10;
+}
+
 async function settle(before) {
   const f0 = before.frame;
   let s = await until((x) => x.frame >= f0 + 2, 3000);
@@ -243,12 +274,15 @@ const handlers = {
     await thaw();
     turn++;
     panelMs += costMs({ cmd: 'observe' }, PERSONA);
+    const s0 = await state();
     const name = `${String(turn).padStart(4, '0')}.png`;
     await mkdir(join(RUN, 'shots'), { recursive: true });
     await shot(join(RUN, 'shots', name));
+    const s1 = await until((x) => advanced(s0, x), 2000);
+    const stalled = !advanced(s0, s1);
     const { v, t } = await summary();
-    const out = { ok: true, turn, panel_s: panelMs / 1000, screenshot: join(RUN, 'shots', name), hud: v.hud, pointer_locked: v.pointer_locked, console_errors_new: consoleNew() };
-    await record({ turn, cmd: 'observe', panel_s: out.panel_s, view: { hud: v.hud, pointer_locked: v.pointer_locked }, truth: t });
+    const out = { ok: true, turn, panel_s: panelMs / 1000, screenshot: join(RUN, 'shots', name), hud: v.hud, pointer_locked: v.pointer_locked, stalled, console_errors_new: consoleNew() };
+    await record({ turn, cmd: 'observe', panel_s: out.panel_s, stalled, view: { hud: v.hud, pointer_locked: v.pointer_locked }, truth: t });
     if (truth) out.truth = { ...(await state()), cpuframe: lastCpu, stats: lastStats };
     return out;
   },
@@ -260,10 +294,11 @@ const handlers = {
     const via = await perform(action, args);
     turn++;
     panelMs += costMs({ cmd: 'act', action, args }, PERSONA);
-    await settle(before);
+    const after = await settle(before);
+    const stalled = !advanced(before, after);
     const { v, t } = await summary();
-    const out = { ok: true, turn, panel_s: panelMs / 1000, action: [action, ...args].join(' '), via, console_errors_new: consoleNew() };
-    await record({ turn, cmd: 'act', action, args, via, panel_s: out.panel_s, view: { hud: v.hud, pointer_locked: v.pointer_locked }, truth: t });
+    const out = { ok: true, turn, panel_s: panelMs / 1000, action: [action, ...args].join(' '), via, stalled, console_errors_new: consoleNew() };
+    await record({ turn, cmd: 'act', action, args, via, panel_s: out.panel_s, stalled, view: { hud: v.hud, pointer_locked: v.pointer_locked }, truth: t });
     return out;
   },
   // Debug-only commands for selftest.mjs (PANEL_SELFTEST=1 when the session
@@ -310,6 +345,7 @@ async function startApi() {
         const msg = JSON.parse(body || '{}');
         const h = handlers[msg.cmd];
         if (!h) throw new Error(`unknown command "${msg.cmd}"`);
+        authorize(msg, TOKEN);
         const t0 = Date.now();
         out = await h(msg);
         await log(`cmd ${msg.cmd} ${msg.action || ''} ${(msg.args || []).join(' ')} ok=${out.ok} wall_ms=${Date.now() - t0}`);
@@ -341,6 +377,7 @@ process.on('SIGINT', shutdown);
 
 (async () => {
   await mkdir(RUN, { recursive: true });
+  await mkdir(OP, { recursive: true });
   await log(`daemon start persona=${PERSONA} throttle=${THROTTLE} query=${QUERY} freeze=${FREEZE} selftest=${SELFTEST}`);
   staticServer = BASE_URL ? null : await serveStatic();
   const base = (BASE_URL || `http://127.0.0.1:${staticServer.address().port}/`) + QUERY;
@@ -377,6 +414,8 @@ process.on('SIGINT', shutdown);
     if (CONSOLE.firstFrame.test(t)) log(t);
   });
   page.on('pageerror', (e) => { errors++; log('pageerror', e.message); });
+  const cpuBenchMs = await cpuBench(); // blank page, throttle already set
+  await log(`cpu bench ${cpuBenchMs} ms (throttle ${THROTTLE})`);
   await page.goto(base);
   await page.waitForFunction((g) => window[g], STATE_GLOBAL, { timeout: 180000 });
   // A fresh courtyard for turn 1: loading takes long on a software GPU and the
@@ -385,18 +424,20 @@ process.on('SIGINT', shutdown);
   await until((x) => x && x.casts === 0 && x.outcome === 'playing', 20000);
   await pointTo(VW / 2, VH / 2);
   const { t } = await summary();
+  await writeFile(join(OP, 'operator.json'), JSON.stringify({ token: TOKEN, persona: PERSONA, throttle: THROTTLE, cpu_bench_ms: cpuBenchMs, run: RUN }, null, 2), { mode: 0o600 });
   const port = await startApi();
-  await record({ turn: 0, cmd: 'start', persona: PERSONA, throttle: THROTTLE, query: QUERY, artifact_sha: ARTIFACT, freeze: FREEZE, truth: t });
+  await record({ turn: 0, cmd: 'start', persona: PERSONA, throttle: THROTTLE, query: QUERY, artifact_sha: ARTIFACT, freeze: FREEZE, cpu_bench_ms: cpuBenchMs, truth: t });
   await freeze();
   const session = { pid: process.pid, port, persona: PERSONA, throttle: THROTTLE, cdp_throttle_rate: cdpThrottle, query: QUERY, artifact_sha: ARTIFACT, freeze: FREEZE, vw: VW, vh: VH, base_url: base, started_at: new Date().toISOString() };
   // Write then rename, so `start` (polling for the file) never reads half of it.
   await writeFile(join(RUN, 'session.json.tmp'), JSON.stringify(session, null, 2));
   await rename(join(RUN, 'session.json.tmp'), join(RUN, 'session.json'));
   await log(`ready port=${port}`);
-  setInterval(() => { if (Date.now() - lastActivity > IDLE_EXIT_MS) { log('idle exit'); shutdown(); } }, 60000).unref();
+  setInterval(() => { if (Date.now() - lastActivity > IDLE_EXIT_MS) { log('idle exit: no command for 60 min; the next observe or act will say the daemon is gone'); shutdown(); } }, 60000).unref();
 })().catch(async (e) => {
-  await writeFile(join(RUN, 'start-error.json.tmp'), JSON.stringify({ ok: false, error: String(e && e.message || e) }));
-  await rename(join(RUN, 'start-error.json.tmp'), join(RUN, 'start-error.json'));
+  await mkdir(OP, { recursive: true }).catch(() => {});
+  await writeFile(join(OP, 'start-error.json.tmp'), JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+  await rename(join(OP, 'start-error.json.tmp'), join(OP, 'start-error.json'));
   await log('start failed', e && e.stack);
   try { await browser?.close(); } catch { /* ignore */ }
   process.exit(1);

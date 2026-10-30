@@ -92,6 +92,7 @@ The single register of every science claim the first-person 3D client shows the 
 | `${state.extinguished} fires put out. Press R to play again.` | crates/bevy-client/web/hud.js | Win banner subtitle (a count and a key hint). Flagged by sentence shape; it states no science. |
 | `The greenhouse caught fire` | crates/bevy-client/web/hud.js | Lose banner: it reports the game outcome. Flagged by the keyword `caught fire`; the science of why (heat spread) is the subtitle, C-030. |
 | `Without locking the mouse you can also click (or tap) a glowing target to cast at it.` | crates/bevy-client/web/index.html | Game instruction (controls). Flagged by sentence shape; it states no science. |
+| `Look for a fire. Press 2 for Water, aim at the fire and click.` | crates/bevy-client/web/hud.js | Idle hint after 45 s with no progress (a key and aiming instruction). Flagged by sentence shape and `fire`; it states no science. |
 
 ## Sources
 

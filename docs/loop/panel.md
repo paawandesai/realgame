@@ -2,35 +2,50 @@
 
 The panel is checks.md level 5. Five personas play the first-person 3D slice one turn at a time and judge three bars: **B4** (every age can play), **B5** (fun) and **B8** (enough to play). Every panel score is **"panel" data, never "player" data**: no real child, teacher or playtester is involved (target.md, human-only).
 
-Harness: `tests/e2e/panel/` (I-006). CLI: `node tests/e2e/panel/panel.mjs <command> --run <dir> ...`. Every command prints exactly one JSON object and exits non-zero on failure with `{"ok":false,"error":"..."}`.
+Harness: `tests/e2e/panel/` (I-006, hardened in I-014). CLI: `node tests/e2e/panel/panel.mjs <command> --run <dir> ...`. Every command prints exactly one JSON object and exits non-zero on failure with `{"ok":false,"error":"..."}`.
 
 ## Run recipe
 
 1. **Build once** for all five personas: `bash crates/bevy-client/build-web.sh` (with `CARGO_TARGET_DIR=/home/claude/bevy-target` and the wasm-bindgen CLI under `/home/claude/bevy-target/tools` in the cloud). Write down the artifact sha (`git rev-parse --short HEAD`).
-2. **Five fresh-context agents, one per persona.** Model routing comes from config.md: haiku for `6yo` and `9yo`, sonnet for `13yo` and `teacher`, opus for `qa`. Each agent gets exactly one persona block below, the turn loop and the rubric, and nothing else: no source code, no bars, no other persona's results.
-3. Each agent uses its own run dir under `.loop-artifacts/panel/<date>/<persona>/`, and the same artifact sha and query (`?low` in the cloud) as the others:
+2. **Five fresh-context agents, one per persona.** Model routing comes from config.md: haiku for `6yo` and `9yo`, sonnet for `13yo` and `teacher`, opus for `qa`. Each agent gets exactly one persona block below, the turn loop and the rubric, and nothing else: no source code, no bars, no other persona's results. See **Information barrier** below: it is enforced, not only asked for.
+3. **The operator (the loop, not the persona) starts each session.** For each persona make a fresh temp dir outside the repo (`T=$(mktemp -d)`); the persona's run dir is `$T/run`, and the operator dir (truth log, daemon logs, token, result) stays in the repo under `.loop-artifacts/panel/<date>/<persona>/`. Same artifact sha and query (`?low` in the cloud) for all five:
    ```sh
-   node tests/e2e/panel/panel.mjs start --run <dir> --persona <id> --query '?low' --artifact <sha>
+   PANEL_ROLE=operator node tests/e2e/panel/panel.mjs start --run "$T/run" \
+     --operator-dir .loop-artifacts/panel/<date>/<persona> --persona <id> --query '?low' --artifact <sha>
    ```
-   `qa` gets `--throttle 4` by default; everyone else gets 1.
-4. **Turn loop.** Repeat: `observe`, look at the screenshot file and the HUD text, decide, say what you are trying to do, then `act`. Use only `observe` (never `--truth`) and `act`.
-5. **Cap:** 400 turns or 20 panel minutes, whichever comes first. When a cap is hit, `observe` and `act` refuse with `"cap"` set (exit 3). 400 turns is enough for a 9-year-old to reach the 15 panel minutes B8 needs: at about 3 s per observe plus a short act, 150 turns would be only about 11 minutes. A persona may stop earlier by saying it would quit; its reason goes in `quit_reason`.
-6. `stop`, then write the self-report (rubric below) to `<dir>/answer.json` and run `report --run <dir> --file <dir>/answer.json --model <model>`.
-7. The loop scores the five run dirs together:
+   `qa` gets `--throttle 4` by default; everyone else gets 1. Do not pass another throttle: `score` fails the panel for it unless `--allow-throttle`.
+4. **Spawn the persona agent with its cwd set to `$T`**, not the repo. Give it only: the persona block, the turn loop, the rubric, the absolute path of `panel.mjs` and its run dir `$T/run`. Never give it the operator dir, the repo path as a working directory, or `PANEL_ROLE`.
+5. **Turn loop.** Repeat: `observe`, look at the screenshot file and the HUD text, decide, say what you are trying to do, then `act`. Only `observe` and `act` (the CLI refuses `--truth` and `debug` without the operator role).
+6. **Cap:** 400 turns or 20 panel minutes, whichever comes first. When a cap is hit, `observe` and `act` refuse with `"cap"` set (exit 3). 400 turns is enough for a 9-year-old to reach the 15 panel minutes B8 needs: at about 3 s per observe plus a short act, 150 turns would be only about 11 minutes. A persona may stop earlier by saying it would quit; its reason goes in `quit_reason`.
+7. When the persona says it is done, it writes the self-report (rubric below) to `$T/answer.json`. The operator runs `stop` (a persona may run it too), then `report --run "$T/run" --operator-dir <odir> --file "$T/answer.json" --model <model>`. `report` refuses a session without a `stop` entry (or a cap). It writes `<odir>/result.json`.
+8. The loop scores the five operator dirs together:
    ```sh
-   node tests/e2e/panel/panel.mjs score --runs <d6> <d9> <d13> <dteacher> <dqa> --artifact <sha> --append docs/loop/scoreboard.jsonl
+   node tests/e2e/panel/panel.mjs score --runs <o6> <o9> <o13> <oteacher> <oqa> --artifact <sha> --append docs/loop/scoreboard.jsonl
    ```
+   (`--runs` also accepts a run dir whose `result.json` sits in it or in `<run>.operator`.)
+
+## Information barrier
+
+A persona only knows what the screenshot and the HUD text show. I-014 enforces this in code:
+
+- **Two dirs per session.** The run dir (`--run`) holds only `session.json` (pid, port, persona, throttle, query, viewport: no truth, no token, no operator path) and `shots/NNNN.png`. The operator dir (`--operator-dir`, default `<run>.operator`; it may not contain, or sit inside, the run dir) holds `log.jsonl`, `daemon.log`, `daemon.out`, `start-error.json`, `operator.json` (session token, `cpu_bench_ms`) and `result.json`.
+- **Operator role.** `start`, `observe --truth` and `debug` exit 1 unless `PANEL_ROLE=operator` is set, and the CLI checks this before it talks to the daemon. `observe` and `act` are the persona's commands.
+- **Token.** The daemon makes a random token at start and writes it only to `operator.json`. It answers a truth `observe` or any `debug` command only when the request carries that token, so a post straight to the daemon's port does not leak state either. `debug` also still needs `PANEL_SELFTEST=1` at start.
+- **Process.** Personas run with their cwd in a temp dir outside the repo and get only the CLI path (step 4). The agent shares the machine's user, so this is a barrier against accident and casual peeking, not against a model that sets out to break it; a persona transcript that reads files other than its screenshots, or sets `PANEL_ROLE`, makes its result invalid.
 
 ### Commands
 
 | Command | What it does |
 |---|---|
-| `start --run <dir> [--persona <id>] [--throttle <n>] [--query <q>] [--vw 1280 --vh 720] [--base-url <url>] [--root <pkg-out>] [--artifact <sha>]` | Spawns a detached daemon holding one Chromium page (and a static server for `crates/bevy-client/web/pkg-out` unless `--base-url`). Writes `<dir>/session.json` and returns once the game is running. |
-| `observe --run <dir>` | Saves `<dir>/shots/NNNN.png` and returns the view: `{ok, turn, panel_s, screenshot, hud:{objective, warning, hint, caption, banner, pause, loading, hotbar:{selected, slots}, crosshair_on, cursor}, pointer_locked}`. HUD fields hold visible text only (`null` when hidden). |
-| `act --run <dir> <action> [args]` | Real input only (below). Returns `{ok, turn, panel_s, action, via, console_errors_new}`. |
+| `start --run <dir> [--operator-dir <odir>] [--persona <id>] [--throttle <n>] [--query <q>] [--vw 1280 --vh 720] [--base-url <url>] [--root <pkg-out>] [--artifact <sha>]` | Operator only. Spawns a detached daemon holding one Chromium page (and a static server for `crates/bevy-client/web/pkg-out` unless `--base-url`). Times a CPU benchmark in the page, writes `<odir>/operator.json` and `<dir>/session.json`, and returns once the game is running. |
+| `observe --run <dir>` | Saves `<dir>/shots/NNNN.png` and returns the view: `{ok, turn, panel_s, screenshot, hud:{objective, warning, hint, caption, banner, pause, loading, hotbar:{selected, slots}, crosshair_on, cursor}, pointer_locked, stalled}`. HUD fields hold visible text only (`null` when hidden). `stalled:true` means the game's frame counter did not move for 2 s: a harness flag, not game state. |
+| `observe --run <dir> --truth [--operator-dir <odir>]` | Operator only: adds the full game state. |
+| `act --run <dir> <action> [args]` | Real input only (below). Returns `{ok, turn, panel_s, action, via, stalled, console_errors_new}`. |
 | `stop --run <dir>` | Closes the browser and server, ends the daemon. Idempotent. |
-| `report --run <dir> --file <answer.json> [--model <m>]` | Validates the self-report, merges it with the measured fields and writes `<dir>/result.json`. |
-| `score --runs <dirs...> [--append <file>] [--artifact <sha>]` | Prints the panel line; appends it only with `--append`. |
+| `report --run <dir> [--operator-dir <odir>] --file <answer.json> [--model <m>]` | Validates the self-report, merges it with the measured fields and writes `<odir>/result.json` (an I-006-layout run dir with its own `log.jsonl` gets `<dir>/result.json`). Refuses a session with no `stop` entry and no cap. |
+| `score --runs <dirs...> [--append <file>] [--artifact <sha>] [--allow-throttle]` | Prints the panel line; appends it only with `--append`. |
+
+If the daemon is gone (it exits after 60 minutes without a command, or crashed), `observe` and `act` say `daemon is gone` and the operator's `daemon.log` says which.
 
 Actions (coordinates are viewport CSS pixels, 1280 × 720 by default):
 
@@ -45,7 +60,7 @@ Actions (coordinates are viewport CSS pixels, 1280 × 720 by default):
 | `wheel <dy>` | Mouse wheel. |
 | `wait <ms>` | Do nothing, at most 10000. |
 
-`act` never sends game commands. `debug` exists only for `selftest.mjs` and works only in a session started with `PANEL_SELFTEST=1`.
+`act` never sends game commands. `debug` exists only for `selftest.mjs` and works only for the operator, in a session started with `PANEL_SELFTEST=1`.
 
 ## Panel clock
 
@@ -64,12 +79,13 @@ The daemon pauses the page's JavaScript between turns (CDP `Debugger.pause`) and
 
 ## Measured fields (the harness measures these; the persona never reports them)
 
-The daemon logs every turn to `<dir>/log.jsonl`: `turn`, `cmd`, `panel_s`, the view, and a truth summary (position, yaw, casts, impacts, caption, outcome, burning, extinguished, per-object chemistry flags).
+The daemon logs every turn to `<odir>/log.jsonl`: `turn`, `cmd`, `panel_s`, `stalled`, the view, and a truth summary (position, yaw, pitch, casts, impacts, caption, outcome, burning, extinguished, pointer lock, pause, spell, per-object chemistry flags).
 
-- `time_to_move_s`: panel time at the end of the first act after which the player stands more than 0.5 m from the spawn point; `null` if never.
-- `time_to_cast_s`: panel time at the end of the first act that cast a spell which then **landed**: casts rose, a projectile hit (impacts rose) and the game wrote a spell-result caption (every cast also writes its own caption when it leaves the hand, which is not counted; a lone "Heat from a neighbour…" or "Oh no!" caption is not a result). A click into the sky does not count. `null` if never.
-- `minutes_played`: panel time at `stop` (or at the cap) / 60.
-- `quests_completed` (distinct quests won), `outcome`, `turns`, `console_errors`, `panics` (console text `panicked`), `throttle`.
+- `time_to_move_s`: panel time at the end of the first act that either **holds a movement key** (`w a s d`, arrows, in `key` or `keys`) and moved the player at least 0.05 m across that act, or leaves the player more than 0.5 m from spawn; `null` if never. Why the first rule: the game clamps each frame's step and the cloud runs at about 1 to 3 frames per second, so a 1500 ms `w` walked exactly 0.5 m in the I-006 probe and a child's tap never reached 0.5 m. Any real displacement from a movement key now counts, so the 10 s limit judges whether the persona found the controls, not how fast the cloud renders.
+- `time_to_cast_s`: panel time at the end of the first act that cast a spell which then **landed**: casts rose, a projectile hit (impacts rose) and the game wrote a spell-result caption (every cast also writes its own caption when it leaves the hand, which is not counted; a lone "Heat from a neighbour…" or "Oh no!" caption is not a result). A click into the sky does not count. `null` if never. I-014 kept this caption rule rather than requiring a chemistry-flag change: the flags are coarse (heating a bush that does not ignite flips none) and change on their own (fire spreading, drying), which would credit a sky cast. A result caption on a target whose flags do not change (Fire at a bush already burning) does count: the spell visibly landed.
+- `minutes_played` (B8): **engaged** panel time / 60, not wall or raw panel time. An act is engaged when it is real input other than `wait` and the player's own state changed across it: moved at least 0.05 m, yaw or pitch changed at least 0.5 degrees, casts rose, the selected spell changed, pause or pointer lock toggled, or the outcome changed (fire spreading and captions do not count). Credit: an engaged act counts its full input time; any other non-`wait` act at most 0.5 s; a `wait` counts only after an engaged act, at most 3 s in total until the next engaged act; an `observe` counts its reading cost only when the act just before or just after it is engaged. So 90 x `wait 10000` (15 raw panel minutes, the I-006 probe) gives 0, and 200 x (`observe`, `key Shift 10000`) with nothing changing gives under 2 minutes.
+- `panel_minutes`: raw panel time / 60 (the caps use it). `engaged_acts`: count of engaged acts. `stalled_turns`: turns with `stalled:true`.
+- `quests_completed` (distinct quests won), `outcome`, `turns`, `console_errors`, `panics` (console text `panicked`), `throttle`, and `cpu_bench_ms` at the top level of the result: the fastest of seven timings of a fixed JavaScript loop on the blank page, taken at start after the CDP throttle is set and before the game loads (fastest, so a busy box does not inflate the unthrottled run) (I-006 found the software GPU hides the throttle in frame rate, so the check is on JavaScript speed).
 
 ## Persona prompts
 
@@ -77,7 +93,7 @@ Give each agent exactly one block, plus the turn loop and the rubric. Prices are
 
 Common rules (included in every block):
 
-> You only know what the screenshot and the HUD text show you. Never guess hidden state. Before each `act`, say in one short line what you are trying to do. Use only `observe` and `act` (never `--truth`, never `debug`). Look at the screenshot file every turn. You may stop when you would really stop playing; say why.
+> You only know what the screenshot and the HUD text show you. Never guess hidden state. Before each `act`, say in one short line what you are trying to do. Use only `observe` and `act` with the CLI path you were given, and read no file except the screenshot each `observe` names. Look at the screenshot file every turn. You may stop when you would really stop playing; say why, and write your self-report to `answer.json` in your current directory.
 
 ### 6yo: six-year-old
 
@@ -152,23 +168,26 @@ What `score` computes (`tests/e2e/panel/score.mjs`):
 
 - **B4 passes** when every persona has `time_to_move_s` ≤ 10 and `time_to_cast_s` ≤ 30 (a `null` fails), the median clarity (the middle of the 5 sorted values) is ≥ 8, and no persona reports a blocker of kind `control`.
 - **B5 passes** when the median fun is ≥ 8 and every persona's fun is ≥ 6.
-- **B8 passes** when the 9yo's `minutes_played` is ≥ 15. Its content half (≥ 3 quests, 6 spells, a free-play area, a skill tree) is not visible to the harness and is recorded as `"content_check":"manual"`.
+- **Run quality first.** If any persona has `panics` > 0, `stopped_because:"error"`, fewer than 20 turns, more than 10 % of its turns stalled, or a throttle other than its default (qa 4, others 1; `--allow-throttle` lifts only this one), every bar gets `"pass":false, "reason":"run quality"` and the line lists `problems` (persona and field). A crashed or barely played session cannot judge a bar. Model-routing mismatches (qa not opus, and so on) are listed under `warnings` without failing: the operator assigns models.
+- **B4 also needs `throttle_ok`**: qa's `cpu_bench_ms` divided by the 9yo's must be > 2 (a missing value fails), so "qa on a slow laptop" is really exercised.
+- **B8 passes** when the 9yo's `minutes_played` (engaged time) is ≥ 15 and its `engaged_acts` is at least 2 per minute played. Its content half (≥ 3 quests, 6 spells, a free-play area, a skill tree) is not visible to the harness and is recorded as `"content_check":"manual"`.
 - Fewer than 5 valid results, or results that are not the five distinct personas, give every bar `"pass":false, "reason":"incomplete panel"`. Results with different `artifact_sha` or `query` give `"reason":"mismatched runs"`. Invalid result files (for example `schema: "panel-result/0"`) are listed under `rejected` with the failing field.
 
 Panel line appended to `scoreboard.jsonl`:
 
 ```
 {"ts", "kind":"panel", "source":"panel", "artifact_sha", "query", "personas":[5 ids],
- "per_persona":{id:{ttm, ttc, clarity, fun, minutes, blockers_control}},
- "B4":{"pass", "median_clarity", "all_move_10s", "all_cast_30s", "control_blockers"},
+ "per_persona":{id:{ttm, ttc, clarity, fun, minutes, blockers_control}}, "problems":[...], "warnings":[...],
+ "B4":{"pass", "median_clarity", "all_move_10s", "all_cast_30s", "control_blockers", "throttle_ok", "throttle_ratio"},
  "B5":{"pass", "median_fun", "min_fun"},
- "B8":{"pass", "minutes_9yo", "quests_completed_9yo", "content_check":"manual"}}
+ "B8":{"pass", "minutes_9yo", "engaged_acts_9yo", "quests_completed_9yo", "content_check":"manual"}}
 ```
 
 ## Tests
 
 - Unit tests (no browser): `node --test tests/e2e/panel/`
-- Selftest (scripted robot on a real build, uses `--truth` and the debug path): `node tests/e2e/panel/selftest.mjs` (env `ROOT`, `QUERY`, `OUT`).
+- Selftest (scripted robot on a real build, uses `--truth` and the debug path as the operator, and plays persona calls without the role): `node tests/e2e/panel/selftest.mjs` (env `ROOT`, `QUERY`, `OUT`). It also checks the barrier (run dir contents, refused truth through the CLI and straight to the port), the CPU benchmark ratio, and a negative control: a stub page whose frame counter never moves must give `stalled:true`.
+- Selftest panel seconds are not representative of a persona: the robot waits and retries far more than a player would.
 
 ## Known harness facts
 

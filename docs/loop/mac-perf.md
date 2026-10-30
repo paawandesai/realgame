@@ -6,10 +6,16 @@ number can come only from the Mac. The orchestrator pastes the commands below in
 session on the Mac, one fenced block at a time. The only placeholder is `<sha>`.
 
 The script is `tests/e2e/perf.mjs` in `--mac` mode. It starts the installed Google Chrome
-(`channel: 'chrome'`, a visible window, the real GPU), loads the default tier (no `?low`, no throttle) at
-1512x945, waits for the first interactive frame, warms up for 5 s, then drives the same fixed golden-path
+(`channel: 'chrome'`, a visible window, the real GPU), loads the default tier (no `?low`, no throttle; `?debug` only enables the workload's test commands) at
+1512x945 with devicePixelRatio 2 (the MacBook's Retina density, so the GPU draws the same pixel count as
+the real screen), waits for the first interactive frame, warms up for 5 s, then drives the same fixed golden-path
 workload as the cloud run (move, look, aim at targets, select and cast spells 1 to 4) for 60 s. fps comes
 from the script's own `requestAnimationFrame` hook: `fps_p5 = 1000 / (95th percentile frame interval)`.
+
+The script enforces the run's own validity, so a bad run cannot print a pass: it marks the run invalid
+(`valid: false`, with `invalid_reasons`) when the page was ever hidden or the window lost focus during
+sampling, when the WebGL renderer is software (SwiftShader, llvmpipe), when devicePixelRatio is below 2,
+or when a screenshot of the canvas is blank.
 
 ## 1. Preconditions
 
@@ -19,7 +25,9 @@ Check these by hand before the run. Do not change anything else on the machine.
 - Low Power Mode is off (System Settings > Battery).
 - No other heavy apps are running (close builds, video calls and other browser windows with 3D content).
 - The Chrome window the script opens stays in front and is not minimized or covered. A background or
-  hidden window throttles `requestAnimationFrame`, and the result is then worthless.
+  hidden window throttles `requestAnimationFrame`, and the result is then worthless. The script records
+  `document.visibilityState` and `document.hasFocus()` during sampling and marks the run invalid if the
+  page was hidden or lost focus; it cannot see a window that is covered but still focused.
 - The display runs at its native refresh rate. ProMotion caps fps at 120, so `fps_p5` can never exceed
   the refresh rate. 55 is well under it.
 
@@ -64,6 +72,16 @@ Node must be 18 or later:
 node -v
 ```
 
+`jq` reads the result in step 6:
+
+```sh
+jq --version
+```
+
+```sh
+brew install jq
+```
+
 Playwright 1.63.0, the same version as the cloud. `--no-save` leaves `package.json` and the lockfile
 alone. No browser download is needed, because the run uses the installed Chrome.
 
@@ -85,23 +103,27 @@ Takes about 90 s: load, 5 s of warm-up, 60 s of sampling. A Chrome window opens;
 do not touch the mouse or keyboard until the command returns.
 
 ```sh
-cd ~/Documents/realgame && node tests/e2e/perf.mjs --mac crates/bevy-client/web/pkg-out | tee ~/perf-mac-<sha>.json
+cd ~/Documents/realgame && OUT=~/perf-mac-<sha>.json node tests/e2e/perf.mjs --mac crates/bevy-client/web/pkg-out > /dev/null; echo "perf exit=$?"
 ```
 
-The exit code is 0 for a pass and 1 for a fail. Progress lines starting with `[perf]` go to stderr.
+`OUT=` makes the script write the JSON file itself, so no pipe hides its exit code. The last line prints
+`perf exit=0` for a pass, `perf exit=1` for a fail or an invalid run, and `perf exit=2` for a usage or
+environment error (no JSON is written then). Progress lines starting with `[perf]` go to stderr.
 
 ## 6. Read the result
 
 Copy these fields back into the project thread:
 
 ```sh
-jq '{based_on, pass, error, B2_mac: .verdict.B2.mac, fps_p50: .runs.mac.fps_p50, fps_p5: .runs.mac.fps_p5, stats_fps_p5_log: .runs.mac.stats_fps_p5_log, renderer: .runs.mac.renderer, webgl2: .runs.mac.webgl2, errors: .runs.mac.console_errors.count, panics: .runs.mac.panics, workload_ok: .runs.mac.workload_ok}' ~/perf-mac-<sha>.json
+jq '{based_on, pass, valid, error, B2_mac: .verdict.B2.mac, fps_p50: .runs.mac.fps_p50, fps_p5: .runs.mac.fps_p5, stats_fps_p5_log: .runs.mac.stats_fps_p5_log, renderer: .runs.mac.renderer, webgl2: .runs.mac.webgl2, dpr: .runs.mac.device_pixel_ratio, visibility: .runs.mac.visibility, canvas_blank: .runs.mac.canvas.blank, errors: .runs.mac.console_errors.count, panics: .runs.mac.panics, workload_ok: .runs.mac.workload_ok, invalid_reasons: .runs.mac.invalid_reasons}' ~/perf-mac-<sha>.json
 ```
 
-Pass rule: `fps_p5 >= 55`, `webgl2 == true`, 0 console errors, 0 panics and `workload_ok == true`. The
-JSON's `pass` field already applies all of these. `renderer` should name the Apple GPU (for example
+Pass rule: `fps_p5 >= 55`, `webgl2 == true`, 0 console errors, 0 panics, `workload_ok == true`, and the
+run is valid (hardware renderer, `dpr == 2`, `visibility.hidden == 0`, `visibility.unfocused == 0`, canvas
+not blank). The JSON's `pass` field already applies all of these; `invalid_reasons` says why a run does not
+count. `renderer` should name the Apple GPU (for example
 `ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, ...)`). A renderer naming SwiftShader means Chrome fell
-back to software rendering, and the run does not count. `stats_fps_p5_log` is the game's own `STATS`
+back to software rendering; the script marks that run invalid. `stats_fps_p5_log` is the game's own `STATS`
 figure, a cross-check only.
 
 ## 7. Recording
@@ -115,6 +137,8 @@ The Mac session does not edit any repository file. The orchestrator appends the 
 
 ## 8. Troubleshooting
 
+- **`invalid_reasons` names hidden or focus:** the Chrome window went to the background, was minimized,
+  or something took focus (a notification, a click elsewhere). Keep it in front and run step 5 again.
 - **fps stuck at 60 or 30:** Low Power Mode is on, the Mac is on battery, or the Chrome window was in the
   background or covered. Fix the precondition in step 1 and run step 5 again.
 - **`channel 'chrome' not found` or "Chromium distribution 'chrome' is not found":** Google Chrome is
