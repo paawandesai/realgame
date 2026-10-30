@@ -70,7 +70,7 @@ The single register of every science claim the first-person 3D client shows the 
 | P-012 | `SPREAD_HEAT` | 12 | °C/s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
 | P-013 | `SMOTHER_S` | 25 | s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
 | P-014 | `NEIGHBOUR_GAP` | 2.5 | m | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim | [S0] |
-| P-015 | `electrolysis prop H2:O2 tube volume ratio` | 2 | ratio | crates/bevy-client/src/world.rs | correct | Shown visually (the H2 tube holds twice the O2). 2H2O(l) → 2H2(g) + O2(g) gives 2 mol H2 per mol O2, and by Avogadro's law equal moles of gas fill equal volumes at the same T and p. | [S13] [S12] |
+| P-015 | `electrolysis prop H2:O2 tube volume ratio` | 2 | ratio | crates/bevy-client/src/chem.rs, crates/bevy-client/src/world.rs | correct | Shown visually: the gas columns collected at the top of two equal tubes are 0.6 m (H2, cathode side) and 0.3 m (O2), set by `chem::electrolysis::GAS_H2 = 2 × GAS_O2` and checked by the test `electrolysis_gas_is_two_to_one`. 2H2O(l) → 2H2(g) + O2(g) gives 2 mol H2 per mol O2, and by Avogadro's law equal moles of gas fill equal volumes at the same T and p. | [S13] [S12] |
 
 ## Not claims
 
