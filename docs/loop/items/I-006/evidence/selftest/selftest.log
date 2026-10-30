@@ -1,0 +1,33 @@
+PASS start (session A) pid=2409 port=38619
+PASS 6 observe writes a PNG > 10 KB 369990 bytes /tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/i006/st5/a-9yo/shots/0001.png
+PASS 6 view has every key ["objective","warning","hint","caption","banner","pause","loading","hotbar","crosshair_on","cursor"]
+PASS 6 view without --truth leaks no game state clean
+PASS 6 --truth adds truth.objs objs=14
+PASS 12 console.error -> console_errors_new: 1 console_errors_new=1
+PASS 7 key w moves > 0.5 m moved 1.00 m, act panel_s=9.1
+PASS 7 time_to_move_s is the panel time of that act ttm=9.1
+PASS 8 click on sky locks the pointer (or tap mode) pointer_locked=true
+PASS 8 move 200 0 turns > 5 degrees yaw 0 -> 334.8 via real
+PASS 8 sky cast raises casts casts 0 -> 1 impacts 0 -> 1 pitch=47.6
+PASS 8 sky cast does not set time_to_cast_s ttc=null
+PASS R restarts the courtyard outcome=playing burning=3
+PASS 8 cast at a burning bush raises casts casts 0 -> 1 (bush 6, aimObj was 6)
+PASS 8 the bush stops burning burning=false wet=1 caption="Fire out! Water cooled it below its ignition temperature."
+PASS 8 time_to_cast_s is set to the casting act ttc=36.1 cast act panel_s=36.1
+PASS 7 result.measured.time_to_move_s set ttm=9.1
+PASS 12 measured.console_errors counts it console_errors=1
+PASS result.json validates []
+PASS start B and C in parallel 3651 3658
+PASS 10 qa: throttle 4 in session.json and the CDP call made throttle=4 cdp=4
+PASS 10 9yo: throttle 1 throttle=1
+PASS 11 parallel observe: own screenshot and turn counter /tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/i006/st5/b-qa/shots/0001.png /tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/i006/st5/c-9yo/shots/0001.png
+PASS 9 act cmd/face/unknown exit non-zero 1:unknown action "cmd" (real input only: key, keys, move, drag, click, hold, wheel, wait) | 1:unknown action "face" (real input only: key, keys, move, drag, click, hold, wheel, wait) | 1:unknown action "teleport" (real input only: key, keys, move, drag, click, hold, wheel, wait)
+PASS 9 debug path refused without PANEL_SELFTEST debug commands need PANEL_SELFTEST=1 at start
+PASS 9 session still alive after refusals turn=2
+PASS 9 the game command hook is used only by start (reset) and the selftest debug path daemon.mjs:276 daemon.mjs:384
+PASS 11 stop: daemons gone, ports closed dead=true closed=true
+PASS 11 second stop exits 0 {"ok":true,"stopped":false,"note":"no session running"}
+PASS 10 qa result carries throttle 4 throttle=4
+PASS 7 only waiting: time_to_move_s stays null ttm=null
+
+31/31 passed  (run dirs: /tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/i006/st5)

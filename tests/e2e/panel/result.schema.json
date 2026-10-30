@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "panel-result/1",
+  "title": "Persona panel result (one persona, one session)",
+  "type": "object",
+  "required": ["schema", "persona", "model", "artifact_sha", "query", "throttle", "measured", "self", "stopped_because"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "panel-result/1" },
+    "persona": { "enum": ["6yo", "9yo", "13yo", "teacher", "qa"] },
+    "model": { "type": "string", "minLength": 1 },
+    "artifact_sha": { "type": "string", "minLength": 1 },
+    "query": { "type": "string" },
+    "throttle": { "type": "number", "minimum": 1 },
+    "quit_reason": { "type": ["string", "null"], "maxLength": 300 },
+    "measured": {
+      "type": "object",
+      "required": ["time_to_move_s", "time_to_cast_s", "minutes_played", "quests_completed", "outcome", "turns", "console_errors", "panics"],
+      "additionalProperties": false,
+      "properties": {
+        "time_to_move_s": { "type": ["number", "null"], "minimum": 0 },
+        "time_to_cast_s": { "type": ["number", "null"], "minimum": 0 },
+        "minutes_played": { "type": "number", "minimum": 0 },
+        "quests_completed": { "type": "integer", "minimum": 0 },
+        "outcome": { "enum": ["playing", "won", "lost"] },
+        "turns": { "type": "integer", "minimum": 0 },
+        "console_errors": { "type": "integer", "minimum": 0 },
+        "panics": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "self": {
+      "type": "object",
+      "required": ["clarity", "fun", "blockers", "would_play_again", "best", "worst", "quotes"],
+      "additionalProperties": false,
+      "properties": {
+        "clarity": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "fun": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "what", "turn"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "enum": ["control", "goal", "bug", "perf", "text"] },
+              "what": { "type": "string", "minLength": 1, "maxLength": 300 },
+              "turn": { "type": ["integer", "null"], "minimum": 0 }
+            }
+          }
+        },
+        "would_play_again": { "enum": ["yes", "no", "maybe"] },
+        "best": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "worst": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "quotes": { "type": "array", "maxItems": 3, "items": { "type": "string", "minLength": 1, "maxLength": 200 } }
+      }
+    },
+    "stopped_because": { "enum": ["quit", "turn_cap", "time_cap", "blocked", "error"] }
+  }
+}
