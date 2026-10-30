@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- Anonymous analytics and the age picker (docs/ANALYTICS.md). "off" here, so
+     web/pkg-out (golden, perf, the panel, plain static servers) sends nothing;
+     scripts/build-site.sh flips it to "on" in the web/dist copy only. -->
+<meta name="rg-analytics" content="off">
 <title>Alchemist's Trial: first person</title>
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
@@ -48,5 +52,51 @@
   </div>
 </div>
 <div id="loading">Loading…</div>
+<div id="age" role="dialog" aria-modal="true" aria-labelledby="age-title" hidden>
+  <div class="age-card">
+    <h1 id="age-title">Pick your age</h1>
+    <div class="age-choices">
+      <button type="button" class="age-choice" data-band="sprout" aria-label="4 to 7 years old">
+        <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden="true" focusable="false">
+          <polygon points="4,90 92,90 88,94 8,94" fill="#5e9e4a"/>
+          <polygon points="48,40 49,30 58,24 54,34" fill="#4fb35a" stroke="#1d3a22" stroke-width="1.5" stroke-linejoin="round"/>
+          <polygon points="48,40 47,32 38,28 41,37" fill="#79cf63" stroke="#1d3a22" stroke-width="1.5" stroke-linejoin="round"/>
+          <polygon points="36,90 34,72 40,62 56,62 62,72 60,90" fill="#f2a541" stroke="#3b2a12" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="38,62 36,50 42,41 54,41 60,50 58,62" fill="#f7d9b0" stroke="#3b2a12" stroke-width="2" stroke-linejoin="round"/>
+          <circle cx="44" cy="52" r="2.2" fill="#222"/>
+          <circle cx="53" cy="52" r="2.2" fill="#222"/>
+        </svg>
+        <span class="age-label">4 to 7</span>
+      </button>
+      <button type="button" class="age-choice" data-band="seedling" aria-label="8 to 10 years old">
+        <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden="true" focusable="false">
+          <polygon points="4,90 92,90 88,94 8,94" fill="#5e9e4a"/>
+          <polygon points="48,22 46,10 34,6 38,17" fill="#79cf63" stroke="#1d3a22" stroke-width="1.5" stroke-linejoin="round"/>
+          <polygon points="48,22 51,9 63,5 59,17" fill="#4fb35a" stroke="#1d3a22" stroke-width="1.5" stroke-linejoin="round"/>
+          <polygon points="38,90 40,72 56,72 58,90 51,90 48,78 45,90" fill="#3f6fb5" stroke="#16263f" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="34,72 32,58 38,46 58,46 64,58 62,72" fill="#58b0a0" stroke="#16323a" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="39,46 37,34 42,23 54,23 59,34 57,46" fill="#e8c39a" stroke="#3b2a12" stroke-width="2" stroke-linejoin="round"/>
+          <circle cx="44" cy="34" r="2.2" fill="#222"/>
+          <circle cx="52" cy="34" r="2.2" fill="#222"/>
+        </svg>
+        <span class="age-label">8 to 10</span>
+      </button>
+      <button type="button" class="age-choice" data-band="apprentice" aria-label="11 years old and up">
+        <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden="true" focusable="false">
+          <polygon points="4,90 92,90 88,94 8,94" fill="#5e9e4a"/>
+          <polygon points="38,90 40,62 56,62 58,90 51,90 48,72 45,90" fill="#2f3f66" stroke="#111a2e" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="32,64 30,42 38,30 58,30 66,42 64,64" fill="#7a4fb0" stroke="#24123e" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="66,42 74,52 72,56 64,50" fill="#e0b78c" stroke="#3b2a12" stroke-width="1.5" stroke-linejoin="round"/>
+          <polygon points="40,30 39,20 43,13 53,13 57,20 56,30" fill="#d9a77a" stroke="#3b2a12" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="33,14 63,14 50,1" fill="#5a3a8f" stroke="#24123e" stroke-width="2" stroke-linejoin="round"/>
+          <circle cx="44.5" cy="21" r="2" fill="#222"/>
+          <circle cx="51.5" cy="21" r="2" fill="#222"/>
+          <polygon points="74,54 80,36 84,37 78,56" fill="#f2d14b" stroke="#4a3b0c" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        <span class="age-label">11 and up</span>
+      </button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

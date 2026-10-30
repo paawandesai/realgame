@@ -7,12 +7,16 @@
 
 import type { D1Database } from "./d1.ts";
 
-export const EVENT_TYPES = ["session_start", "room_complete", "trial_complete", "session_end"] as const;
+// quest_complete comes from the first-person 3D client (the site root);
+// room_complete and trial_complete from the classic 2D game at /classic/.
+export const EVENT_TYPES = ["session_start", "quest_complete", "room_complete", "trial_complete", "session_end"] as const;
 export const BANDS = ["sprout", "seedling", "apprentice"] as const;
 /** Session length buckets, in order. Stored as their index (0-4). */
 export const DURATIONS = ["lt1m", "1to5m", "5to15m", "15to30m", "30mplus"] as const;
 /** Highest room index accepted (0-based). The game has 4-5 rooms; this leaves headroom. */
 export const MAX_ROOM = 15;
+/** Highest quest index accepted (0-based; "Save the Greenhouse" is 0). Stored in the `room` column. */
+export const MAX_QUEST = 15;
 /** Bodies larger than this are rejected before parsing. A real event is about 100 bytes. */
 export const MAX_BODY_BYTES = 512;
 /** Events accepted per device per UTC day. A full play-through is about 8. */
@@ -32,7 +36,7 @@ export interface GameEvent {
   type: EventType;
   id: string;
   band: Band;
-  /** room_complete only. */
+  /** Room or quest index: room_complete's `room`, or quest_complete's `quest`. */
   room: number | null;
   /** session_end only: index into DURATIONS. */
   dur: number | null;
@@ -46,6 +50,7 @@ const KEYS_BY_TYPE: Record<EventType, readonly string[]> = {
   session_start: COMMON_KEYS,
   trial_complete: COMMON_KEYS,
   room_complete: [...COMMON_KEYS, "room"],
+  quest_complete: [...COMMON_KEYS, "quest"],
   session_end: [...COMMON_KEYS, "dur"],
 };
 
@@ -54,7 +59,7 @@ function isOneOf<T extends string>(list: readonly T[], value: unknown): value is
 }
 
 /**
- * Accepts exactly one of the four event shapes and nothing else: unknown or
+ * Accepts exactly one of the five event shapes and nothing else: unknown or
  * missing keys, wrong types, out-of-range rooms, unknown bands and malformed
  * ids are all rejected, so no free text can reach the database.
  */
@@ -84,6 +89,13 @@ export function validateEvent(body: string): Validation {
       return { ok: false, error: "bad room" };
     }
     room = obj.room;
+  }
+  if (type === "quest_complete") {
+    // Same rule as `room`; stored in the room column (no new column, no new data class).
+    if (typeof obj.quest !== "number" || !Number.isInteger(obj.quest) || obj.quest < 0 || obj.quest > MAX_QUEST) {
+      return { ok: false, error: "bad quest" };
+    }
+    room = obj.quest;
   }
   let dur: number | null = null;
   if (type === "session_end") {
@@ -223,6 +235,9 @@ export interface Stats {
   /** Counts are player-days: one device on one UTC day. */
   funnel: {
     started: BandCounts & { all: number };
+    /** quest_complete only (the 3D client), dense from quest 0 to the highest seen. */
+    quests: ({ quest: number } & BandCounts & { all: number })[];
+    /** room_complete only (the classic game at /classic/). */
     rooms: ({ room: number } & BandCounts & { all: number })[];
     trialComplete: BandCounts & { all: number };
   };
@@ -241,8 +256,8 @@ function addBand(target: BandCounts & { all?: number }, band: string, n: number)
 
 /**
  * Turns raw query rows into the dashboard's shape: every day of the window
- * present (zero-filled), oldest first, bands always all three, rooms dense
- * from 0 to the highest seen.
+ * present (zero-filled), oldest first, bands always all three, quests and
+ * rooms dense from 0 to the highest seen.
  */
 export function shapeStats(
   today: string,
@@ -268,18 +283,26 @@ export function shapeStats(
   const started = { ...zeroBands(), all: 0 };
   const trialComplete = { ...zeroBands(), all: 0 };
   const roomMap = new Map<number, BandCounts & { all: number }>();
+  const questMap = new Map<number, BandCounts & { all: number }>();
+  const tally = (map: typeof roomMap, index: number, band: string, n: number) => {
+    let entry = map.get(index);
+    if (!entry) map.set(index, (entry = { ...zeroBands(), all: 0 }));
+    addBand(entry, band, n);
+  };
   for (const r of rows.funnel) {
     if (r.type === "session_start") addBand(started, r.band, r.players);
     else if (r.type === "trial_complete") addBand(trialComplete, r.band, r.players);
-    else if (r.type === "room_complete" && r.room !== null) {
-      let entry = roomMap.get(r.room);
-      if (!entry) roomMap.set(r.room, (entry = { ...zeroBands(), all: 0 }));
-      addBand(entry, r.band, r.players);
-    }
+    else if (r.type === "room_complete" && r.room !== null) tally(roomMap, r.room, r.band, r.players);
+    else if (r.type === "quest_complete" && r.room !== null) tally(questMap, r.room, r.band, r.players);
   }
-  const maxRoom = Math.max(-1, ...roomMap.keys());
-  const rooms: Stats["funnel"]["rooms"] = [];
-  for (let room = 0; room <= maxRoom; room++) rooms.push({ room, ...(roomMap.get(room) ?? { ...zeroBands(), all: 0 }) });
+  const dense = (map: typeof roomMap) => {
+    const out: (BandCounts & { all: number; index: number })[] = [];
+    const max = Math.max(-1, ...map.keys());
+    for (let index = 0; index <= max; index++) out.push({ index, ...(map.get(index) ?? { ...zeroBands(), all: 0 }) });
+    return out;
+  };
+  const rooms: Stats["funnel"]["rooms"] = dense(roomMap).map(({ index, ...c }) => ({ room: index, ...c }));
+  const quests: Stats["funnel"]["quests"] = dense(questMap).map(({ index, ...c }) => ({ quest: index, ...c }));
 
   const durCounts = new Map(rows.durations.map((r) => [r.dur, r.players]));
   const last = daily[daily.length - 1]!;
@@ -296,7 +319,7 @@ export function shapeStats(
     },
     sessions: { today: last.sessions, total: daily.reduce((s, d) => s + d.sessions, 0) },
     daily,
-    funnel: { started, rooms, trialComplete },
+    funnel: { started, quests, rooms, trialComplete },
     durations: DURATIONS.map((bucket, i) => ({ bucket, players: durCounts.get(i) ?? 0 })),
   };
 }
@@ -336,7 +359,7 @@ export async function handleStats(request: Request, env: Env, now = Date.now()):
     db
       .prepare(
         `SELECT type, room, band, COUNT(DISTINCT day || daily_id) AS players
-         FROM events WHERE day >= ?1 AND type IN ('session_start', 'room_complete', 'trial_complete')
+         FROM events WHERE day >= ?1 AND type IN ('session_start', 'quest_complete', 'room_complete', 'trial_complete')
          GROUP BY type, room, band`,
       )
       .bind(since),

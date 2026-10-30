@@ -25,6 +25,18 @@ setInterval(() => {
 }, 2000);
 
 startHud();
+// Anonymous analytics and the age picker (docs/ANALYTICS.md), only where the
+// page's rg-analytics switch is "on" (the built site, web/dist). Loaded on
+// demand, so web/pkg-out (switch "off") never fetches them, and wrapped so a
+// failure here can never stop the game from booting. init() below is not
+// gated on it: the WASM keeps downloading behind the picker.
+try {
+  if (document.querySelector('meta[name="rg-analytics"]')?.content === 'on') {
+    import('./age.js').then((m) => m.startAgePicker()).catch(() => {});
+  }
+} catch {
+  // Analytics must never break the game.
+}
 init().catch((e) => {
   // Bevy/winit throws a control-flow exception on purpose to hand the
   // event loop to the browser; anything else is a real error.

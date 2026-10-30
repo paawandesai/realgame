@@ -27,7 +27,12 @@ const DURATION_LABEL = {
  *   players: { today: number, todayByBand: BandCounts, playerDays: number, playerDaysByBand: BandCounts },
  *   sessions: { today: number, total: number },
  *   daily: { day: string, players: number, sessions: number, byBand: BandCounts }[],
- *   funnel: { started: BandCountsAll, rooms: (BandCountsAll & { room: number })[], trialComplete: BandCountsAll },
+ *   funnel: {
+ *     started: BandCountsAll,
+ *     quests: (BandCountsAll & { quest: number })[],
+ *     rooms: (BandCountsAll & { room: number })[],
+ *     trialComplete: BandCountsAll,
+ *   },
  *   durations: { bucket: string, players: number }[],
  * }} Stats
  */
@@ -320,15 +325,21 @@ function drawFunnel(s, band) {
   /** @param {BandCountsAll} c */
   const pick = (c) => (band === "all" ? c.all : c[/** @type {keyof BandCounts} */ (band)]);
   const started = pick(s.funnel.started);
+  // The 3D game's quests first; the classic game's (/classic/) rooms and
+  // trial only when that band has any.
+  const classic = [
+    ...s.funnel.rooms.map((r) => ({ label: `Classic room ${r.room + 1} clear`, value: pick(r) })),
+    { label: "Classic trial finished", value: pick(s.funnel.trialComplete) },
+  ].filter((st) => st.value > 0);
   const steps = [
     { label: "Started", value: started },
-    ...s.funnel.rooms.map((r) => ({ label: `Room ${r.room + 1} clear`, value: pick(r) })),
-    { label: "Trial finished", value: pick(s.funnel.trialComplete) },
+    ...s.funnel.quests.map((q) => ({ label: `Quest ${q.quest + 1} complete`, value: pick(q) })),
+    ...classic,
   ];
   const cls = band === "all" ? "fill-bar" : `fill-${band}`;
   drawHBars(
     byId("chart-funnel"),
-    `Funnel from session start to trial finished, ${band === "all" ? "all bands" : BAND_LABEL[band]}`,
+    `Funnel from session start to quests completed, ${band === "all" ? "all bands" : BAND_LABEL[band]}`,
     steps.map((st, i) => ({
       label: st.label,
       value: st.value,
@@ -366,6 +377,10 @@ function render(s) {
   byId("kpi-sessions").textContent = num(s.sessions.today);
   byId("kpi-sessions-sub").textContent = `${num(s.sessions.total)} in 30 days`;
   byId("kpi-playerdays").textContent = num(s.players.playerDays);
+  const quests = s.funnel.quests.reduce((a, q) => a + q.all, 0);
+  byId("kpi-quests").textContent = num(quests);
+  const first = s.funnel.quests[0]?.all ?? 0;
+  byId("kpi-quests-sub").textContent = `quest 1: ${pct(first, s.funnel.started.all)} of started`;
   byId("kpi-trials").textContent = num(s.funnel.trialComplete.all);
   byId("kpi-trials-sub").textContent = `${pct(s.funnel.trialComplete.all, s.funnel.started.all)} of started`;
   drawDaily(s);
