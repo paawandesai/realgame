@@ -3,3 +3,4 @@
 // needs a browser). Equivalent: node --test "tests/e2e/panel/*.test.mjs"
 import './score.test.mjs';
 import './report.test.mjs';
+import './harden.test.mjs';

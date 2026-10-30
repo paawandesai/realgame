@@ -12,6 +12,7 @@
     "artifact_sha": { "type": "string", "minLength": 1 },
     "query": { "type": "string" },
     "throttle": { "type": "number", "minimum": 1 },
+    "cpu_bench_ms": { "type": ["number", "null"], "minimum": 0 },
     "quit_reason": { "type": ["string", "null"], "maxLength": 300 },
     "measured": {
       "type": "object",
@@ -25,7 +26,10 @@
         "outcome": { "enum": ["playing", "won", "lost"] },
         "turns": { "type": "integer", "minimum": 0 },
         "console_errors": { "type": "integer", "minimum": 0 },
-        "panics": { "type": "integer", "minimum": 0 }
+        "panics": { "type": "integer", "minimum": 0 },
+        "panel_minutes": { "type": "number", "minimum": 0 },
+        "engaged_acts": { "type": "integer", "minimum": 0 },
+        "stalled_turns": { "type": "integer", "minimum": 0 }
       }
     },
     "self": {

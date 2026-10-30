@@ -9,6 +9,8 @@ export function makeResult(persona, o = {}) {
     artifact_sha: o.artifact_sha ?? 'abc1234',
     query: o.query ?? '?low',
     throttle: persona === 'qa' ? 4 : 1,
+    // Page-side CPU benchmark (I-014): the qa session runs at 4x throttle.
+    cpu_bench_ms: o.cpu_bench_ms ?? (persona === 'qa' ? 400 : 100),
     measured: {
       time_to_move_s: o.ttm === undefined ? 3 : o.ttm,
       time_to_cast_s: o.ttc === undefined ? 10 : o.ttc,
@@ -18,6 +20,8 @@ export function makeResult(persona, o = {}) {
       turns: o.turns ?? 120,
       console_errors: 0,
       panics: 0,
+      engaged_acts: o.engaged ?? 100,
+      stalled_turns: 0,
     },
     self: {
       clarity: o.clarity ?? 8,
