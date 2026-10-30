@@ -4,14 +4,16 @@
 // window.__gameState (game -> JS): JSON string written every frame.
 // window.__game: a small debug and test hook:
 //   __game.state()          parsed state
-//   __game.cmd('select 2')  commands: select N, cast, tap FX FY (fractions of
+//   __game.cmd('select 2')  commands: select N, cast, fire (a click: a queued
+//                           cast), tap FX FY (fractions of
 //                           the canvas, 0..1), look YAW PITCH,
 //                           turn DX DY, face I, tp X Z, move RIGHT FWD SECS,
 //                           tick N, reset
 //   __game.lock()           request pointer lock (needs a user gesture)
 //   __game.mode()           { pointMode, lockDenied, dragging }
 //   __game.lastSound()      { name, n, played, peak, frame } of the last sound asked for
-// Test commands other than select, cast, tap, reset and set need `?debug`.
+//   __game.hudState()       the state the HUD last drew (the DOM matches it)
+// Test commands other than select, cast, fire, tap, reset and set need `?debug`.
 //
 // Settings (pause menu): look speed, view width, hand sway, aim help, hints,
 // sound and text size. They apply live (`set sens|hfov|sway|assist` for the
@@ -26,6 +28,11 @@ const STORE_KEY = 'alchemist.settings.v1';
 const IDLE_MS = 45000;
 const IDLE_HINT = 'Look for a fire. Press 2 for Water, aim at the fire and click.';
 const IDLE_SLOT = 1;
+// The locked hint, until the first fire is out.
+const AIM_HINT = 'Aim at a fire and click.';
+const START_HINT = 'Click to look around. Esc shows the controls and point-and-click mode.';
+// Flame icons in the objective line, at most this many (then a plus sign).
+const MAX_PIPS = 8;
 // How long each hit marker stays, ms.
 const MARK_MS = { hit: 250, fizzle: 300, out: 700 };
 // Loudest any tone gets (about -16 dBFS): a lab of 30 must not be startled.
@@ -113,6 +120,9 @@ export function startHud() {
   const input = { dx: 0, dy: 0, locked: false, paused: false, fire: false, px: -1, py: -1, cmds: [] };
   window.__gameIn = input;
   let state = null;
+  // The state the HUD has finished drawing (for tests that compare the DOM
+  // with the state it shows).
+  let drawn = null;
   let lastRaw = '';
   let everLocked = false;
   // "Point and click mode" (from the pause menu): mouse clicks cast at the
@@ -224,6 +234,7 @@ export function startHud() {
     pause: showPause,
     mode: () => ({ pointMode, lockDenied, dragging: !!drag }),
     lastSound: sound.last,
+    hudState: () => drawn,
   };
 
   // Polled every frame as well as on the event (some browsers, headless
@@ -331,7 +342,15 @@ export function startHud() {
   };
   // While locked, buttons and the wheel are read here (not through winit) so
   // casting never depends on how the browser routes a locked pointer's events.
-  document.addEventListener('pointerdown', (e) => { if (input.locked && e.button === 0) input.fire = true; });
+  // Each locked left press also sends one `fire` (a queued cast), so a click
+  // whose press and release both fall between two game frames still casts
+  // once; holding keeps casting through `input.fire`. No isTrusted check:
+  // the tests click with synthetic events.
+  document.addEventListener('pointerdown', (e) => {
+    if (!input.locked || e.button !== 0) return;
+    input.fire = true;
+    cmd('fire');
+  });
   document.addEventListener('pointerup', (e) => { if (e.button === 0) input.fire = false; });
   document.addEventListener('wheel', (e) => {
     if (!input.locked || e.deltaY === 0) return;
@@ -382,8 +401,25 @@ export function startHud() {
     clearTimeout(capTimer);
     capTimer = setTimeout(() => caption.classList.remove('show'), 8000);
   };
+  // Pause now: free the mouse and show the pause card in the same handler
+  // (under automation Esc does not release the lock by itself; the later
+  // pointerlockchange then finds the game already paused).
+  const pauseNow = () => {
+    if (document.pointerLockElement) {
+      try { document.exitPointerLock(); } catch (err) { /* nothing to free */ }
+    }
+    showPause(true);
+  };
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !input.locked) showPause(!input.paused);
+    if (e.key === 'Escape') {
+      if (input.locked) pauseNow();
+      else showPause(!input.paused);
+    }
+    // P (by key position, so AZERTY works too) pauses, and resumes like the
+    // Resume button; if the lock is refused the game still unpauses.
+    if (e.code === 'KeyP' && !e.repeat) {
+      if (input.paused) { showPause(false); lock(); } else pauseNow();
+    }
     // C shows the last message again.
     if ((e.key === 'c' || e.key === 'C') && !e.repeat && history.length) showCaption(history[0]);
   });
@@ -400,6 +436,7 @@ export function startHud() {
 
   const slots = [...document.querySelectorAll('.slot')];
   const cross = $('crosshair');
+  const hudEl = $('hud');
   const hint = $('hint');
   const setHint = (text) => {
     if (hint.textContent !== text) hint.textContent = text;
@@ -495,6 +532,44 @@ export function startHud() {
   for (let k = 0; k < 4; k++) hx.append(el('i', {}));
   hm.append(hx, el('div', { className: 'hm-slash' }), el('div', { className: 'hm-star' }));
   $('hud').append(hm);
+
+  // The pause card's controls table gains the pause keys.
+  {
+    const table = document.querySelector('#pause table');
+    if (table) {
+      const tr = el('tr', {});
+      tr.append(el('td', { textContent: 'Pause' }), el('td', { textContent: 'Esc or P' }));
+      (table.tBodies[0] || table).append(tr);
+    }
+  }
+
+  // The arrow to the nearest fire when it is off screen: a chevron and a
+  // flame at the left or right edge, no text (GS-21, GS-24).
+  const finder = el('div', { id: 'firefinder', className: 'hidden left' });
+  finder.append(el('span', { className: 'ff-chev' }), el('span', { className: 'ff-flame' }));
+  $('hud').append(finder);
+
+  // The objective: one number, and a flame per fire left (for players who
+  // cannot read yet). The plus sign after MAX_PIPS is drawn by CSS, so the
+  // line's text stays "Fires to put out: N".
+  const objLine = $('obj-line');
+  const objText = document.createTextNode('');
+  const pips = el('span', { className: 'fire-pips' });
+  objLine.replaceChildren(objText, pips);
+  let pipCount = -1;
+  let pipMore = null;
+  const setObjective = (text, n) => {
+    if (objText.data !== text) objText.data = text;
+    const shown = Math.min(n, MAX_PIPS);
+    const more = n > MAX_PIPS;
+    if (shown === pipCount && more === pipMore) return;
+    pipCount = shown;
+    pipMore = more;
+    const kids = [];
+    for (let k = 0; k < shown; k++) kids.push(el('span', { className: 'fire-pip' }));
+    if (more) kids.push(el('span', { className: 'fire-more' }));
+    pips.replaceChildren(...kids);
+  };
   let hmTimer = 0;
   const mark = (kind, s) => {
     const r = canvas.getBoundingClientRect();
@@ -574,24 +649,36 @@ export function startHud() {
       cross.classList.toggle('cooling', state.cooldown > 0);
       slots.forEach((s, i) => s.classList.toggle('sel', i === state.spell));
       if (wheelSpell === state.spell) wheelSpell = null;
+      const burningAt = (i) => i >= 0 && !!state.objs[i] && state.objs[i].burning;
       cross.classList.toggle('on', state.aimObj >= 0 && state.locked);
-      canvas.classList.toggle('hover', pointMode && !state.locked && state.hover >= 0);
-      // Hints: how to start, then how to aim until three spells have landed.
-      // The idle hint, when it is due, comes first.
-      let h;
-      if (state.locked) {
-        note = '';
-        h = state.impacts < 3 ? 'Aim at a glowing target: the crosshair turns yellow. Left click casts.' : '';
-      } else if (note) {
-        h = note;
-      } else {
-        h = state.casts > 0 ? '' : 'Click to look around. Esc shows the controls and point-and-click mode.';
-      }
+      // A second, outer ring when the target is on fire (a shape cue, GS-19).
+      cross.classList.toggle('fire', state.locked && burningAt(state.aimObj));
+      const hovering = pointMode && !state.locked && state.hover >= 0;
+      canvas.classList.toggle('hover', hovering);
+      canvas.classList.toggle('hover-fire', hovering && burningAt(state.hover));
+      // Hints, highest first: nothing under a banner; the idle hint when it
+      // is due; a one-off note; how to aim (locked, until the first fire is
+      // out); how to start.
+      const playing = state.outcome === 'playing';
+      if (state.locked) note = '';
       updateIdle(now);
-      setHint(idleOn ? IDLE_HINT : h);
-      $('obj-line').textContent = state.outcome === 'won'
-        ? 'Greenhouse saved!'
-        : `Fires put out: ${Math.min(state.extinguished, state.goal)} / ${state.goal}  ·  burning now: ${state.burning}`;
+      let h = '';
+      if (!playing) h = '';
+      else if (idleOn) h = IDLE_HINT;
+      else if (note) h = note;
+      else if (state.locked) h = state.extinguished === 0 ? AIM_HINT : '';
+      else h = state.casts > 0 ? '' : START_HINT;
+      setHint(h);
+      // The arrow to the nearest fire, while it is off screen.
+      const findOn = playing && state.fireOff && state.nearFire >= 0 && !state.paused && !input.paused;
+      finder.classList.toggle('hidden', !findOn);
+      if (findOn) {
+        const right = state.fireBearing > 0;
+        finder.classList.toggle('right', right);
+        finder.classList.toggle('left', !right);
+      }
+      if (state.outcome === 'won') setObjective('Greenhouse saved!', 0);
+      else setObjective(`Fires to put out: ${state.firesLeft}`, state.firesLeft);
       if (state.captionId !== capId) {
         capId = state.captionId;
         showCaption(state.caption);
@@ -619,6 +706,9 @@ export function startHud() {
         banner.querySelector('.big').textContent = 'The greenhouse caught fire';
         banner.querySelector('.small').textContent = 'Heat spread from bush to bush. Press R to try again.';
       }
+      // The state frame this HUD frame has drawn (for the tests).
+      hudEl.dataset.frame = String(state.frame);
+      drawn = state;
     }
     requestAnimationFrame(frame);
   };

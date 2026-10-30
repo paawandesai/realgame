@@ -122,17 +122,9 @@ impl Chem {
     }
 }
 
-/// What an object looks like right now.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Look {
-    Normal,
-    Burning,
-    Charred,
-    Wet,
-    Frosty,
-    Foamed,
-    Hot,
-}
+/// What an object looks like right now (defined in `cues`, which also
+/// holds each look's emissive strength).
+pub use crate::cues::Look;
 
 pub fn look_of(o: &Obj) -> Look {
     if o.burning {
@@ -322,8 +314,17 @@ pub fn make_kit(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMateri
 fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color) -> StateMats {
     StateMats {
         normal: toon(materials, base),
-        hot: glow(materials, Color::srgb(0.75, 0.38, 0.12), 0.35),
-        burning: glow(materials, Color::srgb(0.55, 0.2, 0.05), 1.2),
+        // A heating bush looks scorched, not lit: no emissive below ignition.
+        hot: glow(
+            materials,
+            Color::srgb(0.4, 0.25, 0.13),
+            crate::cues::look_emissive(Look::Hot),
+        ),
+        burning: glow(
+            materials,
+            Color::srgb(0.55, 0.2, 0.05),
+            crate::cues::look_emissive(Look::Burning),
+        ),
         charred: toon(materials, Color::srgb(0.12, 0.1, 0.1)),
         wet: materials.add(StandardMaterial {
             base_color: wet,
@@ -331,7 +332,11 @@ fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color)
             reflectance: 0.6,
             ..default()
         }),
-        frosty: glow(materials, Color::srgb(0.8, 0.93, 1.0), 0.25),
+        frosty: glow(
+            materials,
+            Color::srgb(0.8, 0.93, 1.0),
+            crate::cues::look_emissive(Look::Frosty),
+        ),
         foamed: toon(materials, Color::srgb(0.9, 0.93, 0.95)),
     }
 }
