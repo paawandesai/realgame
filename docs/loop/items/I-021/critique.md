@@ -1,87 +1,110 @@
-# I-021 spec critique
+# I-021 spec critique (revision 3 review, roadmap v2)
 
-**Verdict: revise (small, mechanical changes; direction is right).** The item is the right thing for 4-10 year olds and their teachers, and it is the item the critic asked I-020 to split out. Two defects would make the build or the tests fail as written (section 3, items A and B). One scope cut is recommended (item 5). Everything else is a tightening.
+**Verdict: revise.** Right thing, wrong seams. The goal (captions, hotbar, warning and lose text at the player's reading level) still serves kids 4-10 and teachers, and it moves B4. But the spec now claims to be the shared band store and reading-rule checker for the core loop, and the phase-2 specs that were written afterwards do not use it. Two of those conflicts will produce a mixed-band game. One decision (closed 29-key enum for cast captions) will be thrown away by I-026 and cannot reach B8's 8 spells. The item is also bigger than its smallest version. None of this needs a rewrite; it needs the changes below.
 
-Reviewed: `docs/loop/items/I-021/spec.md`, `I-019/spec.md` (lanes and contract), and `target.md`, `bars.md`, `areas.md`, `gameplay-standards.md` from origin/main (a3e50b1). Code facts spot-checked at a3e50b1: the `age.js` click handler and `picked` guard, the `index.html` slot spans and `data-band` buttons (4 to 7, 8 to 10, 11 and up), the `hud.js` `showCaption` / `history` / `.small` sites, and the 21 `EventKind` variants in `chem.rs`.
+Reviewed: this spec, `critique.md` (previous), `target.md`, `bars.md`, `areas.md`, `gameplay-standards.md` from origin/main (c4832d2), and `docs/loop/items/I-02{0,2,4,5,6,7,8,9}`, `I-030` specs. Not re-verified against code: line numbers (the spec already says the planner re-checks them after I-022/I-025/I-020).
 
-## 1. Right thing for players? Yes
+## 1. Right thing for players and teachers?
 
-- It attacks the evidence directly: the panel's 6yo and 9yo text blockers on formulas, "100 degrees" and kelvin, and B4 clarity of 6 against a bar of 8. It stays first-person and adds no control, so the hard rule in `target.md` is untouched.
-- GS-21, GS-32, GS-17 and GS-19 are all moved by this item, and the walk table is honest about the partial ones (GS-18).
-- Keeping the 11-and-up text byte-for-byte as it is today is correct for teens and teachers. The "if the band is known" wording of the B4 claim, plus the extra no-band 6yo guard, is the honest way to measure it.
-- Doubts, none blocking:
-  - **Pre-readers still rely on words.** Sprout captions get an icon, but the sprout coach line in `#hint` is not said to get one (GS-21: nothing by text alone). I-020's `COACH` carries icons. State that sprout `COACH_TEXT` lines reuse the step icon from `COACH`, and add one assertion for it in test 11.
-  - **The default is `seedling` for anyone with DNT or GPC, or with analytics off.** That includes teens (mild GS-26 risk) and 4 to 7 year olds, who get no sprout text. The spec admits this. It is acceptable for a first version only because a reload brings the picker back on the deployed site. Keep the pause-card switch as a named follow-up item, not just a sentence.
-  - **The spell is renamed `Smother` for sprout and seedling, but is `CO₂` for apprentice.** In a mixed class ("press 4, the CO₂ one") the names differ across neighbouring screens. It is defensible (GS-30 wants the mechanism named), but the `station` / `won` / pick lines for apprentice still say "CO₂". Add one line to the spec saying this is deliberate, so the science reviewer and the panel brief do not flag it as a bug.
-  - **The sprout `start` caption drops the instruction I-019 just added.** I-019's boot caption ends `Water is ready: aim at a fire and click.` Sprout `Put out the 3 fires!` and seedling `Put out the 3 fires before they spread.` lose "aim and click". The coach covers it only after the walk step. Make the seedling text keep the verb: `Put out the 3 fires! Aim at a fire and click.` (check it against the 14-word and one-temperature rule).
+Yes for Phase 1 text, with three cautions.
 
-## 2. Smallest version? Mostly; cut one piece
+- **Under the new core loop it is support work, not core.** Crafting and mastery (I-026 to I-030) are the loop; this item makes the words around them readable. It earns its place because B4 clarity (6 vs 8) is a panel failure on the youngest personas and the Bench will show the same captions after a cast. Keep it, but do not let it gate I-026. Its "before I-026" rule is the problem (item 3).
+- **A 4-5 year old still cannot read "Fire out! Water cooled it."** GS-21 says pre-readers are not blocked by text. The sprout captions carry an icon, but the sentence is silent. I-028 already speaks sprout prompts with `speechSynthesis` (sound on, `try/catch`, text always on screen too). Say in this spec whether sprout captions use the same helper. Either add it (about 10 lines in `hud.js`, one test with a `speechSynthesis` stub, respecting the saved sound setting) or name it as a filed follow-up and stop claiming GS-21 "**met**" in the GS walk (change to "partial: icon plus short text; no speech").
+- **Band-free text the sprout player still hits first:** `START_HINT` (`Click to look around. Esc shows the controls and point-and-click mode.`), `AIM_HINT`, `IDLE_HINT`, the pause-card controls table, `#obj-line`. They are explicitly out of scope, but B4's prediction "median clarity 6 to at least 7" and "no text blocker" rests on the 6yo not meeting them. Soften the prediction to what the item controls (no formula, no `°`, no kelvin blocker; clarity not lower), or add the two hint constants to `captions.js` (two keys, same pattern as `warningFor`). Panel clarity is a model score; do not state a number the item cannot cause.
+- **Default `seedling` for DNT/GPC/analytics-off.** Acceptable for a first cut because a reload re-shows the picker on the deployed site. But `pkg-out`/local/teacher links never show it, and a teacher handing 5-year-olds a plain link gets seedling. The pause-card switch is the real fix; it is filed as a follow-up only. With I-028 adding its own chooser (item 2) the switch is nearly free. See item 2.
 
-It is large (29 keys, two bands, slots, warning, lose line, coach, panel plumbing, about 60 register rows, three lanes), but each part answers a named blocker, and the band-aware panel and the one-line hook are what make the result measurable. Do not shrink the caption tables.
+## 2. Overlap and conflicts with the phase-2 specs (must fix)
 
-Cut (item 5 below): `COACH_TEXT.apprentice`. It rewrites the hint the 13yo, the teacher and the QA persona already read and did not complain about. It costs four register rows and one more code path. It also contradicts the bar line "13yo, teacher and qa see the same text as before".
+- **I-028 does not use `band.js` and keeps a second band store.** This spec says I-028 "imports `LEVELS`, `bandFromSearch`, `checkReading`, `ICONS` and follows `window.__band`". I-028 §2 does not: it has its own `bandFrom(search, picked, chosen)`, adds its own `click` listener on `#age button[data-band]`, shows its own "How old are you?" chooser, keeps the answer for the page load, and maps `adept` to `apprentice`. Result: a 6yo with no picker who chooses "4 to 7" in the Bench still reads seedling captions on the HUD, and a `?band=adept` link is `adept` in the HUD and `apprentice` in the bench. This is a real GS-21 and B4 break, not style.
+  Change: (a) in this spec's Contract replace the "Reuse by I-028" paragraph with a hard interface: `window.__band.get()`, `.set(b)`, `.on(cb)` (move `on` into the exposed hook now; I-029 also reads the band), and `LEVELS`; (b) add to Out of scope / Planner actions: "I-028 must read `window.__band` (not its own picker listener) and its chooser must call `window.__band.set(...)`; the planner edits I-028's §2 and test 11 before dispatch"; (c) state that `adept` stays `adept` in `window.__band` and consumers map it, since I-029 sends `band adept` to Rust. Order: I-021 before I-028 (backlog "After" cell).
+- **I-029 assumes "I-021's `band.js`, extended by I-028 with `adept`".** I-021 already has `adept`. Fix I-029's sentence at the same planner step; no change needed here beyond item 2a.
+- **I-026 makes the closed cast-caption enum a dead end.** I-026 deletes `Spell::cast_caption()` and moves cast text to `content/spells.json`, and B8 needs 8 craftable spells. Here `CaptionKey` has exactly four `cast_*` variants keyed by `Spell::ALL` index, so every new spell needs a Rust enum variant, a web table row and 2 register rows by hand. Change: keep the enum for `EventKind` results only (25 keys), and key the cast caption by spell id: `captionKey = "cast"` plus `captionArg = <spell id>`; the sprout and seedling cast texts live in a small `CAST_CAPTIONS` table keyed by id in `captions.js` now, and I-026's spec is told to move them to two optional `spells.json` fields (`caption_sprout`, `caption_seedling`, the same pattern as I-028's `prompt_*`) with the `checkReading` test over them. This also cuts test 1's `spell_key` and shrinks the table the planner must renumber.
+- **I-026 and the hotbar.** I-026 leaves the hotbar DOM alone and says `hud.js`/`index.html` are not edited; this item rewrites slot text from `SLOTS` by index. Good, but when I-026/I-028 add spells 5-8 to the hotbar, `SLOTS` has no row and the spell shows the formula to a 6yo. State the fallback: for a slot with no `SLOTS` entry at sprout/seedling, show the spell name only (no `.formula` text). One assertion in test 8.
+- **I-022, I-024, I-025, I-020:** the overlap table is accurate in structure (no shared lines; `age.js` hook after I-022's lines; keys append in merge order; `perf` guard). Agreed. Two small asks: (a) the `age.js` hook is a one-line edit to the I-005 file that I-028's separate listener would make redundant once item 2 lands; keep it (B7 path) but delete the "I-028 may add its own listener" ambiguity; (b) I-024 changes the profile, so test 17's two-batch noise floor must be re-run on the I-020 merge artifact if I-024 lands between; the spec already says the planner moves the base. Fine.
+- **I-027, I-030:** no overlap. I-030 asks 4 bands of question text; it may wish to run its sprout `prompt` text through `checkReading`. Add one sentence to Contract naming `checkReading` as the checker for any sprout/seedling string in `content/*.json` too; today it only checks JS tables, and the science lint does not scan JSON.
 
-## 3. Can every test fail? Mostly; two tests cannot pass as written, three are brittle
+## 3. Smallest version
 
-**A. Test 14 contradicts the pinned tables (the build would fail).** It greps `captions.js` for every line of `caption-strings.txt` and expects none. But five seedling cells are byte-identical to the Rust text:
-- `reseeded` `Another bush is on fire! Put it out before it spreads.`
-- `melting` `Melting... it takes a lot of heat to turn ice into water.`
-- `out_fire` `Fire out!`
-- `fizzle_not_flammable` `That does not burn.`
-- `greenhouse_caught` `Oh no! Heat from the fire reached the greenhouse. Press R to try again.`
+The spec is 563 lines with 3 lanes, 18 tests, about 60 register rows, a Rust enum, a panel plumbing change and a second stage of docs. For a text change that is too much. Cuts that keep every promise:
 
-The `lostFor` seedling text is likewise a copy of the apprentice text. Fix one of two ways. Either `CAPTIONS` entries may be omitted when the seedling text equals the Rust text, and `captionFor` falls back to `state.caption` (then test 6 asserts the key set as "listed keys plus a named `SAME_AS_RUST` list"). Or test 14 is limited to lines that differ from a pinned seedling text. The first is simpler and removes copies. If chosen, `checkReading` must still be run on those five Rust strings under the seedling rule in test 6, which reads `caption-strings.txt`. Check `melting`, which has `...` and 12 words, against the 14-word cap. `reseeded` has 11 words.
+1. **Drop seedling cells for keys that already fit.** Many seedling texts are the Rust text with a word swapped (`Soaked! It has to dry out before it can burn.` vs the Rust one). Five are already `SAME_AS_RUST`; apply the rule to every key where the Rust text already passes the seedling rule (14 words, one temperature, no formula). Run `checkReading` over `caption-strings.txt` and write seedling cells only for the failures. Expect about half the rows and half the science review.
+2. **Cut `PICKER_BANDS` vs `BANDS` drift test and `LEVELS` split work to one line** (a constant plus one test), not a design section.
+3. **Cut `bands.mjs` test 11 into 11a only for the gate; keep 11b/11c as non-blocking breaker checks.** They need a 60-step tick loop that depends on I-020's hold and the world's determinism; a flaky path blocks merge. Make `11a` and `12` the gate, run `11b`/`11c` in the seam breaker.
+4. **Cut warning/lose to sprout-only variants** and keep the seedling and apprentice text for both as the existing constant. Seedling `warningFor` is a rewrite of an apprentice string for no measurable gain.
+5. **Defer panel `--band` plumbing detail** (test 10) to: `persona.band` plus `pageUrl`. The argv-helper export and `session.json` field are nice to have; one test is enough.
 
-**B. Test 1's source-grep is brittle and has a simpler alternative.** Counting `.say(` calls against string literals in `include_str!("main.rs")` breaks on any reformat, any comment containing `.say(`, or I-019 and I-020 rebases. The compiler can do this: make `say` take a `CaptionKey` enum (or a `&'static str` const from `captions::K_*` constants). A wrong key then fails to compile, and the test reduces to "the enum's `ALL` equals `CAPTION_KEYS`". Keep the 21-variant `event_key` test, which is good. If the grep stays, state that it is a guard against a dropped argument only.
+## 4. Can each acceptance test fail?
 
-**C. Existing tests of I-019, I-020 and I-007 may read the text that now changes with the default band.** Test 16 only checks `golden.mjs`. I-019's web lane writes e2e tests 7 to 12 and 14 to 19 and I-020 writes a panel and e2e set. Any of them that reads `#caption`, `#warning .text`, a `.slot .formula` text or `#hint` text under no `?band` will go red after this merge, because the default is now `seedling`. Replace "grep golden" with "grep every file under `tests/e2e/` and `crates/bevy-client/web/*.test.mjs` for `#caption`, `#warning`, `.formula`, `#hint` and `#history` text assertions; each is either moved to `?band=apprentice` or reads `state.caption`, and the list is recorded in `round-1.md`". The seam breaker owns the check.
+Mostly yes (mutations are listed for 6, 9, 14; "Fails today" is stated). Gaps:
 
-**D. Test 11 is long and order dependent.** It chains hold, face, select, cast, `tick 2400`, history match, warning, lose, plus a no-formula regex over the whole HUD. If any step is flaky the whole contract lane is red with no clue why. Split into 11a (slots, hint, caption icon with size), 11b (history line after a spread) and 11c (warning and lose text and the no-formula scan). Same assertions, three tests. Also confirm `tick 2400` really yields a *spread* ignition on a non-greenhouse target with the I-020 seed. If not, use the Rust test 2 path to pin the seed instead of an `if`.
+- **Tests 3 and 13 are guards** that pass before and after; fine, labelled. 
+- **Test 5** compares the table to itself (the pinned strings are in the spec and in the code). Real value is only in the `checkReading` rules (test 6) and in the register match (test 7). Add one cross-check that cannot be a copy: every sprout text must contain no word from a banned list built from `index.html` formulas and `caption-strings.txt` science nouns (`oxygen`, `ignition`, `temperature`, `thermal`). Cheap and catches a drifted edit.
+- **Test 6 / `checkReading`:** the sprout rule "no word over 8 letters except `greenhouse`" is easy to satisfy and says nothing about whether a 5-year-old reads it. Fine as a floor, but say so in the spec; panel B4 is the real measure. Also pin the word-count rule for `{who}` as the spec does; test 6's `{who}` case covers it.
+- **Test 8 and 9** need big fake DOMs; the risk is a test that passes because the fake is lenient. Test 9's mutation (delete the hook line) is right. Add one more mutation to test 8: restore `.formula` from a hard-coded string instead of the captured DOM text and require failure.
+- **Test 12 "within 2 frames"** counts `state.frame`; fine. 
+- **Test 15 (science gate)** is a model check, and the pass rule is "0 `error` verdicts and every text sourced". Say who dispatches and where the verdicts are recorded; the spec does (round-1.md). Add: the reviewer sees the register row, not only the string, so a `simplified` note can be wrong.
+- **Test 17** (perf guard) is well specified; keep.
 
-**E. The sprout reading rules are checked on a placeholder, not on the runtime text.** `Oh no! Heat spread and lit the {who}!` counts `{who}` as one word, but at runtime `dry hedge` makes 9 words (above the 8 cap), and test 5 itself asserts that 9-word line. Either count `{who}` as two words in `checkReading`, or drop a word (`Oh no! Heat lit the {who}!` is not clearer, so prefer `Heat spread! The {who} caught fire!`, 6 or 7 words, 8 with `dry hedge`).
+## 5. Science sourced?
 
-Smaller points:
-- Test 8 builds a fake DOM by regex over `index.html`. That is fine, but say the regex must fail loudly if it finds other than four `.slot` buttons, so that an `index.html` edit by I-019 does not silently pass.
-- Test 17's `+20 KB` is a deterministic Brotli check. Good. Add that `captions.js` is lazy-loaded or inlined, not a second blocking request, or say that one more 4 KB request is accepted.
-- Test 15 (science review) needs a stated fallback: `docs/loop/science-review.md` is named, but confirm it exists on the merge commit. If it does not, the contract lane must write the reviewer prompt into `round-1.md`.
-- Test 7 asserts that `git diff` removes no register row. Fine. The planner should also confirm C-030 and C-033 are the current ids on the merge commit, because I-019 and I-020 each add rows.
+The register approach (a row per shown string, `correct` / `simplified` / not-claim) is right and B6 stays honest. Spot-check of the pinned texts:
 
-## 4. Lanes buildable from the contract alone? Yes, with three fixes
+- `cast_foam`: sprout "This gas keeps air away." and seedling "heavier than air and pushes the air away" are true for CO₂ (44 vs about 29 g/mol); marked `simplified` correctly (CO₂ also absorbs heat). `won` seedling "Water, Frost and Smother each stop fire" uses a spell name the game calls `CO₂` in I-026's data. Apprentice `Smother` vs `CO₂` is deliberate and noted; but **I-028/I-026 cards show `CO₂` to sprouts** (spell name from `spells.json`). The hotbar says `Smother`, the Bench card says `CO₂`. Pick one for sprout/seedling: either the Bench uses `SLOTS[band][i].name`, or the hotbar keeps `CO₂` at seedling. I recommend the first, and an added line to I-028's planner edit.
+- `out_water` "too cool to burn" and `fizzle_wet` "too wet to burn" are fine (S9, S16). `warning` seedling "Too hot and the wood will burn" is the piloted-ignition simplification already noted. `steam` "boils at 100 °C" is correct at 1 atm; fine for a greenhouse game.
+- `cast_frost`: "Frost is a very cold liquid" hides the liquid nitrogen. True, but a teacher reading the HUD may ask what liquid. Add the name in the register note and keep apprentice as is.
+- `fizzle_charred` / `burnt_out`: "Nothing left to burn" is `simplified` (charcoal can still glow). Acceptable.
+- Not-claims rows for coach and state lines are fine; "every sprout coach line except the pick line" being a Not-claim is correct only if the pick line carries the claim row (it does).
 
-- **core:** buildable. The string-to-key table and the 21-variant listing are complete. Fix B above.
-- **web:** buildable, and unusually well pinned. Fix A, C and E above, and name the icon for each sprout coach line (item 1 above). The hook line and its test are well specified. One ambiguity: `startHud()` creates the band, but `hud.js` is also edited by I-019 and I-020 for the hint and the counters. The spec says "change only the blocks named above", which is enough. Add that the slot capture happens once, before any band-dependent write, so the first sprout paint never flashes the formulas for a frame (GS-6 is not at risk, but the screenshot in the panel could be taken in that frame).
-- **contract:** buildable. `pageUrl`, the `--band` flag and the argv helper are clear. The "keep the operator's `band`" rule and `none` are tested.
-- **Overlap with I-019: none that blocks.** I-019 owns `cues.rs`, the `fire` command, `fx.rs`, `hud.js` (counter, finder, crosshair, hints), `style.css`, `golden.mjs` and ten register rows. I-021 touches `main.rs` (`say`), `lines.rs`, `captions.rs`, `hud.js` (caption, history, warning, slots, lose line), `style.css`, `age.js`, `coach.js`, `panel/**`. The overlap is on shared files only, and I-021 is blocked until both I-019 and I-020 merge, so the conflicts are rebase-only. Two real interactions to write down:
-  1. I-019 changes the boot caption and the Water-at-boot text, which is why the `start` key sits on a moving target (see item 1 above). The `captions.rs` stub's `start` mapping is correct for either text.
-  2. I-019's `#obj-line` counter and pips and its locked hint are band-free strings that this item deliberately leaves out. Say so in "Out of scope" next to the `IDLE_HINT` line, since sprout players will see "Fires to put out: 7" in words.
-- `areas.md`: `captions.rs` is a new file in `crates/bevy-client/src/`, which `areas.md` lists file by file (`main.rs`, `chem.rs`, `fx.rs`). It is not listed, nor is `lines.rs` (I-020). Name it as owned by the core lane in this item and ask the planner to add the two files to `areas.md`, so the leak check in test 18 is not the only guard.
+No false statements found. Requirement: the new `caption_*` fields in I-026's data (item 2) get the same register rows and `checkReading`.
 
-## 5. Requested changes, in order
+## 6. Can the lanes build from the contract alone?
 
-1. Fix test 14 against the five seedling cells that equal the Rust text (3A). Pick the fall-back-to-`state.caption` option.
-2. Replace the source-grep in test 1 with a compile-time key type, or demote it to a guard (3B).
-3. Replace "grep golden" in test 16 with a grep of all e2e and web tests for text assertions on `#caption`, `#warning`, `.formula`, `#hint`, `#history` (3C).
-4. Count `{who}` as two words in `checkReading`, or reword the sprout `spread` line (3E).
-5. Cut `COACH_TEXT.apprentice`: apprentice uses I-020's `COACH` text unchanged. Remove its four rows, its test cells and the related contract line.
-6. Make sprout coach icons explicit and tested (item 1); keep the click instruction in the `start` text (item 1).
-7. Split test 11 into three tests (3D) and pin the seed for the spread step.
-8. Add the notes: `Smother` versus `CO₂` is deliberate; I-019's counter and hints stay band-free; `captions.rs` and `lines.rs` are added to `areas.md` by the planner; `science-review.md` exists on the merge commit or the prompt is written into `round-1.md`.
-9. Promote the pause-card reading-level switch to a filed follow-up item, since it is the only way a DNT player gets the sprout level.
+Yes, with these fixes:
 
-After items 1 to 4 the spec is ready to build once I-019 and I-020 have merged and the stale check passes.
+- **Three lanes, one seam that is red until the end** (the e2e). That is accepted, but the contract lane owns 3 existing tests found by a grep at merge time (test 16). Make that grep a **pre-dispatch planner step** and list the hits in the spec, so lane scope is fixed before dispatch (right now the lane's file list is discovered after dispatch).
+- **The stub** (captions.rs with real `event_key` bodies) is fine, but with item 2's enum change the stub shrinks; update the "29" counts everywhere (`CAPTION_KEYS`, test 1, test 6, seam).
+- **`areas.md`:** the spec adds `captions.rs`, `lines.rs`, `onboard.rs` to `client-core` at dispatch, and adds new web files (`band.js`, `captions.js`) to `client-web` by the existing `crates/bevy-client/web/**` glob. Fine. The panel files (`personas.mjs`, `panel.mjs`, `daemon.mjs`) are under `tests/e2e/**`, owned by tests-e2e; the spec assigns them to the contract lane. Fine.
+- **`science-sources.md`** edits by the web lane while I-020 and others also add rows: ids are taken from the merged register at build time; fine.
+
+## 7. Changes required before dispatch (checklist)
+
+1. Replace "Reuse by I-028" with a hard interface (`window.__band` with `get`, `set`, `on`; `LEVELS`; `adept` stays `adept`); planner edits I-028 §2 and I-029 line 57 to use it; backlog "After" for I-028 gains I-021. (Item 2)
+2. Change cast captions from four enum keys to `captionKey = "cast"` plus `captionArg = <spell id>`; tell I-026 to carry `caption_sprout` / `caption_seedling` in `spells.json`. Add the "no `SLOTS` row means name only" fallback. (Item 2)
+3. Decide on speech for sprout captions (add using I-028's helper, or file the follow-up and downgrade GS-21 to partial). (Item 1)
+4. Resolve the `Smother` vs `CO₂` name for sprout/seedling across HUD and Bench. (Item 5)
+5. Soften the B4 prediction (clarity and band-free hints) or add `START_HINT` / `AIM_HINT` to `captions.js`. (Item 1)
+6. Apply the smallest-version cuts: seedling cells only where the Rust text fails the rule; 11b/11c non-gating; seedling `warningFor` dropped; trim test 10. (Item 3)
+7. Add the test 5 banned-word cross-check and the test 8 hard-coded-restore mutation. (Item 4)
+8. Move test 16's grep of existing tests to a pre-dispatch planner step with the hits listed. (Item 6)
+9. Mention `checkReading` as the checker for JSON-held sprout/seedling text (I-026, I-028, I-030). (Item 2)
+
+After these, expect **approve**. No part of the item is `wrong-thing`: it adds no camera, control or 2D rendering and does not touch the core loop mechanics.
 
 ## Planner response
 
-Spec revised to revision 2 (`spec.md`). All nine requested changes are accepted; the smaller points are accepted too.
+Revision 3 of `spec.md` applies these. Checklist items (section 7) first, then the other points.
 
-1. **Accept** (3A): fall-back option taken. `SAME_AS_RUST` lists the five keys, their `CAPTIONS` entries have no `seedling` field, `captionFor` returns `state.caption`, and test 6 runs `checkReading` (seedling) on the five Rust texts as fixtures checked against `caption-strings.txt` (`melting` 12 words, `greenhouse_caught` 14, both pass). `lostFor` seedling shares the apprentice constant; it is not a Rust string, so test 14 is unaffected.
-2. **Accept** (3B): `CaptionKey` enum with `ALL`/`as_str`/`Default`; `say`/`say_arg`/`Line.key` take it, so a keyless call does not compile; the source grep is removed and test 1 asserts `ALL` matches `CAPTION_KEYS`.
-3. **Accept** (3C): test 16 now greps all of `tests/e2e/` and `web/*.test.mjs` for HUD-text assertions; hits move to `?band=apprentice` or `state.caption`, are listed in `round-1.md`, the contract lane may edit them (scope test 18 allows them), and the seam breaker re-checks.
-4. **Accept** (3E): both fixes. `{who}` counts as two 5-letter words in `checkReading`, and the sprout line is now `Heat spread! The {who} caught fire!` (7 words with `dry hedge`).
-5. **Accept**: `COACH_TEXT.apprentice` cut; apprentice and seedling use I-020's `COACH`; its four register rows and test cells removed; test 12 expects `Hold W to walk forward.` under apprentice.
-6. **Accept**: sprout coach keeps `COACH[step].icon` (asserted in tests 5 and 11a). `start` keeps the verb: seedling `Put out the 3 fires! Aim at a fire and click.` (10 words), sprout `Put out 3 fires! Aim and click!` (7 words, one digit).
-7. **Accept** (3D): test 11 split into 11a/11b/11c. The spread step is a fixed deterministic loop on `state.captionKey === 'spread'` (cap 60 x `tick 100`) that fails, never branches, if the greenhouse or the cap comes first. A Rust seed cannot be used from the e2e page, so this is the pinned path.
-8. **Accept**: notes added for `Smother` vs `CO₂` (deliberate, §4), I-019's counter/pips/hints band-free (Out of scope), `captions.rs`/`lines.rs` added to `areas.md` by the planner as a pre-dispatch step outside the item diff (keeping the rule that the item does not edit `areas.md`), `science-review.md` confirmed present at a3e50b1 with a `round-1.md` fallback in test 15.
-9. **Accept**: pause-card reading-level switch is a named follow-up the planner files in `backlog.md` at dispatch (pre-dispatch step 6 and Out of scope).
+1. Hard `window.__band` interface (`get`, `set`, `on`), `LEVELS`, `adept` stays `adept`; planner edits I-028 §2 / test 11 and I-029, and adds I-021 to I-028's "After": **accept**. A second band store gives a mixed-band game, so this is a real B4/GS-21 break.
+2. Cast captions keyed by spell id (`captionKey = "cast"`, `captionArg = <id>`), `CAST_CAPTIONS` by id, I-026 told to carry `caption_sprout` / `caption_seedling`; "no `SLOTS` row means name only" fallback: **accept**. B8 needs 8 spells. Since I-021 can merge before I-026, `captions.rs` holds a 4-entry `spell_id(i)` (`fire`, `water`, `frost`, `co2`, the ids I-026 uses) that I-026 replaces with `Spell::spell_id()`. A spell id with no entry falls back to `state.spellName` at sprout/seedling, never to the formula caption. That removes the "I-021 before I-026" rule.
+3. Speech for sprout captions: **accept the follow-up path**. I-021 merges before I-028, so I-028's helper does not exist yet, and writing a second speech helper here is the duplication this critique warns against. GS-21 is downgraded to "partial" and the follow-up "Speak sprout captions with I-028's speech helper" is filed at dispatch.
+4. `Smother` vs `CO₂`: **accept the recommendation**. The Bench uses `SLOTS[band][i].name` at sprout/seedling, and that is added to I-028's planner edit. A subscript name fails the sprout rule, so the HUD cannot use `CO₂`.
+5. Soften the B4 prediction: **accept softening**. The prediction now covers only what the item controls: no formula, subscript or kelvin blocker, and clarity not lower. Hint constants stay out of scope (I-007/I-019 strings; adding them grows the item).
+6. Smallest-version cuts:
+   - seedling cells only where the Rust text fails the rule: **accept**. I checked the rule against the c4832d2 strings. 15 of 25 non-cast keys and the Water cast pass (`spread` is 15 words with `{who}`, so it keeps its cell), so they now use the Rust text, which cuts 16 seedling texts and their register rows.
+   - one-line `PICKER_BANDS`: **accept**.
+   - 11b/11c non-gating: **accept**. They move to the seam breaker.
+   - seedling `warningFor` dropped: **reject**. The apprentice warning has two temperatures (`${state.ghTemp} °C` and `300 °C`), so it fails the seedling rule. `lostFor` seedling already is the apprentice constant.
+   - trim test 10: **accept**. It now covers `persona.band` and `pageUrl` only. The argv helper and the `session.json` field are dropped, and the `--band` flag stays.
+7. Test 5 banned-word cross-check and test 8 hard-coded-restore mutation: **accept**.
+8. Test 16 grep as a pre-dispatch planner step with hits listed: **accept**. The c4832d2 hits (golden `#hint` reads of band-free I-019 hints; `panel/hud.mjs` is a reader, not an assertion) are listed. The planner re-runs the grep on the I-020 merge base before dispatch.
+9. `checkReading` named as the checker for JSON-held sprout/seedling text (I-026, I-028, I-030): **accept**.
 
-Smaller points: **accept** test 8 failing loudly unless exactly four `.slot` buttons; **accept** test 17 note (two small same-origin module requests accepted, counted in TTI); **accept** test 15 fallback; **accept** C-030/C-033 re-check at dispatch (both confirmed at a3e50b1); **accept** the slot capture once in `startHud()` before any band write, with a write-spy assertion in test 8.
+Other points:
+- Do not gate I-026 on this item: **accept**. This follows from 2.
+- Delete the "I-028 may add its own listener" ambiguity and keep the `age.js` hook: **accept**.
+- Default `seedling` with no pause switch: **accept as is**. The follow-up stays filed, and I-028's chooser calling `__band.set` covers part of it.
+- Test 6: state that the sprout rule is a floor and that panel B4 is the real measure: **accept**.
+- Test 15: the reviewer sees the register row as well as the string: **accept**.
+- `cast_frost` register note names liquid nitrogen: **accept**.
+- Test 17 rerun if I-024 lands between: **already in spec**, no change.
+- Update "29" counts everywhere: **accept**. The count is now 26 keys: 25 event/state keys plus `cast`.

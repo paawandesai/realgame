@@ -1,0 +1,229 @@
+# I-027: Spell progress (Unknown, Learning, Practised, Mastered, and XP), saved on this device
+
+**based_on:** origin/main c4832d2e86c2408443124960b130fc6208a89aab (2026-10-30, after roadmap v2, PR #31). Code read with `git show c4832d2:<path>`; the primary checkout (661b9ba) has no `crates/bevy-client/src`, so builders branch from the real origin/main.
+
+**Revision 2** (answers `critique.md`; see "Planner response" at the end). Phase 2, first item of the core loop (`target.md`, "Core loop"). It adds the progress model, saves it in this browser only, and shows it in `__gameState`. It plays no part in gameplay yet. I-028 (Formula Bench), I-029 (worked and instant casts) and I-030 (mastery trial) call its API. **The analytics events moved to their own item, I-042** (`docs/loop/items/I-042/spec.md`, held behind ACTION-1). This item closes on tests 1 to 25b and waits on no human.
+
+**Depends on I-026** (spells as data). I-026 has no spec yet (`docs/loop/items/I-026/` does not exist at this writing), so this spec states the contract it assumes (see "Assumed from I-026"). It is written so that it works on c4832d2 alone, and it names the single line I-026 swaps when it lands.
+
+**Runs beside I-022, I-024 and I-025.** It touches none of their hunks. "Overlap and merge order" under Contract lists each one.
+
+## Facts from c4832d2 this spec relies on
+
+`main.rs` means `crates/bevy-client/src/main.rs`, `hud.js` means `crates/bevy-client/web/hud.js`, `golden` means `tests/e2e/golden.mjs`.
+
+- **Spells.** `chem::Spell` is `[Fire, Water, Frost, Foam]` (`chem.rs:59-67`, `Spell::ALL`). `name()` gives `"Fire"`, `"Water"`, `"Frost"`, `"CO₂"`. There is no stable string id. `game.spell` is the index into `Spell::ALL`, and `select N` picks index N−1 (`main.rs:760`).
+- **Commands.** `window.__game.cmd(c)` pushes onto `window.__gameIn.cmds` (`hud.js:160`, `hud.js:121`). The array is created by `startHud()` and survives until the first `bridge::poll` (`bridge.rs:69-80`), so commands pushed before the WASM boots are kept and run on the first frame. `control` (`main.rs:666`) takes the commands (`main.rs:739`) and splits each on whitespace (`main.rs:741`). Debug-only names are gated by `settings.debug` (`main.rs:750-757`). Unknown names fall through `_ => {}` (`main.rs:813`). After the loop only `tap*`, `cast` and `fire` are kept for `aim_and_cast` (`main.rs:816-819`).
+- **`control` has 13 system parameters** (14 on native, with the `cursor` one). Bevy's limit is 16, so one more `ResMut` fits.
+- **`reset`** (`main.rs:878-893`) rebuilds `Game` from `default()` and keeps only `spell`, `locked`, `paused` and `epoch`. A resource outside `Game` is untouched by `reset`.
+- **State JSON.** `publish` (`main.rs:1545`) writes one `format!` string (`main.rs:1580-1581`) through `bridge::publish`. Its last keys are I-019's `clicks … fxWater`. Golden's key-order check pins `[...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS]` in order (`golden:1045-1047`). I-025 (specced, not merged) appends `fireInView` with `I025_KEYS`.
+- **Storage pattern.** `hud.js` keeps settings in `localStorage['alchemist.settings.v1']`, each access in `try/catch` (`hud.js:50`, `hud.js:64`). Golden already boots a context where `Storage.prototype.getItem` and `setItem` throw, and requires 0 console errors there (`golden:941-969`).
+- **Boot.** `boot.js` statically imports `bevy-client.js` and `hud.js`, calls `startHud()`, then (only with `rg-analytics` "on") loads `age.js` with a dynamic `import('./age.js').then(...).catch(() => {})`, then `init()`. A static import that 404s fails the whole `boot.js` module, so `init()` never runs.
+- **Shipping.** `build-web.sh:21` copies an explicit list into `web/pkg-out`: `cp web/index.html web/style.css web/boot.js web/hud.js web/favicon.svg "$OUT/"`. A new `web/*.js` is not served unless added there. `scripts/build-site.sh` copies all of `pkg-out/.` into `web/dist`, so adding to `build-web.sh` also ships the file to `dist`; `build-site.sh` needs no edit.
+- **Logging.** Bevy's `LogPlugin` on wasm writes styled `console.log` lines (golden strips `%c` and the `color:` tail, `golden:68`), so a `warn!` is **not** guaranteed to arrive as `console.warn`. Golden records every console text in `logs` and only `type() === 'error'` in `errors`.
+- **Analytics.** The 3D client sends exactly `session_start`, `quest_complete` and `session_end` (`analytics.js` `EXTRA_KEYS`). The server accepts exactly five types (`functions/_lib/analytics.ts` `EVENT_TYPES`, `KEYS_BY_TYPE`). The D1 table has a `CHECK` on `type` (`migrations/0002_quest_complete.sql`), so a new type needs migration 0003. `quest_complete` stores its index in the `room` column ("no new column, no new kind of data"). `docs/ANALYTICS.md` says what is never collected, including "anything typed (formulas, spells, free text)". `target.md` puts "any change to what data is collected" under human-only.
+- **Unit test runners.** `rustc --edition 2021 --test <file>.rs` for Bevy-free modules (as `cues.rs`). `npm test` runs `node --test "test/**/*.test.ts"`, which imports the client's `.js` modules directly (`test/bevy-analytics.test.ts`).
+- **GS-28** bans daily-reward or streak lures ("come back tomorrow") and fake countdowns. **GS-14** requires `localStorage` wrapped in `try/catch` so the game works when storage is blocked.
+
+## Assumed from I-026 (stated, because I-026 has no spec yet)
+
+- `Spell::ALL` keeps its length (4) and its order (Fire 0, Water 1, Frost 2, CO2 3) until a later item adds spells. Progress is keyed by a **stable lowercase id string**, not by index, so a later reorder cannot move one spell's progress onto another.
+- I-026 gives each spell a stable content id (expected: a method `Spell::id(self) -> &'static str`, or an id field on its spell data, taken from `content/`).
+- **Until that exists**, `progress.rs` carries its own table `pub const SPELL_IDS: [&str; 4] = ["fire", "water", "frost", "co2"];` in `Spell::ALL` order. `main.rs` reaches ids only through one helper, `fn spell_id(i: usize) -> &'static str`, in `progress.rs`. When I-026 lands first, the rust lane makes `spell_id` return I-026's id instead, and keeps these four strings as I-026's ids for the current spells (a saved `water` must still load). If I-026 picks different ids, I-026 or this item adds a one-line alias in `decode` (`"co2"` for I-026's name). The breaker checks that a save written before the swap still loads after it.
+- `progress.rs` takes no I-026 type in its signatures (only `&str` ids and indices). I-026 can change `chem.rs`, `content/` and `crates/sim` freely.
+
+## Problem
+
+The core loop (`target.md`) says every spell moves Unknown → Learning → Practised → Mastered, that worked casts earn XP before mastery, and that mastery needs 3 unaided correct builds spread over 2 days plus 1 "predict what happens" answer, after which it never fades. On c4832d2 none of this exists. The game has 4 spells that are always castable, no per-spell state, nothing saved, and nothing to tell a teacher whether anyone masters anything.
+
+I-028, I-029 and I-030 each need somewhere to write learning progress, and B9 ("Mastery works") needs it to survive a reload and a break. If each of those items invents its own state, the rules will drift apart. This item is the one owner of the rules.
+
+**Goal:** one pure, tested progress model that the next three items call, saved across reloads in this browser, and visible to tests.
+
+## Learning-science basis (and what is only a game rule)
+
+- **Spacing (the "3 builds over 2 days" rule).** Distributed practice beats massed practice for retention: Cepeda, Pashler, Vul, Wixted & Rohrer (2006), "Distributed practice in verbal recall tasks: a review and quantitative synthesis", *Psychological Bulletin* 132(3), 354-380.
+- **Retrieval and prediction (unaided builds, the "predict what happens" answer).** Retrieving from memory strengthens it more than restudy: Roediger & Karpicke (2006), "Test-enhanced learning: taking memory tests improves long-term retention", *Psychological Science* 17(3), 249-255.
+- **"2 days" is a proxy, with a known loophole.** The rule counts distinct **local calendar days**, as `target.md` says "2 days". Builds at 11:55 pm and 12:05 am count as two days, and so does changing the device clock. This item accepts that: storing timestamps would keep a history of when a child played (a privacy cost) and still could not be validated against a changed clock. The same sentence goes in the code comment on `unaided_build`. I-030 may add a stricter rule (for example "not in the same session") on top; nothing here blocks it, because `unaided_build` is the only place that counts days.
+- **"Mastered never fades" is a game rule, not a memory claim.** Memory does fade; the game chooses never to take a stage away so that a child is not punished for a break. The memory check is I-030's keep-it-sharp bonus.
+
+The rows for these two sources go in `content/science-sources.md` when I-030 adds player-facing copy that relies on them; this item adds no copy, so it cites them here only.
+
+## Bars moved
+
+- **B9 (Mastery works):** enabling. It provides the state machine, XP and the 2-day rule that B9 measures, and keeps them across a break (the "from-memory check after a break" needs mastery that survives a reload). B9 itself moves only when I-028 and I-029 call this API from play.
+- **B7:** unchanged by this item (the events are I-042).
+- **B1:** must stay green. New golden checks are added; existing ones pass unchanged apart from the sanctioned key-order edit. `progress.js` is loaded so that even a missing file cannot stop the boot (test 25b).
+- **B2/B3:** no measurable cost. One small array in the state JSON and one `localStorage` write per change (never per frame).
+
+## Smallest version
+
+1. **The model (`crates/bevy-client/src/progress.rs`, new, pure Rust, no Bevy types).**
+   - `pub enum Stage { Unknown, Learning, Practised, Mastered }`, ordered (`PartialOrd`, `Ord`), with `as_str()` giving `"unknown"`, `"learning"`, `"practised"`, `"mastered"`.
+   - `pub struct SpellProgress { pub stage: Stage, pub xp: u32, pub builds: u8, pub build_days: u8, pub last_build_day: u32, pub predicted: bool }`. `builds` is capped at 3 and `build_days` at 2. Only one day number is kept per spell (data minimisation: no history of when you played).
+   - `pub struct Book { spells: [SpellProgress; 4], rev: u32, day: u32 }`. `rev` bumps on every change and is not saved. `day` is today's local day number (days since 1970-01-01 in the device's time zone), set by JS; 0 means unknown.
+   - **XP constants** (one place, named): `XP_LEARN = 10`, `XP_WORKED = 10` (a worked cast built correctly), `XP_WORKED_WRONG = 0` (a wrong build fizzles kindly and costs nothing), `XP_INSTANT = 2`, `XP_UNAIDED_BUILD = 20`, `XP_PREDICT = 20`, `PRACTISED_XP = 30`, `XP_MAX = 1_000_000` (saturating).
+   - **Operations**, each returning `Vec<Transition>` (`Transition { spell: usize, to: Stage }`) for every stage change it caused, empty when nothing changed stage:
+     - `learn(i)`: Unknown → Learning, `+XP_LEARN`. On any other stage it does nothing. (I-028 calls it on the first correct bench build.)
+     - `worked_cast(i, correct)`: on Learning, Practised or Mastered, `+XP_WORKED` if correct, else `+XP_WORKED_WRONG`. On Unknown it does nothing (you cannot cast what you have not learned). (I-029.)
+     - `instant_cast(i)`: only on Mastered, `+XP_INSTANT`. (I-029.) It changes XP, so it bumps `rev` and the page saves once per instant cast (never per frame).
+     - `unaided_build(i)`: on Learning or Practised, and only when `day != 0`. `builds = min(builds + 1, 3)`; if `day != last_build_day`, then `build_days = min(build_days + 1, 2)` and `last_build_day = day`. `+XP_UNAIDED_BUILD`. With `day == 0` (clock unknown) it does nothing, so the 2-day rule cannot be met by accident. Its code comment states the midnight/clock limit from "Learning-science basis". (I-030.)
+     - `predict(i, correct)`: on Learning or Practised, if correct sets `predicted = true` and `+XP_PREDICT`. A wrong answer changes nothing and is never penalised. (I-030.)
+     - `clear()`: every spell back to the default, `rev` bumps. It is the only way down, and only an explicit player action may call it (a later "new player" button; see Out of scope).
+     - **`rev` bumps only when a field of some spell actually changed.** A wrong `worked_cast` (`+0`), a wrong `predict`, any call on a stage it does not apply to, `unaided_build` with `day == 0`, and an out-of-range index leave `rev` unchanged, so the page never rewrites the save for nothing. (When `XP_WORKED_WRONG` is 0, a wrong worked cast is a no-op.)
+     - After every operation, `settle(i)` runs: Learning with `xp >= PRACTISED_XP` becomes Practised; then Practised with `builds >= 3 && build_days >= 2 && predicted` becomes Mastered. Both can happen in one operation (two transitions, in order).
+     - **Mastery never fades.** No operation except `clear` lowers a stage or XP. There is no decay, no timer, and nothing that reads the day except `unaided_build`.
+   - `set_day(d)`: accepts `19_000..=80_000` (years 2022 to 2189), otherwise sets 0. Changing the day is not a progress change (`rev` unchanged).
+   - **Save format** (`encode` and `decode`): one line, no spaces, at most 512 characters, charset `[a-z0-9:.|]` (the same set as `progress.js`'s `SAVE_RE`; `;` is not used). Every field is an unsigned decimal, so a `-` (test 8's `-1`) is rejected by `decode` and by `SAVE_RE` alike. `p1` then one `|id:stage:xp:builds:build_days:last_build_day:predicted` per spell that is not at the default, with stage as 0 to 3 and predicted as 0 or 1. Example: `p1|water:2:40:2:1:20756:0`. A fresh book encodes as `p1`.
+     - `decode(s) -> Result<[SpellProgress; 4], DecodeError>` rejects the whole save (never a partial one) on a wrong prefix, an unknown or repeated id, a field out of range, a field count other than exactly 7, or over 512 characters. **The field count is exactly 7 in this item; I-030 widens it to "7 or 9"** and keeps rejecting 8 and 10 or more. A stage above what its fields allow (for example Mastered with `predicted = 0`) is **kept** as saved, because mastery never fades and a later rule change must not take it away. `decode` and `load` never run `settle`: a stage **below** what its fields allow (for example Learning with `xp` 20, `builds` 3, `build_days` 2, `predicted` 1) is also kept exactly as saved until the next operation on that spell. This rule must survive I-030's 9-field rewrite (test 8b, which I-030 inherits unedited).
+     - Unknown ids are rejected, not dropped, so a save from a newer build is never silently thinned. (The cost: a downgrade starts fresh. Noted under Out of scope.)
+   - `spell_id(i) -> &'static str` and `index_of(id) -> Option<usize>` (see "Assumed from I-026").
+   - `apply_cmd(book, args: &[&str], debug: bool) -> Result<Vec<Transition>, &'static str>`: parses one `prog …` command (args after `prog`). Always allowed: `load <save>`, `day <n>`. Only with `debug`: `learn <i>`, `worked <i> <0|1>`, `instant <i>`, `build <i>`, `predict <i> <0|1>`, `clear`. `<i>` is the 0-based spell index. Anything else is an `Err` and changes nothing. `load` replaces the spells on success and **does not** bump `rev` (loading is not a change, so it is never re-saved or reported).
+   - `state_json(book) -> String`: the value of the `progress` key (see Contract).
+
+2. **Wiring in `main.rs` (small).**
+   - `mod progress;` next to the other `mod` lines (`main.rs:15-23`).
+   - `#[derive(Resource, Default)] struct Progress(progress::Book);` and `.init_resource::<Progress>()` next to `init_resource::<Game>()` (`main.rs:339`).
+   - `control` takes `mut prog: ResMut<Progress>` (parameter 14, 15 on native). One new arm in its command `match`: `Some("prog") => if let Err(e) = progress::apply_cmd(&mut prog.0, &a[1..], settings.debug) { warn!("{c:?}: {e}") }`. It is not added to `debug_only`; the debug gate lives in `apply_cmd`. A rejected `load` logs with `warn!`, never `error!`.
+   - `reset` is not changed, so R and the age picker's `reset` keep progress.
+   - `publish` takes `prog: Res<Progress>` and appends the three keys in Contract after the last key present at the branch base.
+   - No call from casting, chemistry events or the HUD. Gameplay is unchanged.
+
+3. **Saving in the browser (`crates/bevy-client/web/progress.js`, new; one line in `boot.js`).**
+   - `export const STORE_KEY = 'rg.progress.v1'`, `MAX_SAVE = 512`, `SAVE_RE = /^p1(\|[a-z0-9:.]+)*$/`.
+   - `localDay(date)`: `Math.floor((date.getTime() - date.getTimezoneOffset() * 60000) / 86400000)`. Pure.
+   - `readSave(storage)`: the stored string if it matches `SAVE_RE` and is at most `MAX_SAVE` long; otherwise `null`. Any throw gives `null`. It never deletes or rewrites a bad save (the first real change overwrites it).
+   - `createSaver({ storage, getState })` returns `{ poll() }`. `poll` reads the state; when `progRev` is greater than the last `progRev` it saw (starting at 0), it writes `progSave` under `STORE_KEY` (only if it matches `SAVE_RE`). A throwing `getItem`, `setItem` or `getState` is swallowed, and progress then lasts for this page only.
+   - `startProgress()`: pushes `prog day <localDay(new Date())>`, then `prog load <save>` when `readSave` gives one, through `window.__game.cmd`, then polls every 500 ms (the same budget as `analytics.js`'s `POLL_MS`), and also polls once on `visibilitychange` to hidden and on `pagehide`. It never throws. It does not depend on the `rg-analytics` switch: saving progress on the device is part of the game, not analytics.
+   - `boot.js`: **a dynamic import**, the pattern `age.js` already uses, right after `startHud();`: `try { import('./progress.js').then((m) => m.startProgress()).catch(() => {}); } catch {}`. No static import, so a missing or broken `progress.js` costs only saving, never the boot. The module usually resolves before the WASM's first frame, so its commands still run on the first frame; if it resolves later, they run on the next frame after it, which only delays the load by a frame (no test depends on the exact frame).
+   - `crates/bevy-client/build-web.sh:21`: add `web/progress.js` to the `cp` list (one word). `scripts/build-site.sh` is not edited (it copies `pkg-out/.`).
+   - Nothing is sent over the network. No new DOM, no new text, no CSS.
+
+4. **Analytics events: moved to I-042** (held behind ACTION-1). This item has **no** change under `functions/`, `migrations/`, `analytics.js`, `age.js`, `docs/ANALYTICS.md` or `SECURITY.md`.
+
+## Acceptance tests
+
+**Rust unit tests** run with `rustc --edition 2021 --test crates/bevy-client/src/progress.rs -o /tmp/progress && /tmp/progress`. They fail today because the file does not exist. **On the contract stub** (neutral bodies: every operation returns no transitions and changes nothing, `apply_cmd` returns `Ok(vec![])`, `decode` returns `Err`) tests **1-9 are red** (6 because of its reach-Mastered assertion) and **10 and 11 are green**, because `spell_id`, `index_of` and `state_json` are real in the stub. The rust lane records this split before writing bodies.
+
+1. **Stages in order.** Fresh book: all 4 `Unknown`, `xp` 0, `rev` 0. `learn(1)` gives `[Transition{1, Learning}]`, `xp` 10, `rev` 1. `learn(1)` again gives `[]`, `xp` 10, `rev` unchanged.
+2. **Worked casts earn XP before mastery.** After `learn(1)`, two `worked_cast(1, true)` give `xp` 30 and the second returns `[Transition{1, Practised}]`. `worked_cast(1, false)` gives `xp` unchanged, `[]` and **`rev` unchanged**. `worked_cast(2, true)` on Unknown gives `[]`, `xp` 0. `instant_cast(1)` on Practised gives `[]`, `xp` unchanged.
+3. **The 2-day rule.** On a Practised spell with `set_day(20755)`: three `unaided_build` give `builds` 3, `build_days` 1. `predict(1, true)` gives `predicted` and stays Practised (one day only). `set_day(20756)` then `unaided_build(1)` returns `[Transition{1, Mastered}]`. With `set_day(0)` (or `set_day(5)`, out of range), `unaided_build` changes nothing and leaves `rev` unchanged. On a Mastered spell `instant_cast(1)` adds 2 XP and bumps `rev` by exactly 1.
+4. **Predict.** `predict(i, false)` never changes anything, **including `rev`**. `predict` on Unknown or Mastered changes nothing.
+5. **Two transitions in one step.** `apply_cmd(&mut b, &["load", "p1|water:1:20:3:2:20756:1"], false)` is `Ok`, and `b.get(1)` is exactly that state, still **Learning** (load does not settle). `b.worked_cast(1, true)` then returns `[Transition{1, Practised}, Transition{1, Mastered}]` in that order, `xp` 30. This state **cannot arise in play** (an unaided build or a predict on Learning adds 20 XP and settles to Practised at once); it arises only from a save, for example one written under different constants. The test exists so `settle` is proven to chain.
+6. **Mastery never fades.** A deterministic LCG drives 20 000 random operations (every op, every index 0..4 and some out of range, days from 0 to 90 000) over 50 seeds. No op panics, and no op other than `clear` ever lowers any spell's stage or XP. Out-of-range indices change nothing. **Each seed set (the 50 seeds together) must drive spell 1 to Mastered at least once**, and the test asserts that, so a no-op model cannot pass. The op mix is weighted so this holds (for example `set_day` advances by 0 or 1 most of the time and `predict`/`unaided_build` are each at least 15% of ops).
+7. **Save round trip.** For every book reached in test 6, `decode(encode(b))` equals its spells, `encode` matches `^p1(\|[a-z0-9:.]+)*$` and is at most 512 characters. Fresh encodes as exactly `p1`. `rev` and `day` are not in the save.
+8. **Decode rejects whole.** Each gives `Err` and leaves the book unchanged through `apply_cmd(["load", s])`: `""`, `p2`, `p1|water:2:40:2:1:20756`, `p1|water:9:0:0:0:0:0`, `p1|water:1:0:4:0:0:0`, `p1|water:1:0:0:3:0:0`, `p1|water:1:0:0:0:0:2`, `p1|lava:1:0:0:0:0:0`, `p1|water:1:0:0:0:0:0|water:1:0:0:0:0:0`, a 513-character save, and `p1|water:1:-1:0:0:0:0`. `p1|water:3:0:0:0:0:0` (Mastered with nothing behind it) loads as Mastered. A string with `;` (`p1|water:1:0:0:0:0:0;`) is rejected, and so are 6 and 8 fields.
+   - **8b (inherited by I-030).** Stage is kept as saved in both directions: `p1|water:3:0:0:0:0:0` loads as Mastered with `predicted = false` and stays Mastered after `predict(1, true)` and `worked_cast(1, true)`; `p1|water:1:20:3:2:20756:1` loads as Learning (test 5). I-030 keeps 8 and 8b unedited.
+9. **Commands and the debug gate.** `apply_cmd(["learn","1"], false)` is `Err`, book unchanged. With `true` it learns. `["day","20755"]` and `["load","p1"]` work with `false`. `["load", s]` does not bump `rev`. `["nope"]`, `["learn"]`, `["learn","x"]` and `["worked","1","2"]` are `Err`. The debug-gate error string is exactly `"needs ?debug"` (test 20 matches it).
+10. **Ids.** `spell_id` for 0..4 is `fire`, `water`, `frost`, `co2`; `index_of` inverts it; `index_of("CO₂")` and `index_of("Water")` are `None`.
+11. **`state_json`.** For a fresh book it is exactly `[{"id":"fire","st":"unknown","xp":0,"builds":0,"days":0,"predicted":false},…]` with 4 entries in `Spell::ALL` order, and it parses as JSON for every book in test 6.
+
+**Node unit tests** go in `test/bevy-progress.test.ts`, importing `crates/bevy-client/web/progress.js`; they run with `npm test`. They fail today because the module does not exist.
+
+12. `localDay(new Date('2026-10-30T23:30:00Z'))` is 20756 when the offset is 0. With a stubbed `getTimezoneOffset` of −120 (UTC+2) it is 20757. With +420 (UTC−7) for `2026-10-31T03:00:00Z` it is 20756.
+13. `readSave`: a valid `p1|water:1:10:0:0:0:0` is returned; `null` for missing, `'garbage'`, a 513-character valid-looking string, and a storage whose `getItem` throws.
+14. `createSaver`: with a fake state sequence of `progRev` 0, 0, 1, 1, 3 it writes exactly twice, with the `progSave` of revs 1 and 3. A `setItem` that throws, a `getState` that throws or returns `null`, and a `progSave` that fails `SAVE_RE` each write nothing and do not throw.
+15. `startProgress` on a fake `window` (stub `__game.cmd`, `localStorage`, timers, and a `Date` fixed at `2026-10-30T12:00:00Z` with offset 0) pushes exactly `['prog day 20756', 'prog load p1|water:1:10:0:0:0:0']` in that order, and only `['prog day …']` when there is no valid save. It does not throw when `window.__game` is missing.
+
+**Golden e2e checks** are new `check(...)` calls in a new function `spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors })` in `golden`, defined at the end of the file and called on its own line **after** the last section call before `no console errors` (after I-022's `reviewFollowups(...)` line if I-022 has merged, otherwise after `castingYouCanSee(...)` at `golden:343`), so `no console errors` covers it. They run as `QUERY=?low node tests/e2e/golden.mjs` (golden's URL already carries `debug`), **after `./build-web.sh`**, because golden serves `web/pkg-out`. They fail today because `progress`, `progRev` and `progSave` do not exist. On the stub they fail at test 17.
+
+16. **Shape.** After `localStorage.removeItem('rg.progress.v1')` and a reload, `state.progress` has 4 entries with ids `fire, water, frost, co2`, all `st: 'unknown'`, `xp: 0`; `progRev === 0`; `progSave === 'p1'`. The key order is the Contract's.
+17. **A change is saved.** `cmd('prog learn 1')`: within 2 s, water is `learning` with `xp` 10, `progRev` is 1, and `localStorage['rg.progress.v1'] === state.progSave === 'p1|water:1:10:0:0:0:0'`.
+18. **It survives a reload and R.** `cmd('reset')` keeps water `learning`. A page reload then shows water `learning`, `xp` 10, and `progRev` 0 (loading is not a change).
+19. **The path to mastery, end to end.** `prog worked 1 1` twice gives `practised` at `xp` 30. `prog day 20755`, `prog build 1` three times, `prog predict 1 1` stays `practised`. `prog day 20756`, `prog build 1` gives `mastered`. A reload keeps `mastered`. Only `prog` commands are used (no wall-clock wait).
+20. **Not a cheat outside debug.** In a new context without `debug` in the URL, `cmd('prog learn 2')` leaves frost `unknown`. The check is recognised by text, not by console type: within 2 s some console message (any type) contains both `prog learn 2` and `needs ?debug`, and no message of type `error` contains `prog`. (Bevy's wasm logger may emit `warn!` as a styled `console.log`; see Facts.)
+21. **Blocked storage.** In a context whose `Storage.prototype.getItem` and `setItem` throw (the pattern at `golden:941-944`): the game boots, `prog learn 1` makes water `learning` in the state, and there are 0 console errors and 0 page errors.
+22. **Corrupt save.** With `rg.progress.v1 = 'garbage'` set before load: boots with all spells `unknown`, 0 console errors, and the stored value is still `'garbage'` until `prog learn 0`, after which it is `'p1|fire:1:10:0:0:0:0'`.
+23. **Gameplay unchanged.** With water `mastered` from test 19, `select 3` then `cast` still casts Frost (`casts` +1). With all `unknown` (fresh), the same holds. The section ends by removing `rg.progress.v1` and reloading, so later runs start fresh.
+24. **Golden stays green.** Every existing check passes 3/3 with `QUERY=?low`, with no threshold edits and no edit to any existing check except the key-order list (Contract). Run golden on its own, because concurrent Chromiums crash (I-017).
+25a. **`progress.js` is shipped.** After `./build-web.sh`, `crates/bevy-client/web/pkg-out/progress.js` exists and is byte-identical to `web/progress.js`. After `scripts/build-site.sh` (where the shared build runs it), `web/dist/progress.js` exists. A shell check in the web lane's evidence; golden test 16 also fails if it is missing (no load, no save).
+25b. **A missing `progress.js` cannot stop the boot.** In a new golden context, `page.route('**/progress.js', r => r.fulfill({ status: 404, body: '' }))`, then load: the game boots (`__gameState` published and `frame` advancing within the usual boot budget), `cmd('select 3')` then `cast` still casts, there are 0 page errors, and every console error is the browser's resource-load message for `progress.js` (no other error). This is the M1 guard: with a static import it fails because `init()` never runs.
+25. **Lane hygiene.** `git diff --name-only origin/main...` on the PR lists only paths in this item's lanes (including the one-word `build-web.sh` edit). It lists none of `hud.js`, `index.html`, `style.css`, `age.js`, `analytics.js`, `functions/**`, `migrations/**`, `dashboard/**`, `docs/ANALYTICS.md`, `SECURITY.md`, `chem.rs`, `world.rs`, `cues.rs`, `fx.rs`, `feel.rs`, `clock.rs`, `motion.rs`, `bridge.rs`, `player.rs`, `Cargo.toml` or `Cargo.lock`. `git diff -U0` on `build-web.sh` changes only line 21. `git diff -U0` on `main.rs` touches only: the `mod` list, the `Progress` struct, the `init_resource` line, `control`'s parameter list and one `match` arm, `publish`'s parameter list, its format string tail and its argument tail. `golden` has 0 deleted lines except the key-order lines.
+
+Tests 26-29 (analytics) moved to I-042 with their numbers.
+
+## GS walk (screens, controls and effects this item touches)
+
+- **GS-14:** progress is in `localStorage` with every access in `try/catch`; tests 13, 14, 21 and 22 prove blocked and corrupt storage.
+- **GS-28:** no daily reward, streak, countdown or reminder is added. The 2-day spacing is a learning rule inside the mastery trial (I-030 owns its wording). This item adds no player-facing text, so it cannot nudge. **The critic must check in I-030** that the trial's copy never says "come back tomorrow" as a lure.
+- **GS-25:** nothing here is timed. `day` only counts distinct days for builds; nothing expires.
+- **GS-27:** no new text.
+- Every other GS item: no change (no new DOM, controls, camera or effects).
+
+## Out of scope
+
+- Any gameplay use: the bench (I-028), the worked-cast overlay and instant casts (I-029), the trial and keep-it-sharp bonus (I-030), and any HUD showing stage or XP (I-029 hotbar, I-039 shrine). No cast is gated by stage.
+- A "new player / start over" button. Shared classroom devices will carry one child's progress to the next. The model has `clear()` and the debug-only `prog clear`, which no teacher can reach. **This is now an item, I-041** (proposed id), defined under "Follow-up items filed by this spec". It is a **ship gate**: no build with I-028's bench may go to any teacher or classroom link until I-041 has merged.
+- Analytics events (`spell_learned`, `spell_mastered`): I-042, held behind ACTION-1.
+- Several save slots, sign-in, cloud saves (I-040), and syncing between tabs (the last tab to write wins).
+- Downgrade safety: a save from a newer build with an unknown spell id is rejected whole and the older build starts fresh (the save is kept until the first change).
+- Band-specific thresholds (I-030 may tune the constants; they live in one place).
+
+## Contract
+
+A stub lands on the branch base before the lanes start. It has no behaviour; every lane codes against it.
+
+- **`progress.rs`** with every public item in "Smallest version" 1, with these exact signatures, and with neutral bodies (operations return `Vec::new()` and change nothing; `encode` returns `"p1"`; `decode` returns `Err`; `state_json` returns the fresh array, built for real since it is a few lines; `spell_id` and `index_of` real):
+  - `impl Book { pub fn learn(&mut self, i: usize) -> Vec<Transition>; pub fn worked_cast(&mut self, i: usize, correct: bool) -> Vec<Transition>; pub fn instant_cast(&mut self, i: usize) -> Vec<Transition>; pub fn unaided_build(&mut self, i: usize) -> Vec<Transition>; pub fn predict(&mut self, i: usize, correct: bool) -> Vec<Transition>; pub fn clear(&mut self); pub fn set_day(&mut self, d: u32); pub fn get(&self, i: usize) -> Option<&SpellProgress>; pub fn rev(&self) -> u32; pub fn encode(&self) -> String; pub fn state_json(&self) -> String }`
+  - `pub fn decode(s: &str) -> Result<[SpellProgress; 4], DecodeError>`, `pub fn apply_cmd(b: &mut Book, args: &[&str], debug: bool) -> Result<Vec<Transition>, &'static str>`, `pub fn spell_id(i: usize) -> &'static str`, `pub fn index_of(id: &str) -> Option<usize>`, `pub const SPELL_IDS: [&str; 4]`.
+  - I-028, I-029 and I-030 call only these `Book` methods (through `ResMut<Progress>`) and never write fields.
+- **`main.rs` wiring** exactly as in "Smallest version" 2 (the stub lands it whole; the rust lane does not redo it).
+- **`build-web.sh:21`** gains `web/progress.js` in the stub, together with an empty `web/progress.js` that exports a no-op `startProgress()` and the three constants, and the dynamic-import line in `boot.js`. So the stub already ships and loads the file, and golden on the stub runs the real boot path.
+- **New `__gameState` keys**, appended after the last key at the branch base, in this order:
+
+  | key | type | meaning | neutral value |
+  |-----|------|---------|---------------|
+  | `progress` | array of 4 `{id, st, xp, builds, days, predicted}` | per spell, in `Spell::ALL` order; `st` is the stage string; `days` is `build_days` | the fresh array |
+  | `progRev` | u32 | bumps on every progress change; 0 at boot and after `load` | 0 |
+  | `progSave` | string | `encode()` of the book (escaped with `esc`) | `"p1"` |
+
+- **Golden key-order check (the stub makes the change).** In `clockAndBudget`, add `const I027_KEYS = ['progress', 'progRev', 'progSave'];` and append `...I027_KEYS` at the end of the required order and to the length sum (after `...I025_KEYS` if I-025 has merged). Nothing else in that check changes.
+- **Commands:** `prog load <save>`, `prog day <n>` (any build); `prog learn|worked|instant|build|predict|clear …` (`?debug` only). Index is 0-based in `Spell::ALL` order.
+- **Storage:** `localStorage['rg.progress.v1']`, written only by `progress.js`, only from `progSave`, only when `progRev` grows.
+- **Analytics:** none here. I-042 reads the published `progress` key and nothing else from this item.
+
+### Overlap and merge order
+
+| file | this item | in-flight item's hunk | resolution |
+|------|-----------|-----------------------|------------|
+| `main.rs` | `mod` list; `Progress` struct; one `init_resource`; `control` params + one `match` arm; `publish` params + format tail + arg tail | **I-022:** `Settings` and `aim_and_cast` lines. **I-024:** the `world::build` call. **I-025:** `cues`/streams, `fire_in_view` after the finder, the held path, and the format tail (`fireInView`). **I-026 (assumed):** `chem::Spell`, `select`, maybe `spellName`/`formula` args | Only the format tail touches the same lines as I-025. **Merge I-025 first**; this item appends after `fireInView`. If this item is ready first, it merges and I-025 rebases, appending `fireInView` after `progSave` and `I025_KEYS` after `I027_KEYS` (the leader picks one; recommended: I-025 first) |
+| `golden` | new `spellProgress` at the end; one call line before `no console errors`; key-order lines | **I-022:** `reviewFollowups` and its call after 343. **I-025:** `streamsAndFinder`, its call, the key-order lines | Call order: feel, I-025, I-019, I-022, I-027. Key list order: `I019_KEYS`, `I025_KEYS`, `I027_KEYS` |
+| `boot.js` | one guarded dynamic-import line after `startHud()` | **I-028:** one import and one guarded call (`startBench`) after this item's line. **I-030:** lists it as not touched. I-022 and I-025 list it as do-not-touch | Textual neighbours only. **This item first**; I-028 puts its line after this one. Whoever lands second rebases the one line. (I-028 currently specs a static `import { startBench }`; recommend I-028 also use a dynamic import, for the same reason as M1. A note for I-028's planner) |
+| `build-web.sh:21` | `web/progress.js` added to the `cp` list | **I-028** `web/bench.js`, **I-029** `web/worked.js`, **I-030** `web/trial.js`, all on the same line | One line; each item appends its own word. Merge order puts `progress.js` first; whoever lands later rebases the line |
+| `chem.rs`, `content/**`, `crates/sim/**` | not touched | **I-026** | `spell_id` swap only (see "Assumed from I-026") |
+| `world.rs`, `Cargo.toml`, `perf.mjs`, `fx.rs`, `cues.rs`, `feel.rs`, `hud.js` | not touched | I-022, I-024, I-025 | none |
+
+**Merge order:** I-026 (if ready) → I-022, I-024, I-025 (any order among them) → I-027 → I-028 … (I-042 after ACTION-1 and I-022; I-041 before any classroom link). I-027 can build in parallel with all of them; only its rebase waits.
+
+## Lanes
+
+| lane | owns | builds |
+|------|------|--------|
+| contract (first, small) | `crates/bevy-client/src/progress.rs` (stub), the `main.rs` wiring in Contract, the golden key-order lines, `crates/bevy-client/build-web.sh` (line 21 only), the stub `web/progress.js`, the `boot.js` line | The stub, the three neutral keys, `I027_KEYS`, the shipped no-op `progress.js`. Native `cargo build` and the wasm build pass; golden passes on the stub (keys present, neutral). |
+| rust | `crates/bevy-client/src/progress.rs` | Unit tests 1–11 first (1–9 red and 10–11 green on the stub, recorded), then the bodies. No edit to `main.rs` beyond the stub. Builds native and wasm. Must not touch any other `src/*.rs`, `Cargo.*`, `web/**` or tests |
+| web | `crates/bevy-client/web/progress.js` (bodies), `test/bevy-progress.test.ts` (new), `tests/e2e/golden.mjs` (the `spellProgress` function and its call line only) | Tests 12–15 first, then `progress.js`. Golden tests 16–23, 25a and 25b written against the stub (16, 25a and 25b pass on the stub; 17–23 fail until the rust lane merges) and recorded. Does not edit `boot.js` or `build-web.sh` beyond the stub. Must not touch `hud.js`, `index.html`, `style.css`, `age.js`, `analytics.js`, the panel harness, or any existing golden check |
+
+The rust and web lanes run in parallel once the stub is in. **Seam:** the web lane's golden tests 17–23 need the rust lane. The shared build after both merge runs the full golden. The seam breaker checks that `progSave` always matches `progress.js`'s `SAVE_RE`, that `load` never bumps `progRev` (otherwise every boot re-saves and I-042 would see false transitions), that a wrong cast or wrong predict never bumps `progRev`, that `pkg-out` and `dist` both contain `progress.js`, that a save made before the `spell_id` swap loads after it, and that the debug gate holds in a release build without `?debug`.
+
+## ACTIONs (human-only)
+
+None for this item. ACTION-1 (analytics review) moved to I-042.
+
+## Follow-up items filed by this spec
+
+The backlog at this spec's base (c4832d2) ends at I-040, and the primary checkout's `backlog.md` is stale (661b9ba), so the planner cannot write the rows there safely. **The leader inserts both rows when it next writes `backlog.md` on main, before I-028's PR is opened**, and confirms or renumbers the ids.
+
+- **I-041 (proposed): "Start over on this computer".** A pause-menu button with a confirm step ("Start over? This clears spell progress on this computer.", two large buttons, Cancel focused by default), which calls `prog clear` through a non-debug path (a new always-allowed `prog reset-all` command, or a direct HUD hook; the I-041 planner picks one) and removes `rg.progress.v1`. Track: product. Moves: B9 (guard), GS-27 copy. After: I-027. **Ship gate:** row text says "required before I-028 (or any later bench/mastery item) reaches a teacher or classroom link". I-028's backlog row gets "do not ship to teachers before I-041".
+- **I-042 (proposed): spell_learned / spell_mastered analytics.** `docs/loop/items/I-042/spec.md` (the rev 1 proposal, tests 26-29 and the held lane, moved unchanged). Track: infra. Moves: B7. After: I-027, I-022, ACTION-1. Status: held.
+
+## Planner response (to critique of revision 1)
+
+1. **Change 1 (ship `progress.js` via `build-web.sh`, check `build-site.sh`).** Accept. Verified at c4832d2: `build-web.sh:21` is an explicit list and `build-site.sh` copies `pkg-out/.`, so one word in `build-web.sh` covers both; the stub lands it, and test 25a checks both outputs.
+2. **Change 1b (dynamic import in `boot.js`, missing-file boot test).** Accept, with one refinement: a 404 always makes Chrome log a resource-load console error, so test 25b allows exactly that message and requires 0 page errors and a working game rather than "0 console errors".
+3. **Change 2 / M2 (test 5 through `load`).** Accept. Test 5 now loads `p1|water:1:20:3:2:20756:1`; the spec now states that `load` never settles and that this state cannot arise in play.
+4. **Change 3 (which tests are red on the stub; test 6 must reach Mastered).** Accept. 1-9 red, 10-11 green on the stub; test 6 asserts spell 1 reaches Mastered across the seed set.
+5. **Change 4 (no-`rev`-bump cases; how test 20 recognises the warning).** Accept. Tests 2, 3, 4 pin `rev` for wrong worked casts, wrong predicts and day-0 builds, and pin that an instant cast does bump (it changes XP). Test 20 matches the text `prog learn 2` + `needs ?debug` in any console type, because Bevy's wasm logger emits styled `console.log`, not `console.warn`.
+6. **Change 5 (citations, 2-day proxy, midnight case, never-fades is a game rule, do not block I-030).** Accept. New "Learning-science basis" section with Cepeda et al. 2006 and Roediger & Karpicke 2006; the code comment requirement is on `unaided_build`.
+7. **Change 6 (move analytics to its own item).** Accept. Moved verbatim to `docs/loop/items/I-042/spec.md`; one line left here; this item closes on 1-25b with no human wait.
+8. **Change 7 (drop `;`; state 7-field rule and that I-030 widens it; inherited stage-kept test).** Accept. Charset is `[a-z0-9:.|]`; decode requires exactly 7 fields; test 8b is the inherited test. (I-030's spec quotes the old charset with `;` at its line 29; its planner should drop it. It does not change I-030's behaviour.)
+9. **Change 8 (make "Start over" an item gating I-028 for teachers; update overlap for `boot.js` and `build-web.sh`).** Accept. Filed as I-041 above with the ship gate; the leader writes the backlog row because this checkout's backlog is stale. Overlap table now names I-028's `boot.js` line and the shared `build-web.sh:21` line with I-028, I-029 and I-030.
