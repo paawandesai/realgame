@@ -27,7 +27,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '../../crates/bevy-client/web/pkg-out');
 const VW = +(process.env.VW || 1280), VH = +(process.env.VH || 720);
 const shotDir = process.env.SHOTS ? process.env.SHOTS.replace(/\/?$/, '/') : null;
-const screenshot = async (page, name) => { if (shotDir) await page.screenshot({ path: `${shotDir}${name}` }); };
+const screenshot = async (page, name) => { if (shotDir) await page.screenshot({ path: `${shotDir}${name}`, timeout: 180000 }); };
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' };
 async function serve() {
