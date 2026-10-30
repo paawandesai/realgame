@@ -1,0 +1,21 @@
+[pairs] low@4x round 1 base cpu_p50=32.6 p99=58.7 tti=5828.1 fetch=450.3 compile_init=1682.7 first_frame=3630 to_interactive=65.1 valid=true
+[pairs] low@4x round 1 cand cpu_p50=29 p99=50.9 tti=5946.7 fetch=602.1 compile_init=1703.9 first_frame=3566 to_interactive=74.7 valid=true
+[pairs] default@4x round 1 base cpu_p50=38.5 p99=78.1 tti=6912.8 fetch=474.5 compile_init=1792.5 first_frame=4404 to_interactive=241.8 valid=true
+[pairs] default@4x round 1 cand cpu_p50=34.3 p99=49.2 tti=7318.1 fetch=594 compile_init=1884 first_frame=4587 to_interactive=253.1 valid=true
+[pairs] low@4x round 2 cand cpu_p50=31.1 p99=66.8 tti=6767 fetch=563.6 compile_init=1993.4 first_frame=4118 to_interactive=92 valid=true
+[pairs] low@4x round 2 base cpu_p50=30 p99=51.4 tti=5869.7 fetch=428 compile_init=1756 first_frame=3581 to_interactive=104.7 valid=true
+[pairs] default@4x round 2 cand cpu_p50=37.2 p99=60.2 tti=7744.3 fetch=479 compile_init=1887 first_frame=5013 to_interactive=365.3 valid=true
+[pairs] default@4x round 2 base cpu_p50=43.3 p99=75.8 tti=7003.4 fetch=512.2 compile_init=1764.8 first_frame=4456 to_interactive=270.4 valid=true
+[pairs] low@4x round 3 base cpu_p50=36.5 p99=66.4 tti=6664.5 fetch=567.3 compile_init=1805.7 first_frame=4204 to_interactive=87.5 valid=true
+[pairs] low@4x round 3 cand cpu_p50=32 p99=62.7 tti=6170.7 fetch=551.3 compile_init=1841.7 first_frame=3718 to_interactive=59.7 valid=true
+[pairs] default@4x round 3 base cpu_p50=50.6 p99=82.4 tti=7706 fetch=456.6 compile_init=2061.4 first_frame=4955 to_interactive=233 valid=true
+[pairs] default@4x round 3 cand cpu_p50=32.3 p99=46.5 tti=7532.1 fetch=519.8 compile_init=1947.2 first_frame=4859 to_interactive=206.1 valid=true
+[pairs] low@4x round 4 cand cpu_p50=28.4 p99=45.6 tti=5797.8 fetch=500 compile_init=1679 first_frame=3555 to_interactive=63.8 valid=true
+[pairs] low@4x round 4 base cpu_p50=28.2 p99=55.4 tti=5848.4 fetch=438.4 compile_init=1713.6 first_frame=3606 to_interactive=90.4 valid=true
+[pairs] default@4x round 4 cand cpu_p50=35 p99=55.1 tti=6977.3 fetch=527 compile_init=1803 first_frame=4417 to_interactive=230.3 valid=true
+[pairs] default@4x round 4 base cpu_p50=37.8 p99=53.5 tti=7409.6 fetch=416.1 compile_init=1992.9 first_frame=4688 to_interactive=312.6 valid=true
+[pairs] low@4x round 5 base cpu_p50=31.9 p99=58.1 tti=6210.7 fetch=454.9 compile_init=1812.1 first_frame=3873 to_interactive=70.7 valid=true
+[pairs] low@4x round 5 cand cpu_p50=28.2 p99=61.8 tti=5941 fetch=646.6 compile_init=1595.4 first_frame=3622 to_interactive=77 valid=true
+[pairs] default@4x round 5 base cpu_p50=42.9 p99=95.5 tti=6896.4 fetch=524.4 compile_init=1534.6 first_frame=4569 to_interactive=268.4 valid=true
+[pairs] default@4x round 5 cand cpu_p50=32.2 p99=93 tti=7616 fetch=596.7 compile_init=1858.3 first_frame=4856 to_interactive=305 valid=true
+[pairs] keep=false reasons=["wins 3/5","brotli +0.83 > 0.50"] low@4x tti limit 900 ms; tti spread {"low@4x":1391.1,"default@4x":1173.2}
