@@ -16,8 +16,9 @@ retry_parked_after_waves: 10
 stall_waves: 3
 notify: thread reply in the project thread on each merge, ACTION or bar change
 max_parallel_items: 2
+# 2026-10-30 Paawan: "parallelize as much as you can". Build slots stay 2: the 4-CPU/16 GB cloud box crashes Chromium suites with a third concurrent build + golden. Planning runs wide (design_ahead 7) so a ready spec is always waiting.
 max_lanes: 3
-design_ahead: 1
+design_ahead: 7
 max_concurrent_agents: 8
 artifact_dir: .loop-artifacts
 nightly_budget_tokens: 6000000   # confirm with Paawan
