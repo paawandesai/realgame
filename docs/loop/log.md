@@ -13,3 +13,7 @@
 2026-10-30T02:30 main I-003 building(r1)→scoring PR #18; breaker 0 blocking, 9 should-fix → I-013; first cloud perf: Brotli 3.55 MB pass, TTI@4x 16.7 s fail, CPU@4x low 33.8 ms fail → I-015
 2026-10-30T02:30 main I-006 building(r1)→scoring PR #19; breaker 0 blocking → I-014
 2026-10-30T02:30 main I-011 proposed→merged gameplay-standards.md (critic revise applied); P0 gaps → I-016
+2026-10-30T03:40 main I-012 building(r1)→merged PR #20
+2026-10-30T04:40 main I-013 proposed→merged PR #21; I-014 proposed→merged PR #22
+2026-10-30T04:50 main wave: I-007(build, absorbs I-016) I-005(build); nightly scoring 1 started
+2026-10-30T05:35 main nightly 1 at 3dbd332: all 8 bars red. B1 0/3 (renderer crashes under concurrent checkers, rerun isolated), B2 cloud 35.2 ms, B3 TTI 9.8 s, B4 clarity 6 (3/5 never moved), B5 fun 6 (13yo 4), B6 1 error (P-015), B7 not wired (I-005), B8 ~1 min. New: I-017 scope, I-018, I-019, I-020
