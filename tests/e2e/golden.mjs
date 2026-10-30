@@ -1359,6 +1359,9 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
 
   // 9. A real click casts exactly once; a held button still repeats.
   {
+    // The mouse goes to the click spot first, so the click itself carries no
+    // movement that could turn the view off the fire.
+    await page.mouse.move(VW / 2, VH / 2);
     const a = await aimAt(lit[1], 2);
     await page.mouse.click(VW / 2, VH / 2);
     const r = await within(a.frame, 20, (x) => x.casts === a.casts + 1 && x.objs[lit[1]].burning === false);
