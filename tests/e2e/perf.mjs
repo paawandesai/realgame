@@ -34,7 +34,7 @@
 // an incomplete workload is never re-run. Workload steps wait for their
 // state change until both their wall-clock timeout and 8 game frames have
 // passed, so a slow software GPU no longer drops a cast the game would fire
-// on its next frame.
+// on its next frame; a step with no new frames gives up at 10x its timeout.
 // Flags: --bars k=v,... overrides thresholds (b3_brotli_mb, b3_tti_ms,
 // b2_cpu_p50_ms, b2_mac_p5_fps). --self-test runs the unit tests of the pure
 // helpers (no browser, no build) and lints docs/loop/mac-perf.md.
@@ -76,10 +76,11 @@ function pct(arr, p) {
 function r2(x) { return x === null || x === undefined ? null : +x.toFixed(2); }
 
 // A workload step gives up only when both its wall-clock timeout and
-// `minFrames` game frames have passed since it started (I-015 D1). Injected
-// into the page with the workload.
-function stepTimedOut(elapsedMs, framesSince, ms, minFrames = 8) {
-  return elapsedMs >= ms && framesSince >= minFrames;
+// `minFrames` game frames have passed since it started (I-015 D1), or in any
+// case after `capFactor` times its timeout, so a frozen page (no new frames)
+// cannot hold a step forever. Injected into the page with the workload.
+function stepTimedOut(elapsedMs, framesSince, ms, minFrames = 8, capFactor = 10) {
+  return elapsedMs >= ms * capFactor || (elapsedMs >= ms && framesSince >= minFrames);
 }
 
 // The machine counts as quiet when the 1-minute load average (others only)
@@ -1121,6 +1122,9 @@ async function runSelfTest() {
   // 10. I-015: frame-aware step timeouts, the load gate, p99 and re-runs.
   t('a step does not time out after 6000 ms while fewer than 8 frames have passed', () => {
     eq([stepTimedOut(6000, 7, 6000), stepTimedOut(30000, 0, 6000), stepTimedOut(6000, 8, 6000), stepTimedOut(5999, 100, 6000)], [false, false, true, false]);
+  });
+  t('a step with no new frames still times out at 10x its timeout (frozen page)', () => {
+    eq([stepTimedOut(59999, 0, 6000), stepTimedOut(60000, 0, 6000), stepTimedOut(40000, 0, 4000), stepTimedOut(60000, 7, 6000, 8, 10)], [false, true, true, true]);
   });
   t('load gate: 2.5 on 4 CPUs is busy, 1.0 is quiet, 2.0 is the edge, NaN is busy', () => {
     eq([loadGate(2.5, 4), loadGate(1.0, 4), loadGate(2.0, 4), loadGate(NaN, 4), loadGate(null, 4)], [false, true, true, false, false]);
