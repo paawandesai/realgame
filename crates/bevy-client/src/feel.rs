@@ -141,4 +141,42 @@ mod tests {
         assert_eq!(ray_dir(0.5, 1.1, v, 1.0), None);
         assert_eq!(ray_dir(f32::NAN, 0.5, v, 1.0), None);
     }
+
+    #[test]
+    fn tap_cone_follows_aim_help() {
+        let d = |x: f32| x.to_radians();
+        assert!(near(tap_cone(d(4.0)), d(6.0), 1e-6), "{}", tap_cone(d(4.0)));
+        assert!(near(tap_cone(d(1.0)), d(4.5), 1e-6), "{}", tap_cone(d(1.0)));
+        assert_eq!(tap_cone(0.0), 0.0);
+        assert_eq!(tap_cone(-0.1), 0.0);
+        assert_eq!(tap_cone(f32::NAN), 0.0);
+        // Never narrower than the 4 deg locked cone when Aim help is on.
+        assert!(tap_cone(d(4.0)) >= d(4.0));
+    }
+
+    #[test]
+    fn view_width_holds_at_any_aspect() {
+        let w = 16.0 / 9.0;
+        let v = |h: f32, a: f32| vfov_for(h, a);
+        assert!(near(v(90.0, w), 58.72, 0.05), "{}", v(90.0, w));
+        assert_eq!(v(90.0, w), vfov_from_h(90.0));
+        assert!(near(v(90.0, 4.0 / 3.0), 73.74, 0.05), "{}", v(90.0, 4.0 / 3.0));
+        assert!(near(v(90.0, 21.0 / 9.0), 46.40, 0.05), "{}", v(90.0, 21.0 / 9.0));
+        assert!(near(v(70.0, w), 43.0, 0.1), "{}", v(70.0, w));
+        assert!(near(v(110.0, 1.0), 110.0, 0.05), "{}", v(110.0, 1.0));
+        assert_eq!(v(90.0, 0.5), v(90.0, 1.0));
+        assert_eq!(v(90.0, 9.0), v(90.0, 4.0));
+        assert_eq!(v(90.0, f32::NAN), v(90.0, w));
+        assert_eq!(v(90.0, 0.0), v(90.0, w));
+        assert_eq!(v(90.0, -1.0), v(90.0, w));
+    }
+
+    #[test]
+    fn ray_and_projection_agree_at_any_aspect() {
+        for a in [4.0 / 3.0, 16.0 / 9.0, 21.0 / 9.0] {
+            let e = ray_dir(1.0, 0.5, vfov_for(90.0, a), a).unwrap();
+            let ang = (-e[2]).acos().to_degrees();
+            assert!(near(ang, 45.0, 0.01), "aspect {a}: {ang}");
+        }
+    }
 }
