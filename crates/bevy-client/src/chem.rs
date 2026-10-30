@@ -33,6 +33,9 @@ const COOLING: f32 = 0.02;
 const FLAME_C: f32 = 800.0;
 /// How long a CO2 blanket keeps oxygen away, seconds.
 const SMOTHER_S: f32 = 25.0;
+/// Heat one Fire spell adds, °C. One hit lights a dry bush at room
+/// temperature; a frost-chilled one (−196 °C) needs to warm up first.
+const FIRE_HEAT: f32 = 300.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -68,7 +71,7 @@ impl Spell {
             Spell::Fire => "Fire",
             Spell::Water => "Water",
             Spell::Frost => "Frost",
-            Spell::Foam => "Foam",
+            Spell::Foam => "CO₂",
         }
     }
 
@@ -84,14 +87,18 @@ impl Spell {
     /// The caption shown when the spell is cast.
     pub fn cast_caption(self) -> &'static str {
         match self {
-            Spell::Fire => "Combustion: CH₄ + 2O₂ → CO₂ + 2H₂O, and lots of heat.",
+            Spell::Fire => {
+                "Fire spell: a gas flame. Methane burns: CH₄ + 2O₂ → CO₂ + 2H₂O, and lots of heat."
+            }
             Spell::Water => {
                 "Water soaks up heat and cools things below their ignition temperature."
             }
             Spell::Frost => {
                 "Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches."
             }
-            Spell::Foam => "CO₂ is heavier than air: it smothers fire by pushing the oxygen away.",
+            Spell::Foam => {
+                "CO₂ from an extinguisher is heavier than air: it smothers fire by pushing the oxygen away."
+            }
         }
     }
 }
@@ -131,6 +138,9 @@ pub enum Fizzle {
     NotFlammable,
     Charred,
     Heated,
+    /// Fire aimed at the greenhouse: the spell refuses (the level is about
+    /// saving it, and one stray click must not lose it).
+    Greenhouse,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -153,20 +163,18 @@ impl EventKind {
                 "Fire out! Liquid nitrogen at −196 °C cooled it far below ignition."
             }
             EventKind::Extinguished(Spell::Foam) => {
-                "Fire out! The CO₂ foam smothered it: no oxygen, no fire."
+                "Fire out! The CO₂ smothered it: no oxygen, no fire."
             }
             EventKind::Extinguished(Spell::Fire) => "Fire out!",
             EventKind::BurntOut => "It burnt out: the fuel is used up.",
             EventKind::Melted => "The ice melted at 0 °C: H₂O(s) → H₂O(l). Now it is a puddle.",
-            EventKind::Melting => {
-                "Melting... ice needs a lot of heat to turn into water (latent heat)."
-            }
+            EventKind::Melting => "Melting... it takes a lot of heat to turn ice into water.",
             EventKind::Froze => {
                 "Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s)."
             }
             EventKind::Steam => "Hot water boils at 100 °C and turns into steam: H₂O(l) → H₂O(g).",
             EventKind::Smothered => {
-                "CO₂ foam covers it: no oxygen can reach it, so it cannot burn."
+                "A CO₂ blanket covers it: no oxygen can reach it, so it cannot burn."
             }
             EventKind::Soaked => "Soaked: it must dry out (boil off at 100 °C) before it can burn.",
             EventKind::Chilled => {
@@ -179,6 +187,9 @@ impl EventKind {
                 "No oxygen under the CO₂ blanket, so the fire cannot start."
             }
             EventKind::Fizzle(Fizzle::NotFlammable) => "That does not burn.",
+            EventKind::Fizzle(Fizzle::Greenhouse) => {
+                "Not the greenhouse! We are here to save it. Aim at the burning bushes."
+            }
             EventKind::Fizzle(Fizzle::Charred) => "Already burnt: no fuel left.",
             EventKind::Fizzle(Fizzle::Heated) => {
                 "Heating up... a little more heat and it will catch fire."
@@ -208,6 +219,9 @@ pub struct Obj {
     pub wall: bool,
     /// Seconds of CO2 blanket left.
     pub smothered: f32,
+    /// Burning since the level started or because fire spread to it (not
+    /// lit by the player): putting it out counts toward the objective.
+    pub counts: bool,
 }
 
 impl Obj {
@@ -232,6 +246,7 @@ impl Obj {
             ice,
             wall,
             smothered: 0.0,
+            counts: false,
         }
     }
 
@@ -272,9 +287,13 @@ impl Obj {
 pub struct World {
     pub objs: Vec<Obj>,
     pub neighbours: Vec<Vec<usize>>,
-    /// Fires put out by spells.
+    /// Fires put out by spells: only ones burning since the start or lit by
+    /// spreading heat, never ones the player lit.
     pub extinguished: u32,
     pub ticks: u64,
+    /// The outcome once the level is won or lost. Latched: nothing changes
+    /// it again (only a fresh World, on reset).
+    pub ended: Option<Outcome>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -301,6 +320,7 @@ impl World {
             neighbours,
             extinguished: 0,
             ticks: 0,
+            ended: None,
         }
     }
 
@@ -308,6 +328,7 @@ impl World {
         let o = &mut self.objs[i];
         o.burning = true;
         o.temp = FLAME_C;
+        o.counts = true;
     }
 
     /// The greenhouse's temperature, and whether anything next to it is on
@@ -323,6 +344,20 @@ impl World {
     }
 
     pub fn outcome(&self) -> Outcome {
+        self.ended.unwrap_or_else(|| self.live_outcome())
+    }
+
+    /// Latch a won or lost outcome the first time it happens.
+    fn latch(&mut self) {
+        if self.ended.is_none() {
+            let o = self.live_outcome();
+            if o != Outcome::Playing {
+                self.ended = Some(o);
+            }
+        }
+    }
+
+    fn live_outcome(&self) -> Outcome {
         if self
             .objs
             .iter()
@@ -337,7 +372,17 @@ impl World {
     }
 
     /// A spell lands on object `i`.
+    /// Does nothing once the level is won or lost (a spell still in flight
+    /// must not change the result).
     pub fn apply(&mut self, i: usize, spell: Spell, events: &mut Vec<Event>) {
+        if self.ended.is_some() {
+            return;
+        }
+        self.apply_inner(i, spell, events);
+        self.latch();
+    }
+
+    fn apply_inner(&mut self, i: usize, spell: Spell, events: &mut Vec<Event>) {
         let mut ev = |kind| events.push(Event { obj: i, kind });
         let o = &mut self.objs[i];
         if o.kind == Kind::LabBench {
@@ -367,6 +412,8 @@ impl World {
                     ev(EventKind::Steam);
                 } else if !o.flammable() {
                     ev(EventKind::Fizzle(Fizzle::NotFlammable));
+                } else if o.kind == Kind::Greenhouse {
+                    ev(EventKind::Fizzle(Fizzle::Greenhouse));
                 } else if o.burning {
                     o.temp = FLAME_C;
                 } else if o.fuel <= 0.0 {
@@ -379,11 +426,14 @@ impl World {
                     o.temp = 100.0;
                     ev(EventKind::Fizzle(Fizzle::Wet));
                 } else {
-                    // A flame is about 900 °C at its tip.
-                    o.temp = o.temp.max(AMBIENT_C) + 600.0;
+                    // The flame heats it from whatever temperature it has now:
+                    // something chilled by liquid nitrogen must warm up first.
+                    o.temp += FIRE_HEAT;
                     if o.temp >= o.ignition_c() {
                         o.burning = true;
                         o.temp = FLAME_C;
+                        // Lit by the player: putting it out does not count.
+                        o.counts = false;
                         ev(EventKind::Ignited);
                     } else {
                         ev(EventKind::Fizzle(Fizzle::Heated));
@@ -406,7 +456,7 @@ impl World {
                 if was {
                     o.burning = false;
                     ev(EventKind::Extinguished(Spell::Water));
-                    self.extinguished += 1;
+                    self.extinguished += u32::from(std::mem::take(&mut o.counts));
                 } else {
                     ev(EventKind::Soaked);
                 }
@@ -429,7 +479,7 @@ impl World {
                 } else if was {
                     o.burning = false;
                     ev(EventKind::Extinguished(Spell::Frost));
-                    self.extinguished += 1;
+                    self.extinguished += u32::from(std::mem::take(&mut o.counts));
                 } else {
                     // Any surface water freezes too.
                     ev(EventKind::Chilled);
@@ -445,7 +495,7 @@ impl World {
                 o.burning = false;
                 if was {
                     ev(EventKind::Extinguished(Spell::Foam));
-                    self.extinguished += 1;
+                    self.extinguished += u32::from(std::mem::take(&mut o.counts));
                 } else {
                     ev(EventKind::Smothered);
                 }
@@ -456,6 +506,9 @@ impl World {
     /// One fixed step of [`DT`] seconds: burning, spreading heat, drying,
     /// cooling and the CO2 blanket wearing off.
     pub fn step(&mut self, events: &mut Vec<Event>) {
+        if self.ended.is_some() {
+            return;
+        }
         self.ticks += 1;
         let n = self.objs.len();
         // Heat each object receives from burning neighbours this step.
@@ -471,7 +524,12 @@ impl World {
         }
         for (i, o) in self.objs.iter_mut().enumerate() {
             let mut ev = |kind| events.push(Event { obj: i, kind });
-            o.smothered = (o.smothered - DT).max(0.0);
+            // The CO2 blanket stays until the object has cooled below its
+            // ignition temperature, so a smothered fire cannot come back
+            // the moment the blanket lifts.
+            if !o.flammable() || o.temp < o.ignition_c() {
+                o.smothered = (o.smothered - DT).max(0.0);
+            }
             if o.burning {
                 o.fuel -= DT;
                 o.temp = FLAME_C;
@@ -522,9 +580,12 @@ impl World {
             {
                 o.burning = true;
                 o.temp = FLAME_C;
+                // Spread fire: putting it out counts.
+                o.counts = true;
                 ev(EventKind::Ignited);
             }
         }
+        self.latch();
     }
 }
 
@@ -627,8 +688,82 @@ mod tests {
         assert_eq!(w.outcome(), Outcome::Playing);
         w.apply(2, Spell::Foam, &mut ev);
         assert_eq!(w.outcome(), Outcome::Won);
+        // Latched: nothing after the win changes it (a spell in flight).
+        w.apply(1, Spell::Fire, &mut ev);
         w.ignite(3);
-        assert_eq!(w.outcome(), Outcome::Lost);
+        assert_eq!(w.outcome(), Outcome::Won);
+        assert!(!w.objs[1].burning, "spells do nothing once the level ended");
+
+        let mut l = World::new(vec![
+            Obj::new(Kind::Bush, [0.0, 0.0], [0.9, 0.9]),
+            Obj::new(Kind::Greenhouse, [2.5, 0.0], [0.5, 0.5]),
+        ]);
+        l.ignite(0);
+        run(&mut l, 300.0);
+        assert_eq!(l.outcome(), Outcome::Lost);
+        // Water landing on the burning greenhouse afterwards changes nothing.
+        l.apply(1, Spell::Water, &mut ev);
+        assert_eq!(l.outcome(), Outcome::Lost);
+        assert!(l.objs[1].burning);
+    }
+
+    #[test]
+    fn chilled_must_warm_before_it_burns() {
+        let mut w = row();
+        let mut ev = Vec::new();
+        w.apply(0, Spell::Frost, &mut ev);
+        w.apply(0, Spell::Fire, &mut ev);
+        assert!(!w.objs[0].burning, "−196 °C + one flame is not enough");
+        assert_eq!(ev.last().unwrap().kind, EventKind::Fizzle(Fizzle::Heated));
+        w.apply(0, Spell::Fire, &mut ev);
+        assert!(w.objs[0].burning);
+    }
+
+    #[test]
+    fn foam_fire_stays_out() {
+        let mut w = World::new(vec![Obj::new(Kind::Bush, [0.0, 0.0], [0.9, 0.9])]);
+        w.ignite(0);
+        let mut ev = Vec::new();
+        w.apply(0, Spell::Foam, &mut ev);
+        run(&mut w, 300.0);
+        assert!(
+            !w.objs[0].burning,
+            "a smothered fire must not relight by itself"
+        );
+        assert!(w.objs[0].temp < w.objs[0].ignition_c());
+    }
+
+    #[test]
+    fn only_spreading_or_starting_fires_count() {
+        let mut w = row();
+        let mut ev = Vec::new();
+        // Farming: light the bush yourself and put it out, three times.
+        for _ in 0..3 {
+            w.objs[1].wet = 0.0;
+            w.objs[1].temp = AMBIENT_C;
+            w.apply(1, Spell::Fire, &mut ev);
+            assert!(w.objs[1].burning);
+            w.apply(1, Spell::Frost, &mut ev);
+        }
+        assert_eq!(w.extinguished, 0);
+        // A fire that was burning from the start counts, once.
+        w.ignite(0);
+        w.apply(0, Spell::Water, &mut ev);
+        w.apply(0, Spell::Water, &mut ev);
+        assert_eq!(w.extinguished, 1);
+    }
+
+    #[test]
+    fn fire_will_not_light_the_greenhouse() {
+        let mut w = World::new(vec![Obj::new(Kind::Greenhouse, [0.0, 0.0], [8.0, 0.15])]);
+        let mut ev = Vec::new();
+        w.apply(0, Spell::Fire, &mut ev);
+        assert!(!w.objs[0].burning);
+        assert_eq!(w.outcome(), Outcome::Playing);
+        assert_eq!(
+            ev.last().unwrap().kind,
+            EventKind::Fizzle(Fizzle::Greenhouse)
+        );
     }
 
     /// The courtyard's bush chains (positions as in world.rs): unattended,

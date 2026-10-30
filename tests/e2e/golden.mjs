@@ -12,9 +12,11 @@
 // Env: BASE_URL (test a running server instead), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
-// closing STATS/CPUFRAME lines). Needs `playwright` with Chromium. Exits 1 if
-// any check fails. Frames are slow on a software GPU, so each step waits on
-// game state rather than on fixed sleeps.
+// closing STATS/CPUFRAME lines). The page always gets `debug` added (the
+// test commands need it). Needs `playwright` with Chromium. Exits 1 if any
+// check fails. Frames are slow on a software GPU, so each step waits on game
+// state rather than on fixed sleeps. Run by the loop's smoke step, not by
+// push CI (too slow for the CI budget).
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, dirname } from 'node:path';
@@ -55,7 +57,9 @@ function check(name, ok, detail = '') {
 
 (async () => {
   const server = process.env.BASE_URL ? null : await serve();
-  const base = (process.env.BASE_URL || `http://127.0.0.1:${server.address().port}/`) + (process.env.QUERY || '');
+  // `debug` turns on the test commands (tp, tick, look, turn, face, move).
+  const q = (process.env.QUERY || '').replace(/^\?/, '');
+  const base = (process.env.BASE_URL || `http://127.0.0.1:${server.address().port}/`) + `?${q ? q + '&' : ''}debug`;
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: VW, height: VH } });
   const logs = [];
@@ -120,9 +124,10 @@ function check(name, ok, detail = '') {
     lookVia = 'real mouse movementX';
     if (Math.abs(s.yaw - yaw0) <= 5) {
       // Headless Chromium may report movementX = 0 under pointer lock: feed the
-      // same document mousemove handler a synthetic event instead.
-      await page.evaluate(() => document.dispatchEvent(new MouseEvent('mousemove', { movementX: 200, movementY: 0 })));
-      lookVia = 'synthetic mousemove (movementX)';
+      // same pointermove handler a synthetic event instead.
+      await page.evaluate(() => document.getElementById('game').dispatchEvent(
+        new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: 200, movementY: 0 })));
+      lookVia = 'synthetic pointermove (movementX)';
     }
   } else {
     await cmd('turn 200 0');
@@ -158,8 +163,24 @@ function check(name, ok, detail = '') {
     const c0 = s.casts;
     await page.mouse.down();
     s = await until((x) => x.casts > c0, 15000);
-    await page.mouse.up();
     check('left click casts while locked', s.casts > c0, `casts ${c0} -> ${s.casts}`);
+    // Aiming must keep working while the fire button is held (browsers send
+    // no mousemove while a button is held after winit's preventDefault on
+    // pointerdown, so the game reads pointermove). Real moves first, then a
+    // synthetic pointermove with the button held if headless reports
+    // movementX = 0 under lock.
+    {
+      const y0 = s.yaw;
+      for (let k = 0; k < 6; k++) { await page.mouse.move(VW / 2 - (k + 1) * 20, VH * 0.2); await sleep(16); }
+      s = await until((x) => Math.abs(x.yaw - y0) > 3, 3000);
+      if (Math.abs(s.yaw - y0) <= 3) {
+        await page.evaluate(() => document.getElementById('game').dispatchEvent(
+          new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', buttons: 1, movementX: -150, movementY: 0 })));
+        s = await until((x) => Math.abs(x.yaw - y0) > 3, 10000);
+      }
+      check('aim turns while the fire button is held', Math.abs(s.yaw - y0) > 3, `yaw ${y0} -> ${s.yaw}`);
+    }
+    await page.mouse.up();
   }
 
   // Heat spreads to neighbours (deterministic fast-forward), then reset.
@@ -223,6 +244,7 @@ function check(name, ok, detail = '') {
   console.log('  caption:', s.caption);
   let r = await castAt(hedge, 4);
   check('foam smothers the hedge', !r.s.objs[hedge].burning && r.s.objs[hedge].smothered > 0, `ext=${r.s.extinguished}`);
+  check('a fire the player lit does not count toward the objective', r.s.extinguished === 0, `ext=${r.s.extinguished}`);
   r = await castAt(hedge, 1);
   check('foam blanket stops re-ignition (no O2)', !r.s.objs[hedge].burning, r.s.caption);
 
