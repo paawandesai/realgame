@@ -4,16 +4,19 @@
 // A run dir holds all of one session's state, so sessions run in parallel.
 // Protocol, persona prompts, rubric and scoring: docs/loop/panel.md.
 //
-//   node tests/e2e/panel/panel.mjs start   --run <dir> [--persona <id>] [--throttle <n>] [--query <q>]
+//   node tests/e2e/panel/panel.mjs start   --run <dir> [--operator-dir <odir>] [--persona <id>] [--throttle <n>] [--query <q>]
 //                                          [--vw 1280 --vh 720] [--base-url <url>] [--root <pkg-out>]
-//                                          [--artifact <sha>] [--freeze 1|0]
-//   node tests/e2e/panel/panel.mjs observe --run <dir> [--truth]
+//                                          [--artifact <sha>] [--freeze 1|0]                    (PANEL_ROLE=operator)
+//   node tests/e2e/panel/panel.mjs observe --run <dir> [--truth (PANEL_ROLE=operator)]
 //   node tests/e2e/panel/panel.mjs act     --run <dir> <action> [args...]
 //         key <Key> [ms] | keys <K1+K2> <ms> | move <dx> <dy> [steps] | drag <x1> <y1> <x2> <y2> [ms]
 //         click <x> <y> [left|right] | hold <x> <y> <ms> | wheel <dy> | wait <ms>
 //   node tests/e2e/panel/panel.mjs report  --run <dir> --file <answer.json> [--model <m>]
 //   node tests/e2e/panel/panel.mjs stop    --run <dir>
-//   node tests/e2e/panel/panel.mjs score   --runs <dir1> ... [--append <scoreboard.jsonl>] [--artifact <sha>]
+//   node tests/e2e/panel/panel.mjs score   --runs <dir1> ... [--append <scoreboard.jsonl>] [--artifact <sha>] [--allow-throttle]
+// The run dir is all a persona sees (session.json, shots/). The truth log,
+// daemon logs, token and result.json live in the operator dir (default
+// "<run>.operator"); see barrier.mjs and panel.md "Information barrier".
 import { spawn, execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, openSync, appendFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -23,12 +26,13 @@ import { persona as personaInfo, PERSONAS } from './personas.mjs';
 import { measure } from './measure.mjs';
 import { validate, validateSelf } from './schema.mjs';
 import { scorePanel } from './score.mjs';
+import { layout, readToken, requireOperator } from './barrier.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '../../..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const VALUE_FLAGS = new Set(['run', 'persona', 'throttle', 'query', 'vw', 'vh', 'base-url', 'root', 'artifact', 'file', 'append', 'freeze', 'model']);
+const VALUE_FLAGS = new Set(['run', 'persona', 'throttle', 'query', 'vw', 'vh', 'base-url', 'root', 'artifact', 'file', 'append', 'freeze', 'model', 'operator-dir']);
 function parse(argv) {
   const flags = {}; const pos = []; const runs = [];
   for (let i = 0; i < argv.length; i++) {
@@ -50,11 +54,24 @@ function parse(argv) {
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const runDir = (flags) => { if (!flags.run) throw new Error('--run <dir> is required'); return resolve(flags.run); };
+const opDir = (flags) => layout(runDir(flags), flags['operator-dir']).op;
 
 function session(dir) {
   const p = join(dir, 'session.json');
   if (!existsSync(p)) throw new Error(`no session in ${dir} (run start first)`);
   return readJson(p);
+}
+
+// Posts to a session's daemon; a daemon that is gone (idle exit after 60 min
+// without commands, or a crash) is named as such instead of ECONNREFUSED.
+async function postSession(dir, msg, timeoutMs) {
+  const s = session(dir);
+  try {
+    return await post(s.port, msg, timeoutMs);
+  } catch (e) {
+    if (!alive(s.pid) || e.code === 'ECONNREFUSED') throw new Error(`daemon is gone (pid ${s.pid}: idle exit after 60 min without commands, or a crash); the operator's daemon.log says which`);
+    throw e;
+  }
 }
 
 function post(port, msg, timeoutMs = 240000) {
@@ -72,34 +89,37 @@ function post(port, msg, timeoutMs = 240000) {
 }
 
 async function cmdStart({ flags }) {
+  requireOperator('start');
   const dir = runDir(flags);
+  const op = opDir(flags);
   mkdirSync(dir, { recursive: true });
+  mkdirSync(op, { recursive: true });
   const sp = join(dir, 'session.json');
   if (existsSync(sp)) {
     const s = readJson(sp);
     if (alive(s.pid)) throw new Error(`a session is already running in ${dir} (pid ${s.pid}); stop it first`);
     rmSync(sp, { force: true });
   }
-  rmSync(join(dir, 'start-error.json'), { force: true });
+  rmSync(join(op, 'start-error.json'), { force: true });
   const id = flags.persona || '9yo';
   const p = personaInfo(id);
   const throttle = flags.throttle !== undefined ? +flags.throttle : p.throttle;
   if (!(throttle >= 1)) throw new Error('--throttle must be >= 1');
   let artifact = flags.artifact;
   if (!artifact) { try { artifact = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(); } catch { artifact = 'unknown'; } }
-  if (existsSync(join(dir, 'log.jsonl'))) throw new Error(`${dir} already holds a session log; use a fresh run dir`);
-  const args = [join(here, 'daemon.mjs'), '--run', dir, '--persona', id, '--throttle', String(throttle), '--query', flags.query || '',
+  for (const d of [dir, op]) if (existsSync(join(d, 'log.jsonl'))) throw new Error(`${d} already holds a session log; use a fresh run dir`);
+  const args = [join(here, 'daemon.mjs'), '--run', dir, '--operator-dir', op, '--persona', id, '--throttle', String(throttle), '--query', flags.query || '',
     '--vw', String(flags.vw || 1280), '--vh', String(flags.vh || 720), '--artifact', artifact, '--freeze', flags.freeze === '0' ? '0' : '1'];
   if (flags['base-url']) args.push('--base-url', flags['base-url']);
   if (flags.root) args.push('--root', resolve(flags.root));
-  const out = openSync(join(dir, 'daemon.out'), 'a');
+  const out = openSync(join(op, 'daemon.out'), 'a');
   const child = spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out], env: process.env });
   child.unref();
   const t0 = Date.now();
   while (Date.now() - t0 < 200000) {
-    if (existsSync(sp)) return { ok: true, run: dir, ...readJson(sp) };
-    if (existsSync(join(dir, 'start-error.json'))) throw new Error(`start failed: ${readJson(join(dir, 'start-error.json')).error}`);
-    if (!alive(child.pid)) throw new Error(`daemon exited during start (see ${join(dir, 'daemon.out')})`);
+    if (existsSync(sp)) return { ok: true, run: dir, operator_dir: op, ...readJson(sp) };
+    if (existsSync(join(op, 'start-error.json'))) throw new Error(`start failed: ${readJson(join(op, 'start-error.json')).error}`);
+    if (!alive(child.pid)) throw new Error(`daemon exited during start (see ${join(op, 'daemon.out')})`);
     await sleep(250);
   }
   try { process.kill(child.pid, 'SIGKILL'); } catch { /* gone */ }
@@ -108,20 +128,23 @@ async function cmdStart({ flags }) {
 
 async function cmdObserve({ flags }) {
   const dir = runDir(flags);
-  return post(session(dir).port, { cmd: 'observe', truth: !!flags.truth });
+  if (!flags.truth) return postSession(dir, { cmd: 'observe', truth: false });
+  requireOperator('observe --truth');
+  return postSession(dir, { cmd: 'observe', truth: true, token: readToken(opDir(flags)) });
 }
 
 async function cmdAct({ flags, pos }) {
   const dir = runDir(flags);
   const [action, ...args] = pos;
   if (!action) throw new Error('act needs an action');
-  return post(session(dir).port, { cmd: 'act', action, args });
+  return postSession(dir, { cmd: 'act', action, args });
 }
 
 async function cmdDebug({ flags, pos }) {
+  requireOperator('debug');
   const dir = runDir(flags);
   const [action, ...args] = pos;
-  return post(session(dir).port, { cmd: 'debug', action, args });
+  return postSession(dir, { cmd: 'debug', action, args, token: readToken(opDir(flags)) });
 }
 
 async function cmdStop({ flags }) {
@@ -146,10 +169,14 @@ const MEASURED_KEYS = ['measured', 'time_to_move_s', 'time_to_cast_s', 'minutes_
 function cmdReport({ flags }) {
   const dir = runDir(flags);
   if (!flags.file) throw new Error('--file <answer.json> is required');
-  const logPath = join(dir, 'log.jsonl');
-  if (!existsSync(logPath)) throw new Error(`no log.jsonl in ${dir}`);
+  // The operator dir holds the log; an I-006-layout run dir held it itself.
+  const op = opDir(flags);
+  const logPath = [join(op, 'log.jsonl'), join(dir, 'log.jsonl')].find((p) => existsSync(p));
+  if (!logPath) throw new Error(`no log.jsonl in ${op} or ${dir}`);
   const log = readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const start = log.find((e) => e.cmd === 'start');
+  if (!start) throw new Error('log has no start entry');
+  if (!log.some((e) => e.cmd === 'stop' || e.cap)) throw new Error('the session has no stop entry: run stop before report');
   let ans;
   try { ans = readJson(resolve(flags.file)); } catch (e) { throw new Error(`answer file: ${e.message}`); }
   const src = ans.self && typeof ans.self === 'object' ? ans.self : ans;
@@ -169,6 +196,7 @@ function cmdReport({ flags }) {
     artifact_sha: start.artifact_sha,
     query: start.query,
     throttle: start.throttle,
+    ...(start.cpu_bench_ms !== undefined ? { cpu_bench_ms: start.cpu_bench_ms } : {}),
     measured,
     self,
     stopped_because: stopped,
@@ -176,23 +204,24 @@ function cmdReport({ flags }) {
   };
   const rerr = validate(result);
   if (rerr.length) throw new Error(rerr.join('; '));
-  writeFileSync(join(dir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`);
-  return { ok: true, result_path: join(dir, 'result.json'), result, warnings };
+  const resultPath = join(dirname(logPath), 'result.json');
+  writeFileSync(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+  return { ok: true, result_path: resultPath, result, warnings };
 }
 
 function cmdScore({ flags, runs }) {
   if (!runs.length) throw new Error('--runs <dir> ... is required');
   const results = []; const rejected = [];
   for (const d of runs) {
-    const p = join(resolve(d), 'result.json');
-    if (!existsSync(p)) { rejected.push({ run: d, error: 'missing result.json' }); continue; }
+    const p = [join(resolve(d), 'result.json'), join(`${resolve(d)}.operator`, 'result.json')].find((x) => existsSync(x));
+    if (!p) { rejected.push({ run: d, error: 'missing result.json' }); continue; }
     let r;
     try { r = readJson(p); } catch (e) { rejected.push({ run: d, error: e.message }); continue; }
     const errs = validate(r);
     if (errs.length) { rejected.push({ run: d, error: errs.join('; ') }); continue; }
     results.push(r);
   }
-  const line = scorePanel(results, { artifact: flags.artifact });
+  const line = scorePanel(results, { artifact: flags.artifact, allowThrottle: !!flags['allow-throttle'] });
   if (flags.append) appendFileSync(resolve(flags.append), `${JSON.stringify(line)}\n`);
   return { ok: true, line, rejected, appended: flags.append ? resolve(flags.append) : null };
 }
