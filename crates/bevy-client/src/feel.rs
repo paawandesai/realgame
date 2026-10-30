@@ -25,7 +25,30 @@ pub const ASSIST_ZERO_M: f32 = 60.0;
 
 /// Vertical field of view (degrees) for a horizontal one at 16:9.
 pub fn vfov_from_h(h_deg: f32) -> f32 {
-    (2.0 * ((h_deg.to_radians() * 0.5).tan() * 9.0 / 16.0).atan()).to_degrees()
+    vfov_for(h_deg, 16.0 / 9.0)
+}
+
+/// Vertical field of view (degrees) that gives `h_deg` horizontally at
+/// this aspect (width / height). A non-finite or non-positive aspect
+/// counts as 16:9; the aspect is clamped to [1.0, 4.0], so in a portrait
+/// window the view is as tall as it is wide and never stretches upward.
+pub fn vfov_for(h_deg: f32, aspect: f32) -> f32 {
+    let a = if aspect.is_finite() && aspect > 0.0 {
+        aspect.clamp(1.0, 4.0)
+    } else {
+        16.0 / 9.0
+    };
+    (2.0 * ((h_deg.to_radians() * 0.5).tan() / a).atan()).to_degrees()
+}
+
+/// The cone for point-and-click taps and hover: 1.5x the aim-assist cone,
+/// at least 4.5 deg, when Aim help is on; 0 when it is off.
+pub fn tap_cone(assist: f32) -> f32 {
+    if assist.is_finite() && assist > 0.0 {
+        assist.max(3f32.to_radians()) * 1.5
+    } else {
+        0.0
+    }
 }
 
 /// A horizontal field of view from a setting or command: clamped to the
@@ -160,8 +183,16 @@ mod tests {
         let v = |h: f32, a: f32| vfov_for(h, a);
         assert!(near(v(90.0, w), 58.72, 0.05), "{}", v(90.0, w));
         assert_eq!(v(90.0, w), vfov_from_h(90.0));
-        assert!(near(v(90.0, 4.0 / 3.0), 73.74, 0.05), "{}", v(90.0, 4.0 / 3.0));
-        assert!(near(v(90.0, 21.0 / 9.0), 46.40, 0.05), "{}", v(90.0, 21.0 / 9.0));
+        assert!(
+            near(v(90.0, 4.0 / 3.0), 73.74, 0.05),
+            "{}",
+            v(90.0, 4.0 / 3.0)
+        );
+        assert!(
+            near(v(90.0, 21.0 / 9.0), 46.40, 0.05),
+            "{}",
+            v(90.0, 21.0 / 9.0)
+        );
         assert!(near(v(70.0, w), 43.0, 0.1), "{}", v(70.0, w));
         assert!(near(v(110.0, 1.0), 110.0, 0.05), "{}", v(110.0, 1.0));
         assert_eq!(v(90.0, 0.5), v(90.0, 1.0));

@@ -92,8 +92,11 @@ struct Settings {
     sens: f32,
     /// Aim-assist cone, radians (0 = off).
     assist: f32,
-    /// Horizontal field of view at 16:9, degrees ("View width").
+    /// Horizontal field of view, degrees ("View width").
     hfov: f32,
+    /// The live view's aspect (width / height), written every frame by
+    /// `aim_and_cast`; read only by `fov_y`.
+    aspect: f32,
     /// The gauntlet's walk bob ("Hand sway"). The camera never bobs.
     sway: bool,
     low: bool,
@@ -108,7 +111,7 @@ struct Settings {
 impl Settings {
     /// Vertical field of view, degrees.
     fn fov_y(&self) -> f32 {
-        feel::vfov_from_h(self.hfov)
+        feel::vfov_for(self.hfov, self.aspect)
     }
 }
 
@@ -403,6 +406,7 @@ fn read_settings() -> Settings {
         sens,
         assist: if assist_on { ASSIST } else { 0.0 },
         hfov: feel::DEFAULT_HFOV,
+        aspect: 16.0 / 9.0,
         sway: true,
         low,
         msaa,
@@ -949,7 +953,7 @@ fn aim_and_cast(
     mut commands: Commands,
     time: Res<Time>,
     mouse: Res<ButtonInput<MouseButton>>,
-    settings: Res<Settings>,
+    mut settings: ResMut<Settings>,
     mut web: ResMut<WebIn>,
     mut game: ResMut<Game>,
     player: Res<Player>,
@@ -979,12 +983,13 @@ fn aim_and_cast(
         .map_or(window.width() / window.height().max(1.0), |s| {
             s.x / s.y.max(1.0)
         });
+    settings.aspect = aspect;
     let rot = player.rotation();
-    let fov_y = settings.fov_y();
+    let fov_y = feel::vfov_for(settings.hfov, aspect);
     let ray_at = |f: Vec2| -> Option<Vec3> {
         feel::ray_dir(f.x, f.y, fov_y, aspect).map(|v| rot * Vec3::from_array(v))
     };
-    let tap_assist = settings.assist.max(3f32.to_radians()) * 1.5;
+    let tap_assist = feel::tap_cone(settings.assist);
 
     // The nearest fire, for the HUD's arrow: its bearing and elevation from
     // the view centre, and whether that is off screen at the live FOV.
