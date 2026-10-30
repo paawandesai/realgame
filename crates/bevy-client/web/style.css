@@ -14,12 +14,38 @@ html, body { margin: 0; height: 100%; background: #8cc8fa; overflow: hidden; fon
 #stage { position: fixed; inset: 0; overflow: hidden; transform-origin: 0 0; }
 /* #stage may be shrunk by hud.js (render scale) and scaled back up with a transform. */
 canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
-canvas.hover { cursor: pointer; }
+/* Point mode: any target under the cursor, and a burning one (I-019). */
+canvas.hover { cursor: crosshair; }
+canvas.hover-fire { cursor: pointer; }
 .hidden { display: none !important; }
 #hud { position: fixed; inset: 0; pointer-events: none; user-select: none; font-size: calc(18px * var(--ui)); }
 #objective { position: absolute; top: 14px; left: 14px; background: var(--panel); padding: 10px 14px; border-radius: 12px; max-width: calc(100vw - 28px); box-sizing: border-box; }
 #objective .title { font-weight: 700; font-size: calc(20px * var(--ui)); color: var(--on); }
 #obj-line { font-size: calc(18px * var(--ui)); margin-top: 2px; }
+/* One flame per fire left (at most 8, then a plus): the counter for players
+   who cannot read yet. No text, so the line reads "Fires to put out: N". */
+.fire-pips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-left: 8px; vertical-align: middle; }
+.fire-pip { display: inline-block; width: calc(14px * var(--ui)); height: calc(18px * var(--ui));
+  background: radial-gradient(circle at 50% 70%, #ffe36a, var(--fire) 55%, #b02a00);
+  clip-path: polygon(50% 0, 72% 30%, 92% 55%, 85% 85%, 50% 100%, 15% 85%, 8% 55%, 30% 35%, 40% 18%); }
+.fire-more { display: inline-block; position: relative; width: calc(14px * var(--ui)); height: calc(14px * var(--ui)); }
+.fire-more::before, .fire-more::after { content: ""; position: absolute; background: var(--fire); }
+.fire-more::before { left: 40%; top: 0; width: 20%; height: 100%; }
+.fire-more::after { top: 40%; left: 0; height: 20%; width: 100%; }
+/* The arrow to the nearest fire when it is off screen: a chevron and a
+   flame at the side to turn to. Slow pulse (0.5 Hz, GS-6); none with
+   reduced motion. */
+#firefinder { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px;
+  width: 72px; height: 64px; padding: 0 6px; box-sizing: border-box; background: var(--panel); border-radius: 32px;
+  animation: ffpulse 1s ease-in-out infinite alternate; }
+#firefinder.left { left: 14px; flex-direction: row; }
+#firefinder.right { right: 14px; flex-direction: row-reverse; }
+#firefinder .ff-chev { width: 0; height: 0; border-top: 16px solid transparent; border-bottom: 16px solid transparent; }
+#firefinder.left .ff-chev { border-right: 20px solid #fff; }
+#firefinder.right .ff-chev { border-left: 20px solid #fff; }
+#firefinder .ff-flame { width: 28px; height: 36px; background: radial-gradient(circle at 50% 70%, #ffe36a, var(--fire) 55%, #b02a00);
+  clip-path: polygon(50% 0, 72% 30%, 92% 55%, 85% 85%, 50% 100%, 15% 85%, 8% 55%, 30% 35%, 40% 18%); }
+@keyframes ffpulse { from { scale: 1; } to { scale: 1.1; } }
 #warning { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(170, 30, 20, 0.88); padding: 8px 16px; border-radius: 12px; text-align: center; font-weight: 700; font-size: calc(18px * var(--ui)); max-width: calc(100vw - 28px); box-sizing: border-box; animation: pulse 1s ease-in-out infinite alternate; }
 #warning .meter { margin: 6px auto 0; height: 8px; width: 260px; max-width: 100%; background: rgba(255,255,255,0.25); border-radius: 4px; overflow: hidden; }
 #warning .fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffd34a, #ff5a1a); }
@@ -32,6 +58,9 @@ canvas.hover { cursor: pointer; }
 #crosshair.on::before, #crosshair.on::after { background: var(--on); }
 #crosshair.on span { border-color: var(--on); }
 #crosshair.on { transform: scale(1.25); }
+/* On a burning target: a second, outer flame-orange ring (a shape cue that
+   still reads in greyscale, GS-19). */
+#crosshair.fire span { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.75), 0 0 0 5px var(--fire), 0 0 0 6px rgba(0, 0, 0, 0.6); }
 /* Cooldown ring: a conic arc around the crosshair that empties as the
    cooldown (--cd, 1 to 0) runs out. */
 #crosshair .cd { position: absolute; inset: -7px; border-radius: 50%; opacity: 0; transition: opacity 0.08s;
@@ -102,7 +131,7 @@ canvas.hover { cursor: pointer; }
 #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: #8cc8fa; }
 @media (prefers-reduced-motion: reduce) {
   #warning { animation: none; }
-  #crosshair.pulse, .slot.nudge { animation: none; }
+  #crosshair.pulse, .slot.nudge, #firefinder { animation: none; }
   #crosshair .cd, #caption { transition: none; }
 }
 /* Narrow screens (phones, outside GS-18's 1366x768 floor): the formula stays

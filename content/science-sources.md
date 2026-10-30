@@ -76,17 +76,17 @@ The single register of every science claim the first-person 3D client shows the 
 
 | text | where | reason |
 |---|---|---|
-| `Fires put out: ${Math.min(state.extinguished, state.goal)} / ${state.goal} · burning now: ${state.burning}` | crates/bevy-client/web/hud.js | Status counter (fires put out, fires burning). Flagged only by the keyword `burn`; it states no science. |
+| `Fires to put out: ${state.firesLeft}` | crates/bevy-client/web/hud.js | Status counter (fires left to put out). A game count; it states no science. |
 | `The greenhouse is heating up!` | crates/bevy-client/web/index.html | Placeholder of the warning banner, replaced by C-033 before it is shown. A narrative warning with no number or mechanism. |
 | `Not the greenhouse! We are here to save it. Aim at the burning bushes.` | crates/bevy-client/src/chem.rs | Game instruction (Fire aimed at the greenhouse refuses). Flagged by sentence shape and `burn`; it states no science. |
 | `Click to look around. Esc shows the controls and point-and-click mode.` | crates/bevy-client/web/index.html, crates/bevy-client/web/hud.js | Game instruction (controls). Flagged by sentence shape; it states no science. |
-| `Aim at a glowing target: the crosshair turns yellow. Left click casts.` | crates/bevy-client/web/hud.js | Game instruction (aiming). Flagged by sentence shape; it states no science. |
+| `Aim at a fire and click.` | crates/bevy-client/web/hud.js | Game instruction (aiming). Flagged by sentence shape; it states no science. |
 | `Mouse lock is blocked here: hold a mouse button and drag to look. Click to cast.` | crates/bevy-client/web/hud.js | Game instruction (controls when the browser refuses pointer lock). Flagged by sentence shape; it states no science. |
 | `Point and click: click a glowing target to cast at it. Drag to look.` | crates/bevy-client/web/hud.js | Game instruction (point-and-click mode). Flagged by sentence shape; it states no science. |
 | `Another bush is on fire! Put it out before it spreads.` | crates/bevy-client/src/chem.rs | Game event: a new fire started so the level can still be won after a fire burnt out by itself. Flagged by sentence shape and `fire`; it states no science. |
 | `Click again to lock the mouse.` | crates/bevy-client/web/hud.js | Game instruction (the browser refused a new pointer lock right after Esc). Flagged by sentence shape; it states no science. |
 | `CO2` | crates/bevy-client/src/chem.rs, crates/bevy-client/web/index.html | Name of spell 4 on the hotbar (carbon dioxide from an extinguisher). A label naming the substance; it asserts nothing. Its science is C-004, C-032 and C-035. |
-| `Save the Greenhouse! Put out 3 fires before they spread. Press 2 for Water.` | crates/bevy-client/src/main.rs | Game instruction (the objective and a key hint). Flagged by sentence shape; it states no science. |
+| `Save the Greenhouse! Put out 3 fires before they spread. Water is ready: aim at a fire and click.` | crates/bevy-client/src/main.rs | Game instruction (the objective and which spell is ready). Flagged by sentence shape; it states no science. |
 | `Save the Greenhouse! Put out 3 fires before they spread.` | crates/bevy-client/src/main.rs | Game instruction (the objective). Flagged by sentence shape; it states no science. |
 | `You saved the greenhouse!` | crates/bevy-client/web/hud.js | Win banner. Flagged by sentence shape; it states no science. |
 | `${state.extinguished} fires put out. Press R to play again.` | crates/bevy-client/web/hud.js | Win banner subtitle (a count and a key hint). Flagged by sentence shape; it states no science. |
