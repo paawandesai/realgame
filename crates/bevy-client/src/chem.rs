@@ -226,6 +226,9 @@ pub struct Obj {
     /// Burning since the level started or because fire spread to it (not
     /// lit by the player): putting it out counts toward the objective.
     pub counts: bool,
+    /// A spell put a fire out here at some point: the reseed never relights
+    /// it (the player saved it).
+    pub put_out: bool,
 }
 
 impl Obj {
@@ -251,6 +254,7 @@ impl Obj {
             wall,
             smothered: 0.0,
             counts: false,
+            put_out: false,
         }
     }
 
@@ -461,6 +465,7 @@ impl World {
                     o.burning = false;
                     ev(EventKind::Extinguished(Spell::Water));
                     self.extinguished += u32::from(std::mem::take(&mut o.counts));
+                    o.put_out = true;
                 } else {
                     ev(EventKind::Soaked);
                 }
@@ -484,6 +489,7 @@ impl World {
                     o.burning = false;
                     ev(EventKind::Extinguished(Spell::Frost));
                     self.extinguished += u32::from(std::mem::take(&mut o.counts));
+                    o.put_out = true;
                 } else {
                     // Any surface water freezes too.
                     ev(EventKind::Chilled);
@@ -500,6 +506,7 @@ impl World {
                 if was {
                     ev(EventKind::Extinguished(Spell::Foam));
                     self.extinguished += u32::from(std::mem::take(&mut o.counts));
+                    o.put_out = true;
                 } else {
                     ev(EventKind::Smothered);
                 }
@@ -600,9 +607,9 @@ impl World {
 
     /// Keeps the level winnable: when nothing burns and fewer than
     /// [`GOAL_FIRES`] counted fires were put out (a starting fire burnt out
-    /// by itself, say), the bush farthest from the greenhouse that can still
-    /// burn catches fire. With nothing left that can burn, the greenhouse is
-    /// safe and the level is won.
+    /// by itself, say), the bush farthest from the greenhouse that still has
+    /// fuel and that no spell has put out catches fire. With no such bush,
+    /// the greenhouse is safe and the level is won.
     fn reseed(&mut self, events: &mut Vec<Event>) {
         if self.burning() > 0 || self.extinguished >= GOAL_FIRES {
             return;
@@ -616,7 +623,7 @@ impl World {
         let pick = (0..self.objs.len())
             .filter(|&i| {
                 let o = &self.objs[i];
-                o.kind == Kind::Bush && o.fuel > 0.0 && o.smothered <= 0.0
+                o.kind == Kind::Bush && o.fuel > 0.0 && !o.put_out
             })
             .max_by(|&a, &b| far(&self.objs[a]).total_cmp(&far(&self.objs[b])));
         match pick {
@@ -765,21 +772,48 @@ mod tests {
 
     #[test]
     fn foam_fire_stays_out() {
-        // A hedge (reseed only relights bushes), and a far bush for reseed
-        // to light so the level keeps running while the hedge cools.
+        // A bush and a hedge, each smothered by CO2. A far bush is there for
+        // the reseed to light, so the level keeps running while they cool;
+        // the reseed must never pick the bushes the player put out.
+        for kind in [Kind::Bush, Kind::DryHedge] {
+            let mut w = World::new(vec![
+                Obj::new(kind, [0.0, 0.0], [0.9, 0.9]),
+                Obj::new(Kind::Bush, [40.0, 0.0], [0.9, 0.9]),
+            ]);
+            w.ignite(0);
+            let mut ev = Vec::new();
+            w.apply(0, Spell::Foam, &mut ev);
+            let ev = run(&mut w, 300.0);
+            assert!(
+                !w.objs[0].burning
+                    && !ev.iter().any(|e| e.obj == 0
+                        && matches!(e.kind, EventKind::Ignited | EventKind::Reseeded)),
+                "{kind:?}: a smothered fire must not relight by itself"
+            );
+            assert!(w.objs[0].temp < w.objs[0].ignition_c(), "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn reseed_skips_bushes_the_player_saved() {
+        // The smothered bush is the farthest from the greenhouse, and its
+        // blanket wears off long before the check: still not relit.
         let mut w = World::new(vec![
-            Obj::new(Kind::DryHedge, [0.0, 0.0], [0.9, 0.9]),
             Obj::new(Kind::Bush, [40.0, 0.0], [0.9, 0.9]),
+            Obj::new(Kind::Bush, [10.0, 0.0], [0.9, 0.9]),
+            Obj::new(Kind::Greenhouse, [-30.0, 0.0], [1.0, 1.0]),
         ]);
         w.ignite(0);
         let mut ev = Vec::new();
         w.apply(0, Spell::Foam, &mut ev);
-        let ev = run(&mut w, 300.0);
-        assert!(
-            !w.objs[0].burning && !ev.iter().any(|e| e.kind == EventKind::Ignited),
-            "a smothered fire must not relight by itself"
-        );
-        assert!(w.objs[0].temp < w.objs[0].ignition_c());
+        let ev = run(&mut w, 120.0);
+        let re: Vec<_> = ev
+            .iter()
+            .filter(|e| e.kind == EventKind::Reseeded)
+            .collect();
+        assert_eq!(re.len(), 1);
+        assert_eq!(re[0].obj, 1);
+        assert!(!w.objs[0].burning);
     }
 
     #[test]

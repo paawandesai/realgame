@@ -17,7 +17,7 @@ the greenhouse goes after about 2.5 minutes, and a red heat meter warns for the 
 Put out three fires before any reach it: the ones burning at the start, or ones the heat
 spread to from one of those (a fire you light yourself, or one spread from it, does not
 count). If nothing is burning before three are out (a fire burnt out by itself), the bush
-farthest from the greenhouse catches fire, so the level always ends. Fire will not light the greenhouse
+farthest from the greenhouse that no spell has put out catches fire, so the level always ends. Fire will not light the greenhouse
 itself. A banner shows when you win; the result then stays until you press R (a spell still
 in flight cannot change it, and R makes such spells vanish). You also find a dry hedge you can set alight, an ice wall that fire melts into a puddle
 (frost refreezes the puddle into an ice sheet you slide on), a hot steam vent, and, behind

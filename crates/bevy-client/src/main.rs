@@ -116,6 +116,9 @@ struct Game {
     events: Vec<chem::Event>,
     /// Holds the movement keys down from a test command: (right, fwd, secs).
     scripted_move: Option<(Vec2, f32)>,
+    /// `cast`/`tap` commands waiting for the cooldown, with their age in
+    /// seconds. Dropped after 0.3 s, and cleared by a reset (a new Game).
+    cast_queue: Vec<(String, f32)>,
     /// Bumped by every reset: spells and beams from before it vanish
     /// instead of landing in the new courtyard.
     epoch: u32,
@@ -835,16 +838,27 @@ fn aim_and_cast(
     }
 
     let mut casts: Vec<Aim> = Vec::new();
-    let mut cmds = std::mem::take(&mut web.cmds);
-    // `cast` and `tap` obey the same cooldown and pause as the mouse: while
-    // either holds, they wait (one per cooldown, so tap spam cannot fire an
-    // unlimited stream of spells).
-    if game.paused || game.cooldown > 0.0 {
-        web.cmds = cmds;
-        cmds = Vec::new();
-    } else if cmds.len() > 1 {
-        web.cmds = cmds.split_off(1);
+    // `cast` and `tap` obey the same cooldown and pause as the mouse. While
+    // paused they are dropped; during the cooldown they wait at most 0.3 s
+    // (so a stale click never fires later), and one runs per cooldown (so
+    // tap spam cannot fire an unlimited stream of spells).
+    let incoming = std::mem::take(&mut web.cmds);
+    if game.paused {
+        game.cast_queue.clear();
+    } else {
+        game.cast_queue
+            .extend(incoming.into_iter().map(|c| (c, 0.0)));
+        for q in &mut game.cast_queue {
+            q.1 += dt;
+        }
+        game.cast_queue.retain(|q| q.1 <= 0.3 + dt);
+        game.cast_queue.truncate(8);
     }
+    let cmds: Vec<String> = if game.cooldown <= 0.0 && !game.cast_queue.is_empty() {
+        vec![game.cast_queue.remove(0).0]
+    } else {
+        Vec::new()
+    };
     for c in cmds {
         let a: Vec<&str> = c.split_whitespace().collect();
         if a.first() == Some(&"cast") {

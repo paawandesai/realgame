@@ -137,6 +137,10 @@ export function startHud() {
     if (locked) {
       everLocked = true;
       settle(true);
+      // A lock that arrives late (after the refusal timeout) still wins.
+      lockDenied = false;
+      note = '';
+      castIfRefused = false;
       showPause(false);
     } else if (everLocked && !(state && state.outcome !== 'playing')) {
       // Esc released the mouse: pause with the controls help.
@@ -150,20 +154,17 @@ export function startHud() {
   // An event's movement, including the moves the browser merged into it
   // (with a button held, Chrome merges pointer moves to one per frame, and
   // the merged event's own movementX can hold only the last of them, which
-  // made aiming while holding fire turn far too slowly). Per axis, the
-  // larger of the summed parts and the event's own value is used.
+  // made aiming while holding fire turn far too slowly). When the parts
+  // are there, their sum is used (clamped like a single event).
   const movement = (e) => {
-    let x = delta(e.movementX);
-    let y = delta(e.movementY);
     const parts = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
     if (parts.length > 1) {
       let sx = 0;
       let sy = 0;
       for (const c of parts) { sx += delta(c.movementX); sy += delta(c.movementY); }
-      if (Math.abs(sx) > Math.abs(x)) x = sx;
-      if (Math.abs(sy) > Math.abs(y)) y = sy;
+      return [delta(sx), delta(sy)];
     }
-    return [x, y];
+    return [delta(e.movementX), delta(e.movementY)];
   };
   // Set once pointermove has reported movement while locked.
   let moveWorks = false;

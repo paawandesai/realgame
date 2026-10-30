@@ -66,9 +66,7 @@ mod imp {
             (Some(x), Some(y)) if x >= 0.0 && y >= 0.0 => Some((x as f32, y as f32)),
             _ => None,
         };
-        // Not cleared: `cast`/`tap` held back by the cooldown stay queued
-        // (capped, so a flood of taps is dropped rather than stored).
-        input.cmds.truncate(16);
+        input.cmds.clear();
         let cmds = get(&gi, "cmds");
         if Array::is_array(&cmds) {
             let arr = Array::from(&cmds);
