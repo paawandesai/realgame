@@ -10,3 +10,6 @@
 2026-10-30T01:55 main I-001 building(r2)→merged PR #13 (2 breaker rounds; round 2: 0 blocking, 5 should-fix → I-012); Mac 120 fps p50 / 107 p5 at 2725973
 2026-10-30T01:55 main I-002 proposed→merged covered by tests/e2e/golden.mjs in PR #13 (31/31 headless ?low)
 2026-10-30T01:55 main config: build and smoke commands set (bootstrap complete)
+2026-10-30T02:30 main I-003 building(r1)→scoring PR #18; breaker 0 blocking, 9 should-fix → I-013; first cloud perf: Brotli 3.55 MB pass, TTI@4x 16.7 s fail, CPU@4x low 33.8 ms fail → I-015
+2026-10-30T02:30 main I-006 building(r1)→scoring PR #19; breaker 0 blocking → I-014
+2026-10-30T02:30 main I-011 proposed→merged gameplay-standards.md (critic revise applied); P0 gaps → I-016
