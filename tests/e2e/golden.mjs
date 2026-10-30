@@ -1524,12 +1524,13 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     let slow = null; const spans = [];
     for (let k = 0; k < 3 && !slow; k++) {
       await cmd('look 0 60');
-      const g = await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
+      await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
       await startRec();
       await page.mouse.down();
+      const g0 = (await st()).gameTime;
       const t0 = Date.now();
       let z = await st();
-      while (z.gameTime < g.gameTime + 0.35 && Date.now() - t0 < 15000) { await sleep(20); z = await st(); }
+      while (z.gameTime < g0 + 0.35 && Date.now() - t0 < 15000) { await sleep(20); z = await st(); }
       await page.mouse.up();
       const f1 = (await st()).frame;
       await until((x) => x.frame >= f1 + 20, 60000);
@@ -1545,12 +1546,13 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     check('streams: a slow click (0.35 s) casts once', lockOk && !!slow && slow.grew === 1, spans.join(' | '));
 
     await cmd('look 0 60');
-    const g = await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
+    await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
     await startRec();
     await page.mouse.down();
+    const g0 = (await st()).gameTime;
     const t0 = Date.now();
     let z = await st();
-    while (z.gameTime < g.gameTime + 1.6 && Date.now() - t0 < 30000) { await sleep(50); z = await st(); }
+    while (z.gameTime < g0 + 1.6 && Date.now() - t0 < 30000) { await sleep(50); z = await st(); }
     await page.mouse.up();
     await frames(2);
     const rows = await stopRec();
