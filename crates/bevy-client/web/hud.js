@@ -9,6 +9,7 @@
 //                           tick N, reset
 //   __game.lock()           request pointer lock (needs a user gesture)
 //   __game.mode()           { pointMode, lockDenied, dragging }
+// Test commands other than select, cast, tap and reset need `?debug`.
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -28,6 +29,14 @@ export function startHud() {
   let lockDenied = false;
   // A mouse button held while unlocked: drag-to-look.
   let drag = null;
+  // A one-off hint (lock refused, point-and-click) that replaces the usual
+  // ones until the pointer locks.
+  let note = '';
+  // The spell the wheel last asked for, until the game reports it (two wheel
+  // ticks in one frame must not pick the same spell).
+  let wheelSpell = null;
+  // The last few captions, for the pause card and the C key.
+  const history = [];
 
   // Render scale: `?low` renders at 0.75, `?scale=0.5` etc. The canvas is laid
   // out smaller (so its drawing buffer is smaller) and scaled up by CSS.
@@ -62,17 +71,31 @@ export function startHud() {
     // Raw, unaccelerated deltas where supported; plain lock otherwise.
     tryLock({ unadjustedMovement: true })
       .catch(() => tryLock())
-      .then(() => { lockDenied = false; })
+      .then(() => { lockDenied = false; note = ''; })
       .catch(() => {
+        if (everLocked) {
+          // Browsers refuse a new lock for about a second after Esc.
+          note = 'Click again to lock the mouse.';
+          return;
+        }
         // Blocked (browser setting, iframe, or no user gesture): drag to look.
         lockDenied = true;
-        $('hint').textContent = 'Mouse lock is blocked here: hold a mouse button and drag to look. Click to cast.';
-        $('hint').classList.remove('hidden');
+        note = 'Mouse lock is blocked here: hold a mouse button and drag to look. Click to cast.';
       });
   };
   const showPause = (on) => {
     input.paused = on;
     $('pause').classList.toggle('hidden', !on);
+    if (on) {
+      // Recent messages, newest first, so nothing is missed.
+      const list = $('history');
+      list.replaceChildren(...history.map((t) => {
+        const li = document.createElement('li');
+        li.textContent = t;
+        return li;
+      }));
+      $('history-box').classList.toggle('hidden', history.length === 0);
+    }
   };
   window.__game = {
     state: () => (window.__gameState ? JSON.parse(window.__gameState) : null),
@@ -103,7 +126,18 @@ export function startHud() {
     const k = canvas.clientWidth / r.width;
     return [(e.clientX - r.left) * k, (e.clientY - r.top) * k];
   };
-  document.addEventListener('mousemove', (e) => {
+  // All mouse movement is read here, from pointermove in the capture phase
+  // on window, and then stopped so it never reaches winit's listeners on the
+  // canvas. Two reasons:
+  // - mousemove is not usable: winit calls preventDefault on pointerdown,
+  //   and per the Pointer Events spec the browser then sends no compatibility
+  //   mouse events (mousemove included) while a button is held. Drag-to-look,
+  //   aiming while holding fire, and hover all froze that way.
+  // - headless Chromium was seen to deliver tens of thousands of coalesced
+  //   moves per frame to winit around pointer lock, growing the WebAssembly
+  //   heap by hundreds of MB. The game never reads Bevy's cursor events.
+  const onMove = (e) => {
+    e.stopImmediatePropagation();
     if (input.locked) {
       input.dx += e.movementX;
       input.dy += e.movementY;
@@ -115,29 +149,38 @@ export function startHud() {
       input.dy += e.movementY;
       drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
     }
-    if (e.target === canvas) [input.px, input.py] = local(e);
-  });
+    // The free cursor position, for hover and click-to-target. Checked
+    // against the canvas rectangle (not e.target), so HUD overlays and
+    // synthetic events still count.
+    const r = canvas.getBoundingClientRect();
+    const inside = e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom;
+    if (inside) [input.px, input.py] = local(e);
+    else { input.px = -1; input.py = -1; }
+  };
+  window.addEventListener('pointermove', onMove, { capture: true });
+  // pointerrawupdate carries the same moves again, and the browser only
+  // produces it while someone listens. winit listens (for raw motion the
+  // game never reads on the web), so listeners for it are not registered at
+  // all: in headless Chromium under pointer lock, its mere presence grew the
+  // renderer process by hundreds of MB a second until the tab crashed.
+  // (startHud runs before the WebAssembly starts, so this covers winit.)
+  const addListener = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (type, ...rest) {
+    if (type === 'pointerrawupdate') return undefined;
+    return addListener.call(this, type, ...rest);
+  };
   // While locked, buttons and the wheel are read here (not through winit) so
   // casting never depends on how the browser routes a locked pointer's events.
   document.addEventListener('pointerdown', (e) => { if (input.locked && e.button === 0) input.fire = true; });
   document.addEventListener('pointerup', (e) => { if (e.button === 0) input.fire = false; });
   document.addEventListener('wheel', (e) => {
     if (!input.locked || e.deltaY === 0) return;
-    const cur = state ? state.spell : 0;
-    cmd(`select ${((cur + (e.deltaY > 0 ? 1 : 3)) % 4) + 1}`);
+    const cur = wheelSpell ?? (state ? state.spell : 0);
+    wheelSpell = (cur + (e.deltaY > 0 ? 1 : 3)) % 4;
+    cmd(`select ${wheelSpell + 1}`);
   }, { passive: true });
   // Right-click must never open a menu (that drops the lock) or cast.
   document.addEventListener('contextmenu', (e) => e.preventDefault());
-  // The game reads the mouse from the mousemove listener above (deltas while
-  // locked or dragging, position while free), never from Bevy's cursor
-  // events. So pointer moves are stopped before they reach winit's listeners
-  // on the canvas: headless Chromium was seen to deliver tens of thousands of
-  // coalesced moves per frame to them around pointer lock, growing the
-  // WebAssembly heap by hundreds of MB.
-  for (const t of ['pointermove', 'pointerrawupdate']) {
-    window.addEventListener(t, (e) => e.stopImmediatePropagation(), { capture: true });
-  }
-  canvas.addEventListener('mouseleave', () => { input.px = -1; input.py = -1; });
   canvas.addEventListener('pointerdown', (e) => {
     canvas.focus();
     if (input.locked || input.paused) return;
@@ -151,8 +194,9 @@ export function startHud() {
     // Any held left or right button drags to look until it is released.
     drag = { button: e.button, x, y, moved: 0 };
     // A left click always asks for the lock (the usual way to play), unless
-    // the player chose point-and-click mode or the browser refused the lock.
-    if (e.button === 0 && !pointMode && !lockDenied) lock();
+    // the player chose point-and-click mode. If the browser refused it
+    // before, it is asked again (a short click then also casts, below).
+    if (e.button === 0 && !pointMode) lock();
   });
   document.addEventListener('pointerup', (e) => {
     if (!drag || e.button !== drag.button) return;
@@ -167,15 +211,25 @@ export function startHud() {
       cmd('cast');
     }
   });
+  const caption = $('caption');
+  let capTimer = 0;
+  // Captions stay 8 s (long science lines take young readers a while).
+  const showCaption = (text) => {
+    caption.textContent = text;
+    caption.classList.add('show');
+    clearTimeout(capTimer);
+    capTimer = setTimeout(() => caption.classList.remove('show'), 8000);
+  };
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !input.locked) showPause(!input.paused);
+    // C shows the last message again.
+    if ((e.key === 'c' || e.key === 'C') && !e.repeat && history.length) showCaption(history[0]);
   });
   $('resume').addEventListener('click', () => { showPause(false); lock(); });
   $('pointmode').addEventListener('click', () => {
     showPause(false);
     pointMode = true;
-    $('hint').textContent = 'Point and click: click a glowing target to cast at it. Drag to look.';
-    $('hint').classList.remove('hidden');
+    note = 'Point and click: click a glowing target to cast at it. Drag to look.';
     canvas.focus();
   });
   document.querySelectorAll('.slot').forEach((b) => {
@@ -184,9 +238,12 @@ export function startHud() {
 
   const slots = [...document.querySelectorAll('.slot')];
   const cross = $('crosshair');
-  const caption = $('caption');
+  const hint = $('hint');
+  const setHint = (text) => {
+    if (hint.textContent !== text) hint.textContent = text;
+    hint.classList.toggle('hidden', !text);
+  };
   let capId = -1;
-  let capTimer = 0;
   const frame = () => {
     syncLock();
     const raw = window.__gameState;
@@ -196,19 +253,28 @@ export function startHud() {
       $('loading').classList.add('hidden');
       $('hud').classList.remove('hidden');
       slots.forEach((s, i) => s.classList.toggle('sel', i === state.spell));
+      if (wheelSpell === state.spell) wheelSpell = null;
       cross.classList.toggle('on', state.aimObj >= 0 && state.locked);
       canvas.classList.toggle('hover', pointMode && !state.locked && state.hover >= 0);
-      if (!pointMode && !lockDenied) $('hint').classList.toggle('hidden', state.locked || state.casts > 0);
-      if (state.locked) $('hint').classList.add('hidden');
+      // Hints: how to start, then how to aim until three spells have landed.
+      if (state.locked) {
+        note = '';
+        setHint(state.impacts < 3 ? 'Aim at a glowing target: the crosshair turns yellow. Left click casts.' : '');
+      } else if (note) {
+        setHint(note);
+      } else {
+        setHint(state.casts > 0 ? '' : 'Click to look around. Esc shows the controls and point-and-click mode.');
+      }
       $('obj-line').textContent = state.outcome === 'won'
         ? 'Greenhouse saved!'
         : `Fires put out: ${Math.min(state.extinguished, state.goal)} / ${state.goal}  ·  burning now: ${state.burning}`;
       if (state.captionId !== capId) {
         capId = state.captionId;
-        caption.textContent = state.caption;
-        caption.classList.add('show');
-        clearTimeout(capTimer);
-        capTimer = setTimeout(() => caption.classList.remove('show'), 4500);
+        showCaption(state.caption);
+        if (state.caption && history[0] !== state.caption) {
+          history.unshift(state.caption);
+          history.length = Math.min(history.length, 6);
+        }
       }
       // Warn while a fire burns next to the greenhouse: how close it is to
       // its ignition temperature (300 °C).

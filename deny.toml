@@ -21,3 +21,19 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+
+# Bevy client (crates/bevy-client, its own workspace, checked with
+# --manifest-path): permissive licences outside the list above, allowed only
+# for the crates that use them.
+[[licenses.exceptions]]
+crate = "encase"
+allow = ["MIT-0"]
+[[licenses.exceptions]]
+crate = "encase_derive"
+allow = ["MIT-0"]
+[[licenses.exceptions]]
+crate = "encase_derive_impl"
+allow = ["MIT-0"]
+[[licenses.exceptions]]
+crate = "libloading"
+allow = ["ISC"]
