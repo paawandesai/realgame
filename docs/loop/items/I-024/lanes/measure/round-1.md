@@ -53,3 +53,20 @@ All four timestamps are non-null. `first_frame_ms` and `to_interactive_ms` are n
 
 - **perf run JSON**, per run and in `medians`: `boot_ms`, `wasm_response_end_ms`, `startup_log_ms` and `tti_phases {fetch_ms, compile_init_ms, first_frame_ms, to_interactive_ms, warn?}`. New keys are appended. No thresholds, validity rules or existing keys changed.
 - **`tests/e2e/perf-pairs.mjs`**: the CLI, verdict JSON, exit codes and exports as in the spec. The one optional addition is `--keep-runs <dir>`.
+
+## Checks on the final branch tree (801d1d6 + this note)
+
+The branch's client source equals origin/main: Part R was reverted, no profile was kept, and the only `Cargo.toml` change is a comment. The web build's `pkg-out` is byte-identical to the base build, all six files.
+
+| check | result |
+|---|---|
+| `npm test` | 50 pass, 0 fail |
+| `perf.mjs --self-test` / `perf-pairs.mjs --self-test` | 50/50, 15/15 |
+| `rustc --edition 2021 --test` clock / motion / chem / feel | 3 / 8 / 19 / 4 pass |
+| `cargo fmt --check` | clean |
+| `cargo clippy --target wasm32-unknown-unknown --locked -- -D warnings` | clean |
+| `build-web.sh` | rc 0, 188 s incremental, wasm identical to base |
+| golden `QUERY=?low`, run 1 (lock held) | 97/98: `cast: a real click casts exactly once` failed (casts 1 → 2 → 2) at fps 1.7 while the box's load average was about 4.7 from other items |
+| golden `QUERY=?low`, run 2 (lock held) | **98/98** |
+
+The run 1 failure is on an artifact byte-identical to origin/main's, so it is load flake in an existing check, not an I-024 change. Golden at the default tier was not run separately: the artifact is the same bytes as main's.
