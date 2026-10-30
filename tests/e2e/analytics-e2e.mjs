@@ -358,6 +358,143 @@ const parsed = (run) =>
     check('D1: no rows with any other daily_id (the opt-out runs left none)', others.length === 0, JSON.stringify(others).slice(0, 300));
     const cols = d1(persist, 'PRAGMA table_info(events)').map((r) => r.name);
     check('D1: events has exactly id, day, daily_id, type, band, room, dur', JSON.stringify(cols) === JSON.stringify(['id', 'day', 'daily_id', 'type', 'band', 'room', 'dur']), cols.join(','));
+
+    // ------------------------------- 8. review follow-ups (I-022, 12-14)
+    // The D1 checks above stopped the stack; start it again on the same D1
+    // directory (a new port) for these runs. Nothing below reads D1.
+    const port2 = await freePort();
+    const origin2 = `http://127.0.0.1:${port2}`;
+    pages = spawn(
+      'npx',
+      ['--no-install', 'wrangler', 'pages', 'dev', 'web/dist', '--ip', '127.0.0.1', '--port', String(port2), '--persist-to', persist, '--binding', `DASHBOARD_TOKEN=${TOKEN}`],
+      { cwd: repo, env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' }, detached: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let wlog2 = '';
+    pages.stdout.on('data', (d) => (wlog2 += d));
+    pages.stderr.on('data', (d) => (wlog2 += d));
+    let up2 = false;
+    for (const t0 = Date.now(); !up2 && Date.now() - t0 < 120000;) {
+      up2 = await fetch(`${origin2}/`).then((r) => r.status === 200).catch(() => false);
+      if (!up2) await sleep(500);
+    }
+    if (!check('wrangler pages dev serves / again for the follow-up runs', up2, up2 ? origin2 : wlog2.slice(-1500))) throw new Error('no local stack (second start)');
+
+    // 12. One id across UTC midnight: the id is read once per session.
+    {
+      const pwVersion = require('playwright/package.json').version;
+      const [maj, min] = pwVersion.split('.').map(Number);
+      if (!check('playwright has page.clock (1.45 or newer)', maj > 1 || (maj === 1 && min >= 45), pwVersion)) throw new Error('page.clock missing');
+      const run = await openRun(browser, origin2);
+      const p = run.page;
+      await p.clock.setFixedTime(new Date('2026-10-29T23:59:30Z'));
+      await p.goto(`${origin2}/?${QUERY}`);
+      await p.waitForSelector('#age', { state: 'visible', timeout: 60000 }).catch(() => undefined);
+      await p.click('#age button[data-band="seedling"]');
+      await firstState(p);
+      await waitFor(() => parsed(run).some((e) => e.type === 'session_start'), 15000);
+      await p.clock.setFixedTime(new Date('2026-10-30T00:00:30Z'));
+      await p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await waitFor(() => parsed(run).some((e) => e.type === 'session_end'), 10000);
+      const evs = parsed(run);
+      const s0 = evs.find((e) => e.type === 'session_start');
+      const e0 = evs.find((e) => e.type === 'session_end');
+      check(
+        'midnight: session_start and session_end carry the same id',
+        !!s0 && !!e0 && ID_RE.test(s0.id) && s0.id === e0.id,
+        `start=${s0?.id} end=${e0?.id}`,
+      );
+      check('midnight: session_end still carries a valid duration (performance.now is not faked)', !!e0 && BUCKETS.includes(e0.dur), String(e0?.dur));
+      check('midnight: 0 console errors and 0 page errors', run.errors.length === 0, run.errors.slice(0, 3).join(' | '));
+      await run.context.close();
+    }
+
+    // 13 and 14. The picker frees a lock taken before it appeared, and the
+    // game behind it is inert. age.js is held back until the lock is taken.
+    {
+      const run = await openRun(browser, origin2);
+      const p = run.page;
+      let release = () => undefined;
+      let capped = false;
+      const held = new Promise((r) => {
+        release = r;
+      });
+      const cap = setTimeout(() => {
+        capped = true;
+        release();
+      }, 60000);
+      await p.route('**/age.js', async (route) => {
+        await held;
+        await route.continue();
+      });
+      await p.goto(`${origin2}/?${QUERY}`);
+      await firstState(p);
+      const vp = p.viewportSize() ?? { width: 1366, height: 768 };
+      const cx = Math.round(vp.width / 2);
+      const cy = Math.round(vp.height / 2);
+      const clear = async () => {
+        for (const t0 = Date.now(); Date.now() - t0 < 30000;) {
+          const ok = await p.evaluate(([x, y]) => {
+            const l = document.getElementById('loading');
+            return (!l || l.classList.contains('hidden')) && document.elementFromPoint(x, y)?.id === 'game';
+          }, [cx, cy]);
+          if (ok) return true;
+          await sleep(200);
+        }
+        return false;
+      };
+      const canvasClear = await clear();
+      const lockedBefore = async () => {
+        await p.mouse.click(cx, cy);
+        for (const t0 = Date.now(); Date.now() - t0 < 5000;) {
+          if (await p.evaluate(() => document.pointerLockElement?.id === 'game')) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const lk = canvasClear && (await lockedBefore());
+      const pickerHeld = await p.evaluate(() => document.getElementById('age')?.hidden === true);
+      check('picker: the canvas takes the pointer lock while age.js is held back', canvasClear && lk && pickerHeld && !capped, `clear=${canvasClear} locked=${lk} pickerHidden=${pickerHeld}`);
+      clearTimeout(cap);
+      release();
+      await p.waitForSelector('#age', { state: 'visible', timeout: 60000 }).catch(() => undefined);
+      const shownAt = Date.now();
+      let freed = false;
+      while (!freed && Date.now() - shownAt < 1000) {
+        freed = await p.evaluate(() => document.pointerLockElement === null);
+        if (!freed) await sleep(50);
+      }
+      const visible = await p.evaluate(() => document.getElementById('age')?.hidden === false);
+      check('picker: it frees the pointer lock within 1 s of appearing', !capped && visible && freed, `visible=${visible} freed=${freed} capped=${capped}`);
+      const ids = ['stage', 'hud', 'loading', 'pause'];
+      const inertOpen = await p.evaluate((ids) => {
+        const age = document.getElementById('age');
+        return {
+          game: ids.map((id) => [id, document.getElementById(id)?.inert ?? null]),
+          age: age?.inert ?? null,
+          ageAncestor: age ? age.closest('[inert]') !== null : null,
+        };
+      }, ids);
+      check(
+        'picker: #stage, #hud, #loading and #pause are inert while it is open; #age is not',
+        inertOpen.game.every(([, v]) => v === true) && inertOpen.age === false && inertOpen.ageAncestor === false,
+        JSON.stringify(inertOpen),
+      );
+      await p.click('button[data-band="sprout"]');
+      const closed = await p.evaluate(() => document.getElementById('age')?.hidden === true);
+      const startSent = await waitFor(() => parsed(run).some((e) => e.type === 'session_start' && e.band === 'sprout'), 10000);
+      check('picker: a pick closes it and sends session_start (sprout)', closed && startSent, `closed=${closed} sent=${startSent}`);
+      const after = await p.evaluate((ids) => ({
+        game: ids.map((id) => [id, document.getElementById(id)?.inert ?? null]),
+        active: document.activeElement?.id ?? null,
+      }), ids);
+      check(
+        'picker: after the pick nothing is inert and the canvas has focus',
+        after.game.every(([, v]) => v === false) && after.active === 'game',
+        JSON.stringify(after),
+      );
+      check('picker run: 0 console errors and 0 page errors', run.errors.length === 0, run.errors.slice(0, 3).join(' | '));
+      await run.context.close();
+    }
   } catch (err) {
     check('run completed without an exception', false, String(err && err.stack ? err.stack : err));
   } finally {

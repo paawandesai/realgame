@@ -144,3 +144,29 @@ test("stats aggregate players, bands, sessions, funnel and durations", async () 
     ],
   );
 });
+
+test("a session across UTC midnight is one player, counted on the day it started", async () => {
+  const e = env();
+  const at = (iso: string) => Date.parse(iso);
+  const A = id(0xa);
+  await handleEvent(post({ v: 1, id: A, type: "session_start", band: "seedling" }), e, at("2026-10-29T23:59:00Z"));
+  await handleEvent(post({ v: 1, id: A, type: "quest_complete", band: "seedling", quest: 0 }), e, at("2026-10-30T00:01:00Z"));
+  await handleEvent(post({ v: 1, id: A, type: "session_end", band: "seedling", dur: "1to5m" }), e, at("2026-10-30T00:01:00Z"));
+  assert.equal(count(e), 3);
+
+  const r = await handleStats(stats(), e, at("2026-10-30T00:02:00Z"));
+  assert.equal(r.status, 200);
+  const s = await r.json();
+  assert.equal(s.today, "2026-10-30");
+  assert.equal(s.players.today, 0);
+  assert.equal(s.players.playerDays, 1);
+  const day = (d: string) => s.daily.find((x: { day: string }) => x.day === d);
+  assert.equal(day("2026-10-29").players, 1);
+  assert.equal(day("2026-10-30").players, 0);
+  // Zero row: the new day's band rows say 0 for seedling, not missing or 1.
+  assert.equal(s.players.todayByBand.seedling, 0);
+  assert.deepEqual(s.players.todayByBand, { sprout: 0, seedling: 0, apprentice: 0 });
+  assert.equal(day("2026-10-30").byBand.seedling, 0);
+  assert.equal(day("2026-10-29").byBand.seedling, 1);
+  assert.deepEqual(s.players.playerDaysByBand, { sprout: 0, seedling: 1, apprentice: 0 });
+});

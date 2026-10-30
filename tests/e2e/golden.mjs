@@ -342,6 +342,8 @@ function check(name, ok, detail = '') {
 
   await castingYouCanSee({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
+  await reviewFollowups({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
+
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
   console.log(`\n${results.length - fails.length}/${results.length} passed`);
@@ -1753,6 +1755,213 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
     const c = await run(4);
     check('cast: the stream and splash do not flash the screen', w < 0.2 && c < 0.2,
       `worst frame-to-frame change: Water ${(w * 100).toFixed(1)}%, CO2 ${(c * 100).toFixed(1)}%`);
+  }
+  await fresh();
+}
+
+// ---------------------------------------------------------------------------
+// Review follow-ups (docs/loop/items/I-022/spec.md, tests 7-10): Hints off
+// hides the coaching hints but keeps the start line and notes, Aim help off
+// turns off the point-and-click tap and hover cone, and View width is the
+// real horizontal angle at 4:3 and 21:9. Runs after castingYouCanSee, so its
+// Hints and viewport changes cannot touch I-019's checks; each test restores
+// what it changes.
+// ---------------------------------------------------------------------------
+async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, locked, base, browser, errors }) {
+  console.log('  -- review follow-ups (I-022) --');
+  const VW = +(process.env.VW || 1280), VH = +(process.env.VH || 720);
+  void base; void browser; void errors; void locked; void frames;
+  // Copied from feelAndStandards.
+  const setCtl = (sel, v, ev) => page.evaluate(([sel, v, ev]) => {
+    const el = document.querySelector(sel);
+    if (!el) return false;
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = String(v);
+    el.dispatchEvent(new Event(ev || (el.type === 'range' ? 'input' : 'change'), { bubbles: true }));
+    return true;
+  }, [sel, v, ev]);
+  const checked = (sel) => page.evaluate((sel) => { const e = document.querySelector(sel); return e ? e.checked : null; }, sel);
+  // Copied from castingYouCanSee.
+  const within = async (f0, n, pred, ms = 30000) => {
+    const t0 = Date.now();
+    let x = await st();
+    while (!pred(x) && x.frame <= f0 + n && Date.now() - t0 < ms) { await sleep(20); x = await st(); }
+    return { ok: !!pred(x) && x.frame <= f0 + n, x };
+  };
+  const unpause = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((x) => !x.paused, 8000); } };
+  const fresh = async () => {
+    await unpause();
+    await cmd('reset');
+    await until((x) => x.outcome === 'playing' && x.burning === 3 && x.casts === 0, 20000);
+  };
+  const tp = async (x, z) => { await cmd(`tp ${x} ${z}`); await until((q) => Math.abs(q.pos[0] - x) < 0.5 && Math.abs(q.pos[2] - z) < 0.5, 10000); };
+  const aimAt = async (i, spell) => {
+    await unpause();
+    await cmd(`face ${i}`);
+    if (spell) await cmd(`select ${spell}`);
+    return until((x) => (!spell || x.spell === spell - 1) && x.aimObj === i && x.cooldown === 0, 15000);
+  };
+  const pauseShown = () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'));
+  const relock = async () => {
+    for (let k = 0; k < 6; k++) {
+      if ((await st()).locked) return true;
+      if (!(await pauseShown())) await page.evaluate(() => window.__game.pause(true));
+      await page.click('#resume');
+      if ((await until((q) => q.locked, 4000)).locked) return true;
+      await sleep(1200);
+    }
+    return (await st()).locked;
+  };
+  // #hint (shown text, or '' when hidden or empty) with the state the HUD
+  // last drew, in one read (a cut-down hudRead from castingYouCanSee).
+  const hintRead = () => page.evaluate(() => {
+    const s = window.__game.hudState() || window.__game.state();
+    const e = document.getElementById('hint');
+    const vis = !!e && !e.classList.contains('hidden') && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden';
+    return { s, hint: vis ? e.textContent.trim() : '' };
+  });
+  const hintWithin = async (f0, n, pred, ms = 30000) => {
+    const t0 = Date.now();
+    let h = await hintRead();
+    while (!pred(h) && h.s.frame <= f0 + n && Date.now() - t0 < ms) { await sleep(20); h = await hintRead(); }
+    return { ok: !!pred(h) && h.s.frame <= f0 + n, h };
+  };
+  // Point mode on, pointer free, pause card closed.
+  const pointMode = async () => {
+    if ((await st()).locked) {
+      await page.evaluate(() => window.__game.pause(true));
+      await page.evaluate(() => document.exitPointerLock());
+      await until((q) => !q.locked, 8000);
+    }
+    if (!(await pauseShown())) await page.evaluate(() => window.__game.pause(true));
+    await page.click('#pointmode');
+    await unpause();
+    return page.evaluate(() => window.__game.mode().pointMode);
+  };
+  const centre = async (w = VW, h = VH) => { await page.mouse.move(w / 2 + 1, h / 2 + 1); await page.mouse.move(w / 2, h / 2); };
+  const DEGR = Math.PI / 180;
+  const vfovAt = (h, a) => 2 * Math.atan(Math.tan((h * DEGR) / 2) / a) / DEGR;
+  const fmt = (v, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : String(v));
+
+  // 7. Hints off hides the locked hint.
+  {
+    await fresh();
+    const lk = await relock();
+    let f0 = (await st()).frame;
+    const pre = await hintWithin(f0, 2, (h) => h.hint !== '' && h.s.locked && h.s.extinguished === 0);
+    const ticked = (await checked('#hints')) === true;
+    f0 = (await st()).frame;
+    await setCtl('#hints', false);
+    const off = await hintWithin(f0, 2, (h) => h.hint === '');
+    f0 = (await st()).frame;
+    await setCtl('#hints', true);
+    const on = await hintWithin(f0, 2, (h) => h.hint !== '');
+    check('review: Hints off hides the locked hint, on brings it back',
+      lk && ticked && pre.ok && off.ok && on.ok && off.h.s.locked && on.h.s.locked,
+      `locked=${lk} ticked=${ticked} before "${pre.h.hint}" (ext=${pre.h.s.extinguished}); off "${off.h.hint}" ok=${off.ok}; on "${on.h.hint}" ok=${on.ok}`);
+  }
+
+  // 8. Hints off keeps the start line and the notes (guard).
+  {
+    await setCtl('#hints', false);
+    await page.evaluate(() => document.exitPointerLock());
+    await until((q) => !q.locked, 8000);
+    await page.evaluate(() => window.__game.pause(false));
+    await until((x) => !x.paused, 8000);
+    await fresh();
+    let f0 = (await st()).frame;
+    const start = await hintWithin(f0, 10, (h) => h.hint !== '' && !h.s.locked && h.s.casts === 0);
+    const pm = await pointMode();
+    f0 = (await st()).frame;
+    const note = await hintWithin(f0, 10, (h) => h.hint !== '' && !h.s.locked);
+    check('review: Hints off keeps the start line and the point-and-click note',
+      (await checked('#hints')) === false && start.ok && pm && note.ok,
+      `start "${start.h.hint}" (locked=${start.h.s.locked} casts=${start.h.s.casts}); point mode=${pm} note "${note.h.hint}"`);
+    await setCtl('#hints', true);
+    const saved = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem('alchemist.settings.v1')); } catch (e) { return null; } });
+    check('review: Hints is ticked and saved again afterwards', (await checked('#hints')) === true && (!saved || saved.hints !== false), JSON.stringify(saved));
+  }
+
+  // 9. Aim help off: no tap or hover cone. Pose fixed by the spec.
+  {
+    await fresh();
+    await tp(4, 2);
+    const bushes = idx('bush');
+    const b = bushes[5];
+    let found = false;
+    let s = await aimAt(b);
+    if (s.aimObj === b) {
+      for (let k = 0; k < 40 && !found; k++) {
+        const f = (await st()).frame;
+        await cmd('turn 9 0');
+        s = await until((x) => x.frame >= f + 2, 5000);
+        found = s.aimObj === b && s.assisted === true;
+      }
+    }
+    const pm = await pointMode();
+    await centre();
+    const onHover = await until((x) => x.hover === b, 15000);
+    let f0 = (await st()).frame;
+    await setCtl('#assist', false);
+    const off = await within(f0, 10, (x) => x.assist === false && x.hover === -1);
+    f0 = (await st()).frame;
+    await setCtl('#assist', true);
+    const on = await within(f0, 10, (x) => x.assist === true && x.hover === b);
+    check('review: Aim help off turns off the tap and hover cone',
+      found && pm && onHover.hover === b && off.ok && on.ok,
+      `near miss on bush ${b}: ${found}; point mode=${pm}; on: hover=${onHover.hover}; off: hover=${off.x.hover} assist=${off.x.assist}; on again: hover=${on.x.hover}`);
+    await setCtl('#assist', false);
+    await until((x) => x.assist === false, 5000);
+    await cmd(`face ${lit[0]}`);
+    await centre();
+    const exact = await until((x) => x.hover === lit[0], 15000);
+    check('review: an exact point-and-click hit still works with Aim help off', exact.hover === lit[0] && exact.assist === false,
+      `hover=${exact.hover} want ${lit[0]} assist=${exact.assist}`);
+    await setCtl('#assist', true);
+    await until((x) => x.assist === true, 5000);
+  }
+
+  // 10. View width holds at 4:3 and 21:9, live.
+  {
+    const notes = [];
+    let ok43 = false, ok219 = false, ok100 = false, hoverOk = false, back = false;
+    try {
+      await page.setViewportSize({ width: 960, height: 720 });
+      let f0 = (await st()).frame;
+      let r = await within(f0, 10, (x) => Math.abs(x.fov - vfovAt(90, 4 / 3)) <= 0.3);
+      ok43 = r.ok; notes.push(`4:3 fov=${fmt(r.x.fov)} want ${fmt(vfovAt(90, 4 / 3))}`);
+      await page.setViewportSize({ width: 1680, height: 720 });
+      f0 = (await st()).frame;
+      r = await within(f0, 10, (x) => Math.abs(x.fov - vfovAt(90, 21 / 9)) <= 0.3);
+      ok219 = r.ok; notes.push(`21:9 fov=${fmt(r.x.fov)} want ${fmt(vfovAt(90, 21 / 9))}`);
+      await page.setViewportSize({ width: 960, height: 720 });
+      await within((await st()).frame, 10, (x) => Math.abs(x.fov - vfovAt(90, 4 / 3)) <= 0.3);
+      await page.evaluate(() => window.__game.pause(true));
+      f0 = (await st()).frame;
+      await setCtl('#fov', 100);
+      r = await within(f0, 10, (x) => Math.abs(x.fov - vfovAt(100, 4 / 3)) <= 0.3);
+      const label = await page.evaluate(() => document.getElementById('fov-val')?.textContent ?? null);
+      ok100 = r.ok && label === '100°'; notes.push(`4:3 at 100: fov=${fmt(r.x.fov)} want ${fmt(vfovAt(100, 4 / 3))} label=${label}`);
+      await setCtl('#fov', 90);
+      await until((x) => Math.abs(x.fov - vfovAt(90, 4 / 3)) <= 0.3, 10000);
+      await unpause();
+      const pm = await page.evaluate(() => window.__game.mode().pointMode) || await pointMode();
+      await cmd(`face ${lit[0]}`);
+      await centre(960, 720);
+      const h = await until((x) => x.hover === lit[0], 15000);
+      hoverOk = pm && h.hover === lit[0]; notes.push(`4:3 hover=${h.hover} want ${lit[0]}`);
+    } catch (e) {
+      notes.push(`error: ${e && e.message}`);
+    } finally {
+      await page.setViewportSize({ width: VW, height: VH });
+      const f0 = (await st()).frame;
+      const r = await within(f0, 10, (x) => Math.abs(x.fov - 58.72) <= 0.2);
+      back = r.ok; notes.push(`back at ${VW}x${VH}: fov=${fmt(r.x.fov)}`);
+      await unpause();
+    }
+    check('review: View width is 90° wide at 4:3 and 21:9, live', ok43 && ok219, notes.join('; '));
+    check('review: View width 100° holds at 4:3 and the label says 100°', ok100, notes.join('; '));
+    check('review: the cursor ray matches the view at 4:3', hoverOk, notes.join('; '));
+    check('review: the view returns to 58.72° tall at the default size', back, notes.join('; '));
   }
   await fresh();
 }

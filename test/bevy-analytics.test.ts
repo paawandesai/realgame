@@ -11,6 +11,7 @@ import {
   optedOut,
   questEvents,
   randomId,
+  send,
 } from "../crates/bevy-client/web/analytics.js";
 
 type Store = { data: Map<string, string>; getItem(k: string): string | null; setItem(k: string, v: string): void };
@@ -167,4 +168,22 @@ test("a session sends session_start once after the first state, quests once, and
     { type: "session_end", band: "seedling", dur: "lt1m" },
     { type: "session_end", band: "seedling", dur: "5to15m" },
   ]);
+});
+
+test("send uses the id it is given (one id per session)", () => {
+  const bodies: string[] = [];
+  const before = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    value: { sendBeacon: (_u: string, b: string) => (bodies.push(b), true) },
+    configurable: true,
+  });
+  try {
+    assert.equal(typeof (globalThis as { localStorage?: unknown }).localStorage, "undefined");
+    send({ type: "session_end", band: "seedling", dur: "lt1m" }, ID);
+    assert.equal(bodies.length, 1);
+    assert.equal(JSON.parse(bodies[0]!).id, ID);
+  } finally {
+    if (before) Object.defineProperty(globalThis, "navigator", before);
+    else delete (globalThis as { navigator?: unknown }).navigator;
+  }
 });
