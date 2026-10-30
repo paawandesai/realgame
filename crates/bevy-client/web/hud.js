@@ -8,6 +8,7 @@
 //                           turn DX DY, face I, tp X Z, move RIGHT FWD SECS,
 //                           tick N, reset
 //   __game.lock()           request pointer lock (needs a user gesture)
+//   __game.mode()           { pointMode, lockDenied, dragging }
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -19,6 +20,14 @@ export function startHud() {
   let state = null;
   let lastRaw = '';
   let everLocked = false;
+  // "Point and click mode" (from the pause menu): mouse clicks cast at the
+  // target under the cursor instead of locking. Touch always works this way.
+  let pointMode = false;
+  // Set when the browser refuses pointer lock: hold a mouse button and drag
+  // to look instead.
+  let lockDenied = false;
+  // A mouse button held while unlocked: drag-to-look.
+  let drag = null;
 
   // Render scale: `?low` renders at 0.75, `?scale=0.5` etc. The canvas is laid
   // out smaller (so its drawing buffer is smaller) and scaled up by CSS.
@@ -49,10 +58,17 @@ export function startHud() {
   };
   const lock = () => {
     canvas.focus();
+    pointMode = false;
     // Raw, unaccelerated deltas where supported; plain lock otherwise.
     tryLock({ unadjustedMovement: true })
       .catch(() => tryLock())
-      .catch(() => { /* stay unlocked */ });
+      .then(() => { lockDenied = false; })
+      .catch(() => {
+        // Blocked (browser setting, iframe, or no user gesture): drag to look.
+        lockDenied = true;
+        $('hint').textContent = 'Mouse lock is blocked here: hold a mouse button and drag to look. Click to cast.';
+        $('hint').classList.remove('hidden');
+      });
   };
   const showPause = (on) => {
     input.paused = on;
@@ -63,6 +79,7 @@ export function startHud() {
     cmd,
     lock,
     pause: showPause,
+    mode: () => ({ pointMode, lockDenied, dragging: !!drag }),
   };
 
   // Polled every frame as well as on the event (some browsers, headless
@@ -90,9 +107,15 @@ export function startHud() {
     if (input.locked) {
       input.dx += e.movementX;
       input.dy += e.movementY;
-    } else if (e.target === canvas) {
-      [input.px, input.py] = local(e);
+      return;
     }
+    if (drag) {
+      // Drag-to-look: works with no pointer lock at all.
+      input.dx += e.movementX;
+      input.dy += e.movementY;
+      drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
+    }
+    if (e.target === canvas) [input.px, input.py] = local(e);
   });
   // While locked, buttons and the wheel are read here (not through winit) so
   // casting never depends on how the browser routes a locked pointer's events.
@@ -103,12 +126,14 @@ export function startHud() {
     const cur = state ? state.spell : 0;
     cmd(`select ${((cur + (e.deltaY > 0 ? 1 : 3)) % 4) + 1}`);
   }, { passive: true });
+  // Right-click must never open a menu (that drops the lock) or cast.
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
   // The game reads the mouse from the mousemove listener above (deltas while
-  // locked, position while free), never from Bevy's cursor events. So pointer
-  // moves are stopped before they reach winit's listeners on the canvas:
-  // headless Chromium was seen to deliver tens of thousands of coalesced
-  // moves per frame to them around pointer lock, growing the WebAssembly
-  // heap by hundreds of MB.
+  // locked or dragging, position while free), never from Bevy's cursor
+  // events. So pointer moves are stopped before they reach winit's listeners
+  // on the canvas: headless Chromium was seen to deliver tens of thousands of
+  // coalesced moves per frame to them around pointer lock, growing the
+  // WebAssembly heap by hundreds of MB.
   for (const t of ['pointermove', 'pointerrawupdate']) {
     window.addEventListener(t, (e) => e.stopImmediatePropagation(), { capture: true });
   }
@@ -117,18 +142,42 @@ export function startHud() {
     canvas.focus();
     if (input.locked || input.paused) return;
     const [x, y] = local(e);
-    if (e.pointerType !== 'mouse' || (state && state.hover >= 0)) {
-      // Click or tap on a target: cast at it without locking the mouse.
+    if (e.pointerType !== 'mouse') {
+      // Touch or pen: tap a target to cast at it.
       cmd(`tap ${x.toFixed(1)} ${y.toFixed(1)}`);
-    } else if (e.button === 0) {
-      lock();
+      return;
+    }
+    if (e.button !== 0 && e.button !== 2) return;
+    // Any held left or right button drags to look until it is released.
+    drag = { button: e.button, x, y, moved: 0 };
+    // A left click always asks for the lock (the usual way to play), unless
+    // the player chose point-and-click mode or the browser refused the lock.
+    if (e.button === 0 && !pointMode && !lockDenied) lock();
+  });
+  document.addEventListener('pointerup', (e) => {
+    if (!drag || e.button !== drag.button) return;
+    const d = drag;
+    drag = null;
+    if (input.locked || d.button !== 0 || d.moved > 6) return;
+    if (pointMode) {
+      // Point and click: cast at the target under the cursor.
+      cmd(`tap ${d.x.toFixed(1)} ${d.y.toFixed(1)}`);
+    } else if (lockDenied) {
+      // No lock available: a click casts at the crosshair.
+      cmd('cast');
     }
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !input.locked) showPause(!input.paused);
   });
   $('resume').addEventListener('click', () => { showPause(false); lock(); });
-  $('pointmode').addEventListener('click', () => { showPause(false); canvas.focus(); });
+  $('pointmode').addEventListener('click', () => {
+    showPause(false);
+    pointMode = true;
+    $('hint').textContent = 'Point and click: click a glowing target to cast at it. Drag to look.';
+    $('hint').classList.remove('hidden');
+    canvas.focus();
+  });
   document.querySelectorAll('.slot').forEach((b) => {
     b.addEventListener('pointerdown', (e) => { e.stopPropagation(); cmd(`select ${b.dataset.spell}`); canvas.focus(); });
   });
@@ -148,8 +197,9 @@ export function startHud() {
       $('hud').classList.remove('hidden');
       slots.forEach((s, i) => s.classList.toggle('sel', i === state.spell));
       cross.classList.toggle('on', state.aimObj >= 0 && state.locked);
-      canvas.classList.toggle('hover', !state.locked && state.hover >= 0);
-      $('hint').classList.toggle('hidden', state.locked || state.casts > 0);
+      canvas.classList.toggle('hover', pointMode && !state.locked && state.hover >= 0);
+      if (!pointMode && !lockDenied) $('hint').classList.toggle('hidden', state.locked || state.casts > 0);
+      if (state.locked) $('hint').classList.add('hidden');
       $('obj-line').textContent = state.outcome === 'won'
         ? 'Greenhouse saved!'
         : `Fires put out: ${Math.min(state.extinguished, state.goal)} / ${state.goal}  ·  burning now: ${state.burning}`;

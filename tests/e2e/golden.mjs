@@ -93,16 +93,23 @@ function check(name, ok, detail = '') {
   await frames(3);
   await screenshot(page, '01-first-person.png');
 
-  // Pointer lock by clicking empty sky (look up first so nothing is under the cursor).
-  await cmd('look 0 25');
-  await sleep(300);
-  await until((x) => x.pitch > 20, 10000);
-  await page.mouse.move(VW / 2, VH * 0.2);
-  await until((x) => x.hover < 0, 10000);
-  await page.mouse.click(VW / 2, VH * 0.2);
+  // A left click with the cursor right over a burning bush must ask for the
+  // pointer lock, not cast at the bush (click-to-target is only for touch and
+  // the point-and-click mode).
+  await cmd(`face ${lit[2]}`);
+  await page.mouse.move(VW / 2 + 1, VH / 2 + 1);
+  await page.mouse.move(VW / 2, VH / 2);
+  s = await until((x) => x.hover === lit[2], 15000);
+  const casts0 = s.casts;
+  await page.mouse.click(VW / 2, VH / 2);
   s = await until((x) => x.locked, 8000);
   const locked = s.locked;
-  check('pointer lock (or fallback)', true, `locked=${locked}`);
+  await sleep(500);
+  s = await st();
+  check('a click over a target locks the pointer and does not cast', locked && s.casts === casts0,
+    `hover was ${lit[2]}, locked=${locked}, casts ${casts0} -> ${s.casts}`);
+  await cmd('look 0 25');
+  s = await until((x) => x.pitch > 20, 10000);
 
   // Turn with the mouse (raw movementX) when locked, else the turn command.
   const yaw0 = s.yaw;
@@ -266,6 +273,17 @@ function check(name, ok, detail = '') {
     check('Esc releases the mouse and pauses', paused && !s.locked && s.paused, `paused=${paused} locked=${s.locked}`);
     await page.click('#pointmode');
     await sleep(200);
+  }
+  // Drag-to-look (the fallback when pointer lock is blocked): hold the right
+  // button and drag, with the pointer free.
+  {
+    const y0 = (await st()).yaw;
+    await page.mouse.move(VW / 2, VH / 2);
+    await page.mouse.down({ button: 'right' });
+    for (let k = 1; k <= 8; k++) { await page.mouse.move(VW / 2 + k * 15, VH / 2); await sleep(30); }
+    await page.mouse.up({ button: 'right' });
+    s = await until((x) => Math.abs(x.yaw - y0) > 3, 15000);
+    check('drag-to-look turns the view without pointer lock', !s.locked && Math.abs(s.yaw - y0) > 3, `yaw ${y0} -> ${s.yaw}`);
   }
   await cmd(`face ${lit[2]}`);
   await cmd('select 2');
