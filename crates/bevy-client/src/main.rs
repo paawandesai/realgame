@@ -311,13 +311,15 @@ fn read_settings() -> Settings {
     let assist_on = !matches!(param("assist").as_deref(), Some("0" | "off" | "false"));
     let low = param("low").is_some_and(|v| !matches!(v.as_str(), "0" | "false"));
     // Full tier: 4x MSAA plus FXAA (FXAA also catches what MSAA misses, such
-    // as edges inside the HDR and bloom path). Low tier: FXAA only.
+    // as edges inside the HDR and bloom path). Low tier: no anti-aliasing by
+    // default (one full-screen pass fewer, I-015); `?low&aa=fxaa` turns FXAA
+    // back on.
     let (msaa, fxaa) = match param("aa").as_deref() {
         Some("msaa") => (true, false),
         Some("fxaa") => (false, true),
         Some("both") => (true, true),
         Some("off" | "0") => (false, false),
-        _ => (!low, true),
+        _ => (!low, !low),
     };
     Settings {
         sens,
