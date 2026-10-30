@@ -15,7 +15,9 @@ gauntlet. Each spell does what the real chemistry does.
 to bush toward the greenhouse (the first neighbour catches after about a minute; left alone,
 the greenhouse goes after about 2.5 minutes, and a red heat meter warns for the last 30 s).
 Put out three fires before any reach it: the ones burning at the start, or ones the heat
-spread to (a fire you light yourself does not count). Fire will not light the greenhouse
+spread to from one of those (a fire you light yourself, or one spread from it, does not
+count). If nothing is burning before three are out (a fire burnt out by itself), the bush
+farthest from the greenhouse catches fire, so the level always ends. Fire will not light the greenhouse
 itself. A banner shows when you win; the result then stays until you press R (a spell still
 in flight cannot change it, and R makes such spells vanish). You also find a dry hedge you can set alight, an ice wall that fire melts into a puddle
 (frost refreezes the puddle into an ice sheet you slide on), a hot steam vent, and, behind
@@ -116,9 +118,10 @@ CPUFRAME n=240 p50_ms=2.40 p95_ms=3.10 max_ms=4.20
 
 `window.__game` (from `web/hud.js`): `state()` returns the game state (spell, aim, every
 object's chemistry, objective, outcome, caption); `cmd(text)` queues a command: `select N`,
-`cast`, `tap X Y`, `reset`, and, only with `?debug`, `look YAW PITCH`, `turn DX DY`,
+`cast`, `tap FX FY` (fractions of the canvas, 0 to 1), `reset`, and, only with `?debug`, `look YAW PITCH`, `turn DX DY`,
 `face I`, `tp X Z`, `move RIGHT FWD SECS` and `tick N` (step the chemistry N times, at most
-20 000). Numbers that are not finite read as 0. The golden-path test,
+20 000). Numbers that are not finite read as 0. `cast` and `tap` wait for the same 0.3 s
+cooldown as the mouse, one per cooldown, and wait while paused. The golden-path test,
 `tests/e2e/golden.mjs`, drives a headless Chromium through all of it (it adds `debug`
 itself). It is run by the product loop's smoke step, not by push CI.
 

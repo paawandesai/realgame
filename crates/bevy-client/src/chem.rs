@@ -111,6 +111,9 @@ pub enum EventKind {
     Extinguished(Spell),
     /// Ran out of fuel by itself.
     BurntOut,
+    /// Nothing was burning but the objective was not met yet (a starting
+    /// fire burnt out by itself): a new fire starts so the level can end.
+    Reseeded,
     /// Ice melted completely into water.
     Melted,
     /// Ice partly melted.
@@ -167,6 +170,7 @@ impl EventKind {
             }
             EventKind::Extinguished(Spell::Fire) => "Fire out!",
             EventKind::BurntOut => "It burnt out: the fuel is used up.",
+            EventKind::Reseeded => "Another bush is on fire! Put it out before it spreads.",
             EventKind::Melted => "The ice melted at 0 °C: H₂O(s) → H₂O(l). Now it is a puddle.",
             EventKind::Melting => "Melting... it takes a lot of heat to turn ice into water.",
             EventKind::Froze => {
@@ -511,14 +515,18 @@ impl World {
         }
         self.ticks += 1;
         let n = self.objs.len();
-        // Heat each object receives from burning neighbours this step.
+        // Heat each object receives from burning neighbours this step, and
+        // whether any of those fires counts toward the objective (a fire
+        // spread from one the player lit does not).
         let mut heat = vec![0.0f32; n];
+        let mut from_counted = vec![false; n];
         for (i, h) in heat.iter_mut().enumerate() {
             for &j in &self.neighbours[i] {
                 if self.objs[j].burning {
                     // Closer neighbours heat more: full at 0 m, half at the edge.
                     let g = self.objs[i].gap(&self.objs[j]);
                     *h += SPREAD_HEAT * (1.0 - 0.5 * g / NEIGHBOUR_GAP);
+                    from_counted[i] |= self.objs[j].counts;
                 }
             }
         }
@@ -580,12 +588,48 @@ impl World {
             {
                 o.burning = true;
                 o.temp = FLAME_C;
-                // Spread fire: putting it out counts.
-                o.counts = true;
+                // Spread fire: putting it out counts if the fire it came
+                // from counts.
+                o.counts = from_counted[i];
                 ev(EventKind::Ignited);
             }
         }
+        self.reseed(events);
         self.latch();
+    }
+
+    /// Keeps the level winnable: when nothing burns and fewer than
+    /// [`GOAL_FIRES`] counted fires were put out (a starting fire burnt out
+    /// by itself, say), the bush farthest from the greenhouse that can still
+    /// burn catches fire. With nothing left that can burn, the greenhouse is
+    /// safe and the level is won.
+    fn reseed(&mut self, events: &mut Vec<Event>) {
+        if self.burning() > 0 || self.extinguished >= GOAL_FIRES {
+            return;
+        }
+        let gh = self
+            .objs
+            .iter()
+            .find(|o| o.kind == Kind::Greenhouse)
+            .map_or([0.0, 0.0], |o| o.pos);
+        let far = |o: &Obj| (o.pos[0] - gh[0]).powi(2) + (o.pos[1] - gh[1]).powi(2);
+        let pick = (0..self.objs.len())
+            .filter(|&i| {
+                let o = &self.objs[i];
+                o.kind == Kind::Bush && o.fuel > 0.0 && o.smothered <= 0.0
+            })
+            .max_by(|&a, &b| far(&self.objs[a]).total_cmp(&far(&self.objs[b])));
+        match pick {
+            Some(i) => {
+                self.objs[i].wet = 0.0;
+                self.ignite(i);
+                events.push(Event {
+                    obj: i,
+                    kind: EventKind::Reseeded,
+                });
+            }
+            None => self.extinguished = self.extinguished.max(GOAL_FIRES),
+        }
     }
 }
 
@@ -721,13 +765,18 @@ mod tests {
 
     #[test]
     fn foam_fire_stays_out() {
-        let mut w = World::new(vec![Obj::new(Kind::Bush, [0.0, 0.0], [0.9, 0.9])]);
+        // A hedge (reseed only relights bushes), and a far bush for reseed
+        // to light so the level keeps running while the hedge cools.
+        let mut w = World::new(vec![
+            Obj::new(Kind::DryHedge, [0.0, 0.0], [0.9, 0.9]),
+            Obj::new(Kind::Bush, [40.0, 0.0], [0.9, 0.9]),
+        ]);
         w.ignite(0);
         let mut ev = Vec::new();
         w.apply(0, Spell::Foam, &mut ev);
-        run(&mut w, 300.0);
+        let ev = run(&mut w, 300.0);
         assert!(
-            !w.objs[0].burning,
+            !w.objs[0].burning && !ev.iter().any(|e| e.kind == EventKind::Ignited),
             "a smothered fire must not relight by itself"
         );
         assert!(w.objs[0].temp < w.objs[0].ignition_c());
@@ -751,6 +800,60 @@ mod tests {
         w.apply(0, Spell::Water, &mut ev);
         w.apply(0, Spell::Water, &mut ev);
         assert_eq!(w.extinguished, 1);
+    }
+
+    #[test]
+    fn spread_from_a_player_fire_does_not_count() {
+        let mut w = row();
+        let mut ev = Vec::new();
+        w.apply(0, Spell::Fire, &mut ev);
+        assert!(w.objs[0].burning && !w.objs[0].counts);
+        run(&mut w, 80.0);
+        assert!(w.objs[1].burning, "it spread");
+        assert!(!w.objs[1].counts);
+        w.apply(1, Spell::Water, &mut ev);
+        assert_eq!(w.extinguished, 0);
+        // From a starting fire, it does count.
+        let mut w = row();
+        w.ignite(0);
+        run(&mut w, 80.0);
+        assert!(w.objs[1].counts);
+    }
+
+    #[test]
+    fn level_always_resolves_when_a_fire_burns_out() {
+        let bush = |x| Obj::new(Kind::Bush, [x, 0.0], [0.9, 0.9]);
+        let mut w = World::new(vec![
+            bush(0.0),
+            bush(10.0),
+            bush(20.0),
+            Obj::new(Kind::Greenhouse, [-30.0, 0.0], [1.0, 1.0]),
+        ]);
+        w.ignite(0);
+        w.ignite(1);
+        w.objs[1].fuel = 1.0;
+        let mut ev = Vec::new();
+        w.apply(0, Spell::Water, &mut ev);
+        // Bush 1 burns out: nothing burns, 1 of 3 counted.
+        let ev = run(&mut w, 2.0);
+        assert!(ev.iter().any(|e| e.kind == EventKind::BurntOut));
+        let re: Vec<_> = ev
+            .iter()
+            .filter(|e| e.kind == EventKind::Reseeded)
+            .collect();
+        assert_eq!(re.len(), 1);
+        assert_eq!(re[0].obj, 2, "farthest from the greenhouse");
+        let mut ev = Vec::new();
+        for _ in 0..10 {
+            if let Some(i) = w.objs.iter().position(|o| o.burning) {
+                w.apply(i, Spell::Frost, &mut ev);
+            }
+            run(&mut w, 1.0);
+            if w.outcome() != Outcome::Playing {
+                break;
+            }
+        }
+        assert_eq!(w.outcome(), Outcome::Won);
     }
 
     #[test]

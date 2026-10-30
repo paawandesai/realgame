@@ -47,8 +47,16 @@ mod imp {
         if !gi.is_object() {
             return;
         }
-        input.dx = get(&gi, "dx").as_f64().unwrap_or(0.0) as f32;
-        input.dy = get(&gi, "dy").as_f64().unwrap_or(0.0) as f32;
+        // A NaN or infinite delta would leave the camera NaN for good.
+        let delta = |k: &str| {
+            get(&gi, k)
+                .as_f64()
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.0)
+                .clamp(-4000.0, 4000.0) as f32
+        };
+        input.dx = delta("dx");
+        input.dy = delta("dy");
         let _ = Reflect::set(&gi, &"dx".into(), &0.0.into());
         let _ = Reflect::set(&gi, &"dy".into(), &0.0.into());
         input.locked = get(&gi, "locked").as_bool().unwrap_or(false);
@@ -58,7 +66,9 @@ mod imp {
             (Some(x), Some(y)) if x >= 0.0 && y >= 0.0 => Some((x as f32, y as f32)),
             _ => None,
         };
-        input.cmds.clear();
+        // Not cleared: `cast`/`tap` held back by the cooldown stay queued
+        // (capped, so a flood of taps is dropped rather than stored).
+        input.cmds.truncate(16);
         let cmds = get(&gi, "cmds");
         if Array::is_array(&cmds) {
             let arr = Array::from(&cmds);
