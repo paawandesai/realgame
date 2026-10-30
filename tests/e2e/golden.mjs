@@ -335,6 +335,9 @@ function check(name, ok, detail = '') {
   console.log('  canvas', canvas.join(' '));
   const stats = logs.filter((l) => /STATS|CPUFRAME/.test(l)).slice(-6);
   console.log(stats.join('\n'));
+
+  await feelAndStandards({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
+
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
   console.log(`\n${results.length - fails.length}/${results.length} passed`);
@@ -342,3 +345,622 @@ function check(name, ok, detail = '') {
   if (server) server.close();
   process.exit(fails.length ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
+
+// ---------------------------------------------------------------------------
+// Feel and standards (docs/loop/items/I-007/spec.md, tests 6-19): field of
+// view, look speed, hand sway, aim assist, cooldown ring, hit markers and
+// sounds, text size and contrast, the idle hint, settings persistence and
+// a flashing guard. Each test restores any setting it changes.
+// ---------------------------------------------------------------------------
+const DEG = Math.PI / 180;
+const vfov = (h) => 2 * Math.atan(Math.tan((h * DEG) / 2) * 9 / 16) / DEG;
+const hfovOf = (v) => 2 * Math.atan(Math.tan((v * DEG) / 2) * 16 / 9) / DEG;
+
+// A minimal PNG decoder (8-bit RGB or RGBA, non-interlaced: what Chromium
+// screenshots are), so the flashing guard needs no new dependency.
+async function decodePng(buf) {
+  const { inflateSync } = await import('node:zlib');
+  let o = 8; let w = 0; let h = 0; let ct = 0; const idat = [];
+  while (o < buf.length) {
+    const len = buf.readUInt32BE(o); const type = buf.toString('ascii', o + 4, o + 8);
+    const d = buf.subarray(o + 8, o + 8 + len);
+    if (type === 'IHDR') { w = d.readUInt32BE(0); h = d.readUInt32BE(4); ct = d[9]; if (d[8] !== 8 || d[12] !== 0) throw new Error('unsupported PNG'); }
+    if (type === 'IDAT') idat.push(d);
+    if (type === 'IEND') break;
+    o += 12 + len;
+  }
+  const bpp = ct === 6 ? 4 : ct === 2 ? 3 : 0;
+  if (!bpp) throw new Error(`unsupported PNG colour type ${ct}`);
+  const raw = inflateSync(Buffer.concat(idat)); const stride = w * bpp;
+  const out = Buffer.alloc(h * stride);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)]; const src = y * (stride + 1) + 1; const dst = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? out[dst + x - bpp] : 0; const b = y ? out[dst - stride + x] : 0;
+      const c = x >= bpp && y ? out[dst - stride + x - bpp] : 0; const v = raw[src + x];
+      let p;
+      if (f === 0) p = 0; else if (f === 1) p = a; else if (f === 2) p = b; else if (f === 3) p = (a + b) >> 1;
+      else { const pa = Math.abs(b - c); const pb = Math.abs(a - c); const pc = Math.abs(a + b - 2 * c); p = pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+      out[dst + x] = (v + p) & 255;
+    }
+  }
+  return { w, h, bpp, data: out };
+}
+const LIN = Array.from({ length: 256 }, (_, i) => { const c = i / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+const lumaOf = (img) => {
+  const n = img.w * img.h; const L = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const k = i * img.bpp; L[i] = 0.2126 * LIN[img.data[k]] + 0.7152 * LIN[img.data[k + 1]] + 0.0722 * LIN[img.data[k + 2]]; }
+  return L;
+};
+// Fraction of pixels whose relative luminance changes by 0.1 or more.
+const flashFrac = (a, b) => { let c = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) >= 0.1) c++; return c / a.length; };
+
+async function feelAndStandards({ page, st, cmd, until, frames, sleep, idx, lit, locked, base, browser, errors }) {
+  console.log('  -- feel and standards (I-007) --');
+  const VW = +(process.env.VW || 1280), VH = +(process.env.VH || 720);
+  // Sets a settings control and fires the event a person's change would.
+  const setCtl = (sel, v, ev) => page.evaluate(([sel, v, ev]) => {
+    const el = document.querySelector(sel);
+    if (!el) return false;
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = String(v);
+    el.dispatchEvent(new Event(ev || (el.type === 'range' ? 'input' : 'change'), { bubbles: true }));
+    return true;
+  }, [sel, v, ev]);
+  const text = (sel) => page.evaluate((sel) => { const e = document.querySelector(sel); return e ? e.textContent : null; }, sel);
+  const checked = (sel) => page.evaluate((sel) => { const e = document.querySelector(sel); return e ? e.checked : null; }, sel);
+  // Polls until pred holds or more than n frames have passed since frame f0.
+  const within = async (f0, n, pred, ms = 30000) => {
+    const t0 = Date.now();
+    let x = await st();
+    while (!pred(x) && x.frame <= f0 + n && Date.now() - t0 < ms) { await sleep(20); x = await st(); }
+    return { ok: !!pred(x) && x.frame <= f0 + n, x };
+  };
+  const fresh = async () => {
+    await cmd('reset');
+    await until((x) => x.outcome === 'playing' && x.burning === 3 && x.casts === 0, 20000);
+  };
+  const tp = async (x, z) => { await cmd(`tp ${x} ${z}`); await until((q) => Math.abs(q.pos[0] - x) < 0.5 && Math.abs(q.pos[2] - z) < 0.5, 10000); };
+  const unpause = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((x) => !x.paused, 8000); } };
+  const aimAt = async (i, spell) => {
+    await unpause();
+    await cmd(`face ${i}`);
+    if (spell) await cmd(`select ${spell}`);
+    return until((x) => (!spell || x.spell === spell - 1) && x.aimObj === i && x.cooldown === 0, 15000);
+  };
+  const bushes = idx('bush');
+  let s = await st();
+
+  // Arms an in-page watcher on #hitmarker: every time it is shown, records
+  // the state the HUD acted on (read in the same task, before the next game
+  // frame), the sound, the shape shown and where it is.
+  const armHit = () => page.evaluate(() => {
+    const hm = document.getElementById('hitmarker');
+    const w = { shows: [], clears: [], n0: window.__game.lastSound ? window.__game.lastSound().n : -1 };
+    window.__hitWatch = w;
+    if (window.__hitObs) window.__hitObs.disconnect();
+    if (!hm) return false;
+    let was = hm.classList.contains('show');
+    let wasFrame = hm.dataset.frame;
+    const vis = (sel) => { const e = hm.querySelector(sel); if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+    const obs = new MutationObserver(() => {
+      const on = hm.classList.contains('show');
+      if (on && (!was || hm.dataset.frame !== wasFrame)) {
+        const s = window.__game.state();
+        const r = hm.getBoundingClientRect();
+        w.shows.push({ t: performance.now(), cls: hm.className, frame: +hm.dataset.frame, impacts: s.impacts, hitKind: s.hitKind, hitFrame: s.hitFrame, hitX: s.hitX, hitY: s.hitY, locked: s.locked, sound: window.__game.lastSound(), x: vis('.hm-x'), slash: vis('.hm-slash'), star: vis('.hm-star'), box: [r.left, r.top, r.width, r.height] });
+      }
+      if (!on && was) w.clears.push(performance.now());
+      was = on; wasFrame = hm.dataset.frame;
+    });
+    obs.observe(hm, { attributes: true, attributeFilter: ['class', 'data-frame'] });
+    window.__hitObs = obs;
+    return true;
+  });
+  const hitWatch = () => page.evaluate(() => window.__hitWatch);
+  // Casts and waits for the impact; returns the state after it and the watcher.
+  const castAndLand = async (c = 'cast', ms = 60000) => {
+    const a = await st();
+    await armHit();
+    await cmd(c);
+    const z = await until((x) => x.impacts > a.impacts, ms);
+    await frames(3);
+    return { a, z, w: await hitWatch() };
+  };
+
+  // 6. FOV default and slider (GS-1, GS-2).
+  {
+    s = await st();
+    check('feel: default view is 90° wide (58.7° tall)', s.fov >= 55 && s.fov <= 62 && hfovOf(s.fov) >= 88 && hfovOf(s.fov) <= 92,
+      `fov=${s.fov} hfov=${s.fov === undefined ? '?' : hfovOf(s.fov).toFixed(1)}`);
+    await page.evaluate(() => window.__game.pause(true));
+    const f0 = (await st()).frame;
+    const set = await setCtl('#fov', 100);
+    const r = await within(f0, 10, (x) => Math.abs(x.fov - vfov(100)) <= 0.2);
+    const label = await text('#fov-val');
+    check('feel: View width slider sets the FOV live', set && r.ok && label === '100°', `fov=${r.x.fov} want ${vfov(100).toFixed(2)} label=${label}`);
+    await unpause();
+    await cmd(`face ${lit[0]}`);
+    await page.mouse.move(VW / 2 + 1, VH / 2 + 1);
+    await page.mouse.move(VW / 2, VH / 2);
+    s = await until((x) => x.hover === lit[0], 15000);
+    check('feel: the cursor ray uses the live FOV', s.hover === lit[0], `hover=${s.hover} want ${lit[0]} fov=${s.fov}`);
+    await setCtl('#fov', 90);
+    s = await until((x) => Math.abs(x.fov - vfov(90)) <= 0.2, 10000);
+  }
+
+  // 7. Camera and hand-sway guard (GS-3).
+  {
+    await fresh();
+    await tp(0, 14);
+    await cmd('look 0 0');
+    await sleep(600);
+    // Samples every game frame while walking back and forth.
+    const sample = () => page.evaluate(() => new Promise((res) => {
+      const out = [];
+      let last = -1; let k = 0; let dir = 1;
+      window.__game.cmd('move 0 1 1.5');
+      const step = () => {
+        const s = window.__game.state();
+        if (s.frame !== last) {
+          last = s.frame;
+          out.push({ cam: s.cam, pos: s.pos, vm: s.vm, casts: s.casts });
+          if (++k % 12 === 0) { dir = -dir; window.__game.cmd(`move 0 ${dir} 1.5`); }
+        }
+        if (out.length >= 30) { window.__game.cmd('move 0 0 0'); res(out); return; }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }));
+    const judge = (rows) => {
+      const camOk = rows.every((r) => r.cam && Math.abs(r.cam[0] - r.pos[0]) <= 0.005 && Math.abs(r.cam[1] - r.pos[1] - 1.6) <= 0.005 && Math.abs(r.cam[2] - r.pos[2]) <= 0.005);
+      const spread = (k) => (rows.every((r) => r.vm) ? Math.max(...rows.map((r) => r.vm[k])) - Math.min(...rows.map((r) => r.vm[k])) : NaN);
+      return { camOk, sp: [0, 1, 2].map(spread), casts: new Set(rows.map((r) => r.casts)).size === 1, moved: Math.hypot(rows.at(-1).pos[2] - rows[0].pos[2], rows.at(-1).pos[0] - rows[0].pos[0]) };
+    };
+    await setCtl('#sway', true);
+    await until((x) => x.sway === true, 5000);
+    const on = judge(await sample());
+    check('feel: camera stays at the eye; hand sway moves the gauntlet when on', on.camOk && on.casts && (on.sp[0] > 0.002 || on.sp[1] > 0.002),
+      `camOk=${on.camOk} vm spread=${on.sp.map((v) => v.toFixed(4))}`);
+    await setCtl('#sway', false);
+    await until((x) => x.sway === false, 5000);
+    await sleep(400);
+    const off = judge(await sample());
+    check('feel: hand sway off holds the gauntlet still', off.camOk && off.casts && off.sp.every((v) => v < 0.0005),
+      `camOk=${off.camOk} vm spread=${off.sp.map((v) => v.toFixed(5))}`);
+    await setCtl('#sway', true);
+    await until((x) => x.sway === true, 5000);
+  }
+
+  // 8. No camera motion without input (GS-4).
+  {
+    await fresh();
+    await cmd(`face ${lit[0]}`);
+    await sleep(500);
+    const a = await st();
+    await sleep(10000);
+    const b = await st();
+    check('feel: the view never moves without input (assist on)', a.assist === true && a.yaw === b.yaw && a.pitch === b.pitch,
+      `yaw ${a.yaw} -> ${b.yaw}, pitch ${a.pitch} -> ${b.pitch}`);
+  }
+
+  // 9. Sensitivity (GS-8).
+  {
+    const turnBy = async (sens) => {
+      await cmd(`set sens ${sens}`);
+      await until((x) => x.sens === sens, 5000);
+      await cmd('look 90 0');
+      const a = await until((x) => Math.abs(x.yaw - 90) < 0.01 && Math.abs(x.pitch) < 0.01, 5000);
+      await cmd('turn 100 0');
+      const b = await until((x) => Math.abs(x.yaw - a.yaw) > 0.5, 5000);
+      return a.yaw - b.yaw;
+    };
+    const d1 = await turnBy(1);
+    check('feel: 100 px turns 5.44° at sens 1', Math.abs(d1 - 5.443) <= 0.05, `turned ${d1.toFixed(3)}°`);
+    const d2 = await turnBy(2);
+    check('feel: sens 2 turns twice as far', Math.abs(d2 / d1 - 2) <= 0.02, `sens1 ${d1.toFixed(3)}° sens2 ${d2.toFixed(3)}°`);
+    await page.evaluate(() => window.__game.pause(true));
+    const f0 = (await st()).frame;
+    await setCtl('#sens', 1.5);
+    const r = await within(f0, 10, (x) => x.sens === 1.5);
+    const label = await text('#sens-val');
+    const range = await page.evaluate(() => { const e = document.getElementById('sens'); return e ? [+e.min, +e.max] : [NaN, NaN]; });
+    check('feel: Look speed slider sets sens live', r.ok && label === '1.50' && range[0] <= 0.5 && range[1] >= 1.5,
+      `sens=${r.x.sens} label=${label} range=${range}`);
+    await setCtl('#sens', 1);
+    await until((x) => x.sens === 1, 5000);
+    await unpause();
+  }
+
+  // 10. Aim assist runtime toggle (GS-10).
+  {
+    await fresh();
+    // From (4, 2), bush (9.6, -10.2) is 25° right of straight ahead and the
+    // next target to its right is about 15° further on: a clear near miss.
+    await tp(4, 2);
+    const b = bushes[5];
+    let found = false;
+    s = await aimAt(b);
+    if (s.aimObj === b) {
+      for (let k = 0; k < 40 && !found; k++) {
+        const f = (await st()).frame;
+        await cmd('turn 9 0');
+        s = await until((x) => x.frame >= f + 2, 5000);
+        found = s.aimObj === b && s.assisted === true;
+      }
+    }
+    check('feel: aim assist catches a near miss', found, `bush ${b} aimObj=${s.aimObj} assisted=${s.assisted}`);
+    let f0 = (await st()).frame;
+    await setCtl('#assist', false);
+    const off = await within(f0, 10, (x) => x.assist === false && x.aimObj === -1);
+    f0 = (await st()).frame;
+    await setCtl('#assist', true);
+    const on = await within(f0, 10, (x) => x.assist === true && x.assisted === true && x.aimObj === b);
+    check('feel: Aim help toggles at runtime without a reload', found && off.ok && on.ok && on.x.frame > f0,
+      `off: assist=${off.x.assist} aim=${off.x.aimObj}; on: assisted=${on.x.assisted} aim=${on.x.aimObj}`);
+  }
+
+  // 11. Cooldown ring and pulse (I-007, GS-12).
+  {
+    await fresh();
+    await tp(0, 5.5);
+    await aimAt(lit[0], 2);
+    const rec = await page.evaluate(() => new Promise((res) => {
+      const cross = document.getElementById('crosshair');
+      const s0 = window.__game.state();
+      const rows = [];
+      window.__game.cmd('cast');
+      const step = () => {
+        const s = window.__game.state();
+        const cd = getComputedStyle(cross).getPropertyValue('--cd').trim();
+        rows.push({ f: s.frame, casts: s.casts, cooldown: s.cooldown, max: s.cooldownMax, pulse: cross.classList.contains('pulse'), cooling: cross.classList.contains('cooling'), cd: cd === '' ? null : +cd });
+        const done = s.casts > s0.casts && s.cooldown === 0 && !cross.classList.contains('cooling');
+        if (rows.length > 600 || (done && rows.length > 3)) { res({ s0, rows }); return; }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }));
+    const rows = rec.rows;
+    const first = rows.find((r) => r.casts > rec.s0.casts);
+    const fc = first ? first.f : Infinity;
+    const pulse = rows.some((r) => r.pulse && r.f <= fc + 2);
+    const ring = rows.some((r) => r.f <= fc + 1 && r.cooling && r.cd > 0 && r.cd <= 1);
+    const cdOk = !!first && first.cooldown > 0 && first.cooldown <= 0.3 && first.max === 0.3;
+    const zero = rows.find((r) => r.f > fc && r.cooldown === 0);
+    const gone = !!zero && rows.some((r) => r.f >= zero.f && r.f <= zero.f + 3 && !r.cooling);
+    check('feel: a cast pulses the crosshair', pulse, `cast at frame ${fc}`);
+    check('feel: cooldown ring shows and empties', cdOk && ring && gone,
+      `cooldown=${first && first.cooldown} max=${first && first.max} ring=${ring} cleared=${gone}`);
+    const onRing = await page.evaluate(() => {
+      const c = document.getElementById('crosshair');
+      const had = c.classList.contains('on');
+      c.classList.add('on');
+      const col = getComputedStyle(c.querySelector('span')).borderTopColor;
+      if (!had) c.classList.remove('on');
+      return col;
+    });
+    check('feel: the on-target crosshair shows a ring (shape cue)', !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(onRing), onRing);
+  }
+
+  // 12. Hit markers and sounds (GS-15, GS-16, GS-17, GS-19).
+  let soundOk = false;
+  {
+    await fresh();
+    await tp(10, 6);
+    const b = bushes[4]; // (12, -6.5): not lit at the start, in clear view from (10, 6)
+    const same = (sh, kind, shape) => !!sh && sh.cls.includes('show') && sh.cls.includes(`kind-${kind}`) && sh[shape]
+      && sh.hitKind === kind && sh.sound && sh.sound.name === kind && sh.sound.frame === sh.frame && sh.frame - sh.hitFrame <= 1;
+    await aimAt(b, 2);
+    let r = await castAndLand();
+    let sh = r.w.shows[0];
+    check('feel: water on a bush shows the hit marker and sound in the same frame', same(sh, 'hit', 'x') && r.z.hitKind === 'hit',
+      `hitKind=${r.z.hitKind} show=${JSON.stringify(sh)}`);
+    await aimAt(b, 1);
+    r = await castAndLand();
+    sh = r.w.shows[0];
+    check('feel: fire on the wet bush shows the fizzle marker and sound', same(sh, 'fizzle', 'slash') && r.z.hitKind === 'fizzle',
+      `hitKind=${r.z.hitKind} show=${JSON.stringify(sh)}`);
+    await tp(0, 5.5);
+    await aimAt(lit[0], 2);
+    r = await castAndLand();
+    await sleep(1200);
+    const w = await hitWatch();
+    sh = w.shows[0];
+    const clearMs = sh && w.clears.length ? w.clears[0] - sh.t : Infinity;
+    check('feel: putting a fire out shows the big star and the cheer', same(sh, 'out', 'star') && sh.box[2] >= 80 && sh.sound.peak <= 0.15,
+      `hitKind=${r.z.hitKind} width=${sh && sh.box[2]} peak=${sh && sh.sound.peak}`);
+    check('feel: the marker clears within 1 s', clearMs <= 1000, `${clearMs.toFixed ? clearMs.toFixed(0) : clearMs} ms`);
+    await cmd('look 180 60');
+    await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
+    r = await castAndLand('cast', 300000); // 120 m of flight: slow on a software GPU
+    const miss = await page.evaluate(() => window.__game.lastSound && window.__game.lastSound());
+    check('feel: a miss shows no marker and has its own sound', r.z.hitKind === 'miss' && r.w.shows.length === 0 && miss && miss.name === 'miss',
+      `hitKind=${r.z.hitKind} shows=${r.w.shows.length} sound=${miss && miss.name}`);
+    await setCtl('#sound', false);
+    await aimAt(lit[1], 2);
+    const n0 = (await page.evaluate(() => window.__game.lastSound())).n;
+    r = await castAndLand();
+    const muted = await page.evaluate(() => window.__game.lastSound());
+    check('feel: Sound off mutes but still counts', muted.played === false && muted.n > n0, JSON.stringify(muted));
+    await setCtl('#sound', true);
+    soundOk = true;
+  }
+
+  // 13. Marker position (point-and-click and locked).
+  {
+    await fresh();
+    await tp(0, 5.5);
+    await aimAt(lit[1], 2);
+    // Turn left 10° so the target sits right of centre, then tap on it.
+    await cmd(`turn ${-(10 * DEG / 0.00095).toFixed(0)} 0`);
+    await frames(2);
+    const fx = 0.5 + Math.tan(10 * DEG) / (2 * Math.tan(45 * DEG));
+    const rect = await page.evaluate(() => { const r = document.getElementById('game').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; });
+    let r = await castAndLand(`tap ${fx.toFixed(4)} 0.5000`);
+    let sh = r.w.shows[0];
+    const cx = sh ? sh.box[0] + sh.box[2] / 2 : NaN, cy = sh ? sh.box[1] + sh.box[3] / 2 : NaN;
+    const want = sh ? [rect[0] + sh.hitX * rect[2], rect[1] + sh.hitY * rect[3]] : [NaN, NaN];
+    check('feel: point-and-click marker sits on the impact', !!sh && !sh.locked && sh.hitX > 0.5 && Math.hypot(cx - want[0], cy - want[1]) <= 6,
+      `marker (${cx.toFixed(1)}, ${cy.toFixed(1)}) impact (${want[0].toFixed(1)}, ${want[1].toFixed(1)}) hitX=${sh && sh.hitX}`);
+    // Locked: the marker sits at the crosshair.
+    let lockedNow = false;
+    if (locked) {
+      await page.evaluate(() => window.__game.pause(true));
+      await page.click('#resume');
+      lockedNow = (await until((x) => x.locked, 8000)).locked;
+    }
+    if (lockedNow) {
+      await aimAt(lit[2], 2);
+      r = await castAndLand();
+      sh = r.w.shows[0];
+      const c2 = sh ? [sh.box[0] + sh.box[2] / 2, sh.box[1] + sh.box[3] / 2] : [NaN, NaN];
+      const mid = [rect[0] + rect[2] / 2, rect[1] + rect[3] / 2];
+      check('feel: locked marker sits at the crosshair', !!sh && sh.locked && Math.hypot(c2[0] - mid[0], c2[1] - mid[1]) <= 6,
+        `marker (${c2.map((v) => v.toFixed(1))}) centre (${mid})`);
+      await page.evaluate(() => document.exitPointerLock());
+      await until((x) => !x.locked, 8000);
+      if (await page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'))) await page.click('#pointmode');
+      await unpause();
+    } else {
+      check('feel: locked marker sits at the crosshair', false, 'pointer lock unavailable');
+    }
+  }
+
+  // 14. Latency (GS-12): frames from command to state change, counted in-page.
+  {
+    await fresh();
+    await tp(0, 5.5);
+    await aimAt(lit[0], 2);
+    const lat = (c, kind) => page.evaluate(([c, kind]) => new Promise((res) => {
+      const s0 = window.__game.state();
+      const test = { yaw: (s) => s.yaw !== s0.yaw, casts: (s) => s.casts > s0.casts, sens: (s) => s.sens === 2 }[kind];
+      window.__game.cmd(c);
+      const step = () => {
+        const s = window.__game.state();
+        if (test(s)) { res(s.frame - s0.frame); return; }
+        if (s.frame - s0.frame > 30) { res(99); return; }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }), [c, kind]);
+    const c = await lat('cast', 'casts');
+    const t = await lat('turn 50 0', 'yaw');
+    const v = await lat('set sens 2', 'sens');
+    check('feel: input reaches the game within 2 frames', t <= 2 && c <= 2 && v <= 2, `turn ${t}, cast ${c}, sens ${v} frames`);
+    await setCtl('#sens', 1);
+    await until((x) => x.sens === 1, 5000);
+  }
+
+  // 19. No flashing from the new effects (GS-6).
+  {
+    await fresh();
+    await tp(0, 5.5);
+    await aimAt(lit[0], 2);
+    const shots = [];
+    const grab = async () => lumaOf(await decodePng(await page.screenshot({ type: 'png', timeout: 180000 })));
+    shots.push(await grab());
+    await cmd('cast');
+    for (let k = 0; k < 19; k++) { await frames(1); shots.push(await grab()); }
+    let worst = 0;
+    for (let k = 1; k < shots.length; k++) worst = Math.max(worst, flashFrac(shots[k - 1], shots[k]));
+    check('feel: the out marker does not flash the screen', worst < 0.2, `worst frame-to-frame change ${(worst * 100).toFixed(1)}%`);
+    // A burst of 6 casts in about 2 s.
+    await fresh();
+    await tp(0, 5.5);
+    await aimAt(lit[1], 2);
+    const burst = [];
+    let prev = await grab();
+    const c0 = (await st()).casts;
+    // The six casts go out on an in-page timer (one now, then every 350 ms), so slow
+    // screenshots do not stretch the burst; frames are sampled meanwhile.
+    await page.evaluate(() => { let k = 0; const id = setInterval(() => { window.__game.cmd('cast'); if (++k >= 5) clearInterval(id); }, 350); window.__game.cmd('cast'); });
+    const t0 = Date.now();
+    while (Date.now() - t0 < 4000 || burst.length < 4) {
+      const cur = await grab();
+      burst.push({ t: Date.now() - t0, f: flashFrac(prev, cur) });
+      prev = cur;
+    }
+    const fired = (await st()).casts - c0;
+    const big = burst.filter((x) => x.f >= 0.2).map((x) => x.t);
+    let maxPerSec = 0;
+    for (const t of big) maxPerSec = Math.max(maxPerSec, big.filter((u) => u >= t && u < t + 1000).length);
+    check('feel: a burst of casts flashes at most 3 times a second', maxPerSec <= 3, `6 casts sent, ${fired} fired, ${burst.length} samples, big changes ${big.length}, max/s ${maxPerSec}`);
+  }
+
+  // 16 and 17. Text size, control size and contrast (GS-18, GS-22).
+  {
+    await fresh();
+    // Every visible element with its own text, under #hud or #pause.
+    const audit = () => page.evaluate(() => {
+      const parse = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return [0, 0, 0, 0]; const p = m[1].split(',').map((v) => parseFloat(v)); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
+      const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+      const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+      const over = ([r, g, b, a], bg) => [r * a + bg[0] * (1 - a), g * a + bg[1] * (1 - a), b * a + bg[2] * (1 - a)];
+      const ratio = (x, y) => { const a = lum(x); const b = lum(y); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+      const visible = (e) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+      const out = [];
+      for (const root of [document.getElementById('hud'), document.getElementById('pause')]) {
+        for (const e of [root, ...root.querySelectorAll('*')]) {
+          if (!visible(e)) continue;
+          if (![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+          const cs = getComputedStyle(e);
+          const fs = parseFloat(cs.fontSize);
+          let p = e; let bg = null;
+          while (p && (root.contains(p))) { const c = parse(getComputedStyle(p).backgroundColor); if (c[3] >= 0.6) { bg = c; break; } p = p.parentElement; }
+          let contrast = 0;
+          if (bg) {
+            const fg = parse(cs.color);
+            const need = fs >= 36 ? 3 : 4.5;
+            contrast = Math.min(...[[255, 255, 255], [0, 0, 0]].map((base) => { const b = over(bg, base); return ratio(over(fg, b), b); })) / need;
+          }
+          out.push({ id: (e.id ? '#' + e.id : e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.split(' ').join('.') : '')) + ':' + e.textContent.trim().slice(0, 18), fs, contrast });
+        }
+      }
+      const slotsOver = [...document.querySelectorAll('.slot')].filter((e) => e.scrollWidth > e.clientWidth).length;
+      const ctrls = [...document.querySelectorAll('#pause input, #pause select, #pause button')].filter(visible).map((e) => { const r = e.getBoundingClientRect(); return { id: e.id || e.tagName, w: r.width, h: r.height }; });
+      const hudOut = [...document.getElementById('hud').children].filter(visible).filter((e) => { const r = e.getBoundingClientRect(); return r.left < -0.5 || r.top < -0.5 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5; }).map((e) => e.id);
+      return { out, slotsOver, ctrls, hudOut };
+    });
+    await page.evaluate(() => window.__game.pause(true));
+    let sizeOk = true; let ctrlOk = true; let scaleOk = true; let contrastOk = true; const notes = [];
+    for (const [w, h] of [[1920, 1080], [1366, 768]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await frames(3);
+      const a = await audit();
+      const small = a.out.filter((e) => e.fs < 18);
+      if (small.length || a.slotsOver || a.out.length < 10) { sizeOk = false; notes.push(`${w}: small=${small.map((e) => `${e.id}=${e.fs}`).slice(0, 4)} slotsOver=${a.slotsOver} n=${a.out.length}`); }
+      const low = a.out.filter((e) => e.contrast < 1);
+      if (low.length) { contrastOk = false; notes.push(`${w}: low contrast ${low.map((e) => `${e.id}=${(e.contrast * (e.fs >= 36 ? 3 : 4.5)).toFixed(2)}`).slice(0, 4)}`); }
+      if (w === 1366) {
+        const bad = a.ctrls.filter((c) => c.w < 24 || c.h < 24 || ((c.id === 'resume' || c.id === 'pointmode') && c.h < 40));
+        if (bad.length || a.ctrls.length < 8) { ctrlOk = false; notes.push(`controls: ${JSON.stringify(bad.slice(0, 4))} n=${a.ctrls.length}`); }
+      }
+      await setCtl('#textsize', '2');
+      await frames(3);
+      const b = await audit();
+      const before = new Map(a.out.map((e) => [e.id, e.fs]));
+      const shrunk = b.out.filter((e) => before.has(e.id) && (e.fs < 2 * before.get(e.id) - 0.5 || e.fs < 36));
+      if (shrunk.length || (w === 1920 && b.hudOut.length) || !(await page.evaluate(() => document.getElementById('textsize') !== null))) { scaleOk = false; notes.push(`${w}@200%: ${shrunk.map((e) => `${e.id}=${e.fs}`).slice(0, 4)} outside=${b.hudOut}`); }
+      await setCtl('#textsize', '1');
+      await frames(2);
+    }
+    check('feel: all HUD and pause text is at least 18 px and slots fit', sizeOk, notes.join(' | '));
+    check('feel: Text size 200% doubles text and keeps the HUD on screen', scaleOk, notes.join(' | '));
+    check('feel: pause controls are at least 24 px (buttons 40 px)', ctrlOk, notes.join(' | '));
+    check('feel: text contrast is at least 4.5:1 on its panel', contrastOk, notes.join(' | '));
+    await page.setViewportSize({ width: VW, height: VH });
+    await frames(3);
+    await unpause();
+  }
+
+  // 18. Idle hint (GS-24, GS-21).
+  {
+    await fresh();
+    const IDLE = 'Look for a fire';
+    const look = () => page.evaluate(() => ({
+      hint: document.getElementById('hint').classList.contains('hidden') ? '' : document.getElementById('hint').textContent,
+      nudge: !!document.querySelector('.slot[data-spell="2"].nudge'),
+    }));
+    const t0 = Date.now();
+    let early = false; let shown = null;
+    while (Date.now() - t0 < 52000) {
+      const v = await look();
+      const on = v.hint.includes(IDLE) && v.nudge;
+      if ((v.hint.includes(IDLE) || v.nudge) && Date.now() - t0 < 40000) early = true;
+      if (on && shown === null) shown = Date.now() - t0;
+      if (shown !== null && Date.now() - t0 > 46000) break;
+      await sleep(500);
+    }
+    check('feel: idle hint appears after 45 s with no progress (not before 40 s)', !early && shown !== null, `shown at ${shown} ms, early=${early}`);
+    // Hints off: frames until both the text and the glow are gone, in-page.
+    const gone = await page.evaluate((IDLE) => new Promise((res) => {
+      const el = document.getElementById('hints');
+      const f0 = window.__game.state().frame;
+      if (!el) { res(99); return; }
+      el.checked = false;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      const step = () => {
+        const h = document.getElementById('hint');
+        const off = (h.classList.contains('hidden') || !h.textContent.includes(IDLE)) && !document.querySelector('.slot[data-spell="2"].nudge');
+        const f = window.__game.state().frame;
+        if (off) { res(f - f0); return; }
+        if (f - f0 > 30) { res(99); return; }
+        requestAnimationFrame(step);
+      };
+      step();
+    }), IDLE);
+    let v = await look();
+    check('feel: turning Hints off clears the idle hint within 2 frames', shown !== null && gone <= 2 && !v.hint.includes(IDLE) && !v.nudge, `${gone} frames, now ${JSON.stringify(v)}`);
+    await setCtl('#hints', true);
+    // Pause after 20 s of idle, wait 30 s, resume: no hint for another 40 s.
+    await fresh();
+    await sleep(20000);
+    await page.evaluate(() => window.__game.pause(true));
+    await sleep(30000);
+    await unpause();
+    const t1 = Date.now();
+    early = false;
+    while (Date.now() - t1 < 40000) {
+      v = await look();
+      if (v.hint.includes(IDLE) || v.nudge) { early = true; break; }
+      await sleep(1000);
+    }
+    check('feel: the idle clock restarts after a pause', !early, early ? `hint at ${Date.now() - t1} ms after resume` : 'none for 40 s');
+  }
+
+  // 15. Settings persist; storage blocked (GS-14).
+  {
+    await page.evaluate(() => window.__game.pause(true));
+    await setCtl('#sens', 1.5);
+    await setCtl('#fov', 100);
+    await setCtl('#hints', false);
+    const stored = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem('alchemist.settings.v1')); } catch (e) { return null; } });
+    check('feel: settings are saved', !!stored && stored.sens === 1.5 && stored.hfov === 100 && stored.hints === false, JSON.stringify(stored));
+    const boot = async () => {
+      await page.reload();
+      for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState));) {
+        if (Date.now() - t0 > 120000) throw new Error('game did not restart within 120 s');
+        await sleep(100);
+      }
+      return (await st()).frame;
+    };
+    let f0 = await boot();
+    let r = await within(f0, 10, (x) => x.sens === 1.5 && Math.abs(x.fov - vfov(100)) <= 0.2);
+    const hintsBox = await checked('#hints');
+    check('feel: saved settings apply after a reload', r.ok && hintsBox === false, `sens=${r.x.sens} fov=${r.x.fov} hints=${hintsBox}`);
+    await page.evaluate(() => { try { localStorage.removeItem('alchemist.settings.v1'); } catch (e) { /* blocked */ } });
+    f0 = await boot();
+    await frames(5);
+    s = await st();
+    check('feel: with nothing saved the defaults return', s.sens === 1 && Math.abs(s.fov - 58.7) <= 0.2 && (await checked('#hints')) === true, `sens=${s.sens} fov=${s.fov}`);
+    // Storage that throws, reduced motion, and a URL sens.
+    const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, reducedMotion: 'reduce' });
+    await ctx.addInitScript(() => {
+      Storage.prototype.getItem = () => { throw new Error('blocked'); };
+      Storage.prototype.setItem = () => { throw new Error('blocked'); };
+    });
+    const p2 = await ctx.newPage();
+    const errs2 = [];
+    p2.on('console', (m) => { if (m.type() === 'error') errs2.push(m.text()); });
+    p2.on('pageerror', (e) => errs2.push(e.message));
+    const url2 = base.replace(/\?.*$/, '') + '?low&debug&sens=2';
+    await p2.goto(url2);
+    for (const t0 = Date.now(); !(await p2.evaluate(() => !!window.__gameState));) {
+      if (Date.now() - t0 > 120000) throw new Error('second context did not start within 120 s');
+      await sleep(250);
+    }
+    const st2 = () => p2.evaluate(() => window.__game.state());
+    const t2 = Date.now();
+    let s2 = await st2();
+    while (!(s2.frame > 12) && Date.now() - t2 < 30000) { await sleep(150); s2 = await st2(); }
+    const sway2 = await p2.evaluate(() => { const e = document.getElementById('sway'); return e ? e.checked : null; });
+    await p2.evaluate(() => window.__game.cmd('cast'));
+    for (const t0 = Date.now(); Date.now() - t0 < 20000; await sleep(100)) { if ((await st2()).casts > 0) break; }
+    const anim = await p2.evaluate(() => getComputedStyle(document.getElementById('crosshair')).animationName);
+    await p2.evaluate(() => { try { localStorage.setItem('x', '1'); } catch (e) { /* expected */ } });
+    await sleep(500);
+    check('feel: blocked storage + reduced motion boots with URL sens and no sway', s2.sens === 2 && Math.abs(s2.fov - 58.7) <= 0.2 && sway2 === false && s2.sway === false && anim === 'none' && errs2.length === 0,
+      `sens=${s2.sens} fov=${s2.fov} sway box=${sway2} state=${s2.sway} anim=${anim} errors=${errs2.slice(0, 2).join(' | ')}`);
+    await ctx.close();
+  }
+  void soundOk; void errors;
+}

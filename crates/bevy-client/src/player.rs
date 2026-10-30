@@ -12,8 +12,9 @@ const WALK: f32 = 5.0;
 const SPRINT: f32 = 8.5;
 const JUMP: f32 = 6.0;
 const GRAVITY: f32 = 18.0;
-/// Radians per CSS pixel of mouse movement at `?sens=1`.
-pub const LOOK_PER_PX: f32 = 0.0022;
+/// Radians per CSS pixel of mouse movement at `?sens=1` (about 21 cm per
+/// turn at 800 CPI; defined with the other comfort numbers in `feel`).
+pub use crate::feel::LOOK_PER_PX;
 
 /// What the player asks for this frame.
 #[derive(Clone, Copy, Debug, Default)]

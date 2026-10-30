@@ -152,6 +152,50 @@ pub struct Event {
     pub kind: EventKind,
 }
 
+/// What one landed spell did, for the hit marker and its sound.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HitKind {
+    /// It changed something (soaked, lit, froze, chilled...).
+    Hit,
+    /// It hit a target but nothing happened.
+    Fizzle,
+    /// It put a fire out.
+    Out,
+    /// It hit no target at all.
+    Miss,
+}
+
+impl HitKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            HitKind::Hit => "hit",
+            HitKind::Fizzle => "fizzle",
+            HitKind::Out => "out",
+            HitKind::Miss => "miss",
+        }
+    }
+}
+
+/// Classifies the events one spell produced on a target: any fire put out
+/// is `Out`; otherwise anything but a fizzle is `Hit`; only fizzles (or no
+/// events) are `Fizzle`. An impact with no target is `Miss` (the caller's
+/// call, since there are no events to look at).
+pub fn hit_kind(events: &[Event]) -> HitKind {
+    if events
+        .iter()
+        .any(|e| matches!(e.kind, EventKind::Extinguished(_)))
+    {
+        HitKind::Out
+    } else if events
+        .iter()
+        .any(|e| !matches!(e.kind, EventKind::Fizzle(_)))
+    {
+        HitKind::Hit
+    } else {
+        HitKind::Fizzle
+    }
+}
+
 impl EventKind {
     /// The one-line, scientifically accurate caption for this event.
     pub fn caption(self) -> &'static str {
@@ -961,5 +1005,29 @@ mod tests {
         let eb = run(&mut b, 40.0);
         assert_eq!(ea, eb);
         assert_eq!(a.objs, b.objs);
+    }
+
+    #[test]
+    fn hit_kind_classifies_impacts() {
+        let ev = |k: &[EventKind]| -> Vec<Event> {
+            k.iter().map(|&kind| Event { obj: 0, kind }).collect()
+        };
+        assert_eq!(hit_kind(&ev(&[EventKind::Soaked])), HitKind::Hit);
+        assert_eq!(hit_kind(&ev(&[EventKind::Station])), HitKind::Hit);
+        assert_eq!(
+            hit_kind(&ev(&[EventKind::Fizzle(Fizzle::Wet)])),
+            HitKind::Fizzle
+        );
+        assert_eq!(hit_kind(&[]), HitKind::Fizzle);
+        assert_eq!(
+            hit_kind(&ev(&[
+                EventKind::Fizzle(Fizzle::Wet),
+                EventKind::Extinguished(Spell::Water)
+            ])),
+            HitKind::Out
+        );
+        for k in [EventKind::Ignited, EventKind::Froze, EventKind::Chilled] {
+            assert_eq!(hit_kind(&ev(&[k])), HitKind::Hit, "{k:?}");
+        }
     }
 }

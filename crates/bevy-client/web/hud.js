@@ -10,10 +10,103 @@
 //                           tick N, reset
 //   __game.lock()           request pointer lock (needs a user gesture)
 //   __game.mode()           { pointMode, lockDenied, dragging }
-// Test commands other than select, cast, tap and reset need `?debug`.
+//   __game.lastSound()      { name, n, played, peak, frame } of the last sound asked for
+// Test commands other than select, cast, tap, reset and set need `?debug`.
+//
+// Settings (pause menu): look speed, view width, hand sway, aim help, hints,
+// sound and text size. They apply live (`set sens|hfov|sway|assist` for the
+// game), persist in localStorage['alchemist.settings.v1'], and the URL
+// (`?sens=`, `?assist=`) beats the saved value, which beats the default.
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
+const STORE_KEY = 'alchemist.settings.v1';
+// Shown after 45 s with no progress (GS-24). Tied to the fire quest: a new
+// quest brings its own idle hint and slot.
+const IDLE_MS = 45000;
+const IDLE_HINT = 'Look for a fire. Press 2 for Water, aim at the fire and click.';
+const IDLE_SLOT = 1;
+// How long each hit marker stays, ms.
+const MARK_MS = { hit: 250, fizzle: 300, out: 700 };
+// Loudest any tone gets (about -16 dBFS): a lab of 30 must not be startled.
+const PEAK = 0.15;
+
+const reducedMotion = () => {
+  try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+};
+
+// Effective settings: URL, then saved, then default. Every storage access
+// can throw (private windows, blocked site data), so each is guarded.
+function loadSettings() {
+  const s = { sens: 1, hfov: 90, sway: !reducedMotion(), assist: true, hints: true, sound: true, text: 1 };
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (saved && typeof saved === 'object') {
+    const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null);
+    const sens = num(saved.sens, 0.25, 3); if (sens !== null) s.sens = sens;
+    const hfov = num(saved.hfov, 70, 110); if (hfov !== null) s.hfov = Math.round(hfov / 5) * 5;
+    for (const k of ['sway', 'assist', 'hints', 'sound']) if (typeof saved[k] === 'boolean') s[k] = saved[k];
+    if ([1, 1.5, 2].includes(saved.text)) s.text = saved.text;
+  }
+  const us = parseFloat(params.get('sens'));
+  if (Number.isFinite(us) && us > 0) s.sens = Math.min(3, Math.max(0.25, us));
+  if (params.has('assist')) s.assist = !['0', 'off', 'false'].includes(params.get('assist'));
+  return s;
+}
+function saveSettings(s) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) { /* storage blocked: settings last this visit only */ }
+}
+
+// Short synthesised sounds (WebAudio, no files). The context starts on the
+// first key or button press, as browsers require.
+function makeSound() {
+  let ctx = null;
+  const last = { name: '', n: 0, played: false, peak: 0, frame: -1 };
+  const start = () => {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); return; }
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { ctx = new AC(); ctx.resume().catch(() => {}); }
+    } catch (e) { ctx = null; }
+  };
+  window.addEventListener('pointerdown', start, { capture: true });
+  window.addEventListener('keydown', start, { capture: true });
+  // Each note: [type, from Hz, to Hz, start s, length s, peak gain].
+  const SHAPES = {
+    cast: [['sine', 520, 820, 0, 0.06, 0.08]],
+    hit: [['triangle', 660, 700, 0, 0.06, 0.12], ['triangle', 880, 940, 0.06, 0.06, 0.12]],
+    fizzle: [['square', 220, 110, 0, 0.15, 0.05]],
+    out: [['triangle', 523, 530, 0, 0.14, PEAK], ['triangle', 659, 665, 0.15, 0.14, PEAK], ['triangle', 784, 790, 0.3, 0.15, PEAK]],
+    miss: [['sine', 150, 60, 0, 0.08, 0.12]],
+  };
+  const play = (name, on, frame) => {
+    const notes = SHAPES[name];
+    last.name = name;
+    last.n += 1;
+    last.frame = frame;
+    last.peak = Math.min(PEAK, Math.max(...notes.map((x) => x[5])));
+    last.played = false;
+    if (!on || !ctx) return;
+    try {
+      const t0 = ctx.currentTime + 0.005;
+      for (const [type, f0, f1, at, len, peak] of notes) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(f0, t0 + at);
+        o.frequency.exponentialRampToValueAtTime(f1, t0 + at + len);
+        g.gain.setValueAtTime(0.0001, t0 + at);
+        g.gain.exponentialRampToValueAtTime(Math.min(PEAK, peak), t0 + at + Math.min(0.01, len / 4));
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
+        o.connect(g).connect(ctx.destination);
+        o.start(t0 + at);
+        o.stop(t0 + at + len + 0.02);
+      }
+      last.played = true;
+    } catch (e) { last.played = false; }
+  };
+  return { play, last: () => ({ ...last }) };
+}
 
 export function startHud() {
   const canvas = $('game');
@@ -105,7 +198,12 @@ export function startHud() {
         note = 'Mouse lock is blocked here: hold a mouse button and drag to look. Click to cast.';
       });
   };
+  const sound = makeSound();
+  const settings = loadSettings();
+  // The idle clock (GS-24): restarts on progress, reset, pause and resume.
+  let idleSince = performance.now();
   const showPause = (on) => {
+    if (on !== input.paused) idleSince = performance.now();
     input.paused = on;
     $('pause').classList.toggle('hidden', !on);
     if (on) {
@@ -125,6 +223,7 @@ export function startHud() {
     lock,
     pause: showPause,
     mode: () => ({ pointMode, lockDenied, dragging: !!drag }),
+    lastSound: sound.last,
   };
 
   // Polled every frame as well as on the event (some browsers, headless
@@ -306,6 +405,138 @@ export function startHud() {
     if (hint.textContent !== text) hint.textContent = text;
     hint.classList.toggle('hidden', !text);
   };
+
+  // Settings block, built here (the page's CSP allows no inline styles and
+  // index.html stays as it is), just before the Resume button. Native
+  // controls, so it works from the keyboard too.
+  const el = (tag, props) => Object.assign(document.createElement(tag), props);
+  const box = el('div', { id: 'settings' });
+  box.append(el('h2', { textContent: 'Settings' }));
+  const row = (name, control, value) => {
+    const label = el('label', { className: `set-row ${control.type === 'checkbox' ? 'check' : ''}` });
+    label.append(el('span', { className: 'set-name', textContent: name }), control);
+    if (value) label.append(value);
+    box.append(label);
+  };
+  const sensIn = el('input', { type: 'range', id: 'sens', min: '0.25', max: '3', step: '0.05' });
+  const sensVal = el('span', { id: 'sens-val', className: 'set-val' });
+  const fovIn = el('input', { type: 'range', id: 'fov', min: '70', max: '110', step: '5' });
+  const fovVal = el('span', { id: 'fov-val', className: 'set-val' });
+  const checks = {};
+  for (const [k, id] of [['sway', 'sway'], ['assist', 'assist'], ['hints', 'hints'], ['sound', 'sound']]) {
+    checks[k] = el('input', { type: 'checkbox', id });
+  }
+  const textIn = el('select', { id: 'textsize' });
+  for (const [v, t] of [['1', '100%'], ['1.5', '150%'], ['2', '200%']]) textIn.append(el('option', { value: v, textContent: t }));
+  row('Look speed', sensIn, sensVal);
+  row('View width', fovIn, fovVal);
+  row('Hand sway', checks.sway);
+  row('Aim help', checks.assist);
+  row('Hints', checks.hints);
+  row('Sound', checks.sound);
+  row('Text size', textIn);
+  $('resume').before(box);
+  const showSettings = () => {
+    sensIn.value = String(settings.sens);
+    sensVal.textContent = settings.sens.toFixed(2);
+    fovIn.value = String(settings.hfov);
+    fovVal.textContent = `${settings.hfov}°`;
+    for (const k of Object.keys(checks)) checks[k].checked = settings[k];
+    textIn.value = String(settings.text);
+    document.documentElement.style.setProperty('--ui', String(settings.text));
+  };
+  // The game's share of the settings, as commands.
+  const send = (k) => {
+    if (k === 'sens') cmd(`set sens ${settings.sens}`);
+    if (k === 'hfov') cmd(`set hfov ${settings.hfov}`);
+    if (k === 'sway') cmd(`set sway ${settings.sway ? 1 : 0}`);
+    if (k === 'assist') cmd(`set assist ${settings.assist ? 1 : 0}`);
+  };
+  const changed = (k) => { showSettings(); send(k); saveSettings(settings); };
+  sensIn.addEventListener('input', () => {
+    const v = parseFloat(sensIn.value);
+    if (Number.isFinite(v)) settings.sens = Math.min(3, Math.max(0.25, v));
+    changed('sens');
+  });
+  fovIn.addEventListener('input', () => {
+    const v = parseFloat(fovIn.value);
+    if (Number.isFinite(v)) settings.hfov = Math.min(110, Math.max(70, Math.round(v / 5) * 5));
+    changed('hfov');
+  });
+  for (const k of Object.keys(checks)) {
+    checks[k].addEventListener('change', () => {
+      settings[k] = checks[k].checked;
+      changed(k);
+      if (k === 'hints' && !settings.hints) updateIdle(performance.now());
+    });
+  }
+  textIn.addEventListener('change', () => {
+    const v = parseFloat(textIn.value);
+    if ([1, 1.5, 2].includes(v)) settings.text = v;
+    changed('text');
+  });
+  showSettings();
+
+  // Crosshair: a ring that empties over the cooldown, and a short pulse on
+  // each cast (kept for at least two HUD frames, so it is always drawn).
+  cross.append(el('b', { className: 'cd' }));
+  let pulseAt = null;
+  const pulse = (frame) => {
+    cross.classList.remove('pulse');
+    void cross.offsetWidth; // restart the animation
+    cross.classList.add('pulse');
+    pulseAt = { t: performance.now(), frame };
+  };
+
+  // Hit marker: X for a hit, slashed circle for a fizzle, a big star for a
+  // fire put out. A miss shows none (it has its own sound).
+  const hm = el('div', { id: 'hitmarker' });
+  const hx = el('div', { className: 'hm-x' });
+  for (let k = 0; k < 4; k++) hx.append(el('i', {}));
+  hm.append(hx, el('div', { className: 'hm-slash' }), el('div', { className: 'hm-star' }));
+  $('hud').append(hm);
+  let hmTimer = 0;
+  const mark = (kind, s) => {
+    const r = canvas.getBoundingClientRect();
+    let x = r.left + r.width / 2;
+    let y = r.top + r.height / 2;
+    // Pointer free (point and click): at the impact. Locked: at the crosshair.
+    if (!s.locked && s.hitX >= 0 && s.hitY >= 0) {
+      x = r.left + s.hitX * r.width;
+      y = r.top + s.hitY * r.height;
+    }
+    hm.style.left = `${x.toFixed(1)}px`;
+    hm.style.top = `${y.toFixed(1)}px`;
+    hm.dataset.frame = String(s.frame);
+    hm.className = `show kind-${kind}`;
+    clearTimeout(hmTimer);
+    hmTimer = setTimeout(() => hm.classList.remove('show'), MARK_MS[kind]);
+    hmShown = { t: performance.now(), ms: MARK_MS[kind] };
+  };
+  // On slow frames the timer can run late: a HUD frame also takes the marker
+  // down when the next frame would be closer to its end time than this one.
+  let hmShown = null;
+  let lastFrameAt = performance.now();
+  const expireMark = (now, dt) => {
+    if (!hmShown) return;
+    if (now - hmShown.t + dt / 2 >= hmShown.ms || !hm.classList.contains('show')) {
+      hm.classList.remove('show');
+      hmShown = null;
+    }
+  };
+
+  // Idle hint (GS-24): after 45 s of play with no progress, say what to do
+  // and make the Water slot glow (for players who cannot read yet).
+  let idleOn = false;
+  function updateIdle(now) {
+    const on = !!state && settings.hints && state.outcome === 'playing' && !state.paused && !input.paused && now - idleSince >= IDLE_MS;
+    if (on === idleOn) return;
+    idleOn = on;
+    slots[IDLE_SLOT].classList.toggle('nudge', on);
+    if (!on && hint.textContent === IDLE_HINT) setHint('');
+  }
+
+  let prev = null;
   let capId = -1;
   const frame = () => {
     syncLock();
@@ -315,19 +546,49 @@ export function startHud() {
       state = JSON.parse(raw);
       $('loading').classList.add('hidden');
       $('hud').classList.remove('hidden');
+      const now = performance.now();
+      expireMark(now, now - lastFrameAt);
+      lastFrameAt = now;
+      if (!prev) {
+        // The game booted with the URL's settings only: send the effective ones.
+        for (const k of ['sens', 'hfov', 'sway', 'assist']) send(k);
+      } else {
+        // Feedback in the same HUD frame the change is first seen (GS-12, GS-16).
+        if (state.casts > prev.casts) {
+          pulse(state.frame);
+          sound.play('cast', settings.sound, state.frame);
+        }
+        if (state.impacts > prev.impacts && MARK_MS[state.hitKind] !== undefined) mark(state.hitKind, state);
+        if (state.impacts > prev.impacts && state.hitKind !== 'none') sound.play(state.hitKind, settings.sound, state.frame);
+        // Progress, a reset, or a pause restarts the idle clock.
+        if (state.impacts !== prev.impacts || state.extinguished !== prev.extinguished || state.tick < prev.tick
+          || state.casts < prev.casts || state.paused !== prev.paused) idleSince = now;
+      }
+      prev = state;
+      if (pulseAt && now - pulseAt.t >= 150 && state.frame > pulseAt.frame + 1) {
+        cross.classList.remove('pulse');
+        pulseAt = null;
+      }
+      const cd = state.cooldownMax > 0 ? Math.min(1, Math.max(0, state.cooldown / state.cooldownMax)) : 0;
+      cross.style.setProperty('--cd', cd.toFixed(3));
+      cross.classList.toggle('cooling', state.cooldown > 0);
       slots.forEach((s, i) => s.classList.toggle('sel', i === state.spell));
       if (wheelSpell === state.spell) wheelSpell = null;
       cross.classList.toggle('on', state.aimObj >= 0 && state.locked);
       canvas.classList.toggle('hover', pointMode && !state.locked && state.hover >= 0);
       // Hints: how to start, then how to aim until three spells have landed.
+      // The idle hint, when it is due, comes first.
+      let h;
       if (state.locked) {
         note = '';
-        setHint(state.impacts < 3 ? 'Aim at a glowing target: the crosshair turns yellow. Left click casts.' : '');
+        h = state.impacts < 3 ? 'Aim at a glowing target: the crosshair turns yellow. Left click casts.' : '';
       } else if (note) {
-        setHint(note);
+        h = note;
       } else {
-        setHint(state.casts > 0 ? '' : 'Click to look around. Esc shows the controls and point-and-click mode.');
+        h = state.casts > 0 ? '' : 'Click to look around. Esc shows the controls and point-and-click mode.';
       }
+      updateIdle(now);
+      setHint(idleOn ? IDLE_HINT : h);
       $('obj-line').textContent = state.outcome === 'won'
         ? 'Greenhouse saved!'
         : `Fires put out: ${Math.min(state.extinguished, state.goal)} / ${state.goal}  ·  burning now: ${state.burning}`;

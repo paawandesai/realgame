@@ -11,6 +11,7 @@
 
 mod bridge;
 mod chem;
+mod feel;
 mod fx;
 mod player;
 mod world;
@@ -78,11 +79,17 @@ mod heap {
 }
 
 /// Settings from the URL (`?sens=1.5&assist=0&low`) or the command line.
+/// The pause menu's settings (web/hud.js) change `sens`, `hfov`, `sway` and
+/// `assist` at runtime with `set` commands.
 #[derive(Resource, Debug, Clone)]
 struct Settings {
     sens: f32,
     /// Aim-assist cone, radians (0 = off).
     assist: f32,
+    /// Horizontal field of view at 16:9, degrees ("View width").
+    hfov: f32,
+    /// The gauntlet's walk bob ("Hand sway"). The camera never bobs.
+    sway: bool,
     low: bool,
     /// Anti-aliasing: 4x MSAA and/or FXAA (`?aa=msaa|fxaa|both|off`).
     msaa: bool,
@@ -91,6 +98,18 @@ struct Settings {
     /// move) on `window.__game.cmd`.
     debug: bool,
 }
+
+impl Settings {
+    /// Vertical field of view, degrees.
+    fn fov_y(&self) -> f32 {
+        feel::vfov_from_h(self.hfov)
+    }
+}
+
+/// The aim-assist cone when it is on.
+const ASSIST: f32 = 4.0 * std::f32::consts::PI / 180.0;
+/// Seconds between casts.
+const COOLDOWN: f32 = 0.3;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Aim {
@@ -122,6 +141,14 @@ struct Game {
     /// Bumped by every reset: spells and beams from before it vanish
     /// instead of landing in the new courtyard.
     epoch: u32,
+    /// What the last impact did (for the HUD's hit marker and sound), and
+    /// where it landed on screen as canvas fractions (-1 when off screen).
+    hit_kind: Option<chem::HitKind>,
+    hit_x: f32,
+    hit_y: f32,
+    /// Camera and viewmodel translations this frame, for the tests.
+    cam: Vec3,
+    vm: Vec3,
 }
 
 impl Game {
@@ -258,11 +285,12 @@ fn param(key: &str) -> Option<String> {
 }
 
 fn read_settings() -> Settings {
+    // Provisional: the HUD sends the effective settings (URL, then saved,
+    // then default) as soon as the first frame is published.
     let sens = param("sens")
         .and_then(|s| s.parse::<f32>().ok())
-        .filter(|s| s.is_finite() && *s > 0.0)
-        .unwrap_or(1.0)
-        .clamp(0.05, 10.0);
+        .and_then(feel::clamp_sens)
+        .unwrap_or(1.0);
     // Aim assist is on unless `?assist=0` (or `off`/`false`).
     let assist_on = !matches!(param("assist").as_deref(), Some("0" | "off" | "false"));
     let low = param("low").is_some_and(|v| !matches!(v.as_str(), "0" | "false"));
@@ -277,7 +305,9 @@ fn read_settings() -> Settings {
     };
     Settings {
         sens,
-        assist: if assist_on { 4f32.to_radians() } else { 0.0 },
+        assist: if assist_on { ASSIST } else { 0.0 },
+        hfov: feel::DEFAULT_HFOV,
+        sway: true,
         low,
         msaa,
         fxaa,
@@ -392,7 +422,7 @@ fn setup(
     let mut camera = commands.spawn((
         Camera3d::default(),
         Projection::Perspective(PerspectiveProjection {
-            fov: FOV_Y,
+            fov: settings.fov_y().to_radians(),
             near: 0.05,
             far: 250.0,
             ..default()
@@ -506,9 +536,10 @@ fn setup(
     commands.entity(cam_id).add_child(root);
     game.say("Save the Greenhouse! Put out 3 fires before they spread. Press 2 for Water.");
     info!(
-        "tier={} sens={} assist={} msaa={} fxaa={}",
+        "tier={} sens={} cm360@800cpi={:.1} assist={} msaa={} fxaa={}",
         if settings.low { "low" } else { "full" },
         settings.sens,
+        feel::cm_per_360(feel::LOOK_PER_PX, settings.sens, 800.0),
         settings.assist > 0.0,
         settings.msaa,
         settings.fxaa
@@ -536,13 +567,13 @@ fn control(
     keys: Res<ButtonInput<KeyCode>>,
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
-    settings: Res<Settings>,
+    mut settings: ResMut<Settings>,
     mut web: ResMut<WebIn>,
     mut game: ResMut<Game>,
     mut player: ResMut<Player>,
     mut chem: ResMut<Chem>,
     colliders: Res<Colliders>,
-    mut cam: Query<&mut Transform, With<FpsCam>>,
+    mut cam: Query<(&mut Transform, &mut Projection), With<FpsCam>>,
     #[cfg(not(target_arch = "wasm32"))] mut cursor: Single<
         &mut bevy::window::CursorOptions,
         With<PrimaryWindow>,
@@ -654,6 +685,26 @@ fn control(
                 game.events.extend(ev);
             }
             Some("reset") => reset(&mut chem, &mut game, &mut player),
+            // Settings from the pause menu (not debug-only).
+            Some("set") => {
+                let num = || a.get(2).and_then(|s| s.parse::<f32>().ok());
+                let on = matches!(a.get(2).copied(), Some("1" | "on" | "true"));
+                match a.get(1).copied() {
+                    Some("sens") => {
+                        if let Some(v) = num().and_then(feel::clamp_sens) {
+                            settings.sens = v;
+                        }
+                    }
+                    Some("hfov") => {
+                        if let Some(v) = num().and_then(feel::clamp_hfov) {
+                            settings.hfov = v;
+                        }
+                    }
+                    Some("sway") => settings.sway = on,
+                    Some("assist") => settings.assist = if on { ASSIST } else { 0.0 },
+                    _ => warn!("{c:?} is not a known setting"),
+                }
+            }
             _ => {}
         }
     }
@@ -703,9 +754,16 @@ fn control(
             &ice,
         );
     }
-    if let Ok(mut t) = cam.single_mut() {
+    if let Ok((mut t, mut proj)) = cam.single_mut() {
         t.translation = player.eye();
         t.rotation = player.rotation();
+        game.cam = t.translation;
+        let fov = settings.fov_y().to_radians();
+        if matches!(&*proj, Projection::Perspective(p) if (p.fov - fov).abs() > 1e-6) {
+            if let Projection::Perspective(p) = &mut *proj {
+                p.fov = fov;
+            }
+        }
     }
 }
 
@@ -727,7 +785,9 @@ fn reset(chem: &mut Chem, game: &mut Game, player: &mut Player) {
 }
 
 /// Best target along a ray: what it hits, or (with assist) the target
-/// whose edge is within `assist` radians of the ray and in plain view.
+/// whose edge is within the assist cone of the ray and in plain view. The
+/// cone is `assist` radians up to 20 m and narrows to nothing at 60 m
+/// (`feel::assist_cone`). Assist bends only the cast, never the view.
 fn pick(chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32) -> Aim {
     let (t, hit) = world::raycast(chem, colliders, origin, dir, 120.0);
     let point = origin + dir * t;
@@ -753,7 +813,7 @@ fn pick(chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32
         let half = (b.max - b.min) * 0.5;
         let radius = half.x.min(half.z).max(half.y.min(half.x.max(half.z))) * 0.7;
         let ang = dir.angle_between(v / dist) - (radius / dist).min(1.0).asin();
-        if ang > assist || best.is_some_and(|(a, _, _)| a <= ang) {
+        if ang > feel::assist_cone(assist, dist) || best.is_some_and(|(a, _, _)| a <= ang) {
             continue;
         }
         let (t2, h2) = world::raycast(chem, colliders, origin, v / dist, dist + 1.0);
@@ -774,9 +834,6 @@ fn pick(chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32
         },
     }
 }
-
-/// Vertical field of view of the first-person camera.
-const FOV_Y: f32 = 70.0 * std::f32::consts::PI / 180.0;
 
 /// Aims, and casts on click (pointer locked) or tap (pointer free).
 #[allow(clippy::too_many_arguments)]
@@ -815,13 +872,9 @@ fn aim_and_cast(
             s.x / s.y.max(1.0)
         });
     let rot = player.rotation();
+    let fov_y = settings.fov_y();
     let ray_at = |f: Vec2| -> Option<Vec3> {
-        if !(0.0..=1.0).contains(&f.x) || !(0.0..=1.0).contains(&f.y) {
-            return None;
-        }
-        let t = (FOV_Y * 0.5).tan();
-        let v = Vec3::new((f.x * 2.0 - 1.0) * t * aspect, (1.0 - f.y * 2.0) * t, -1.0);
-        Some((rot * v).normalize())
+        feel::ray_dir(f.x, f.y, fov_y, aspect).map(|v| rot * Vec3::from_array(v))
     };
     let tap_assist = settings.assist.max(3f32.to_radians()) * 1.5;
     game.hover = None;
@@ -886,7 +939,7 @@ fn aim_and_cast(
             break;
         }
         let spell = Spell::ALL[game.spell];
-        game.cooldown = 0.3;
+        game.cooldown = COOLDOWN;
         game.recoil = 1.0;
         game.casts += 1;
         game.say(spell.cast_caption());
@@ -937,9 +990,11 @@ fn aim_and_cast(
 fn projectiles(
     mut commands: Commands,
     time: Res<Time>,
+    player: Res<Player>,
     mut game: ResMut<Game>,
     mut chem: ResMut<Chem>,
     mut fx: ResMut<Fx>,
+    cam: Query<&Camera, With<FpsCam>>,
     mut q: Query<(Entity, &mut Projectile, &mut Transform), Without<Beam>>,
     mut beams: Query<(Entity, &mut Beam, &mut Transform), Without<Projectile>>,
 ) {
@@ -987,6 +1042,22 @@ fn projectiles(
         }
         commands.entity(e).despawn();
         game.impacts += 1;
+        // Where it landed on screen, from this frame's view (the camera's
+        // GlobalTransform is a frame old until transforms propagate).
+        let view = GlobalTransform::from(
+            Transform::from_translation(player.eye()).with_rotation(player.rotation()),
+        );
+        (game.hit_x, game.hit_y) = cam
+            .single()
+            .ok()
+            .and_then(|c| {
+                let size = c.logical_viewport_size()?;
+                let px = c.world_to_viewport(&view, p.to).ok()?;
+                let f = px / size.max(Vec2::ONE);
+                ((0.0..=1.0).contains(&f.x) && (0.0..=1.0).contains(&f.y)).then_some((f.x, f.y))
+            })
+            .unwrap_or((-1.0, -1.0));
+        game.hit_kind = Some(chem::HitKind::Miss);
         let burst = match p.spell {
             Spell::Fire => P::Fire,
             Spell::Water => P::Water,
@@ -1000,6 +1071,7 @@ fn projectiles(
         if let Some(i) = p.obj {
             let mut ev = Vec::new();
             chem.world.apply(i, p.spell, &mut ev);
+            game.hit_kind = Some(chem::hit_kind(&ev));
             // Spell results always get a caption.
             if let Some(last) = ev.last() {
                 game.say(last.kind.caption());
@@ -1231,9 +1303,12 @@ fn sync_visuals(
     }
 }
 
-/// The gauntlet: spell colour, recoil kick and a little walk bob.
+/// The gauntlet: spell colour, recoil kick and a little walk bob ("Hand
+/// sway", off in the settings: then the bob is exactly zero). The recoil
+/// kick stays: it is the response to the player's own click.
 fn viewmodel(
-    game: Res<Game>,
+    mut game: ResMut<Game>,
+    settings: Res<Settings>,
     player: Res<Player>,
     mats: Res<SpellMats>,
     mut root: Query<&mut Transform, With<Viewmodel>>,
@@ -1248,12 +1323,17 @@ fn viewmodel(
         let r = game.recoil * game.recoil;
         let speed = player.vel.xz().length().min(9.0) / 9.0;
         let bob = player.stride * 1.6;
-        t.translation = Vec3::new(
-            0.21 + bob.sin() * 0.01 * speed,
-            -0.18 + (bob * 2.0).cos().abs() * -0.008 * speed + r * 0.015,
-            -0.42 + r * 0.05,
-        );
+        let (bx, by) = if settings.sway {
+            (
+                bob.sin() * 0.01 * speed,
+                (bob * 2.0).cos().abs() * -0.008 * speed,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        t.translation = Vec3::new(0.21 + bx, -0.18 + by + r * 0.015, -0.42 + r * 0.05);
         t.rotation = Quat::from_rotation_x(r * 0.35) * Quat::from_rotation_y(0.1);
+        game.vm = t.translation;
     }
 }
 
@@ -1264,12 +1344,17 @@ fn esc(s: &str) -> String {
 /// Writes the state the HUD and tests read.
 fn publish(
     mut frame: Local<u64>,
+    mut last_hit: Local<(u32, u64)>,
     game: Res<Game>,
     chem: Res<Chem>,
     player: Res<Player>,
     settings: Res<Settings>,
 ) {
     *frame += 1;
+    // The frame in which the latest impact landed.
+    if last_hit.0 != game.impacts {
+        *last_hit = (game.impacts, *frame);
+    }
     let w = &chem.world;
     let outcome = match w.outcome() {
         Outcome::Playing => "playing",
@@ -1290,7 +1375,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.2},{:.2},{:.2}],\"yaw\":{:.1},\"pitch\":{:.1},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"objs\":[{}]}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}]}}",
         *frame,
         w.ticks,
         game.locked,
@@ -1319,6 +1404,20 @@ fn publish(
         settings.low,
         settings.sens,
         settings.assist > 0.0,
+        settings.fov_y(),
+        settings.sway,
+        game.cam.x,
+        game.cam.y,
+        game.cam.z,
+        game.vm.x,
+        game.vm.y,
+        game.vm.z,
+        game.cooldown.max(0.0),
+        COOLDOWN,
+        game.hit_kind.map_or("none", chem::HitKind::name),
+        game.hit_x,
+        game.hit_y,
+        last_hit.1,
         objs.join(",")
     );
     bridge::publish(&json);

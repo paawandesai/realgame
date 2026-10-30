@@ -6,6 +6,9 @@
   --frost: #9ef0ff;
   --foam: #eef3ff;
   --on: #ffe14a;
+  /* Text size setting (100%, 150%, 200%), set by hud.js. Every HUD and pause
+     text size is calc(<px> * var(--ui)), at least 18 px at 100% (GS-18). */
+  --ui: 1;
 }
 html, body { margin: 0; height: 100%; background: #8cc8fa; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); }
 #stage { position: fixed; inset: 0; overflow: hidden; transform-origin: 0 0; }
@@ -13,15 +16,14 @@ html, body { margin: 0; height: 100%; background: #8cc8fa; overflow: hidden; fon
 canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
 canvas.hover { cursor: pointer; }
 .hidden { display: none !important; }
-#hud { position: fixed; inset: 0; pointer-events: none; user-select: none; }
-#objective { position: absolute; top: 14px; left: 14px; background: var(--panel); padding: 10px 14px; border-radius: 12px; }
-#objective .title { font-weight: 700; font-size: 18px; color: var(--on); }
-#obj-line { font-size: 15px; margin-top: 2px; }
-#warning { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(170, 30, 20, 0.88); padding: 8px 16px; border-radius: 12px; text-align: center; font-weight: 700; font-size: 18px; animation: pulse 1s ease-in-out infinite alternate; }
-#warning .meter { margin-top: 6px; height: 8px; width: 260px; background: rgba(255,255,255,0.25); border-radius: 4px; overflow: hidden; }
+#hud { position: fixed; inset: 0; pointer-events: none; user-select: none; font-size: calc(18px * var(--ui)); }
+#objective { position: absolute; top: 14px; left: 14px; background: var(--panel); padding: 10px 14px; border-radius: 12px; max-width: calc(100vw - 28px); box-sizing: border-box; }
+#objective .title { font-weight: 700; font-size: calc(20px * var(--ui)); color: var(--on); }
+#obj-line { font-size: calc(18px * var(--ui)); margin-top: 2px; }
+#warning { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(170, 30, 20, 0.88); padding: 8px 16px; border-radius: 12px; text-align: center; font-weight: 700; font-size: calc(18px * var(--ui)); max-width: calc(100vw - 28px); box-sizing: border-box; animation: pulse 1s ease-in-out infinite alternate; }
+#warning .meter { margin: 6px auto 0; height: 8px; width: 260px; max-width: 100%; background: rgba(255,255,255,0.25); border-radius: 4px; overflow: hidden; }
 #warning .fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffd34a, #ff5a1a); }
 @keyframes pulse { from { box-shadow: 0 0 0 rgba(255, 80, 40, 0.0); } to { box-shadow: 0 0 22px rgba(255, 80, 40, 0.9); } }
-@media (prefers-reduced-motion: reduce) { #warning { animation: none; } }
 #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; }
 #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 2px #000; }
 #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
@@ -30,44 +32,87 @@ canvas.hover { cursor: pointer; }
 #crosshair.on::before, #crosshair.on::after { background: var(--on); }
 #crosshair.on span { border-color: var(--on); }
 #crosshair.on { transform: scale(1.25); }
-#hint { position: absolute; top: 58%; width: 100%; text-align: center; font-size: 16px; text-shadow: 0 1px 3px #000; }
-#caption { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); max-width: min(760px, 92vw); text-align: center; background: var(--panel); padding: 8px 14px; border-radius: 10px; font-size: 18px; line-height: 1.35; opacity: 0; transition: opacity 0.25s; }
+/* Cooldown ring: a conic arc around the crosshair that empties as the
+   cooldown (--cd, 1 to 0) runs out. */
+#crosshair .cd { position: absolute; inset: -7px; border-radius: 50%; opacity: 0; transition: opacity 0.08s;
+  background: conic-gradient(rgba(255, 255, 255, 0.9) calc(var(--cd, 0) * 360deg), rgba(255, 255, 255, 0.12) 0);
+  -webkit-mask: radial-gradient(circle, transparent 15px, #000 16px, #000 18px, transparent 19px);
+  mask: radial-gradient(circle, transparent 15px, #000 16px, #000 18px, transparent 19px); }
+#crosshair.cooling .cd { opacity: 1; }
+/* A cast: one quick pop of the crosshair. */
+#crosshair.pulse { animation: cpulse 120ms ease-out 1; }
+@keyframes cpulse { 0% { scale: 1; } 50% { scale: 1.35; } 100% { scale: 1; } }
+/* Hit markers: shapes differ, not just colours (GS-15, GS-19). */
+#hitmarker { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
+#hitmarker.show { display: block; }
+#hitmarker > div { display: none; position: relative; box-sizing: border-box; }
+#hitmarker.kind-hit .hm-x, #hitmarker.kind-fizzle .hm-slash, #hitmarker.kind-out .hm-star { display: block; }
+.hm-x { width: 28px; height: 28px; }
+.hm-x i { position: absolute; left: 50%; top: 50%; width: 3px; height: 9px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 2px #000; transform-origin: 50% 0; }
+.hm-x i:nth-child(1) { transform: rotate(45deg) translateY(5px); }
+.hm-x i:nth-child(2) { transform: rotate(135deg) translateY(5px); }
+.hm-x i:nth-child(3) { transform: rotate(225deg) translateY(5px); }
+.hm-x i:nth-child(4) { transform: rotate(315deg) translateY(5px); }
+.hm-slash { width: 28px; height: 28px; border: 3px solid #9db4d6; border-radius: 50%; box-shadow: 0 0 2px #000; }
+.hm-slash::after { content: ""; position: absolute; left: 50%; top: -1px; width: 3px; height: calc(100% + 2px); margin-left: -1.5px; background: #9db4d6; transform: rotate(45deg); }
+.hm-star { width: 96px; height: 96px; border: 4px solid #ffd34a; border-radius: 50%; box-shadow: 0 0 6px rgba(0, 0, 0, 0.6); }
+.hm-star::before { content: ""; position: absolute; inset: 10px; background: #ffd34a;
+  clip-path: polygon(50% 0, 58% 32%, 85% 15%, 68% 42%, 100% 50%, 68% 58%, 85% 85%, 58% 68%, 50% 100%, 42% 68%, 15% 85%, 32% 58%, 0 50%, 32% 42%, 15% 15%, 42% 32%); }
+#hint { position: absolute; top: 58%; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(calc(760px * var(--ui)), calc(100vw - 32px)); box-sizing: border-box; text-align: center; font-size: calc(18px * var(--ui)); line-height: 1.35; background: var(--panel); padding: 6px 14px; border-radius: 10px; }
+#caption { position: absolute; bottom: calc(120px * var(--ui)); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(calc(760px * var(--ui)), calc(100vw - 32px)); box-sizing: border-box; text-align: center; background: var(--panel); padding: 8px 14px; border-radius: 10px; font-size: calc(18px * var(--ui)); line-height: 1.35; opacity: 0; transition: opacity 0.25s; }
 #caption.show { opacity: 1; }
-#hotbar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto; }
-.slot { position: relative; width: 190px; padding: 8px 6px 6px; background: var(--panel); border: 2px solid rgba(255,255,255,0.25); border-radius: 12px; color: var(--ink); font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+#hotbar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; max-width: calc(100vw - 16px); pointer-events: auto; }
+.slot { position: relative; min-width: 190px; padding: 8px 10px 6px; box-sizing: border-box; background: var(--panel); border: 2px solid rgba(255,255,255,0.25); border-radius: 12px; color: var(--ink); font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .slot.sel { border-color: var(--on); box-shadow: 0 0 12px rgba(255, 225, 74, 0.6); transform: translateY(-4px); }
-.slot .key { position: absolute; top: 4px; left: 8px; font-size: 12px; opacity: 0.8; }
-.slot .name { font-weight: 700; font-size: 15px; }
-.slot .formula { font-size: 14px; opacity: 0.95; white-space: nowrap; }
-.icon { width: 30px; height: 30px; border-radius: 50%; }
+.slot .key { position: absolute; top: 4px; left: 8px; font-size: calc(18px * var(--ui)); font-weight: 700; line-height: 1; }
+.slot .name { font-weight: 700; font-size: calc(18px * var(--ui)); }
+.slot .formula { font-size: calc(18px * var(--ui)); white-space: nowrap; }
+/* The idle hint's glow on the slot to press: slow (1 Hz), soft (GS-6). */
+.slot.nudge { animation: nudge 1s ease-in-out infinite alternate; border-color: var(--water); }
+@keyframes nudge { from { box-shadow: 0 0 4px rgba(58, 141, 255, 0.5); } to { box-shadow: 0 0 22px rgba(58, 141, 255, 1); } }
+.icon { width: calc(30px * var(--ui)); height: calc(30px * var(--ui)); border-radius: 50%; }
 .icon.fire { background: radial-gradient(circle at 50% 65%, #ffe36a, var(--fire) 55%, #b02a00); }
 .icon.water { background: radial-gradient(circle at 40% 35%, #bfe0ff, var(--water) 60%, #134a9e); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); }
 .icon.frost { background: radial-gradient(circle, #fff, var(--frost) 55%, #3fa7c8); clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); border-radius: 0; }
 .icon.foam { background: radial-gradient(circle at 30% 40%, #fff 30%, transparent 32%), radial-gradient(circle at 68% 55%, #fff 26%, transparent 28%), radial-gradient(circle at 45% 75%, #fff 22%, transparent 24%), #9fb2c9; }
-#banner { position: absolute; top: 28%; left: 50%; transform: translateX(-50%); text-align: center; background: rgba(28, 120, 70, 0.9); padding: 18px 28px; border-radius: 16px; box-shadow: 0 6px 30px rgba(0,0,0,0.35); }
-#banner.lost { background: rgba(150, 40, 30, 0.9); }
-#banner .big { font-size: 34px; font-weight: 800; }
-#banner .small { font-size: 16px; margin-top: 6px; }
-#pause { position: fixed; inset: 0; background: rgba(10, 16, 40, 0.55); display: flex; align-items: center; justify-content: center; }
-#pause .card { background: #1d2a52; padding: 22px 28px; border-radius: 16px; max-width: 460px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); }
-#pause h1 { margin: 0 0 12px; font-size: 26px; }
-#pause td { padding: 3px 12px 3px 0; }
+/* Banners: dark enough that white text is 4.5:1 even over a white sky. */
+#banner { position: absolute; top: 28%; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); box-sizing: border-box; text-align: center; background: rgba(18, 92, 52, 0.92); padding: 18px 28px; border-radius: 16px; box-shadow: 0 6px 30px rgba(0,0,0,0.35); }
+#banner.lost { background: rgba(140, 34, 26, 0.92); }
+#banner .big { font-size: calc(34px * var(--ui)); font-weight: 800; }
+#banner .small { font-size: calc(18px * var(--ui)); margin-top: 6px; }
+#pause { position: fixed; inset: 0; background: rgba(10, 16, 40, 0.55); display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--ui)); }
+#pause .card { background: #1d2a52; padding: 22px 28px; border-radius: 16px; max-width: min(calc(500px * var(--ui)), calc(100vw - 32px)); box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,0.4); max-height: 92vh; overflow-y: auto; }
+#pause h1 { margin: 0 0 12px; font-size: calc(26px * var(--ui)); }
+#pause td { padding: 3px 12px 3px 0; font-size: calc(18px * var(--ui)); }
 #pause td:first-child { color: var(--on); font-weight: 600; }
-#pause .card { max-height: 92vh; overflow-y: auto; }
-#pause h2 { margin: 12px 0 4px; font-size: 17px; }
-#history { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.35; }
+#pause p { font-size: calc(18px * var(--ui)); }
+#pause h2 { margin: 12px 0 4px; font-size: calc(20px * var(--ui)); }
+#history { margin: 0; padding-left: 20px; font-size: calc(18px * var(--ui)); line-height: 1.35; }
 #history li { margin: 2px 0; }
-#pause button { font: inherit; font-size: 17px; padding: 10px 18px; margin: 8px 8px 0 0; border-radius: 10px; border: 0; background: var(--on); color: #222; font-weight: 700; cursor: pointer; }
+#pause button { font: inherit; font-size: calc(18px * var(--ui)); min-height: 44px; padding: 10px 18px; margin: 8px 8px 0 0; border-radius: 10px; border: 0; background: var(--on); color: #222; font-weight: 700; cursor: pointer; }
 #pause button.ghost { background: transparent; color: var(--ink); border: 2px solid rgba(255,255,255,0.4); }
+/* Settings (built by hud.js). Controls are at least 24 px (GS-22). */
+#settings { margin: 8px 0 4px; }
+#settings .set-row { display: flex; align-items: center; gap: 12px; margin: 6px 0; font-size: calc(18px * var(--ui)); }
+#settings .set-name { min-width: 7.5em; }
+#settings input[type="range"] { flex: 1; min-width: 120px; height: 28px; margin: 0; accent-color: var(--on); }
+#settings input[type="checkbox"] { width: 28px; height: 28px; margin: 0; accent-color: var(--on); }
+#settings select { font: inherit; font-size: calc(18px * var(--ui)); min-height: 36px; padding: 2px 8px; border-radius: 8px; }
+#settings .set-val { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
 #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: #8cc8fa; }
-/* Narrow screens: the formula stays (it is the point), wrapped and smaller;
-   the key number and name make room. */
+@media (prefers-reduced-motion: reduce) {
+  #warning { animation: none; }
+  #crosshair.pulse, .slot.nudge { animation: none; }
+  #crosshair .cd, #caption { transition: none; }
+}
+/* Narrow screens (phones, outside GS-18's 1366x768 floor): the formula stays
+   (it is the point), wrapped and smaller; the key number and name make room. */
 @media (max-width: 760px) {
-  #hotbar { gap: 4px; width: calc(100vw - 16px); justify-content: center; }
-  .slot { width: 24%; max-width: 190px; padding: 6px 3px 4px; }
+  #hotbar { gap: 4px; width: calc(100vw - 16px); justify-content: center; flex-wrap: nowrap; }
+  .slot { width: 24%; min-width: 0; max-width: 190px; padding: 6px 3px 4px; }
   .slot .key { display: none; }
-  .slot .name { font-size: 13px; }
-  .slot .formula { font-size: 12px; white-space: normal; text-align: center; line-height: 1.2; }
+  .slot .name { font-size: calc(13px * var(--ui)); }
+  .slot .formula { font-size: calc(12px * var(--ui)); white-space: normal; text-align: center; line-height: 1.2; }
   .icon { width: 22px; height: 22px; }
-  #caption { bottom: 132px; font-size: 16px; }
+  #caption { bottom: 132px; font-size: calc(16px * var(--ui)); }
 }
