@@ -1,0 +1,28 @@
+{
+  "schema": "panel-result/1",
+  "persona": "qa",
+  "model": "selftest-robot",
+  "artifact_sha": "877131f",
+  "query": "?low",
+  "throttle": 4,
+  "measured": {
+    "time_to_move_s": null,
+    "time_to_cast_s": null,
+    "minutes_played": 0.033,
+    "quests_completed": 0,
+    "outcome": "playing",
+    "turns": 1,
+    "console_errors": 0,
+    "panics": 0
+  },
+  "self": {
+    "clarity": 5,
+    "fun": 5,
+    "blockers": [],
+    "would_play_again": "maybe",
+    "best": "Scripted run.",
+    "worst": "Scripted run.",
+    "quotes": []
+  },
+  "stopped_because": "quit"
+}

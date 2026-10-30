@@ -1,0 +1,28 @@
+{
+  "schema": "panel-result/1",
+  "persona": "9yo",
+  "model": "selftest-robot",
+  "artifact_sha": "877131f",
+  "query": "?low",
+  "throttle": 1,
+  "measured": {
+    "time_to_move_s": 9.1,
+    "time_to_cast_s": 47.8,
+    "minutes_played": 0.847,
+    "quests_completed": 0,
+    "outcome": "playing",
+    "turns": 27,
+    "console_errors": 1,
+    "panics": 0
+  },
+  "self": {
+    "clarity": 5,
+    "fun": 5,
+    "blockers": [],
+    "would_play_again": "maybe",
+    "best": "Scripted run.",
+    "worst": "Scripted run.",
+    "quotes": []
+  },
+  "stopped_because": "quit"
+}
