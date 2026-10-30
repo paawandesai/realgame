@@ -52,15 +52,17 @@ wasm-bindgen = "0.2"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
 
-# Speed-optimised (I-015 step B1): opt-level 3 had the lowest CPU frame
-# median at low@4x of "z", "s", 2 and 3 (43.2 -> 29.2 ms against base in
-# round 1; 39.9 -> 31.3 ms with step B2 in round 2, on a loaded box; see
-# docs/loop/items/I-015/lanes/client/round-1.md and round-2.md). Requested
-# brotli total (perf.mjs, node:zlib q11) grows from 3.56 to 4.60 MB, under
-# the 8 MB guard (bar: 15 MB).
+# Size-optimised. opt-level 3 cut the CPU frame median at low@4x by about
+# 20% but grew brotli from 3.56 to 4.60 MB and TTI by about 1.4 s (see
+# docs/loop/items/I-015/); that trade is item I-024.
 [profile.release]
-opt-level = 3
+opt-level = "z"
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# Same as release but speed-optimised, to compare size against opt-level z.
+[profile.release-speed]
+inherits = "release"
+opt-level = 3
