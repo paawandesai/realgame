@@ -1794,52 +1794,94 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
 
   // 9. A real click casts exactly once; a held button still repeats.
   {
-    // The mouse goes to the click spot first, so the click itself carries no
-    // movement that could turn the view off the fire. Pointer moves reach
-    // the page on the next animation frame, so the aim is taken after it
-    // and checked again a frame later.
-    await page.mouse.move(VW / 2, VH / 2);
-    await frames(2);
-    await aimAt(lit[1], 2);
-    await frames(1);
-    const a = await aimAt(lit[1], 2);
-    // I-046 G5: the cast count and the slow-GPU extinguish timing are two
-    // checks. The count keeps "exactly once" over the same 20 + 20 frames.
-    // The fire half reads every game frame from an in-page recorder, which
-    // starts before the click and stops on the first frame at least 2.0 game
-    // seconds after it (the pass line); its 600-frame and 15 s wall caps
-    // only end the wait, as a failure.
-    await page.evaluate(([i, g0]) => {
-      const rec = { rows: [], done: false, why: '' };
-      window.__i046rec = rec;
+    // I-046 G5 (spec "Round 3 amendments" A3). The click is a press and a
+    // release at the current mouse position (the same CDP input path as
+    // page.mouse.click, without the move it sends first, which under the
+    // pointer lock can carry a large bogus movement that turns the view).
+    // The view must be still for 5 game frames before the aim and after it;
+    // the aim and view at the cast frame are a precondition (validity), not
+    // a pass condition. The cast count keeps "exactly once" over the same
+    // 20 + 20 frames and is judged on every attempt, never retried. The fire
+    // half reads every game frame from an in-page recorder, which starts
+    // before the press and stops on the first frame at least 2.0 game
+    // seconds after the aim (the pass line); its 600-frame and 15 s wall
+    // caps only end the wait, as a failure.
+    const angD = (p, q) => ((((p - q) % 360) + 540) % 360) - 180;
+    // Resolves with the state of the 5th consecutive game frame whose yaw
+    // and pitch are unchanged (0.01°) from the frame before, and (with i)
+    // aimObj === i and cooldown === 0; null after 5 s.
+    const settle = (i) => page.evaluate((i) => new Promise((res) => {
       const t0 = performance.now();
-      let last = -1;
+      let prev = null; let n = 0;
       const step = () => {
         const s = window.__game.state();
-        if (s.frame !== last) {
-          last = s.frame;
-          rec.rows.push([s.frame, s.gameTime, s.objs[i].burning]);
-          if (s.gameTime >= g0 + 2.0) { rec.done = true; rec.why = 'deadline'; return; }
+        if (!prev || s.frame !== prev.frame) {
+          const still = !!prev && Math.abs(((((s.yaw - prev.yaw) % 360) + 540) % 360) - 180) <= 0.01 && Math.abs(s.pitch - prev.pitch) <= 0.01;
+          const ok = still && !s.paused && (i === null || (s.aimObj === i && s.cooldown === 0));
+          n = ok ? n + 1 : 0;
+          prev = s;
+          if (n >= 5) { res(s); return; }
         }
-        if (rec.rows.length > 600 || performance.now() - t0 > 15000) { rec.done = true; rec.why = 'cap'; return; }
+        if (performance.now() - t0 > 5000) { res(null); return; }
         requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
-    }, [lit[1], a.gameTime]);
-    await page.mouse.click(VW / 2, VH / 2);
-    const r = await within(a.frame, 20, (x) => x.casts === a.casts + 1);
-    await frames(20);
-    const later = await st();
-    check('cast: a real click casts exactly once', lockOk && a.locked && r.ok && later.casts === a.casts + 1,
-      `casts ${a.casts} -> ${r.x.casts} -> ${later.casts} (20 frames on), aimObj at click ${a.aimObj}, at the cast frame ${r.x.aimObj} (yaw ${fmt(a.yaw, 2)} -> ${fmt(r.x.yaw, 2)}, pitch ${fmt(a.pitch, 2)} -> ${fmt(r.x.pitch, 2)}), impacts ${a.impacts} -> ${later.impacts}, hitKind ${later.hitKind}`);
-    const t1 = Date.now();
-    let rec = await page.evaluate(() => window.__i046rec);
-    while (!rec.done && Date.now() - t1 < 20000) { await sleep(50); rec = await page.evaluate(() => window.__i046rec); }
-    const outRow = rec.rows.find((row) => row[2] === false);
-    const lastRow = rec.rows[rec.rows.length - 1] || [a.frame, a.gameTime, true];
-    const outOk = rec.why === 'deadline' && !!outRow;
-    check('cast: that real click puts lit[1] out', lockOk && a.locked && outOk,
-      `aimObj at click ${a.aimObj}, lit[1]=${lit[1]}; ${outRow ? `out at frame +${outRow[0] - a.frame}, game +${fmt(outRow[1] - a.gameTime)} s` : 'never seen out'}; recorder ${rec.why || 'unfinished'} after ${rec.rows.length} frames, game +${fmt(lastRow[1] - a.gameTime)} s (deadline 2.0)`);
+    }), i);
+    const tries = []; let countOk = null; let ext = null;
+    for (let k = 0; k < 3 && ext === null; k++) {
+      if (k > 0) {
+        await fresh();
+        await tp(0, 5.5);
+        if (!(await st()).locked) await relock();
+      }
+      await page.mouse.move(VW / 2, VH / 2);
+      const s1 = await settle(null);
+      if (!s1) { tries.push(`try ${k + 1}: INVALID view not still for 5 frames before the aim`); continue; }
+      await aimAt(lit[1], 2);
+      const a = await settle(lit[1]);
+      if (!a) { tries.push(`try ${k + 1}: INVALID view or aim not still for 5 frames after the aim`); continue; }
+      await page.evaluate(([i, g0]) => {
+        const rec = { rows: [], done: false, why: '' };
+        window.__i046rec = rec;
+        const t0 = performance.now();
+        let last = -1;
+        const step = () => {
+          const s = window.__game.state();
+          if (s.frame !== last) {
+            last = s.frame;
+            rec.rows.push([s.frame, s.gameTime, s.objs[i].burning, s.casts, s.yaw, s.pitch, s.aimObj]);
+            if (s.gameTime >= g0 + 2.0) { rec.done = true; rec.why = 'deadline'; return; }
+          }
+          if (rec.rows.length > 600 || performance.now() - t0 > 15000) { rec.done = true; rec.why = 'cap'; return; }
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }, [lit[1], a.gameTime]);
+      await page.mouse.down();
+      await page.mouse.up();
+      const r = await within(a.frame, 20, (x) => x.casts === a.casts + 1);
+      await frames(20);
+      const later = await st();
+      const cOk = lockOk && a.locked && r.ok && later.casts === a.casts + 1;
+      countOk = countOk === null ? cOk : countOk && cOk;
+      const t1 = Date.now();
+      let rec = await page.evaluate(() => window.__i046rec);
+      while (!rec.done && Date.now() - t1 < 20000) { await sleep(50); rec = await page.evaluate(() => window.__i046rec); }
+      const castRow = rec.rows.find((row) => row[3] === a.casts + 1);
+      const dy = castRow ? angD(castRow[4], a.yaw) : NaN, dp = castRow ? castRow[5] - a.pitch : NaN;
+      const pre = !!castRow && castRow[6] === lit[1] && Math.abs(dy) <= 0.5 && Math.abs(dp) <= 0.5;
+      const outRow = rec.rows.find((row) => row[2] === false);
+      const lastRow = rec.rows[rec.rows.length - 1] || [a.frame, a.gameTime, true];
+      const head = `try ${k + 1}: casts ${a.casts} -> ${r.x.casts} -> ${later.casts} (20 frames on, count ${cOk ? 'ok' : 'FAIL'}); aimObj ${a.aimObj} at the press, ${castRow ? castRow[6] : '-'} at the cast frame${castRow ? ` (frame +${castRow[0] - a.frame}, game +${fmt(castRow[1] - a.gameTime)} s)` : ' (no cast frame recorded)'}, Δyaw ${fmt(dy, 2)}° Δpitch ${fmt(dp, 2)}°`;
+      if (!pre) { tries.push(`${head}; INVALID view moved during the click`); continue; }
+      ext = rec.why === 'deadline' && !!outRow;
+      tries.push(`${head}; lit[1]=${lit[1]} ${outRow ? `out at frame +${outRow[0] - a.frame}, game +${fmt(outRow[1] - a.gameTime)} s` : 'never seen out'}; recorder ${rec.why || 'unfinished'} after ${rec.rows.length} frames, game +${fmt(lastRow[1] - a.gameTime)} s (deadline 2.0)`);
+    }
+    // All attempts invalid: both checks fail ("view moved during the click").
+    const valid = ext !== null;
+    const tag = valid ? '' : 'view moved during the click (no valid attempt); ';
+    check('cast: a real click casts exactly once', valid && countOk === true, `${tag}${tries.join(' | ')}`);
+    check('cast: that real click puts lit[1] out', valid && ext === true, `${tag}${tries.join(' | ')}`);
     await cmd('look 0 60');
     const h0 = await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
     await page.mouse.down();
@@ -2442,6 +2484,136 @@ async function closeStreams({ page, st, cmd, until, frames, sleep, idx, lit, loc
       note: `pose ${fp.p.slice(0, 2).join(',')} ${pl.note}; warm before ${counts.join('/')} (min ${before}) after ${aft} ratio ${fmt(ratio, 2)} caught@${caught} streams=${sx.streams} aim=${sx.aimObj} burning=${sx.objs[fp.p[2]].burning} mask-in-square ${maskIn}`,
     };
   };
+  // G1 P0's game step (spec "Round 3 amendments" A1). A spell lands within
+  // 0.25 s of game time and the game clamps a frame to 0.25 s, so on a
+  // software GPU (about 1 fps at 1680x720 here) the frame after the cast is
+  // already the impact frame and no pre-impact frame exists to freeze. For
+  // the capture only, the page's performance.now (which the game's clock
+  // reads) advances by one 20 fps step per animation frame (a
+  // shot per pre-impact frame costs about 4 s here, so a 30 fps step would
+  // hit the 30 s wall cap on Water's 0.25 s flight); Bevy's clock
+  // takes about 2 frames to follow, so the cast waits until `dt` is that
+  // step. Restored right after the impact frame (a forward jump: the real
+  // clock is ahead). The square, the 0.80 line and the before rule are
+  // unchanged.
+  const P0_STEP = 1 / 20;
+  const pinClock = (on) => page.evaluate(([on, stepMs]) => {
+    const P = window.performance;
+    if (window.__i046clk) { window.__i046clk.on = false; delete P.now; window.__i046clk = null; }
+    if (!on) return true;
+    const realNow = Performance.prototype.now.bind(P);
+    const clk = { on: true, vt: realNow() };
+    window.__i046clk = clk;
+    P.now = () => clk.vt;
+    const tick = () => { if (!clk.on) return; clk.vt += stepMs; requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    return true;
+  }, [on, P0_STEP * 1000]);
+  // Waits for the next game frame that is not paused, then: on a pre-impact
+  // frame with a stream (cast seen, impacts unchanged) pauses the game and
+  // returns it; on the first frame with impacts grown returns it unpaused.
+  // `cast` sends the cast first, `go` unpauses first.
+  const p0Next = (a, cast, go) => page.evaluate(([a, cast, go]) => new Promise((res) => {
+    const g = window.__game;
+    const t0 = Performance.prototype.now.call(window.performance);
+    let last = g.state().frame;
+    if (go) g.pause(false);
+    if (cast) g.cmd('cast');
+    const step = () => {
+      const s = g.state();
+      if (s.frame !== last && !s.paused) {
+        last = s.frame;
+        if (s.impacts > a.impacts) { res({ kind: 'impact', s }); return; }
+        if (s.casts > a.casts && s.streams >= 1) { g.pause(true); res({ kind: 'pre', s }); return; }
+      }
+      if (Performance.prototype.now.call(window.performance) - t0 > 20000) { res({ kind: 'stall', s }); return; }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }), [{ impacts: a.impacts, casts: a.casts }, cast, go]);
+  // One G1 P0 attempt (A1): pose, place the fire at C, befores as fireTry,
+  // then a cast whose every pre-impact frame with a stream is paused and
+  // shot; the after shot is the last of them.
+  const fireTryP0 = async (spell, save) => {
+    await fresh();
+    const fp = await firePose(spell);
+    if (!fp) return { valid: false, note: 'no fire pose' };
+    const fire = fp.p[2];
+    const pl = await placeFire(0, 0);
+    if (!pl.ok) return { valid: false, note: `placement failed: ${pl.note}` };
+    await until((x) => x.cooldown === 0, 5000);
+    await hideUi(true);
+    const counts = [];
+    for (let k = 0; k < 3; k++) { const img = await shot(); counts.push(warmIn(img, img.w / 2, img.h / 2, (0.10 * img.h) / 2)); }
+    await page.evaluate(() => window.__game.pause(true));
+    await until((x) => x.paused, 5000);
+    await frames(1);
+    const b1 = await shot(); const b2 = await shot();
+    await unpause();
+    await until((x) => x.cooldown === 0, 5000);
+    await pinClock(true);
+    const pinned = await until((x) => Math.abs(x.dt - P0_STEP) < 0.001 && !x.paused, 20000);
+    const a = await st();
+    const t0 = Date.now();
+    const pre = []; let lastBuf = null; let end = null; let castG = null; let why = '';
+    try {
+      let r = await p0Next(a, true, false);
+      while (true) {
+        if (r.s.casts > a.casts && castG === null) castG = r.s.gameTime;
+        if (r.kind === 'impact') { end = r.s; break; }
+        if (r.kind === 'stall') { why = 'no new frame in 20 s'; break; }
+        // The canvas still shows this frame (a paused frame draws the same
+        // scene), so the shot is taken at once.
+        lastBuf = await page.screenshot({ type: 'png', timeout: 180000 });
+        pre.push(r.s);
+        if (pre.length >= 120 || Date.now() - t0 > 30000) { why = `cap (${pre.length} frames, ${Date.now() - t0} ms)`; break; }
+        r = await p0Next(a, false, true);
+      }
+    } finally {
+      await pinClock(false);
+    }
+    const wallMs = Date.now() - t0;
+    await hideUi(false);
+    await unpause();
+    const af = pre[pre.length - 1] || null;
+    const before = Math.min(...counts);
+    const X = b1.w / 2, Y = b1.h / 2, half = (0.10 * b1.h) / 2;
+    let aft = NaN, maskIn = NaN;
+    if (af && lastBuf) {
+      const after = await decodePng(lastBuf);
+      if (shotDir && save) { const { writeFile } = await import('node:fs/promises'); await writeFile(`${shotDir}${save}-after.png`, lastBuf); }
+      aft = warmIn(after, X, Y, half);
+      const m = streamMask(after, b1, b2);
+      maskIn = 0;
+      for (let y = Math.max(0, Math.round(Y - half)); y <= Math.min(after.h - 1, Math.round(Y + half)); y++) {
+        for (let x = Math.max(0, Math.round(X - half)); x <= Math.min(after.w - 1, Math.round(X + half)); x++) if (m[y * after.w + x] && !warm(after, (y * after.w + x) * after.bpp)) maskIn++;
+      }
+    }
+    // Validity (A1): the after frame is burning, aimed at the centred fire,
+    // with a stream; the next frame is the impact (impacts + 1), one game
+    // step later; at least 2 pre-impact frames; no cap or stall.
+    const gap = af && end ? end.gameTime - af.gameTime : NaN;
+    const why2 = [];
+    if (!(Math.abs(pinned.dt - P0_STEP) < 0.001)) why2.push(`step not pinned (dt ${pinned.dt})`);
+    if (why) why2.push(why);
+    if (before < 150) why2.push(`before ${before} < 150`);
+    if (!af) why2.push('no pre-impact frame');
+    else {
+      if (af.objs[fire].burning !== true) why2.push('after frame not burning');
+      if (af.aimObj !== fire) why2.push(`after aimObj ${af.aimObj} != ${fire}`);
+      if (!(af.streams >= 1)) why2.push('after frame has no stream');
+    }
+    if (pre.length < 2) why2.push(`${pre.length} pre-impact frame(s) < 2`);
+    if (!end) why2.push('no impact frame');
+    else if (end.impacts !== a.impacts + 1) why2.push(`impact frame impacts ${end.impacts} != ${a.impacts + 1}`);
+    if (af && end && !(gap <= end.dt + 0.0015)) why2.push(`after -> impact ${fmt(gap)} s > one step ${fmt(end.dt, 4)} s`);
+    const valid = why2.length === 0;
+    const ratio = before ? aft / before : 0;
+    return {
+      valid, pass: valid && ratio >= 0.8, ratio,
+      note: `pose ${fp.p.slice(0, 2).join(',')} ${pl.note}; warm before ${counts.join('/')} (min ${before}) after ${aft} ratio ${fmt(ratio, 2)}; pre-impact frames ${pre.length} (dt ${pre.map((s) => fmt(s.dt, 3)).join(',')}), game +${castG === null || !af ? '-' : fmt(af.gameTime - castG)} s cast -> after, after -> impact ${fmt(gap)} s (impact dt ${end ? fmt(end.dt, 4) : '-'}), wall ${wallMs} ms; mask-in-square ${maskIn}; after burning=${af ? af.objs[fire].burning : '-'} aim=${af ? af.aimObj : '-'} assisted=${af ? af.assisted : '-'} streams=${af ? af.streams : '-'}${valid ? '' : `; invalid: ${why2.join(', ')}`}`,
+    };
+  };
   const sky = async (spell) => { await tp(0, 5.5); await cmd(`select ${spell}`); await cmd('look 0 60'); await until((x) => x.pitch > 55 && x.spell === spell - 1, 5000); };
   // One sky attempt (G2, G3, G6): befores (paused), frozen cast, after.
   // With SHOTS set, `save` names the before and after evidence shots.
@@ -2503,7 +2675,8 @@ async function closeStreams({ page, st, cmd, until, frames, sleep, idx, lit, loc
     await cmd('set sway off');
     await until((x) => x.sway === false, 5000);
 
-    // G1 P0. The targeted fire at the crosshair stays visible (Aim help on).
+    // G1 P0. The targeted fire at the crosshair stays visible (Aim help on),
+    // frozen on the last frame before impact (spec A1).
     {
       await setCtl('#assist', true);
       const notes = []; let all = true;
@@ -2512,7 +2685,7 @@ async function closeStreams({ page, st, cmd, until, frames, sleep, idx, lit, loc
         for (const [spell, name] of SPELLS) {
           let pass = false; const log = [];
           for (let k = 0; k < 3 && !pass; k++) {
-            const t = await fireTry(spell, 0, 0, 0.10);
+            const t = await fireTryP0(spell, spell === 2 && W === 1680 && k === 0 ? `i046-g1-p0-${W}x${H}-water` : null);
             pass = !!t.pass;
             log.push(`try ${k + 1}: ${t.valid ? '' : 'INVALID '}${t.note}`);
           }
@@ -2652,12 +2825,17 @@ async function closeStreams({ page, st, cmd, until, frames, sleep, idx, lit, loc
               if (along > L + 0.04 * Hp) { beyond++; maxBeyond = Math.max(maxBeyond, along - L); }
             }
           }
+          // (a), spec A2: the stream's end measured along its own line.
+          // t_max is the farthest in-band stream pixel's distance along
+          // C -> Hs'; it must be within 0.035·VH of L = |Hs' - C|. The
+          // Euclidean distance to Hs' is logged for comparison only.
           const dFar = far ? Math.hypot(far[0] - hx, far[1] - hy) : Infinity;
+          const farAcross = far ? -(far[0] - cx) * uy + (far[1] - cy) * ux : NaN;
           const at = attached(t, hx, hy, 20, L);
           const valid = t.caught >= 0 && t.streams >= 1;
-          const a = dFar <= 0.035 * Hp, b = beyond === 0;
+          const a = !!far && Math.abs(farT - L) <= 0.035 * Hp, b = beyond === 0;
           pass = valid && a && b && at.ok;
-          log.push(`try ${k + 1}: ${valid ? '' : 'INVALID '}tilt ${fmt(tilt / DEGR, 2)}° Hs'=(${fmt(hx, 0)},${fmt(hy, 0)}) ${fmt(hy - cy, 0)} px below C; farthest stream px ${far ? `(${far[0]},${far[1]})` : 'none'} ${fmt(dFar, 1)} px from Hs' (a ${a ? 'ok' : 'FAIL'}, limit ${fmt(0.035 * Hp, 1)}); beyond ${beyond} px, up to ${fmt(maxBeyond, 1)} px past Hs' (b ${b ? 'ok' : 'FAIL'}); ${at.ok ? 'attached' : `gap at r=${at.firstGap}`} (c) caught@${t.caught} streams=${t.streams}`);
+          log.push(`try ${k + 1}: ${valid ? '' : 'INVALID '}tilt ${fmt(tilt / DEGR, 2)}° Hs'=(${fmt(hx, 0)},${fmt(hy, 0)}) ${fmt(hy - cy, 0)} px below C; farthest stream px ${far ? `(${far[0]},${far[1]})` : 'none'}: t_max - L ${far ? fmt(farT - L, 1) : '-'} px (L ${fmt(L, 1)}), across ${fmt(farAcross, 1)} px (a ${a ? 'ok' : 'FAIL'}, limit ±${fmt(0.035 * Hp, 1)}), Euclidean ${fmt(dFar, 1)} px from Hs' (old rule, not judged); beyond ${beyond} px, up to ${fmt(maxBeyond, 1)} px past Hs' (b ${b ? 'ok' : 'FAIL'}); ${at.ok ? 'attached' : `gap at r=${at.firstGap}`} (c) caught@${t.caught} streams=${t.streams}`);
         }
         all = all && pass;
         notes.push(`${name} ${pass ? 'ok' : 'FAIL'}: ${log.join(' | ')}`);
@@ -2668,6 +2846,7 @@ async function closeStreams({ page, st, cmd, until, frames, sleep, idx, lit, loc
   } catch (e) {
     check('close streams: section ran', false, `error: ${e && e.message}`);
   } finally {
+    await pinClock(false);
     await hideUi(false);
     await unpause();
     await page.setViewportSize({ width: VW, height: VH });
