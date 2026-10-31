@@ -344,6 +344,8 @@ function check(name, ok, detail = '') {
 
   await castingYouCanSee({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
+  await closeStreams({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
+
   await reviewFollowups({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
@@ -1801,12 +1803,43 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
     await aimAt(lit[1], 2);
     await frames(1);
     const a = await aimAt(lit[1], 2);
+    // I-046 G5: the cast count and the slow-GPU extinguish timing are two
+    // checks. The count keeps "exactly once" over the same 20 + 20 frames.
+    // The fire half reads every game frame from an in-page recorder, which
+    // starts before the click and stops on the first frame at least 2.0 game
+    // seconds after it (the pass line); its 600-frame and 15 s wall caps
+    // only end the wait, as a failure.
+    await page.evaluate(([i, g0]) => {
+      const rec = { rows: [], done: false, why: '' };
+      window.__i046rec = rec;
+      const t0 = performance.now();
+      let last = -1;
+      const step = () => {
+        const s = window.__game.state();
+        if (s.frame !== last) {
+          last = s.frame;
+          rec.rows.push([s.frame, s.gameTime, s.objs[i].burning]);
+          if (s.gameTime >= g0 + 2.0) { rec.done = true; rec.why = 'deadline'; return; }
+        }
+        if (rec.rows.length > 600 || performance.now() - t0 > 15000) { rec.done = true; rec.why = 'cap'; return; }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }, [lit[1], a.gameTime]);
     await page.mouse.click(VW / 2, VH / 2);
-    const r = await within(a.frame, 20, (x) => x.casts === a.casts + 1 && x.objs[lit[1]].burning === false);
+    const r = await within(a.frame, 20, (x) => x.casts === a.casts + 1);
     await frames(20);
     const later = await st();
     check('cast: a real click casts exactly once', lockOk && a.locked && r.ok && later.casts === a.casts + 1,
-      `casts ${a.casts} -> ${r.x.casts} -> ${later.casts} (20 frames on), lit[1] burning=${r.x.objs[lit[1]].burning}`);
+      `casts ${a.casts} -> ${r.x.casts} -> ${later.casts} (20 frames on), aimObj at click ${a.aimObj}`);
+    const t1 = Date.now();
+    let rec = await page.evaluate(() => window.__i046rec);
+    while (!rec.done && Date.now() - t1 < 20000) { await sleep(50); rec = await page.evaluate(() => window.__i046rec); }
+    const outRow = rec.rows.find((row) => row[2] === false);
+    const lastRow = rec.rows[rec.rows.length - 1] || [a.frame, a.gameTime, true];
+    const outOk = rec.why === 'deadline' && !!outRow;
+    check('cast: that real click puts lit[1] out', lockOk && a.locked && outOk,
+      `aimObj at click ${a.aimObj}, lit[1]=${lit[1]}; ${outRow ? `out at frame +${outRow[0] - a.frame}, game +${fmt(outRow[1] - a.gameTime)} s` : 'never seen out'}; recorder ${rec.why || 'unfinished'} after ${rec.rows.length} frames, game +${fmt(lastRow[1] - a.gameTime)} s (deadline 2.0)`);
     await cmd('look 0 60');
     const h0 = await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
     await page.mouse.down();
@@ -2192,6 +2225,439 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
       `worst frame-to-frame change: Water ${(w * 100).toFixed(1)}%, CO2 ${(c * 100).toFixed(1)}%`);
   }
   await fresh();
+}
+
+// ---------------------------------------------------------------------------
+// Streams that stay on the hand without hiding the target
+// (docs/loop/items/I-046/spec.md, G1-G3 and G6): the targeted fire at the
+// crosshair and a fire right of it stay visible while a stream is drawn at
+// full length, the stream covers a small part of the view, it stays attached
+// to the gauntlet, and in a short wide window it leaves the lifted hand.
+// Runs after castingYouCanSee and before reviewFollowups; it restores the
+// viewport, View width, Aim help and Hand sway, and ends on a fresh courtyard
+// with no stream in flight. Tools are I-025 test 7's (streamsAndFinder).
+// ---------------------------------------------------------------------------
+async function closeStreams({ page, st, cmd, until, frames, sleep, idx, lit, locked, base, browser, errors }) {
+  console.log('  -- close streams (I-046) --');
+  const VW = +(process.env.VW || 1280), VH = +(process.env.VH || 720);
+  void idx; void base; void browser; void errors; void locked;
+  const fmt = (v, d = 3) => (Number.isFinite(v) ? v.toFixed(d) : String(v));
+  const DEGR = Math.PI / 180;
+  const vfovAt = (h, a) => 2 * Math.atan(Math.tan((h * DEGR) / 2) / a) / DEGR;
+  // Copied from feelAndStandards.
+  const setCtl = (sel, v, ev) => page.evaluate(([sel, v, ev]) => {
+    const el = document.querySelector(sel);
+    if (!el) return false;
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = String(v);
+    el.dispatchEvent(new Event(ev || (el.type === 'range' ? 'input' : 'change'), { bubbles: true }));
+    return true;
+  }, [sel, v, ev]);
+  const ctlVal = (sel) => page.evaluate((sel) => { const e = document.querySelector(sel); return !e ? null : e.type === 'checkbox' ? e.checked : e.value; }, sel);
+  // Copied from streamsAndFinder.
+  const unpause = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((x) => !x.paused, 8000); } };
+  const fresh = async () => {
+    await unpause();
+    await cmd('reset');
+    await until((x) => x.outcome === 'playing' && x.burning === 3 && x.casts === 0, 20000);
+  };
+  const tp = async (x, z) => { await cmd(`tp ${x} ${z}`); await until((q) => Math.abs(q.pos[0] - x) < 0.5 && Math.abs(q.pos[2] - z) < 0.5, 10000); };
+  const aimAt = async (i, spell) => {
+    await unpause();
+    await cmd(`face ${i}`);
+    if (spell) await cmd(`select ${spell}`);
+    return until((x) => (!spell || x.spell === spell - 1) && x.aimObj === i && x.cooldown === 0, 15000);
+  };
+  const pauseShown = () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'));
+  const relock = async () => {
+    for (let k = 0; k < 6; k++) {
+      if ((await st()).locked) return true;
+      if (!(await pauseShown())) await page.evaluate(() => window.__game.pause(true));
+      await page.click('#resume');
+      if ((await until((q) => q.locked, 4000)).locked) return true;
+      await sleep(1200);
+    }
+    return (await st()).locked;
+  };
+  const hideUi = (on) => page.evaluate((on) => {
+    for (const id of ['hud', 'pause']) { const e = document.getElementById(id); if (e) e.style.visibility = on ? 'hidden' : ''; }
+  }, on);
+  const shot = async () => decodePng(await page.screenshot({ type: 'png', timeout: 180000 }));
+  const lum = (d, k) => 0.2126 * LIN[d[k]] + 0.7152 * LIN[d[k + 1]] + 0.0722 * LIN[d[k + 2]];
+  // A pixel differs when its contrast ratio is >= 1.5 or its sRGB distance >= 90.
+  const differs = (a, b, k) => {
+    const la = lum(a.data, k), lb = lum(b.data, k);
+    const cr = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    if (cr >= 1.5) return true;
+    const dr = a.data[k] - b.data[k], dg = a.data[k + 1] - b.data[k + 1], db = a.data[k + 2] - b.data[k + 2];
+    return Math.hypot(dr, dg, db) >= 90;
+  };
+  // The visible-stream mask: differs from before 1, and not noisy (the two
+  // befores agree there).
+  const streamMask = (after, b1, b2) => {
+    const n = after.w * after.h; const m = new Uint8Array(n);
+    for (let i = 0, k = 0; i < n; i++, k += after.bpp) if (!differs(b1, b2, k) && differs(after, b1, k)) m[i] = 1;
+    return m;
+  };
+  // Pause on the first frame where the spell has landed and a stream is
+  // drawn (full length, frozen), after one cast. The cast is the game's own
+  // `cast` command (the click's queued cast), so the pointer lock, which a
+  // viewport change can drop, does not matter here.
+  const castAndFreeze = () => page.evaluate(() => new Promise((res) => {
+    const s0 = window.__game.state();
+    window.__game.cmd('cast');
+    const step = () => {
+      const s = window.__game.state();
+      if (s.impacts > s0.impacts && s.streams >= 1) { window.__game.pause(true); res(s.frame - s0.frame); return; }
+      if (s.frame - s0.frame > 60) { res(-1); return; }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }));
+  // Fire pixels: warm and bright.
+  const warm = (img, k) => img.data[k] >= 200 && img.data[k] - img.data[k + 2] >= 90;
+  const warmIn = (img, cx, cy, half) => {
+    let n = 0;
+    for (let y = Math.max(0, Math.round(cy - half)); y <= Math.min(img.h - 1, Math.round(cy + half)); y++) {
+      for (let x = Math.max(0, Math.round(cx - half)); x <= Math.min(img.w - 1, Math.round(cx + half)); x++) {
+        if (warm(img, (y * img.w + x) * img.bpp)) n++;
+      }
+    }
+    return n;
+  };
+  const centroid = (img, cx, cy, half) => {
+    let n = 0, sx = 0, sy = 0;
+    for (let y = Math.max(0, Math.round(cy - half)); y <= Math.min(img.h - 1, Math.round(cy + half)); y++) {
+      for (let x = Math.max(0, Math.round(cx - half)); x <= Math.min(img.w - 1, Math.round(cx + half)); x++) {
+        if (warm(img, (y * img.w + x) * img.bpp)) { n++; sx += x; sy += y; }
+      }
+    }
+    return n ? { x: sx / n, y: sy / n, n } : null;
+  };
+  const angDiff = (a, b) => ((((a - b) % 360) + 540) % 360) - 180;
+  const lookTo = async (yawD, pitchD) => {
+    await cmd(`look ${yawD.toFixed(4)} ${pitchD.toFixed(4)}`);
+    return until((x) => Math.abs(angDiff(x.yaw, yawD)) < 0.02 && Math.abs(x.pitch - pitchD) < 0.02, 10000);
+  };
+  const stillShot = async () => {
+    await page.evaluate(() => window.__game.pause(true));
+    await until((x) => x.paused, 5000);
+    await hideUi(true);
+    await frames(1);
+    const img = await shot();
+    await hideUi(false);
+    await unpause();
+    return img;
+  };
+  const viewport = async (W, H, hf) => {
+    await page.setViewportSize({ width: W, height: H });
+    await setCtl('#fov', hf);
+    const want = vfovAt(hf, W / H);
+    return until((x) => Math.abs(x.fov - want) <= 0.3, 10000);
+  };
+
+  const entry = { fov: await ctlVal('#fov'), assist: await ctlVal('#assist'), sway: (await st()).sway, locked: (await st()).locked };
+  const SPELLS = [[2, 'Water'], [3, 'Frost'], [4, 'CO2']];
+  const ASPECTS = [[1680, 720], [1024, 768]];
+  // I-019 test 11's fire poses (a burning fire 18 m or more away).
+  const poses = [[-4, 14, lit[0], [-13.5, -3]], [4, 14, lit[1], [13.5, -3]], [-6, 16, lit[0], [-13.5, -3]], [6, 16, lit[1], [13.5, -3]]];
+  const firePose = async (spell) => {
+    await tp(0, 5.5);
+    for (const p of poses) {
+      await tp(p[0], p[1]);
+      const a = await aimAt(p[2], spell);
+      const dist = Math.hypot(a.pos[0] - p[3][0], a.pos[2] - p[3][1]);
+      if (a.aimObj === p[2] && a.objs[p[2]].burning && dist >= 18) return { p, a };
+    }
+    return null;
+  };
+  // Turns with `look` until the fire's warm centroid is within 0.03·VH of
+  // the spot (dx, dy from C, px): an estimate from the fov, then one
+  // feedback correction whose yaw and pitch signs come from the centroid.
+  const placeFire = async (dx, dy) => {
+    let s0 = await st();
+    let img = await stillShot();
+    const H = img.h, W = img.w, cx = W / 2, cy = H / 2;
+    const c0 = centroid(img, cx, cy, 0.12 * H);
+    if (!c0) return { ok: false, note: 'no fire at C' };
+    const f = (H / 2) / Math.tan((s0.fov * DEGR) / 2);
+    const tx = cx + dx, ty = cy + dy;
+    let yaw = s0.yaw + (Math.atan((tx - cx) / f) - Math.atan((c0.x - cx) / f)) / DEGR;
+    let pitch = s0.pitch + (Math.atan((ty - cy) / f) - Math.atan((c0.y - cy) / f)) / DEGR;
+    let s1 = await lookTo(yaw, pitch);
+    img = await stillShot();
+    let c1 = centroid(img, tx, ty, 0.10 * H);
+    if (c1 && Math.hypot(c1.x - tx, c1.y - ty) > 0.03 * H) {
+      // Measured response: px moved per degree turned, per axis.
+      const ky = (c1.x - c0.x) / (s1.yaw - s0.yaw || 1e-6), kp = (c1.y - c0.y) / (s1.pitch - s0.pitch || 1e-6);
+      if (Number.isFinite(ky) && Math.abs(ky) > 1) yaw += (tx - c1.x) / ky;
+      if (Number.isFinite(kp) && Math.abs(kp) > 1) pitch += (ty - c1.y) / kp;
+      s1 = await lookTo(yaw, pitch);
+      img = await stillShot();
+      c1 = centroid(img, tx, ty, 0.10 * H);
+    }
+    const err = c1 ? Math.hypot(c1.x - tx, c1.y - ty) : Infinity;
+    return { ok: err <= 0.03 * H, err, c: c1, note: `fire at (${c1 ? fmt(c1.x, 0) : '-'},${c1 ? fmt(c1.y, 0) : '-'}) want (${fmt(tx, 0)},${fmt(ty, 0)}) err ${fmt(err, 1)} px` };
+  };
+  // One G1 attempt: pose, place the fire, befores, frozen cast, after.
+  const fireTry = async (spell, dxF, dyF, sqF, save) => {
+    await fresh();
+    const fp = await firePose(spell);
+    if (!fp) return { valid: false, note: 'no fire pose' };
+    const H = (await page.viewportSize()).height;
+    const pl = await placeFire(dxF * H, dyF * H);
+    if (!pl.ok) return { valid: false, note: `placement failed: ${pl.note}` };
+    await until((x) => x.cooldown === 0, 5000);
+    await hideUi(true);
+    const counts = [];
+    let img = null;
+    for (let k = 0; k < 3; k++) { img = await shot(); counts.push(warmIn(img, img.w / 2 + dxF * img.h, img.h / 2 + dyF * img.h, (sqF * img.h) / 2)); }
+    await page.evaluate(() => window.__game.pause(true));
+    await until((x) => x.paused, 5000);
+    await frames(1);
+    const b1 = await shot(); const b2 = await shot();
+    await keep(save, 'before');
+    await unpause();
+    await until((x) => x.cooldown === 0, 5000);
+    const caught = await castAndFreeze();
+    await until((x) => x.paused, 5000);
+    await frames(1);
+    const after = await shot();
+    await keep(save, 'after');
+    const sx = await st();
+    await hideUi(false);
+    await unpause();
+    const X = after.w / 2 + dxF * after.h, Y = after.h / 2 + dyF * after.h, half = (sqF * after.h) / 2;
+    const before = Math.min(...counts);
+    const aft = warmIn(after, X, Y, half);
+    // Stream-mask pixels in the square (diagnostic: is the slab there?).
+    const m = streamMask(after, b1, b2);
+    let maskIn = 0;
+    for (let y = Math.max(0, Math.round(Y - half)); y <= Math.min(after.h - 1, Math.round(Y + half)); y++) {
+      for (let x = Math.max(0, Math.round(X - half)); x <= Math.min(after.w - 1, Math.round(X + half)); x++) if (m[y * after.w + x] && !warm(after, (y * after.w + x) * after.bpp)) maskIn++;
+    }
+    const valid = before >= 150 && caught >= 0 && sx.streams >= 1;
+    const ratio = before ? aft / before : 0;
+    return {
+      valid, pass: valid && ratio >= 0.8, ratio, after, b1,
+      note: `pose ${fp.p.slice(0, 2).join(',')} ${pl.note}; warm before ${counts.join('/')} (min ${before}) after ${aft} ratio ${fmt(ratio, 2)} caught@${caught} streams=${sx.streams} aim=${sx.aimObj} burning=${sx.objs[fp.p[2]].burning} mask-in-square ${maskIn}`,
+    };
+  };
+  const sky = async (spell) => { await tp(0, 5.5); await cmd(`select ${spell}`); await cmd('look 0 60'); await until((x) => x.pitch > 55 && x.spell === spell - 1, 5000); };
+  // One sky attempt (G2, G3, G6): befores (paused), frozen cast, after.
+  // With SHOTS set, `save` names the before and after evidence shots.
+  const keep = async (save, tag) => { if (shotDir && save) await page.screenshot({ path: `${shotDir}${save}-${tag}.png`, timeout: 180000 }); };
+  const skyTry = async (spell, save) => {
+    await fresh();
+    await sky(spell);
+    await page.evaluate(() => window.__game.pause(true));
+    await until((x) => x.paused, 5000);
+    await hideUi(true);
+    await frames(1);
+    const b1 = await shot(); const b2 = await shot();
+    await keep(save, 'before');
+    await unpause();
+    await until((x) => x.cooldown === 0, 5000);
+    const caught = await castAndFreeze();
+    await until((x) => x.paused, 5000);
+    await frames(1);
+    const after = await shot();
+    await keep(save, 'after');
+    const sx = await st();
+    await hideUi(false);
+    await unpause();
+    return { caught, streams: sx.streams, fov: sx.fov, after, b1, b2, mask: streamMask(after, b1, b2) };
+  };
+  // Viewmodel pixels: before 1 more than 40 sRGB from the sky (the mean of
+  // the top-left 5 % corner).
+  const vmMask = (b1) => {
+    const cw = Math.max(1, Math.round(0.05 * b1.w)), ch = Math.max(1, Math.round(0.05 * b1.h));
+    let r = 0, g = 0, b = 0;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { const k = (y * b1.w + x) * b1.bpp; r += b1.data[k]; g += b1.data[k + 1]; b += b1.data[k + 2]; }
+    const n = cw * ch; r /= n; g /= n; b /= n;
+    const m = new Uint8Array(b1.w * b1.h);
+    for (let i = 0, k = 0; i < m.length; i++, k += b1.bpp) if (Math.hypot(b1.data[k] - r, b1.data[k + 1] - g, b1.data[k + 2] - b) > 40) m[i] = 1;
+    return m;
+  };
+  // G3's rule along C -> (hx, hy) from r0 to r1 px: every pixel is stream
+  // or viewmodel, gaps of 2 px or fewer bridged. Returns the first gap.
+  const attached = (t, hx, hy, r0, r1) => {
+    const W = t.after.w, cx = W / 2, cy = t.after.h / 2;
+    const len = Math.hypot(hx - cx, hy - cy); const ux = (hx - cx) / len, uy = (hy - cy) / len;
+    const vm = vmMask(t.b1);
+    let gap = 0; let firstGap = -1; let streamPx = 0;
+    for (let r = Math.round(r0); r <= Math.round(r1); r++) {
+      const x = Math.round(cx + ux * r), y = Math.round(cy + uy * r);
+      if (x < 0 || y < 0 || x >= W || y >= t.after.h) { gap++; } else {
+        const i = y * W + x;
+        if (t.mask[i]) streamPx++;
+        if (t.mask[i] || vm[i]) gap = 0; else gap++;
+      }
+      if (gap > 2 && firstGap < 0) firstGap = r - 2;
+    }
+    return { ok: firstGap < 0, firstGap, streamPx };
+  };
+
+  try {
+    await fresh();
+    await setCtl('#sway', false);
+    await cmd('set sway off');
+    await until((x) => x.sway === false, 5000);
+
+    // G1 P0. The targeted fire at the crosshair stays visible (Aim help on).
+    {
+      await setCtl('#assist', true);
+      const notes = []; let all = true;
+      for (const [W, H] of ASPECTS) {
+        await viewport(W, H, 90);
+        for (const [spell, name] of SPELLS) {
+          let pass = false; const log = [];
+          for (let k = 0; k < 3 && !pass; k++) {
+            const t = await fireTry(spell, 0, 0, 0.10);
+            pass = !!t.pass;
+            log.push(`try ${k + 1}: ${t.valid ? '' : 'INVALID '}${t.note}`);
+          }
+          all = all && pass;
+          notes.push(`${W}x${H} ${name} ${pass ? 'ok' : 'FAIL'}: ${log.join(' | ')}`);
+          console.log(`  G1 P0 ${W}x${H} ${name}: ${log.join(' | ')}`);
+        }
+      }
+      check('close streams: the targeted fire at the crosshair stays visible (Aim help on)', all, notes.join(' || '));
+    }
+
+    // G1. A fire right of the crosshair stays visible (Aim help off).
+    {
+      await setCtl('#assist', false);
+      await until((x) => x.assist === 0 || x.assist === false, 5000);
+      const spots = [['P1', 0.20, 0], ['P2', 0.30 * Math.cos(10 * DEGR), 0.30 * Math.sin(10 * DEGR)]];
+      const notes = []; let all = true;
+      for (const [W, H] of ASPECTS) {
+        await viewport(W, H, 90);
+        for (const [spot, dxF, dyF] of spots) {
+          for (const [spell, name] of SPELLS) {
+            let pass = false; const log = [];
+            for (let k = 0; k < 3 && !pass; k++) {
+              const t = await fireTry(spell, dxF, dyF, 0.16, spell === 2 && spot === 'P2' && k === 0 ? `i046-g1-p2-${W}x${H}-water` : null);
+              pass = !!t.pass;
+              log.push(`try ${k + 1}: ${t.valid ? '' : 'INVALID '}${t.note}`);
+            }
+            all = all && pass;
+            notes.push(`${W}x${H} ${spot} ${name} ${pass ? 'ok' : 'FAIL'}: ${log.join(' | ')}`);
+            console.log(`  G1 ${spot} ${W}x${H} ${name}: ${log.join(' | ')}`);
+          }
+        }
+      }
+      await setCtl('#assist', true);
+      check('close streams: a fire right of the crosshair stays visible while casting', all, notes.join(' || '));
+    }
+
+    // G2 and G3. Small on screen, and still attached (sky pose, all spells).
+    {
+      const g2 = []; const g3 = []; let ok2 = true; let ok3 = true;
+      for (const [W, H] of ASPECTS) {
+        await viewport(W, H, 90);
+        for (const [spell, name] of [[1, 'Fire'], ...SPELLS]) {
+          let p2 = false, p3 = false; const l2 = [], l3 = [];
+          for (let k = 0; k < 3 && !(p2 && p3); k++) {
+            const t = await skyTry(spell, spell === 2 && k === 0 ? `i046-g2-${W}x${H}-water` : null);
+            const A = t.after, Wp = A.w, Hp = A.h, cx = Wp / 2, cy = Hp / 2;
+            const f = (Hp / 2) / Math.tan((t.fov * DEGR) / 2);
+            const valid = t.caught >= 0 && t.streams >= 1;
+            let all = 0, band = 0, bandN = 0;
+            for (let y = 0; y < Hp; y++) {
+              for (let x = 0; x < Wp; x++) {
+                const v = t.mask[y * Wp + x];
+                all += v;
+                if (x >= cx + 0.12 * Hp && x <= cx + 0.40 * Hp && y >= cy - 0.06 * Hp && y <= cy + 0.06 * Hp) { band += v; bandN++; }
+              }
+            }
+            const hx = cx + 0.4 * f, hy = cy + 0.3 * f;
+            const len = Math.hypot(hx - cx, hy - cy); const ux = (hx - cx) / len, uy = (hy - cy) / len; const px = -uy, py = ux;
+            const runs = [];
+            for (let q = 0.15; q <= 0.4501; q += 0.05) {
+              const r = q * f; const half = Math.round(0.45 * f);
+              let best = 0, run = 0, gap = 0;
+              for (let s = -half; s <= half; s++) {
+                const x = Math.round(cx + ux * r + px * s), y = Math.round(cy + uy * r + py * s);
+                if (x < 0 || y < 0 || x >= Wp || y >= Hp) { run = 0; gap = 0; continue; }
+                if (t.mask[y * Wp + x]) { run += 1 + gap; gap = 0; best = Math.max(best, run); } else if (++gap > 2) { run = 0; gap = 0; }
+              }
+              runs.push({ q, run: best });
+            }
+            const cov = all / (Wp * Hp), bcov = bandN ? band / bandN : 1;
+            const worst = Math.max(...runs.map((c) => c.run)) / f;
+            const ok2k = valid && cov <= 0.06 && bcov <= 0.18 && worst <= 0.24;
+            const at = attached(t, hx, hy, 20, 0.48 * f);
+            const ok3k = valid && at.ok;
+            p2 = p2 || ok2k; p3 = p3 || ok3k;
+            l2.push(`try ${k + 1}: ${valid ? '' : 'INVALID '}frame ${fmt(cov * 100, 2)}% band ${fmt(bcov * 100, 1)}% widest ${fmt(worst, 3)} f (runs ${runs.map((c) => `${fmt(c.q, 2)}:${c.run}`).join(' ')}; f=${fmt(f, 0)}) caught@${t.caught} streams=${t.streams}`);
+            l3.push(`try ${k + 1}: ${valid ? '' : 'INVALID '}${at.ok ? 'attached' : `gap at r=${at.firstGap}`} to r=${fmt(0.48 * f, 0)} stream px ${at.streamPx}`);
+          }
+          ok2 = ok2 && p2; ok3 = ok3 && p3;
+          g2.push(`${W}x${H} ${name} ${p2 ? 'ok' : 'FAIL'}: ${l2.join(' | ')}`);
+          g3.push(`${W}x${H} ${name} ${p3 ? 'ok' : 'FAIL'}: ${l3.join(' | ')}`);
+          console.log(`  G2 ${W}x${H} ${name}: ${l2.join(' | ')}`);
+          console.log(`  G3 ${W}x${H} ${name}: ${l3.join(' | ')}`);
+        }
+      }
+      check('close streams: the stream covers a small part of the view', ok2, g2.join(' || '));
+      check('close streams: the stream stays attached to the hand', ok3, g3.join(' || '));
+    }
+
+    // G6. The stream leaves the turned hand at 21:9, View width 70.
+    {
+      await setCtl('#assist', true);
+      const notes = []; let all = true;
+      await viewport(1680, 720, 70);
+      for (const [spell, name] of [[2, 'Water'], [3, 'Frost']]) {
+        let pass = false; const log = [];
+        for (let k = 0; k < 3 && !pass; k++) {
+          const t = await skyTry(spell, k === 0 ? `i046-g6-1680x720-vw70-${name.toLowerCase()}` : null);
+          const A = t.after, Wp = A.w, Hp = A.h, cx = Wp / 2, cy = Hp / 2;
+          const vf = vfovAt(70, Wp / Hp);
+          const tilt = (17.6 - Math.max(4, Math.min(17.6, vf / 2 - 5))) * DEGR;
+          const p = [0.2, -0.15 * Math.cos(tilt) + 0.5 * Math.sin(tilt), -0.15 * Math.sin(tilt) - 0.5 * Math.cos(tilt)];
+          const f = (Hp / 2) / Math.tan((vf * DEGR) / 2);
+          const hx = cx + f * p[0] / -p[2], hy = cy - f * p[1] / -p[2];
+          const L = Math.hypot(hx - cx, hy - cy); const ux = (hx - cx) / L, uy = (hy - cy) / L;
+          const band = 0.03 * Hp;
+          let far = null, farT = -Infinity, beyond = 0, maxBeyond = 0;
+          for (let y = 0; y < Hp; y++) {
+            for (let x = 0; x < Wp; x++) {
+              if (!t.mask[y * Wp + x]) continue;
+              const along = (x - cx) * ux + (y - cy) * uy, across = Math.abs(-(x - cx) * uy + (y - cy) * ux);
+              if (across > band || along < 0) continue;
+              if (along > farT) { farT = along; far = [x, y]; }
+              if (along > L + 0.04 * Hp) { beyond++; maxBeyond = Math.max(maxBeyond, along - L); }
+            }
+          }
+          const dFar = far ? Math.hypot(far[0] - hx, far[1] - hy) : Infinity;
+          const at = attached(t, hx, hy, 20, L);
+          const valid = t.caught >= 0 && t.streams >= 1;
+          const a = dFar <= 0.035 * Hp, b = beyond === 0;
+          pass = valid && a && b && at.ok;
+          log.push(`try ${k + 1}: ${valid ? '' : 'INVALID '}tilt ${fmt(tilt / DEGR, 2)}° Hs'=(${fmt(hx, 0)},${fmt(hy, 0)}) ${fmt(hy - cy, 0)} px below C; farthest stream px ${far ? `(${far[0]},${far[1]})` : 'none'} ${fmt(dFar, 1)} px from Hs' (a ${a ? 'ok' : 'FAIL'}, limit ${fmt(0.035 * Hp, 1)}); beyond ${beyond} px, up to ${fmt(maxBeyond, 1)} px past Hs' (b ${b ? 'ok' : 'FAIL'}); ${at.ok ? 'attached' : `gap at r=${at.firstGap}`} (c) caught@${t.caught} streams=${t.streams}`);
+        }
+        all = all && pass;
+        notes.push(`${name} ${pass ? 'ok' : 'FAIL'}: ${log.join(' | ')}`);
+        console.log(`  G6 ${name}: ${log.join(' | ')}`);
+      }
+      check('close streams: the stream leaves the lifted hand at 21:9, View width 70', all, notes.join(' || '));
+    }
+  } catch (e) {
+    check('close streams: section ran', false, `error: ${e && e.message}`);
+  } finally {
+    await hideUi(false);
+    await unpause();
+    await page.setViewportSize({ width: VW, height: VH });
+    await setCtl('#fov', entry.fov == null ? 90 : +entry.fov);
+    await setCtl('#assist', entry.assist !== false);
+    await setCtl('#sway', entry.sway !== false);
+    await cmd(`set sway ${entry.sway ? 'on' : 'off'}`);
+    await until((q) => Math.abs(q.fov - vfovAt(entry.fov == null ? 90 : +entry.fov, VW / VH)) <= 0.3, 10000);
+    await fresh();
+    await until((x) => x.streams === 0, 10000);
+    if (entry.locked) await relock();
+  }
 }
 
 // ---------------------------------------------------------------------------
