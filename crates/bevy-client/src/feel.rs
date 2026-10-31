@@ -148,6 +148,23 @@ pub fn vm_rest(vfov_deg: f32) -> ([f32; 3], f32) {
     ([x, y * c - z * s, y * s + z * c], a)
 }
 
+/// Where a cast leaves the hand at the default view, camera space, metres
+/// (I-025's stream and projectile start).
+pub const VM_HAND: [f32; 3] = [0.2, -0.15, -0.5];
+
+/// The cast's start for a vertical fov (I-046): `VM_HAND` turned about the
+/// eye by the same rest-pose pitch as the gauntlet (`vm_rest`), so the
+/// stream leaves the lifted hand. Exactly `VM_HAND` when the tilt is 0.
+pub fn vm_hand(vfov_deg: f32) -> [f32; 3] {
+    let a = vm_tilt_deg(vfov_deg);
+    if a == 0.0 {
+        return VM_HAND;
+    }
+    let (s, c) = a.to_radians().sin_cos();
+    let [x, y, z] = VM_HAND;
+    [x, y * c - z * s, y * s + z * c]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,5 +364,29 @@ mod tests {
         }
         // 21:9 at View width 70: lifted by about 5.9 deg.
         assert!(near(vm_tilt_deg(vfov_for(70.0, 21.0 / 9.0)), 5.9, 0.05));
+    }
+
+    // I-046 U5: the cast starts at the turned hand.
+    #[test]
+    fn vm_hand_turns_with_the_gauntlet() {
+        assert_eq!(vm_hand(58.72), VM_HAND);
+        let len = |p: [f32; 3]| (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+        let d = |u: [f32; 3], w: [f32; 3]| {
+            ((u[0] - w[0]).powi(2) + (u[1] - w[1]).powi(2) + (u[2] - w[2]).powi(2)).sqrt()
+        };
+        let d0 = d(VM_HAND, gem_at(58.72));
+        for v in [30.0, 33.4, 36.4, 43.0, 58.72] {
+            let h = vm_hand(v);
+            assert!(near(len(h), len(VM_HAND), 1e-5), "vfov {v}: {}", len(h));
+            assert!(near(d(h, gem_at(v)), d0, 1e-5), "vfov {v}");
+        }
+        let v = vfov_for(70.0, 21.0 / 9.0);
+        let h = vm_hand(v);
+        let ang = (-h[1] / -h[2]).atan().to_degrees();
+        assert!(
+            near(ang, vm_gem_deg(v), 1.5),
+            "hand {ang} deg vs gem {} deg",
+            vm_gem_deg(v)
+        );
     }
 }

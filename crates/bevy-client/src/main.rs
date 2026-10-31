@@ -223,12 +223,20 @@ struct Projectile {
     epoch: u32,
 }
 
-/// The visible jet of every cast (I-025): a constant-width rod from the hand
-/// to the spell's head as it flies, with a dark outline child for Water,
-/// Frost and CO2, kept `STREAM_AFTER` game seconds past the impact. Its
-/// clock stops while paused. Frost and CO2 streams shed cold mist.
+/// The visible jet of every cast (I-025): a rod from the hand to the spell's
+/// head as it flies, with a dark outline child for Water, Frost and CO2,
+/// kept `STREAM_AFTER` game seconds past the impact. Its clock stops while
+/// paused. Frost and CO2 streams shed cold mist.
+///
+/// I-046: the `Stream` entity is an unmeshed root (identity transform) with
+/// two drawn children, each a `StreamPart` with its own outline child: the
+/// `lead`, a tapered frustum over the first `style.lead` metres from the
+/// hand (finger-wide where it touches the gauntlet), and the `rod`, the
+/// full-width cylinder from there to the head. Both despawn with the root.
 #[derive(Component)]
 struct Stream {
+    lead: Entity,
+    rod: Entity,
     from: Vec3,
     to: Vec3,
     t: f32,
@@ -247,22 +255,44 @@ fn spell_path(from: Vec3, to: Vec3, a: f32) -> Vec3 {
     from.lerp(to, a) + Vec3::Y * (a * (1.0 - a) * 0.6 * from.distance(to) * 0.05)
 }
 
-/// The stream's rod from the hand to the head (the cylinder mesh's axis is
-/// +Y, from -0.5 to +0.5), `style.thick` across along its whole length.
-fn stream_transform(tail: Vec3, head: Vec3, style: &cues::StreamStyle) -> Transform {
+/// A drawn part of a stream (I-046): the tapered lead or the rod. Its
+/// transform is world space (the `Stream` root stays at identity).
+#[derive(Component)]
+struct StreamPart;
+
+/// The stream's two parts from the hand to the head (both meshes' axes are
+/// +Y, from -0.5 to +0.5): the lead frustum over the first
+/// `cues::stream_split` metres, `style.thick·k` across at its far end, and
+/// the rod, `style.thick` across, for the rest. A zero-length part is
+/// scaled to nothing.
+fn stream_transforms(tail: Vec3, head: Vec3, style: &cues::StreamStyle) -> (Transform, Transform) {
     let v = head - tail;
     let len = v.length();
+    let none = |p: Vec3| Transform::from_translation(p).with_scale(Vec3::ZERO);
     if len < 1e-3 {
-        return Transform::from_translation(tail).with_scale(Vec3::ZERO);
+        return (none(tail), none(tail));
     }
-    Transform::from_translation((tail + head) * 0.5)
-        .with_rotation(Quat::from_rotation_arc(Vec3::Y, v / len))
-        .with_scale(Vec3::new(style.thick, len, style.thick))
+    let dir = v / len;
+    let rot = Quat::from_rotation_arc(Vec3::Y, dir);
+    let (lead_len, k, rod_len) = cues::stream_split(len, style);
+    let part = |a: f32, l: f32, w: f32| {
+        if l < 1e-4 {
+            return none(tail + dir * a);
+        }
+        Transform::from_translation(tail + dir * (a + l * 0.5))
+            .with_rotation(rot)
+            .with_scale(Vec3::new(w, l, w))
+    };
+    (
+        part(0.0, lead_len, style.thick * k),
+        part(lead_len, rod_len, style.thick),
+    )
 }
 
-/// One helper for every spell's stream: the shared cylinder (never
-/// mutated), scaled by `Transform`, in the spell's stream material, with an
-/// outline shell child when the style has one. The child despawns with it.
+/// One helper for every spell's stream: an unmeshed `Stream` root with two
+/// parts, the shared lead frustum and the shared cylinder (never mutated),
+/// scaled by `Transform`, in the spell's stream material, each with an
+/// outline shell child when the style has one. All despawn with the root.
 #[allow(clippy::too_many_arguments)]
 fn spawn_stream(
     commands: &mut Commands,
@@ -275,33 +305,48 @@ fn spawn_stream(
     epoch: u32,
 ) {
     let style = cues::stream_style(spell as u8);
-    let mut e = commands.spawn((
-        Mesh3d(kit.cyl.clone()),
-        MeshMaterial3d(mats.stream[spell].clone()),
-        stream_transform(from, from, &style),
-        NotShadowCaster,
-        NotShadowReceiver,
-        Stream {
-            from,
-            to,
-            t: 0.0,
-            dur,
-            frames: 0,
-            epoch,
-            style,
-            mist_acc: 0.0,
-            mist_out: 0,
-        },
-    ));
-    if style.outline_scale > 1.0 {
-        e.with_child((
-            Mesh3d(kit.cyl.clone()),
-            MeshMaterial3d(mats.outline[spell].clone()),
-            Transform::from_scale(Vec3::new(style.outline_scale, 1.0, style.outline_scale)),
+    let (lead_t, rod_t) = stream_transforms(from, from, &style);
+    let mut part = |mesh: &Handle<Mesh>, t: Transform| {
+        let mut e = commands.spawn((
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(mats.stream[spell].clone()),
+            t,
             NotShadowCaster,
             NotShadowReceiver,
+            StreamPart,
         ));
-    }
+        if style.outline_scale > 1.0 {
+            e.with_child((
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(mats.outline[spell].clone()),
+                Transform::from_scale(Vec3::new(style.outline_scale, 1.0, style.outline_scale)),
+                NotShadowCaster,
+                NotShadowReceiver,
+            ));
+        }
+        e.id()
+    };
+    let lead = part(&mats.lead, lead_t);
+    let rod = part(&kit.cyl, rod_t);
+    commands
+        .spawn((
+            Transform::IDENTITY,
+            Visibility::default(),
+            Stream {
+                lead,
+                rod,
+                from,
+                to,
+                t: 0.0,
+                dur,
+                frames: 0,
+                epoch,
+                style,
+                mist_acc: 0.0,
+                mist_out: 0,
+            },
+        ))
+        .add_children(&[lead, rod]);
 }
 
 #[derive(Resource)]
@@ -310,6 +355,9 @@ struct SpellMats {
     /// Stream cores (Fire: `glow[0]`) and outline shells (I-025).
     stream: [Handle<StandardMaterial>; 4],
     outline: [Handle<StandardMaterial>; 4],
+    /// The streams' shared lead frustum (I-046): radius 0.5 at the far end
+    /// (+Y), `0.5·lead_min` at the hand, height 1. Never mutated.
+    lead: Handle<Mesh>,
 }
 
 #[derive(Resource, Default)]
@@ -576,10 +624,24 @@ fn setup(
             ..default()
         })
     });
+    // One shared lead frustum for every stream (I-046); every style has the
+    // same `lead_min`, so Water's stands for all.
+    let lead_min = cues::stream_style(1).lead_min;
+    let lead = meshes.add(
+        ConicalFrustum {
+            radius_top: 0.5,
+            radius_bottom: 0.5 * lead_min,
+            height: 1.0,
+        }
+        .mesh()
+        .resolution(10)
+        .build(),
+    );
     commands.insert_resource(SpellMats {
         glow: glow.clone(),
         stream,
         outline,
+        lead,
     });
 
     let mut camera = commands.spawn((
@@ -1205,7 +1267,7 @@ fn aim_and_cast(
         game.recoil = 1.0;
         game.casts += 1;
         game.say(spell.cast_caption());
-        let hand = eye + player.rotation() * Vec3::new(0.2, -0.15, -0.5);
+        let hand = eye + player.rotation() * Vec3::from(feel::vm_hand(settings.fov_y()));
         let dist = hand.distance(aim.point);
         let size = match spell {
             Spell::Fire => 0.32,
@@ -1249,6 +1311,9 @@ type Moving<'w, 's, C, A> =
     Query<'w, 's, (Entity, &'static mut C, &'static mut Transform), Without<A>>;
 /// Live streams (the `streams` count; outline children are not counted).
 type StreamsAndBeams<'w, 's> = Query<'w, 's, (), With<Stream>>;
+/// The drawn parts of streams (I-046), disjoint from both `Moving` queries.
+type StreamParts<'w, 's> =
+    Query<'w, 's, &'static mut Transform, (With<StreamPart>, Without<Stream>, Without<Projectile>)>;
 
 /// Moves projectiles and streams; applies spells on arrival.
 #[allow(clippy::too_many_arguments)]
@@ -1262,6 +1327,7 @@ fn projectiles(
     cam: Query<&Camera, With<FpsCam>>,
     mut q: Moving<Projectile, Stream>,
     mut streams: Moving<Stream, Projectile>,
+    mut parts: StreamParts,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     if fx.epoch != game.epoch {
@@ -1270,7 +1336,7 @@ fn projectiles(
         fx.clear = true;
     }
     // Streams: game time only (frozen while paused), gone on a reset.
-    for (e, mut st, mut t) in &mut streams {
+    for (e, mut st, _) in &mut streams {
         if st.epoch != game.epoch {
             commands.entity(e).despawn();
             continue;
@@ -1285,7 +1351,13 @@ fn projectiles(
             continue;
         }
         let head = spell_path(st.from, st.to, (st.t / st.dur).min(1.0));
-        *t = stream_transform(st.from, head, &st.style);
+        let (lead_t, rod_t) = stream_transforms(st.from, head, &st.style);
+        if let Ok(mut p) = parts.get_mut(st.lead) {
+            *p = lead_t;
+        }
+        if let Ok(mut p) = parts.get_mut(st.rod) {
+            *p = rod_t;
+        }
         // Cold mist (Frost, CO2): on the far 70 % of the stream and at least
         // 2 m from the eye, 48 per game second, at most `style.mist` a cast.
         if st.mist_out < st.style.mist {

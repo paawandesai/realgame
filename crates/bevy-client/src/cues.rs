@@ -214,10 +214,14 @@ mod tests {
 
 // ---- I-025: streams you cannot miss, an honest arrow, one cast per click.
 
-/// How one spell's stream is drawn (I-025): a constant-width rod `thick`
+/// How one spell's stream is drawn (I-025): a rod `thick`
 /// metres across, a core colour and a darker outline shell `outline_scale`
 /// times as wide (an inverted hull), both sRGB in 0..1. `mist` is the most
 /// cold-fog particles one cast may emit along the stream.
+///
+/// I-046: the first `lead` metres from the hand taper from `thick·lead_min`
+/// (a finger-wide thread touching the gauntlet) up to `thick`, so the near
+/// end no longer fills the lower right of the view. See `stream_width`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StreamStyle {
     pub thick: f32,
@@ -225,6 +229,8 @@ pub struct StreamStyle {
     pub outline: [f32; 3],
     pub outline_scale: f32,
     pub mist: u32,
+    pub lead: f32,
+    pub lead_min: f32,
 }
 
 /// The stream look of `spell` (index in `Spell::ALL`: Fire, Water, Frost,
@@ -234,40 +240,78 @@ pub fn stream_style(spell: u8) -> StreamStyle {
     // pale sky and the green ground alike (relative luminance <= 0.025).
     const NAVY: [f32; 3] = [0.03, 0.06, 0.16];
     const SLATE: [f32; 3] = [0.06, 0.08, 0.11];
+    // I-046: taper the first 0.8 m from a finger-wide 3 cm at the hand.
+    const LEAD: f32 = 0.8;
+    const LEAD_MIN: f32 = 0.15;
     match spell {
         // Fire keeps its glow material and gets only the shared thickness.
         0 => StreamStyle {
-            thick: 0.22,
+            thick: 0.18,
             core: [1.0, 0.45, 0.1],
             outline: [1.0, 0.45, 0.1],
             outline_scale: 1.0,
             mist: 0,
+            lead: LEAD,
+            lead_min: LEAD_MIN,
         },
         // A liquid-nitrogen jet in white fog (condensed water vapour).
         2 => StreamStyle {
-            thick: 0.22,
+            thick: 0.18,
             core: [0.86, 0.96, 1.0],
             outline: SLATE,
-            outline_scale: 1.3,
+            outline_scale: 1.2,
             mist: 10,
+            lead: LEAD,
+            lead_min: LEAD_MIN,
         },
         // A CO2 discharge: a white cloud of dry-ice snow and vapour.
         3 => StreamStyle {
-            thick: 0.22,
+            thick: 0.18,
             core: [0.95, 0.96, 0.97],
             outline: SLATE,
-            outline_scale: 1.3,
+            outline_scale: 1.2,
             mist: 10,
+            lead: LEAD,
+            lead_min: LEAD_MIN,
         },
         // Water: a coherent jet in a clearly blue colour code.
         _ => StreamStyle {
-            thick: 0.22,
+            thick: 0.18,
             core: [0.1, 0.45, 1.0],
             outline: NAVY,
-            outline_scale: 1.3,
+            outline_scale: 1.2,
             mist: 0,
+            lead: LEAD,
+            lead_min: LEAD_MIN,
         },
     }
+}
+
+/// The stream's core width (metres) at `s` metres from the hand:
+/// `thick · clamp(s / lead, lead_min, 1)`. A style with no lead
+/// (`lead <= 0`) is `thick` everywhere. The game draws this shape with
+/// `stream_split`'s two parts; the unit tests and tuning use it directly.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn stream_width(s: f32, style: &StreamStyle) -> f32 {
+    if style.lead.is_nan() || style.lead <= 0.0 {
+        return style.thick;
+    }
+    let s = if s.is_finite() { s.max(0.0) } else { 0.0 };
+    style.thick * (s / style.lead).clamp(style.lead_min.min(1.0), 1.0)
+}
+
+/// How a stream of length `len` splits into its two drawn parts:
+/// `(lead_len, k, rod_len)`. The lead is the shared frustum stretched to
+/// `lead_len` metres and `thick·k` across at its far end; the rod is the
+/// shared cylinder for the remaining `rod_len` metres at full width.
+pub fn stream_split(len: f32, style: &StreamStyle) -> (f32, f32, f32) {
+    let len = if len.is_finite() { len.max(0.0) } else { 0.0 };
+    if style.lead.is_nan() || style.lead <= 0.0 {
+        return (0.0, 1.0, len);
+    }
+    let lead_len = len.min(style.lead);
+    let k = (len / style.lead).clamp(style.lead_min.min(1.0), 1.0);
+    (lead_len, k, len - lead_len)
 }
 
 /// WCAG 2 relative luminance of an sRGB colour (channels 0..1). Used by the
@@ -448,5 +492,109 @@ mod i025_tests {
         assert!(!fire_in_view(&[(41.0, 0.0)], h, v, false));
         assert!(fire_in_view(&[(41.0, 0.0), (-10.0, 3.0)], h, v, false));
         assert!(!fire_in_view(&[(f32::NAN, 0.0)], h, v, false));
+    }
+}
+
+#[cfg(test)]
+mod i046_tests {
+    use super::*;
+
+    // U1.
+    #[test]
+    fn stream_taper_and_thickness_stay_in_bounds() {
+        for spell in 0..=255u8 {
+            let st = stream_style(spell);
+            assert!(
+                (0.6..=1.0).contains(&st.lead),
+                "spell {spell}: lead {}",
+                st.lead
+            );
+            assert!(
+                (0.10..=0.25).contains(&st.lead_min),
+                "spell {spell}: lead_min {}",
+                st.lead_min
+            );
+            let w = st.thick * st.outline_scale.max(1.0);
+            assert!(w <= 0.222, "spell {spell}: outlined width {w}");
+            if st.outline_scale > 1.0 {
+                assert!(w >= 0.1875, "spell {spell}: outlined width {w}");
+            }
+            assert!(st.thick >= 0.18, "spell {spell}: thick {}", st.thick);
+        }
+    }
+
+    // U2.
+    #[test]
+    fn stream_width_is_attached_thin_then_full() {
+        for spell in 0..=255u8 {
+            let st = stream_style(spell);
+            let w0 = stream_width(0.0, &st);
+            assert!(w0 > 0.0, "spell {spell}: w0 {w0}");
+            assert!(
+                (w0 - st.thick * st.lead_min).abs() <= 1e-6,
+                "spell {spell}: w0 {w0}"
+            );
+            assert!(w0 <= 0.25 * st.thick, "spell {spell}: w0 {w0}");
+            let mid = stream_width(st.lead / 2.0, &st);
+            assert!(
+                st.thick * st.lead_min < mid && mid < st.thick,
+                "spell {spell}: mid {mid}"
+            );
+            let mut prev = w0;
+            for i in 0..=200 {
+                let s = i as f32 * 0.01;
+                let w = stream_width(s, &st);
+                assert!(w >= prev, "spell {spell}: s {s}: {w} < {prev}");
+                prev = w;
+                if s >= st.lead {
+                    assert_eq!(w, st.thick, "spell {spell}: s {s}");
+                }
+            }
+        }
+    }
+
+    // U3.
+    #[test]
+    fn stream_split_adds_up() {
+        for spell in 0..=255u8 {
+            let st = stream_style(spell);
+            for len in [0.0, 0.1, 0.5, st.lead, 1.0, 5.0, 60.0] {
+                let (lead_len, k, rod_len) = stream_split(len, &st);
+                assert!(
+                    (lead_len + rod_len - len).abs() <= 1e-5,
+                    "spell {spell}: len {len}"
+                );
+                assert!(lead_len <= st.lead, "spell {spell}: len {len}: {lead_len}");
+                if len <= st.lead {
+                    assert_eq!(rod_len, 0.0, "spell {spell}: len {len}");
+                }
+                assert!(
+                    (st.lead_min..=1.0).contains(&k),
+                    "spell {spell}: len {len}: k {k}"
+                );
+            }
+        }
+    }
+
+    // U4.
+    #[test]
+    fn stream_never_looks_wider_than_a_fifth_radian() {
+        let hand = [0.2f32, -0.15, -0.5];
+        for spell in 0..=255u8 {
+            let st = stream_style(spell);
+            for depth in [2.0f32, 5.0, 10.0, 25.0, 60.0] {
+                let d = [-hand[0], -hand[1], -depth - hand[2]];
+                let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+                let mut worst = 0.0f32;
+                let mut s = 0.0f32;
+                while s <= len {
+                    let z = -(hand[2] + d[2] * s / len);
+                    let w = stream_width(s, &st) * st.outline_scale.max(1.0);
+                    worst = worst.max(w / z);
+                    s += 0.01;
+                }
+                assert!(worst <= 0.20, "spell {spell}: depth {depth}: {worst} rad");
+            }
+        }
     }
 }
