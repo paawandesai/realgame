@@ -38,6 +38,7 @@ use bevy::platform::time::Instant;
 #[cfg(feature = "bloom")]
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
+use bevy::render::render_resource::Face;
 use bevy::render::view::Msaa;
 use bevy::window::PrimaryWindow;
 use bridge::WebIn;
@@ -123,8 +124,12 @@ const COOLDOWN: f32 = 0.3;
 const STREAM_AFTER: f32 = 0.2;
 /// ...and is drawn in at least this many frames, so it is seen at 4 fps too.
 const STREAM_MIN_FRAMES: u32 = 3;
-/// The stream's thickness at the hand (m); it tapers to the spell's head.
-const STREAM_THICK: f32 = 0.13;
+/// Linear gain on each stream core (Fire, Water, Frost, CO2; I-025). The
+/// camera's tonemapping shows an unlit 0.95 white as about 0.69 grey, the
+/// same luminance as the sky, so the white Frost and CO2 cores are lifted
+/// until they show at about their `cues::stream_style` colour (measured
+/// 0.89-0.97 on screen at gains 4-10). Water needs none.
+const STREAM_CORE_GAIN: [f32; 4] = [1.0, 1.0, 6.0, 10.0];
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Aim {
@@ -179,6 +184,14 @@ struct Game {
     fire_bearing: f32,
     fire_elev: f32,
     fire_off: bool,
+    /// Some burning object is on screen, or the aimed object burns (I-025):
+    /// the HUD's arrow hides while this holds.
+    fire_in_view: bool,
+    /// Game seconds the left button has been held since its click, and
+    /// whether it was down (locked, unpaused) last frame (I-025): held fire
+    /// repeats only after `cues::HOLD_DELAY`.
+    held: f32,
+    was_down: bool,
 }
 
 impl Game {
@@ -209,15 +222,10 @@ struct Projectile {
     epoch: u32,
 }
 
-#[derive(Component)]
-struct Beam {
-    life: f32,
-    epoch: u32,
-}
-
-/// The visible jet of a Water, Fire or CO2 cast: a cone from the hand
-/// (thick end) to the spell's head as it flies, kept `STREAM_AFTER` game
-/// seconds past the impact. Its clock stops while paused.
+/// The visible jet of every cast (I-025): a constant-width rod from the hand
+/// to the spell's head as it flies, with a dark outline child for Water,
+/// Frost and CO2, kept `STREAM_AFTER` game seconds past the impact. Its
+/// clock stops while paused. Frost and CO2 streams shed cold mist.
 #[derive(Component)]
 struct Stream {
     from: Vec3,
@@ -226,6 +234,10 @@ struct Stream {
     dur: f32,
     frames: u32,
     epoch: u32,
+    style: cues::StreamStyle,
+    /// Mist particles owed (48 per game second) and already emitted.
+    mist_acc: f32,
+    mist_out: u32,
 }
 
 /// Where a spell is on its way from `from` to `to` (fraction `a`): a straight
@@ -234,9 +246,9 @@ fn spell_path(from: Vec3, to: Vec3, a: f32) -> Vec3 {
     from.lerp(to, a) + Vec3::Y * (a * (1.0 - a) * 0.6 * from.distance(to) * 0.05)
 }
 
-/// The stream's cone from the hand to the head (the cone mesh's axis is +Y,
-/// with its base at -0.5 and its tip at +0.5).
-fn stream_transform(tail: Vec3, head: Vec3) -> Transform {
+/// The stream's rod from the hand to the head (the cylinder mesh's axis is
+/// +Y, from -0.5 to +0.5), `style.thick` across along its whole length.
+fn stream_transform(tail: Vec3, head: Vec3, style: &cues::StreamStyle) -> Transform {
     let v = head - tail;
     let len = v.length();
     if len < 1e-3 {
@@ -244,23 +256,28 @@ fn stream_transform(tail: Vec3, head: Vec3) -> Transform {
     }
     Transform::from_translation((tail + head) * 0.5)
         .with_rotation(Quat::from_rotation_arc(Vec3::Y, v / len))
-        .with_scale(Vec3::new(STREAM_THICK, len, STREAM_THICK))
+        .with_scale(Vec3::new(style.thick, len, style.thick))
 }
 
-/// One helper for every spell's stream; only the material differs.
+/// One helper for every spell's stream: the shared cylinder (never
+/// mutated), scaled by `Transform`, in the spell's stream material, with an
+/// outline shell child when the style has one. The child despawns with it.
+#[allow(clippy::too_many_arguments)]
 fn spawn_stream(
     commands: &mut Commands,
     kit: &Kit,
-    material: Handle<StandardMaterial>,
+    mats: &SpellMats,
+    spell: usize,
     from: Vec3,
     to: Vec3,
     dur: f32,
     epoch: u32,
 ) {
-    commands.spawn((
-        Mesh3d(kit.cone.clone()),
-        MeshMaterial3d(material),
-        stream_transform(from, from),
+    let style = cues::stream_style(spell as u8);
+    let mut e = commands.spawn((
+        Mesh3d(kit.cyl.clone()),
+        MeshMaterial3d(mats.stream[spell].clone()),
+        stream_transform(from, from, &style),
         NotShadowCaster,
         NotShadowReceiver,
         Stream {
@@ -270,13 +287,28 @@ fn spawn_stream(
             dur,
             frames: 0,
             epoch,
+            style,
+            mist_acc: 0.0,
+            mist_out: 0,
         },
     ));
+    if style.outline_scale > 1.0 {
+        e.with_child((
+            Mesh3d(kit.cyl.clone()),
+            MeshMaterial3d(mats.outline[spell].clone()),
+            Transform::from_scale(Vec3::new(style.outline_scale, 1.0, style.outline_scale)),
+            NotShadowCaster,
+            NotShadowReceiver,
+        ));
+    }
 }
 
 #[derive(Resource)]
 struct SpellMats {
     glow: [Handle<StandardMaterial>; 4],
+    /// Stream cores (Fire: `glow[0]`) and outline shells (I-025).
+    stream: [Handle<StandardMaterial>; 4],
+    outline: [Handle<StandardMaterial>; 4],
 }
 
 #[derive(Resource, Default)]
@@ -517,7 +549,37 @@ fn setup(
             ..default()
         })
     });
-    commands.insert_resource(SpellMats { glow: glow.clone() });
+    // Stream looks (I-025, `cues::stream_style`): opaque, unlit cores with no
+    // emissive glow, and unlit outline shells drawn from the inside (front
+    // faces culled), so they read as a dark rim (an inverted hull). White
+    // cores are scaled by `STREAM_CORE_GAIN` so they still show white after
+    // tonemapping.
+    let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
+    let stream: [Handle<StandardMaterial>; 4] = std::array::from_fn(|i| {
+        if i == 0 {
+            return glow[0].clone();
+        }
+        materials.add(StandardMaterial {
+            base_color: Color::from(
+                LinearRgba::from(srgb(cues::stream_style(i as u8).core)) * STREAM_CORE_GAIN[i],
+            ),
+            unlit: true,
+            ..default()
+        })
+    });
+    let outline: [Handle<StandardMaterial>; 4] = std::array::from_fn(|i| {
+        materials.add(StandardMaterial {
+            base_color: srgb(cues::stream_style(i as u8).outline),
+            unlit: true,
+            cull_mode: Some(Face::Front),
+            ..default()
+        })
+    });
+    commands.insert_resource(SpellMats {
+        glow: glow.clone(),
+        stream,
+        outline,
+    });
 
     let mut camera = commands.spawn((
         Camera3d::default(),
@@ -1020,6 +1082,26 @@ fn aim_and_cast(
         }
         None => (-1, 0.0, 0.0, false),
     };
+    // I-025: is any fire in view (or aimed at)? Then the arrow hides. Same
+    // bearing, elevation and hfov as the finder above.
+    {
+        let hfov = 2.0
+            * ((fov_y.to_radians() / 2.0).tan() * aspect)
+                .atan()
+                .to_degrees();
+        let v: Vec<(f32, f32)> = (0..chem.targets.len())
+            .filter(|&i| chem.world.objs[i].burning)
+            .map(|i| {
+                let c = chem.bounds(i).center();
+                let bearing = cues::bearing_deg(eye.x, eye.z, player.yaw, c.x, c.z);
+                let horiz = (c.xz() - eye.xz()).length();
+                let elev = (c.y - eye.y).atan2(horiz).to_degrees() - player.pitch.to_degrees();
+                (bearing, elev)
+            })
+            .collect();
+        let aim_burning = game.aim.obj.is_some_and(|i| chem.world.objs[i].burning);
+        game.fire_in_view = cues::fire_in_view(&v, hfov, fov_y, aim_burning);
+    }
     game.hover = None;
     if !game.locked {
         #[cfg(target_arch = "wasm32")]
@@ -1041,7 +1123,10 @@ fn aim_and_cast(
     let incoming = std::mem::take(&mut web.cmds);
     // A `fire` is one locked left click (hud.js): counted when it arrives,
     // before a pause drops it.
-    game.clicks += incoming.iter().filter(|c| c.as_str() == "fire").count() as u32;
+    let fires_in = incoming.iter().filter(|c| c.as_str() == "fire").count() as u32;
+    game.clicks += fires_in;
+    // I-025: a new click restarts the hold timer.
+    let clicked = fires_in > 0;
     if game.paused {
         game.cast_queue.clear();
     } else {
@@ -1078,7 +1163,22 @@ fn aim_and_cast(
     };
     #[cfg(not(target_arch = "wasm32"))]
     let firing = mouse.pressed(MouseButton::Left);
-    if casts.is_empty() && game.locked && !game.paused && firing && game.cooldown <= 0.0 {
+    // I-025: one click is one cast; a press repeats only once it has been
+    // held `cues::HOLD_DELAY` game seconds (the click's own cast comes from
+    // the queue above).
+    game.held = if game.paused {
+        0.0
+    } else {
+        cues::held_secs(game.held, firing && game.locked, game.was_down, clicked, dt)
+    };
+    game.was_down = firing && game.locked && !game.paused;
+    if casts.is_empty()
+        && game.locked
+        && !game.paused
+        && firing
+        && game.cooldown <= 0.0
+        && cues::hold_repeats(game.held)
+    {
         casts.push(game.aim);
     }
     let ended = chem.world.outcome() != Outcome::Playing;
@@ -1103,22 +1203,6 @@ fn aim_and_cast(
         game.say(spell.cast_caption());
         let hand = eye + player.rotation() * Vec3::new(0.2, -0.15, -0.5);
         let dist = hand.distance(aim.point);
-        if spell == Spell::Frost {
-            // A beam of liquid nitrogen: lands almost at once.
-            let mid = (hand + aim.point) * 0.5;
-            commands.spawn((
-                Mesh3d(kit.cube.clone()),
-                MeshMaterial3d(mats.glow[2].clone()),
-                Transform::from_translation(mid)
-                    .looking_at(aim.point, Vec3::Y)
-                    .with_scale(Vec3::new(0.07, 0.07, dist)),
-                NotShadowCaster,
-                Beam {
-                    life: 0.25,
-                    epoch: game.epoch,
-                },
-            ));
-        }
         let size = match spell {
             Spell::Fire => 0.32,
             Spell::Water => 0.26,
@@ -1127,18 +1211,16 @@ fn aim_and_cast(
         };
         // Every spell lands within 0.25 s of game time (speeds in `cues`).
         let dur = cues::flight_secs(game.spell as u8, dist);
-        if spell != Spell::Frost {
-            // Frost's beam is its stream.
-            spawn_stream(
-                &mut commands,
-                &kit,
-                mats.glow[game.spell].clone(),
-                hand,
-                aim.point,
-                dur,
-                game.epoch,
-            );
-        }
+        spawn_stream(
+            &mut commands,
+            &kit,
+            &mats,
+            game.spell,
+            hand,
+            aim.point,
+            dur,
+            game.epoch,
+        );
         commands.spawn((
             Mesh3d(kit.ball.clone()),
             MeshMaterial3d(mats.glow[game.spell].clone()),
@@ -1157,14 +1239,14 @@ fn aim_and_cast(
     }
 }
 
-/// A moving thing of kind `C` (its entity, state and placement), never one
-/// of the other two kinds, so the three queries in `projectiles` are disjoint.
-type Moving<'w, 's, C, A, B> =
-    Query<'w, 's, (Entity, &'static mut C, &'static mut Transform), (Without<A>, Without<B>)>;
-/// Live streams and beams (the `streams` count).
-type StreamsAndBeams<'w, 's> = Query<'w, 's, (), Or<(With<Stream>, With<Beam>)>>;
+/// A moving thing of kind `C` (its entity, state and placement), never of
+/// kind `A`, so the two queries in `projectiles` are disjoint.
+type Moving<'w, 's, C, A> =
+    Query<'w, 's, (Entity, &'static mut C, &'static mut Transform), Without<A>>;
+/// Live streams (the `streams` count; outline children are not counted).
+type StreamsAndBeams<'w, 's> = Query<'w, 's, (), With<Stream>>;
 
-/// Moves projectiles, beams and streams; applies spells on arrival.
+/// Moves projectiles and streams; applies spells on arrival.
 #[allow(clippy::too_many_arguments)]
 fn projectiles(
     mut commands: Commands,
@@ -1174,23 +1256,14 @@ fn projectiles(
     mut chem: ResMut<Chem>,
     mut fx: ResMut<Fx>,
     cam: Query<&Camera, With<FpsCam>>,
-    mut q: Moving<Projectile, Beam, Stream>,
-    mut beams: Moving<Beam, Projectile, Stream>,
-    mut streams: Moving<Stream, Projectile, Beam>,
+    mut q: Moving<Projectile, Stream>,
+    mut streams: Moving<Stream, Projectile>,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     if fx.epoch != game.epoch {
         // A reset: clear the old courtyard's smoke and sparks too.
         fx.epoch = game.epoch;
         fx.clear = true;
-    }
-    for (e, mut b, mut t) in &mut beams {
-        b.life -= dt;
-        t.scale.x *= 0.85;
-        t.scale.y *= 0.85;
-        if b.life <= 0.0 || b.epoch != game.epoch {
-            commands.entity(e).despawn();
-        }
     }
     // Streams: game time only (frozen while paused), gone on a reset.
     for (e, mut st, mut t) in &mut streams {
@@ -1208,7 +1281,32 @@ fn projectiles(
             continue;
         }
         let head = spell_path(st.from, st.to, (st.t / st.dur).min(1.0));
-        *t = stream_transform(st.from, head);
+        *t = stream_transform(st.from, head, &st.style);
+        // Cold mist (Frost, CO2): on the far 70 % of the stream and at least
+        // 2 m from the eye, 48 per game second, at most `style.mist` a cast.
+        if st.mist_out < st.style.mist {
+            st.mist_acc += 48.0 * dt;
+            let eye = player.eye();
+            let (from, len) = (st.from, head - st.from);
+            if eye.distance(head) >= 2.0 {
+                while st.mist_acc >= 1.0 && st.mist_out < st.style.mist {
+                    let mut pos = head;
+                    for _ in 0..4 {
+                        let p = from + len * (0.3 + 0.7 * fx.rand());
+                        if eye.distance(p) >= 2.0 {
+                            pos = p;
+                            break;
+                        }
+                    }
+                    let v = fx.rand3() * 0.5;
+                    let size = 0.25 + 0.15 * fx.rand();
+                    let life = 0.6 + 0.4 * fx.rand();
+                    fx.emit(P::Frost, pos, v, size, life);
+                    st.mist_acc -= 1.0;
+                    st.mist_out += 1;
+                }
+            }
+        }
     }
     if game.paused {
         return;
@@ -1583,7 +1681,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{}}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{}}}",
         *frame,
         w.ticks,
         game.locked,
@@ -1636,7 +1734,8 @@ fn publish(
         game.fire_elev,
         game.fire_off,
         streams.iter().count(),
-        fx.water_live
+        fx.water_live,
+        game.fire_in_view
     );
     bridge::publish(&json);
 }

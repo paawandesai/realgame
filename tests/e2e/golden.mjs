@@ -340,6 +340,8 @@ function check(name, ok, detail = '') {
 
   await feelAndStandards({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
+  await streamsAndFinder({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
+
   await castingYouCanSee({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
   await reviewFollowups({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
@@ -1045,8 +1047,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   // I-019 appends its keys after dt, in this order (the one sanctioned edit
   // to this check: docs/loop/items/I-019/spec.md, Contract).
   const I019_KEYS = ['clicks', 'firesLeft', 'nearFire', 'fireBearing', 'fireElev', 'fireOff', 'streams', 'fxWater'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS].every((k, i) => keys[i] === k);
+  // I-025 appends fireInView after them (its Contract item 3).
+  const I025_KEYS = ['fireInView'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The
@@ -1232,6 +1236,434 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   }
   await page.evaluate(() => { window.__clk.on = false; window.__clk.stop = true; });
   await fresh();
+}
+
+// ---------------------------------------------------------------------------
+// Streams you cannot miss, an honest arrow, one cast per click
+// (docs/loop/items/I-025/spec.md, tests 5-11): fireInView in the state, the
+// arrow hidden while a fire is in view, outlined streams that stand out
+// along their length against the sky and the ground, one cast per slow
+// click, no flashing or view-blocking mist, and the hint order. Runs after
+// feelAndStandards and before castingYouCanSee; ends fresh, unpaused, with
+// Hints and sway restored and the pointer locked if it was on entry.
+// ---------------------------------------------------------------------------
+async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit, locked, base, browser, errors }) {
+  console.log('  -- streams and finder (I-025) --');
+  const VW = +(process.env.VW || 1280), VH = +(process.env.VH || 720);
+  void idx; void base; void browser; void errors; void locked;
+  const fmt = (v, d = 3) => (Number.isFinite(v) ? v.toFixed(d) : String(v));
+  const within = async (f0, n, pred, ms = 30000) => {
+    const t0 = Date.now();
+    let x = await st();
+    while (!pred(x) && x.frame <= f0 + n && Date.now() - t0 < ms) { await sleep(20); x = await st(); }
+    return { ok: !!pred(x) && x.frame <= f0 + n, x };
+  };
+  const unpause = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((x) => !x.paused, 8000); } };
+  const fresh = async () => {
+    await unpause();
+    await cmd('reset');
+    await until((x) => x.outcome === 'playing' && x.burning === 3 && x.casts === 0, 20000);
+  };
+  const tp = async (x, z) => { await cmd(`tp ${x} ${z}`); await until((q) => Math.abs(q.pos[0] - x) < 0.5 && Math.abs(q.pos[2] - z) < 0.5, 10000); };
+  const aimAt = async (i, spell) => {
+    await unpause();
+    await cmd(`face ${i}`);
+    if (spell) await cmd(`select ${spell}`);
+    return until((x) => (!spell || x.spell === spell - 1) && x.aimObj === i && x.cooldown === 0, 15000);
+  };
+  const pauseShown = () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'));
+  const relock = async () => {
+    for (let k = 0; k < 6; k++) {
+      if ((await st()).locked) return true;
+      if (!(await pauseShown())) await page.evaluate(() => window.__game.pause(true));
+      await page.click('#resume');
+      if ((await until((q) => q.locked, 4000)).locked) return true;
+      await sleep(1200);
+    }
+    return (await st()).locked;
+  };
+  const synthClick = () => page.evaluate(() => {
+    const c = document.getElementById('game');
+    const r = c.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, button: 0, pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    const s0 = window.__game.state();
+    c.dispatchEvent(new PointerEvent('pointerdown', { ...o, buttons: 1 }));
+    c.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
+    return s0;
+  });
+  const hudRead = () => page.evaluate(() => new Promise((res) => {
+    const s = window.__game.hudState() || window.__game.state();
+    const vis = (e) => !!e && !e.classList.contains('hidden') && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden';
+    const ff = document.getElementById('firefinder');
+    const hint = document.getElementById('hint');
+    res({
+      s, ffVis: vis(ff), ff: ff ? { vis: vis(ff), right: ff.classList.contains('right'), left: ff.classList.contains('left') } : null,
+      hint: vis(hint) ? hint.textContent.trim() : '', hudPaused: !document.getElementById('pause').classList.contains('hidden'),
+    });
+  }));
+  const hudWithin = async (f0, n, pred, ms = 30000) => {
+    const t0 = Date.now();
+    let h = await hudRead();
+    while (!pred(h) && h.s.frame <= f0 + n && Date.now() - t0 < ms) { await sleep(20); h = await hudRead(); }
+    return { ok: !!pred(h) && h.s.frame <= f0 + n, h };
+  };
+  // The finder rule both sides rely on (Contract 5).
+  const finderRule = (h) => h.s.outcome === 'playing' && h.s.fireOff && !h.s.fireInView && h.s.nearFire >= 0 && !h.s.paused && !h.hudPaused;
+  const lockedOnEntry = (await st()).locked;
+  const swayOnEntry = (await st()).sway;
+  const lockOk = await relock();
+
+  // 5. fireInView is a boolean, in place.
+  {
+    await fresh();
+    const s0 = await st();
+    const keys = Object.keys(s0);
+    check('streams: fireInView is a boolean, the last state key',
+      typeof s0.fireInView === 'boolean' && keys[keys.length - 1] === 'fireInView' && keys[keys.length - 2] === 'fxWater',
+      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-3).join(',')}`);
+  }
+
+  // 6. The arrow stays away while a fire is aimed at or on screen.
+  {
+    // (a) Aimed at a fire while the nearest fire is off screen.
+    await fresh();
+    await tp(0, 5.5);
+    let pick = null; let h = null; const tried = [];
+    for (const t of [lit[0], lit[1], lit[2]]) {
+      await cmd(`face ${t}`);
+      const a = await until((x) => x.aimObj === t, 10000);
+      if (a.aimObj !== t) { tried.push(`${t}: not aimed`); continue; }
+      const r = await hudWithin(a.frame, 5, (q) => q.s.aimObj === t && q.s.fireOff === true && q.s.nearFire !== t);
+      tried.push(`${t}: fireOff=${r.h.s.fireOff} nearFire=${r.h.s.nearFire}`);
+      if (r.ok) { pick = t; h = r.h; break; }
+    }
+    console.log(`  6a: target ${pick} (tried ${tried.join('; ')})`);
+    let ok = false;
+    if (pick !== null) {
+      const r = await hudWithin(h.s.frame, 5, (q) => q.s.aimObj === pick && q.s.fireOff === true && q.s.nearFire !== pick && q.s.fireInView === true && !q.ffVis);
+      ok = r.ok; h = r.h;
+    }
+    check('streams: no arrow while aiming at a fire (the nearest fire off screen)', ok,
+      pick === null ? `no fire met the precondition: ${tried.join('; ')}` : `target ${pick} aimObj=${h.s.aimObj} nearFire=${h.s.nearFire} fireOff=${h.s.fireOff} fireInView=${h.s.fireInView} finder=${h.ffVis}`);
+
+    // (b) and (c) A sweep at pitch 0.
+    await tp(0, 5.5);
+    let ruleOk = true; let aimOk = true; let suppressed = 0; let shown = 0; const bad = [];
+    for (let yaw = 0; yaw < 360; yaw += 15) {
+      await cmd(`look ${yaw} 0`);
+      await frames(2);
+      const q = await hudRead();
+      const want = finderRule(q);
+      if (q.ffVis !== want) { ruleOk = false; bad.push(`${yaw}: finder ${q.ffVis} rule ${want}`); }
+      if (q.s.aimObj >= 0 && q.s.objs[q.s.aimObj] && q.s.objs[q.s.aimObj].burning && q.s.fireInView !== true) { aimOk = false; bad.push(`${yaw}: aimed fire ${q.s.aimObj} fireInView=${q.s.fireInView}`); }
+      if (q.s.fireOff && q.s.fireInView) suppressed++;
+      if (q.ffVis) shown++;
+    }
+    check('streams: the arrow shows exactly when no fire is in view (sweep)', ruleOk && aimOk,
+      `${bad.slice(0, 4).join('; ') || 'all 24 yaws agree'}`);
+    check('streams: the sweep both hides the arrow for a fire in view and shows it', suppressed >= 1 && shown >= 1,
+      `fireOff&&fireInView at ${suppressed} yaws, finder shown at ${shown} yaws`);
+
+    // (d) Occlusion, recorded only (follow-up: occlusion-aware finder).
+    await tp(0, -30);
+    await cmd(`face ${lit[2]}`);
+    await frames(2);
+    const q = await hudRead();
+    console.log(`  6d occlusion (known gap): aimObj=${q.s.aimObj} nearFire=${q.s.nearFire} fireOff=${q.s.fireOff} fireInView=${q.s.fireInView} finder=${q.ffVis}`);
+    check('streams: behind the greenhouse the finder follows the rule (occlusion recorded)', q.ffVis === finderRule(q),
+      `aimObj=${q.s.aimObj} nearFire=${q.s.nearFire} fireOff=${q.s.fireOff} fireInView=${q.s.fireInView} finder=${q.ffVis}`);
+  }
+
+  // Screenshots for tests 7, 8 and 10: the HUD and the pause card hidden
+  // through the CSSOM, and restored after.
+  const hideUi = (on) => page.evaluate((on) => {
+    for (const id of ['hud', 'pause']) { const e = document.getElementById(id); if (e) e.style.visibility = on ? 'hidden' : ''; }
+  }, on);
+  const shot = async () => decodePng(await page.screenshot({ type: 'png', timeout: 180000 }));
+  const lum = (d, k) => 0.2126 * LIN[d[k]] + 0.7152 * LIN[d[k + 1]] + 0.0722 * LIN[d[k + 2]];
+  // A pixel differs when its contrast ratio is >= 1.5 or its sRGB distance >= 90.
+  const differs = (a, b, k) => {
+    const la = lum(a.data, k), lb = lum(b.data, k);
+    const cr = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    if (cr >= 1.5) return true;
+    const dr = a.data[k] - b.data[k], dg = a.data[k + 1] - b.data[k + 1], db = a.data[k + 2] - b.data[k + 2];
+    return Math.hypot(dr, dg, db) >= 90;
+  };
+  // Pause on the first frame where the spell has landed and a stream is
+  // drawn (full length, frozen), after one synthetic click.
+  const castAndFreeze = () => page.evaluate(() => new Promise((res) => {
+    const c = document.getElementById('game');
+    const r = c.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, button: 0, pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    const s0 = window.__game.state();
+    c.dispatchEvent(new PointerEvent('pointerdown', { ...o, buttons: 1 }));
+    c.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
+    const step = () => {
+      const s = window.__game.state();
+      if (s.impacts > s0.impacts && s.streams >= 1) { window.__game.pause(true); res(s.frame - s0.frame); return; }
+      if (s.frame - s0.frame > 60) { res(-1); return; }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }));
+  // Cross-sections of the stream along C -> Hs at r = 20, 30, ... 110 px.
+  const sections = (after, b1, b2, fov) => {
+    const W = after.w, H = after.h;
+    const f = (H / 2) / Math.tan((fov * DEG) / 2);
+    const cx = W / 2, cy = H / 2;
+    const hx = W / 2 + 0.4 * f, hy = H / 2 + 0.3 * f;
+    const len = Math.hypot(hx - cx, hy - cy);
+    const ux = (hx - cx) / len, uy = (hy - cy) / len; const px = -uy, py = ux;
+    const out = [];
+    for (let r = 20; r <= 110; r += 10) {
+      const half = Math.round(0.4 * r + 24);
+      let best = 0; let run = 0; let gap = 0; let noisy = 0; let total = 0;
+      for (let t = -half; t <= half; t++) {
+        const x = Math.round(cx + ux * r + px * t), y = Math.round(cy + uy * r + py * t);
+        if (x < 0 || y < 0 || x >= W || y >= H) { run = 0; gap = 0; continue; }
+        const k = (y * W + x) * after.bpp;
+        total++;
+        if (differs(b1, b2, k)) { noisy++; continue; }
+        if (differs(after, b1, k)) { run += 1; gap = 0; best = Math.max(best, run); } else if (++gap > 2) { run = 0; gap = 0; }
+      }
+      out.push({ r, run: best, need: 0.6 * r, pass: best >= 0.6 * r, noisy: total ? noisy / total : 1 });
+    }
+    return out;
+  };
+  // One pixel attempt for a spell at the current pose: two before shots
+  // (paused), a cast frozen at full length, and the after shot.
+  const pixelTry = async (spell, pose) => {
+    await fresh();
+    await pose(spell);
+    await page.evaluate(() => window.__game.pause(true));
+    await until((x) => x.paused, 5000);
+    await hideUi(true);
+    await frames(1);
+    const b1 = await shot(); const b2 = await shot();
+    await hideUi(false);
+    await unpause();
+    await until((x) => x.cooldown === 0, 5000);
+    await hideUi(true);
+    const caught = await castAndFreeze();
+    await until((x) => x.paused, 5000);
+    await frames(1);
+    const after = await shot();
+    const sx = await st();
+    await hideUi(false);
+    await unpause();
+    return { caught, streams: sx.streams, secs: sections(after, b1, b2, sx.fov) };
+  };
+  const SPELLS = [[2, 'Water'], [3, 'Frost'], [4, 'CO2']];
+
+  // 7. Every stream stands out along its length, against the sky.
+  {
+    await cmd('set sway off');
+    const sky = async (spell) => { await tp(0, 5.5); await cmd(`select ${spell}`); await cmd('look 0 60'); await until((x) => x.pitch > 55 && x.spell === spell - 1, 5000); };
+    for (const [spell, name] of SPELLS) {
+      let pass = false; const log = [];
+      for (let k = 0; k < 3 && !pass; k++) {
+        const t = await pixelTry(spell, sky);
+        const n = t.secs.filter((c) => c.pass).length;
+        pass = lockOk && t.caught >= 0 && t.streams >= 1 && n >= 8;
+        log.push(`try ${k + 1}: ${n}/10 caught@${t.caught} streams=${t.streams} runs ${t.secs.map((c) => `${c.r}:${c.run}`).join(' ')}`);
+      }
+      console.log(`  sky ${name}: ${log.join(' | ')}`);
+      check(`streams: the ${name} stream stands out against the sky along its length`, pass, log.join(' | '));
+    }
+  }
+
+  // 8. ...and against the ground (I-019 test 11's poses: a fire 18 m away).
+  {
+    const poses = [[-4, 14, lit[0], [-13.5, -3]], [4, 14, lit[1], [13.5, -3]], [-6, 16, lit[0], [-13.5, -3]], [6, 16, lit[1], [13.5, -3]]];
+    let chosen = null;
+    const ground = async (spell) => {
+      for (const p of (chosen ? [chosen] : poses)) {
+        await tp(p[0], p[1]);
+        const a = await aimAt(p[2], spell);
+        const dist = Math.hypot(a.pos[0] - p[3][0], a.pos[2] - p[3][1]);
+        if (a.aimObj === p[2] && a.objs[p[2]].burning && dist >= 18) { chosen = p; return; }
+      }
+    };
+    for (const [spell, name] of SPELLS) {
+      let pass = false; const log = [];
+      for (let k = 0; k < 3 && !pass; k++) {
+        const t = await pixelTry(spell, ground);
+        const kept = t.secs.filter((c) => c.noisy <= 0.2);
+        const n = kept.filter((c) => c.pass).length;
+        pass = lockOk && !!chosen && t.caught >= 0 && t.streams >= 1 && kept.length >= 6 && n >= 0.8 * kept.length;
+        log.push(`try ${k + 1}: pose ${chosen ? chosen.slice(0, 2).join(',') : 'none'} ${n}/${kept.length} kept (${10 - kept.length} skipped) caught@${t.caught} streams=${t.streams} runs ${t.secs.map((c) => `${c.r}:${c.run}${c.noisy > 0.2 ? 's' : ''}`).join(' ')}`);
+      }
+      console.log(`  ground ${name}: ${log.join(' | ')}`);
+      check(`streams: the ${name} stream stands out against the ground`, pass, log.join(' | '));
+    }
+    await cmd(`set sway ${swayOnEntry ? 'on' : 'off'}`);
+  }
+
+  // 9. A slow click casts once; a hold still repeats.
+  {
+    // Records [gameTime, dt, casts, button down] on every new frame until stopped.
+    const startRec = () => page.evaluate(() => {
+      const rec = { rows: [], down: false, stop: false };
+      window.__i025rec = rec;
+      const dn = (e) => { if (e.button === 0) rec.down = true; };
+      const up = (e) => { if (e.button === 0) rec.down = false; };
+      document.addEventListener('pointerdown', dn, true);
+      document.addEventListener('pointerup', up, true);
+      let last = -1;
+      const step = () => {
+        const s = window.__game.state();
+        if (s.frame !== last) { last = s.frame; rec.rows.push([s.gameTime, s.dt, s.casts, rec.down]); }
+        if (rec.stop) { document.removeEventListener('pointerdown', dn, true); document.removeEventListener('pointerup', up, true); return; }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+    const stopRec = () => page.evaluate(() => { window.__i025rec.stop = true; return window.__i025rec.rows; });
+    await fresh();
+    await relock();
+    let slow = null; const spans = [];
+    for (let k = 0; k < 3 && !slow; k++) {
+      await cmd('look 0 60');
+      await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
+      await startRec();
+      const g0 = (await st()).gameTime;
+      await page.mouse.down();
+      const t0 = Date.now();
+      let z = await st();
+      while (z.gameTime < g0 + 0.35 && Date.now() - t0 < 15000) { await sleep(20); z = await st(); }
+      await page.mouse.up();
+      const f1 = (await st()).frame;
+      await until((x) => x.frame >= f1 + 20, 60000);
+      const rows = await stopRec();
+      const dn = rows.filter((r) => r[3]);
+      const span = dn.length ? dn[dn.length - 1][0] - dn[0][0] : 0;
+      const maxDt = dn.reduce((m, r) => Math.max(m, r[1]), 0);
+      const c0 = rows.length ? rows[0][2] : 0; const c1 = rows.length ? rows[rows.length - 1][2] : 0;
+      spans.push(`span ${fmt(span)} max_dt ${fmt(maxDt)} casts +${c1 - c0}`);
+      if (dn.length && span < 0.5 - maxDt) slow = { grew: c1 - c0 };
+      await until((x) => x.cooldown === 0, 5000);
+    }
+    check('streams: a slow click (0.35 s) casts once', lockOk && !!slow && slow.grew === 1, spans.join(' | '));
+
+    await cmd('look 0 60');
+    await until((x) => x.pitch > 55 && x.cooldown === 0, 5000);
+    await startRec();
+    const g0 = (await st()).gameTime;
+    await page.mouse.down();
+    const t0 = Date.now();
+    let z = await st();
+    while (z.gameTime < g0 + 1.6 && Date.now() - t0 < 30000) { await sleep(50); z = await st(); }
+    await page.mouse.up();
+    await frames(2);
+    const rows = await stopRec();
+    const firsts = [];
+    for (let i = 1; i < rows.length; i++) if (rows[i][2] > rows[i - 1][2]) firsts.push(i);
+    const grew = rows.length ? rows[rows.length - 1][2] - rows[0][2] : 0;
+    let gapOk = false; let detail = '';
+    if (firsts.length >= 2) {
+      const [i1, i2] = firsts;
+      const d = rows.slice(i1, i2 + 1).reduce((m, r) => Math.max(m, r[1]), 0);
+      const gap = rows[i2][0] - rows[i1][0];
+      gapOk = gap >= 0.5 - d;
+      detail = `first repeat ${fmt(gap)} s after the click (need >= ${fmt(0.5 - d)})`;
+    }
+    check('streams: holding repeats, first after half a second', lockOk && grew >= 3 && gapOk, `casts +${grew}; ${detail}`);
+  }
+
+  // 10. No flashing and no view-blocking mist (GS-6, GS-17). A guard.
+  {
+    const near = async (spell) => {
+      await tp(0, 0);
+      const a = await aimAt(lit[2], spell);
+      if (a.aimObj === lit[2]) return { pose: 'tp 0 0 -> lit[2]', ok: true };
+      for (const [x, zz, t] of [[0, -1, lit[2]], [1, -1, lit[2]], [-1, -1, lit[2]]]) {
+        await tp(x, zz);
+        const b = await aimAt(t, spell);
+        const c = b.objs[t];
+        if (b.aimObj === t && c && c.burning) return { pose: `tp ${x} ${zz} -> ${t}`, ok: true };
+      }
+      return { pose: 'none', ok: false };
+    };
+    const far = async (spell) => { await tp(0, 5.5); const a = await aimAt(lit[0], spell); return { pose: 'tp 0 5.5 -> lit[0]', ok: a.aimObj === lit[0] }; };
+    const run = async (spell, poseFn) => {
+      await fresh();
+      const p = await poseFn(spell);
+      await page.evaluate(() => window.__game.pause(true));
+      await until((x) => x.paused, 5000);
+      await hideUi(true);
+      await frames(1);
+      const before = await shot();
+      await hideUi(false);
+      await unpause();
+      await until((x) => x.cooldown === 0, 5000);
+      await hideUi(true);
+      const imgs = [await shot()];
+      await cmd('fire');
+      for (let k = 0; k < 19; k++) { await frames(1); imgs.push(await shot()); }
+      await hideUi(false);
+      const L = imgs.map(lumaOf);
+      let worst = 0; let mist = 0;
+      for (let k = 1; k < L.length; k++) worst = Math.max(worst, flashFrac(L[k - 1], L[k]));
+      for (const im of imgs) {
+        let n = 0;
+        for (let i = 0, k = 0; i < im.w * im.h; i++, k += im.bpp) {
+          if (im.data[k] >= 215 && im.data[k + 1] >= 215 && im.data[k + 2] >= 215
+            && !(before.data[k] >= 215 && before.data[k + 1] >= 215 && before.data[k + 2] >= 215)) n++;
+        }
+        mist = Math.max(mist, n / (im.w * im.h));
+      }
+      return { pose: p.pose, poseOk: p.ok, worst, mist };
+    };
+    const res = [];
+    for (const [spell, name] of [[3, 'Frost'], [4, 'CO2']]) {
+      for (const [where, fn] of [['far', far], ['near', near]]) {
+        const r = await run(spell, fn);
+        res.push({ name, where, ...r });
+      }
+    }
+    const txt = res.map((r) => `${r.name} ${r.where} (${r.pose}): flash ${(r.worst * 100).toFixed(1)}% mist ${(r.mist * 100).toFixed(1)}%`).join(' | ');
+    console.log(`  mist guard: ${txt}`);
+    check('streams: Frost and CO2 streams do not flash the screen', res.every((r) => r.poseOk && r.worst < 0.2), txt);
+    check('streams: Frost and CO2 mist covers under 15% of the view', res.every((r) => r.poseOk && r.mist < 0.15), txt);
+  }
+
+  // 11. The hint order is pinned (banner > idle > note > locked > start).
+  {
+    const table = await page.evaluate(() => {
+      const p = window.__game.pickHint;
+      if (typeof p !== 'function') return null;
+      const d = { playing: true, idle: false, note: '', locked: false, extinguished: 0, casts: 0 };
+      const at = (o) => p({ ...d, ...o });
+      return {
+        banner: [at({ playing: false }), at({ playing: false, idle: true, note: 'N', locked: true })],
+        idle: at({ idle: true, note: 'N' }),
+        note: at({ idle: false, note: 'N', locked: false }),
+        aim: at({ locked: true, extinguished: 0, note: '' }),
+        aimDone: at({ locked: true, extinguished: 1 }),
+        start: at({ locked: false, casts: 0, note: '' }),
+        started: at({ locked: false, casts: 2, note: '' }),
+      };
+    });
+    const ok = !!table && table.banner.every((v) => v === '') && /^Look for a fire\./.test(table.idle) && table.note === 'N'
+      && table.aim === 'Aim at a fire and click.' && table.aimDone === '' && /^Click to look around\./.test(table.start) && table.started === '';
+    check('streams: pickHint follows banner > idle > note > locked > start', ok, JSON.stringify(table));
+    // Live: point mode's note shows right after a reset.
+    await fresh();
+    if ((await st()).locked) {
+      await page.evaluate(() => window.__game.pause(true));
+      await page.evaluate(() => document.exitPointerLock());
+      await until((q) => !q.locked, 8000);
+    }
+    if (!(await pauseShown())) await page.evaluate(() => window.__game.pause(true));
+    await page.click('#pointmode');
+    const f0 = (await st()).frame;
+    const r = await hudWithin(f0, 2, (h) => /^Point and click:/.test(h.hint));
+    check('streams: the point-and-click note shows within 2 frames', r.ok, `hint "${r.h.hint}"`);
+  }
+
+  await fresh();
+  if (lockedOnEntry) await relock();
+  await cmd(`set sway ${swayOnEntry ? 'on' : 'off'}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -1616,9 +2048,12 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
       if (h.ff && h.ff.vis && h.ff.right !== (h.s.fireBearing > 0)) consistent = false;
       log.push(`${h.s.fireBearing}${h.ff && h.ff.vis ? (h.ff.right ? 'R' : 'L') : '-'}`);
     }
-    const found = !!h.ff && !h.ff.vis && h.s.fireOff === false && Math.abs(h.s.fireBearing) <= hfovOf(h.s.fov) / 2;
+    // I-025 (Contract item 3): the arrow may also hide because another
+    // fire came into view before the nearest one did.
+    const found = !!h.ff && !h.ff.vis && h.s.fireInView === true && (h.s.fireOff === true || Math.abs(h.s.fireBearing) <= hfovOf(h.s.fov) / 2);
+    const why = h.s.fireOff === false ? 'nearest fire in view' : 'another fire in view';
     check('cast: turning toward the arrow brings the fire into view', found && consistent && steps <= 40,
-      `${steps} steps, consistent=${consistent}, bearing=${h.s.fireBearing} fireOff=${h.s.fireOff} [${log.join(' ')}]`);
+      `${steps} steps, consistent=${consistent}, bearing=${h.s.fireBearing} fireOff=${h.s.fireOff} fireInView=${h.s.fireInView} hid: ${why} [${log.join(' ')}]`);
     // A fire off screen again, then pause: the arrow hides.
     await cmd(`look ${(f.yaw + 180).toFixed(2)} 0`);
     await hudWithin((await st()).frame, 5, (q) => q.ff && q.ff.vis);
