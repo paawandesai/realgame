@@ -346,6 +346,8 @@ function check(name, ok, detail = '') {
 
   await reviewFollowups({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
+  await lockedClickNoTurn({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
+
   await spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
@@ -2614,6 +2616,167 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
     }
     check('review: Esc with Hints off never flashes the aim hint', ok, note);
   }
+  await fresh();
+}
+
+// ---------------------------------------------------------------------------
+// A click under pointer lock does not turn the view (docs/loop/items/I-047/
+// spec.md, T1-T4). Headless Chromium follows each locked pointerdown and
+// pointerup with a pointermove of about (-VW/2, -VH/2); hud.js used to clamp
+// it to 200 px (a 10.9 degree turn per button event) instead of dropping it.
+// Sway is off for the section; sway and the pose are restored at the end.
+// ---------------------------------------------------------------------------
+async function lockedClickNoTurn({ page, st, cmd, until, frames, sleep, idx, lit, locked, base, browser, errors }) {
+  console.log('  -- locked click does not turn the view (I-047) --');
+  void idx; void lit; void locked; void base; void browser; void errors;
+  const fmt = (v, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : String(v));
+  const unpause = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((x) => !x.paused, 8000); } };
+  const fresh = async () => {
+    await unpause();
+    await cmd('reset');
+    await until((x) => x.outcome === 'playing' && x.burning === 3 && x.casts === 0, 20000);
+  };
+  const pauseShown = () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'));
+  // Copied from castingYouCanSee; also records where it clicked (the last
+  // Playwright mouse position).
+  let mouseAt = 'unknown';
+  const relock = async () => {
+    for (let k = 0; k < 6; k++) {
+      if ((await st()).locked) return true;
+      if (!(await pauseShown())) await page.evaluate(() => window.__game.pause(true));
+      const b = await page.evaluate(() => { const r = document.getElementById('resume').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+      await page.click('#resume');
+      mouseAt = `(${fmt(b[0], 1)},${fmt(b[1], 1)}) (#resume centre)`;
+      if ((await until((q) => q.locked, 4000)).locked) return true;
+      await sleep(1200);
+    }
+    return (await st()).locked;
+  };
+  // Shortest arc, degrees.
+  const dYaw = (a, b) => ((((b - a) % 360) + 540) % 360) - 180;
+  // Waits for 5 consecutive game frames with yaw and pitch unchanged (10 s cap).
+  const still = async () => {
+    const t0 = Date.now();
+    let a = await st();
+    let run = 0;
+    while (Date.now() - t0 < 10000) {
+      await sleep(20);
+      const b = await st();
+      if (b.frame === a.frame) continue;
+      run = b.yaw === a.yaw && b.pitch === a.pitch ? run + (b.frame - a.frame) : 0;
+      a = b;
+      if (run >= 5) return { ok: true, s: b };
+    }
+    return { ok: false, s: a };
+  };
+  const pose = async () => { await cmd('look 0 10'); await until((x) => Math.abs(dYaw(x.yaw, 0)) < 0.5 && Math.abs(x.pitch - 10) < 0.5, 10000); return still(); };
+  const line = (a, b) => `yaw ${fmt(a.yaw)} -> ${fmt(b.yaw)} (d ${fmt(dYaw(a.yaw, b.yaw))}), pitch ${fmt(a.pitch)} -> ${fmt(b.pitch)} (d ${fmt(b.pitch - a.pitch)}), frames ${a.frame} -> ${b.frame}`;
+  const swayOnEntry = (await st()).sway;
+  await cmd('set sway off');
+  await fresh();
+  // Release and take the lock again, so the mouse position is known.
+  if ((await st()).locked) {
+    await page.evaluate(() => window.__game.pause(true));
+    await page.evaluate(() => document.exitPointerLock());
+    await until((q) => !q.locked, 8000);
+  }
+  const lk = await relock();
+  console.log(`  pointer lock for I-047: ${lk}, mouse at ${mouseAt}`);
+
+  // T1. A real press + release with no mouse move does not turn the view.
+  {
+    let ok = false, note = '';
+    try {
+      const p = await pose();
+      const a = p.s;
+      // Every locked move hud.js sees (it stops pointermove at window capture
+      // with stopImmediatePropagation, so that is wrapped), plus mousemove
+      // and the button edges.
+      await page.evaluate(() => {
+        window.__i047 = [];
+        const rec = (e) => { if (document.pointerLockElement) window.__i047.push(`${e.type} t=${e.timeStamp.toFixed(1)} mv=(${e.movementX},${e.movementY}) client=(${e.clientX},${e.clientY}) buttons=${e.buttons}`); };
+        window.__i047Stop = Event.prototype.stopImmediatePropagation;
+        Event.prototype.stopImmediatePropagation = function () { if (this.type === 'pointermove') rec(this); return window.__i047Stop.call(this); };
+        window.__i047Rec = rec;
+        for (const t of ['mousemove', 'pointerdown', 'pointerup']) window.addEventListener(t, rec, { capture: true });
+      });
+      await page.mouse.down();
+      await page.mouse.up();
+      await frames(20);
+      const b = await st();
+      const seen = await page.evaluate(() => {
+        Event.prototype.stopImmediatePropagation = window.__i047Stop;
+        for (const t of ['mousemove', 'pointerdown', 'pointerup']) window.removeEventListener(t, window.__i047Rec, { capture: true });
+        return window.__i047;
+      });
+      ok = lk && a.locked && p.ok && Math.abs(dYaw(a.yaw, b.yaw)) < 0.5 && Math.abs(b.pitch - a.pitch) < 0.5;
+      note = `locked=${a.locked} still=${p.ok} mouse at ${mouseAt}; ${line(a, b)}; events: ${seen.join(' | ')}`;
+    } catch (e) {
+      note = `error: ${e && e.message}`;
+    }
+    check('lock: a real press and release does not turn the view', ok, note);
+  }
+
+  // T2. A synthetic edge plus the bogus move does not turn the view.
+  {
+    let ok = false, note = '';
+    try {
+      const p = await still();
+      const a = p.s;
+      await page.evaluate(() => {
+        document.dispatchEvent(new PointerEvent('pointerup', { button: 0, pointerType: 'mouse', bubbles: true }));
+        document.getElementById('game').dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: -innerWidth / 2, movementY: -innerHeight / 2 }));
+      });
+      await frames(10);
+      const b = await st();
+      ok = lk && a.locked && p.ok && Math.abs(dYaw(a.yaw, b.yaw)) < 0.5 && Math.abs(b.pitch - a.pitch) < 0.5;
+      note = `locked=${a.locked} still=${p.ok}; move (${-VW / 2},${-VH / 2}) right after a pointerup; ${line(a, b)}`;
+    } catch (e) {
+      note = `error: ${e && e.message}`;
+    }
+    check('lock: a move of half the window right after a button event is dropped', ok, note);
+  }
+
+  // T3. A genuine large move (no button event near it) still turns the view.
+  {
+    let ok = false, note = '';
+    try {
+      const p = await still();
+      await sleep(600);
+      const a = await st();
+      await page.evaluate(() => {
+        document.getElementById('game').dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: 300, movementY: 150 }));
+      });
+      await frames(10);
+      const b = await st();
+      ok = lk && a.locked && p.ok && Math.abs(dYaw(a.yaw, b.yaw)) >= 5;
+      note = `locked=${a.locked} still=${p.ok}; move (300,150), no button event for 600+ ms; ${line(a, b)}`;
+    } catch (e) {
+      note = `error: ${e && e.message}`;
+    }
+    check('lock: a large move away from any click still turns the view', ok, note);
+  }
+
+  // T4. A one-axis flick right after a press still turns the view.
+  {
+    let ok = false, note = '';
+    try {
+      const p = await pose();
+      const a = p.s;
+      await page.evaluate(() => {
+        document.dispatchEvent(new PointerEvent('pointerup', { button: 0, pointerType: 'mouse', bubbles: true }));
+        document.getElementById('game').dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: 300, movementY: 0 }));
+      });
+      await frames(10);
+      const b = await st();
+      ok = lk && a.locked && p.ok && Math.abs(dYaw(a.yaw, b.yaw)) >= 5;
+      note = `locked=${a.locked} still=${p.ok}; move (300,0) right after a pointerup; ${line(a, b)}`;
+    } catch (e) {
+      note = `error: ${e && e.message}`;
+    }
+    check('lock: a flick right after a click still turns the view', ok, note);
+  }
+  await cmd(`set sway ${swayOnEntry ? 'on' : 'off'}`);
   await fresh();
 }
 
