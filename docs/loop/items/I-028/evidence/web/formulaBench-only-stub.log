@@ -1,0 +1,35 @@
+got-lock 18:44:38
+PASS bench: a missing bench.js does not stop the boot booted=true casts +1 spell=2 pageerrors=0 console errors=1 (other: )
+PASS bench: closed shape after boot {"v":1,"atBench":false,"open":false}
+PASS bench: the pad is on screen from the start pose bearing -40.6 deg, half view 45.0 deg, pos 0,0,18 yaw 0
+PASS bench: standing on the pad lights the button and never opens the bench locked=true
+PASS bench: no collider pushes the player off the pad pos -3,0,14.5 -> -3,0,14.5
+PASS bench: leaving the pad clears atBench and near {"b":{"v":1,"atBench":false,"open":false},"near":false}
+PASS bench: B opens it from a locked game (lock freed, paused, on top, the rest inert) locked=true {"open":true,"lock":false,"paused":true,"atCentre":true,"inert":[true,true,true,true]}
+PASS bench: Escape closes it, unpauses and gives the canvas focus {"open":false,"paused":false,"inert":[false,false,false,false],"focus":"game"}
+PASS bench: a key held when it opens is released in the game relocked=true pos 0,0,9.25 -> 0,0,9.25
+PASS bench: opened from the pause card, closing returns to it opened=true {"paused":true,"card":true}
+PASS bench: the first open asks with three 160 px pictures [{"band":"sprout","w":168,"h":168,"svg":true},{"band":"seedling","w":168,"h":168,"svg":true},{"band":"apprentice","w":168,"h":168,"svg":true}]
+FAIL bench: choosing 8 to 10 lists the four spells 
+PASS bench: reopened on the same page load it does not ask again {"open":true,"band":"seedling","view":"list","pick":0}
+PASS bench: Change age shows the chooser again {"open":true,"band":"seedling","view":"chooser","pick":0} buttons=3
+PASS bench: after a reload it asks again; no storage key holds the band {"open":true,"band":null,"view":"chooser","pick":0} keys=
+FAIL bench: Sprout lists exactly Water, Frost and CO2, each card at least 120 px  []
+FAIL bench: Sprout learns Water with the mouse error: no #bench .bench-spell[data-slot="2"]
+FAIL bench: Seedling learns Fire on the scale error: no #bench .bench-spell[data-slot="1"]
+FAIL bench: Apprentice learns Frost by typing error: no #bench .bench-spell[data-slot="3"]
+FAIL bench: keyboard only reaches Water and builds it (focus never leaves the bench) reached=false inside=true undefined
+PASS bench: Escape closes it and the canvas has focus {"open":false,"focus":"game"}
+FAIL bench: sizes, text and contrast error: no #bench .bench-spell[data-slot="2"]
+PASS bench: the done icon pops once (count 1); every bench animation runs once; with reduced motion none, and no transition on the beam {"a":{"icon":{"anim":"benchpop","count":"1","trans":"0s"},"beam":{"anim":"none","trans":"0.2s"},"others":["1"],"btn":"none"},"b":{"icon":{"anim":"none","count":"1","trans":"0s"},"beam":{"anim":"none","trans":"0s"},"others":[],"btn":"none"}}
+PASS bench: B and the button do nothing while another aria-modal dialog shows age=true open=true other=true open2=true
+PASS bench: #benchbtn is 64 px, labelled, opens the bench unlocked; locked it shows with pointer-events none {"w":72,"h":72,"label":"Formula Bench (B)","pe":"auto","hint":false,"vis":"visible"} opened=true locked=true {"locked":true,"pe":"none","w":72}
+PASS bench: the attention ring shows after the first cast; the pause card lists Formula Bench | B before=false after cast=true row=true
+FAIL bench: the bench button error: no #bench .bench-spell[data-slot="2"]
+PASS bench: band seedling reaches the game with the bench closed {"v":1,"atBench":false,"open":false,"band":"seedling"}
+PASS bench: ?band=apprentice reaches the game within 2 s of the first state, without an open {"v":1,"atBench":false,"open":false,"band":"apprentice"} after 1847 ms
+FAIL bench: at Sprout pick 1 is ignored and try 1 is not_for_band pick=undefined {"n":1,"slot":1,"ok":false,"code":"parse","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"unknown"}
+PASS no console errors 
+
+22/31 passed in 294 s
+BENCHONLY-DONE 0
