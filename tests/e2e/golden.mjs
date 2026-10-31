@@ -2495,9 +2495,17 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
     const gemNotes = [], restNotes = [];
     let gemOk = true, restOk = false;
     const swayWas = await checked('#sway');
-    // The gem in camera space: the root plus Ry(0.1)·(0, 0.0275, -0.0605)
-    // (local (0, 0.05, -0.11) scaled by 0.55; the Contract keeps these fixed).
-    const gemOf = (vm) => [vm[0] + Math.sin(0.1) * -0.0605, vm[1] + 0.0275, vm[2] + Math.cos(0.1) * -0.0605];
+    // The gem in camera space: the root plus Rx(tilt)·Ry(0.1)·(0, 0.0275,
+    // -0.0605) (local (0, 0.05, -0.11) scaled by 0.55; the Contract keeps
+    // these fixed). Round 2: the rest pose orbits up about the eye by
+    // tilt = 17.6 - clamp(fov/2 - 5, 4, 17.6) deg (feel::vm_tilt_deg),
+    // recomputed here from the live fov, not read back from the game.
+    const tiltOf = (fov) => (17.6 - Math.max(4, Math.min(17.6, fov / 2 - 5))) * DEGR;
+    const rotX = (t, [x, y, z]) => [x, y * Math.cos(t) - z * Math.sin(t), y * Math.sin(t) + z * Math.cos(t)];
+    const gemOf = (vm, fov) => {
+      const o = rotX(tiltOf(fov), [Math.sin(0.1) * -0.0605, 0.0275, Math.cos(0.1) * -0.0605]);
+      return [vm[0] + o[0], vm[1] + o[1], vm[2] + o[2]];
+    };
     const setHud = (hide) => page.evaluate((hide) => {
       for (const id of ['hud', 'pause']) { const e = document.getElementById(id); if (e) e.style.setProperty('display', hide ? 'none' : ''); }
     }, hide);
@@ -2528,9 +2536,12 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
         const x = await until((q) => Math.abs(q.fov - want) <= 0.3 && q.streams === 0 && q.sway === false && q.spell === 1, 10000);
         await frames(3);
         const s1 = await st();
-        const g = gemOf(s1.vm);
+        const g = gemOf(s1.vm, s1.fov);
         const below = Math.atan(-g[1] / -g[2]) / DEGR;
-        const geoOk = Math.abs(s1.fov - want) <= 0.3 && below <= s1.fov / 2 - 3;
+        // The root sits where the orbit puts it (so `g` is where the gem is).
+        const vmWant = rotX(tiltOf(s1.fov), [0.21, -0.18, -0.42]);
+        const vmOk = s1.vm.every((v, i) => Math.abs(v - vmWant[i]) <= 0.002);
+        const geoOk = Math.abs(s1.fov - want) <= 0.3 && vmOk && below <= s1.fov / 2 - 3;
         await setHud(true);
         await frames(2);
         const img = await decodePng(await page.screenshot({ type: 'png', timeout: 180000 }));
@@ -2540,7 +2551,7 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
         const nGem = blueIn(img, G.x * sx, G.y * sy), nMirror = blueIn(img, (W - G.x) * sx, G.y * sy);
         const pixOk = nGem >= 10 && nMirror < 10;
         gemOk = gemOk && pm && geoOk && pixOk && s1.streams === 0;
-        gemNotes.push(`${W}x${H} hfov ${hf}: fov=${fmt(s1.fov)} vm=[${s1.vm.map((v) => fmt(v, 4)).join(',')}] gem ${fmt(below)}° below (limit ${fmt(s1.fov / 2 - 3)}) G=(${fmt(G.x, 0)},${fmt(G.y, 0)}) blue ${nGem} vs mirror ${nMirror} streams=${x.streams}`);
+        gemNotes.push(`${W}x${H} hfov ${hf}: fov=${fmt(s1.fov)} vm=[${s1.vm.map((v) => fmt(v, 4)).join(',')}] (orbit [${vmWant.map((v) => fmt(v, 4)).join(',')}] ${vmOk ? 'ok' : 'OFF'}) gem ${fmt(below)}° below (limit ${fmt(s1.fov / 2 - 3)}) G=(${fmt(G.x, 0)},${fmt(G.y, 0)}) blue ${nGem} vs mirror ${nMirror} streams=${x.streams}`);
       }
       // 8. The default view: the gauntlet has not moved.
       await page.setViewportSize({ width: 1280, height: 720 });
