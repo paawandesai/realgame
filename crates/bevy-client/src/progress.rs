@@ -90,29 +90,103 @@ pub struct Book {
 }
 
 impl Book {
-    pub fn learn(&mut self, _i: usize) -> Vec<Transition> {
-        Vec::new()
+    /// Runs `f` on spell `i` and settles it. Bumps `rev` only when a field
+    /// actually changed; an out-of-range index changes nothing.
+    fn op(&mut self, i: usize, f: impl FnOnce(&mut SpellProgress, u32)) -> Vec<Transition> {
+        let day = self.day;
+        let Some(p) = self.spells.get_mut(i) else {
+            return Vec::new();
+        };
+        let before = *p;
+        f(p, day);
+        let mut out = Vec::new();
+        if p.stage != before.stage {
+            out.push(Transition {
+                spell: i,
+                to: p.stage,
+            });
+        }
+        out.extend(settle(i, p));
+        if *p != before {
+            self.rev = self.rev.wrapping_add(1);
+        }
+        out
     }
 
-    pub fn worked_cast(&mut self, _i: usize, _correct: bool) -> Vec<Transition> {
-        Vec::new()
+    /// Unknown -> Learning, `+XP_LEARN`. Nothing on any other stage.
+    pub fn learn(&mut self, i: usize) -> Vec<Transition> {
+        self.op(i, |p, _| {
+            if p.stage == Stage::Unknown {
+                p.stage = Stage::Learning;
+                add_xp(p, XP_LEARN);
+            }
+        })
     }
 
-    pub fn instant_cast(&mut self, _i: usize) -> Vec<Transition> {
-        Vec::new()
+    /// A worked cast on a learned spell: `+XP_WORKED` if built correctly,
+    /// `+XP_WORKED_WRONG` (0) if not. Nothing on Unknown.
+    pub fn worked_cast(&mut self, i: usize, correct: bool) -> Vec<Transition> {
+        self.op(i, |p, _| {
+            if p.stage != Stage::Unknown {
+                add_xp(p, if correct { XP_WORKED } else { XP_WORKED_WRONG });
+            }
+        })
     }
 
-    pub fn unaided_build(&mut self, _i: usize) -> Vec<Transition> {
-        Vec::new()
+    /// An instant cast: `+XP_INSTANT`, only on Mastered.
+    pub fn instant_cast(&mut self, i: usize) -> Vec<Transition> {
+        self.op(i, |p, _| {
+            if p.stage == Stage::Mastered {
+                add_xp(p, XP_INSTANT);
+            }
+        })
     }
 
-    pub fn predict(&mut self, _i: usize, _correct: bool) -> Vec<Transition> {
-        Vec::new()
+    /// An unaided correct build on Learning or Practised, only while the day
+    /// is known. It counts distinct local calendar days, as target.md's
+    /// "2 days" says: builds at 11:55 pm and 12:05 am count as two days, and
+    /// so does changing the device clock. Accepted on purpose: storing
+    /// timestamps would keep a history of when a child played and still could
+    /// not be checked against a changed clock. This is the only place that
+    /// counts days, so a stricter rule (I-030) can go here.
+    pub fn unaided_build(&mut self, i: usize) -> Vec<Transition> {
+        self.op(i, |p, day| {
+            if day != 0 && matches!(p.stage, Stage::Learning | Stage::Practised) {
+                p.builds = (p.builds + 1).min(BUILDS_NEEDED);
+                if day != p.last_build_day {
+                    p.build_days = (p.build_days + 1).min(DAYS_NEEDED);
+                    p.last_build_day = day;
+                }
+                add_xp(p, XP_UNAIDED_BUILD);
+            }
+        })
     }
 
-    pub fn clear(&mut self) {}
+    /// A "predict what happens" answer on Learning or Practised. A correct
+    /// one sets `predicted` and adds `XP_PREDICT`; a wrong one changes
+    /// nothing and is never penalised.
+    pub fn predict(&mut self, i: usize, correct: bool) -> Vec<Transition> {
+        self.op(i, |p, _| {
+            if correct && matches!(p.stage, Stage::Learning | Stage::Practised) {
+                p.predicted = true;
+                add_xp(p, XP_PREDICT);
+            }
+        })
+    }
 
-    pub fn set_day(&mut self, _d: u32) {}
+    /// Every spell back to the default. The only way down; only an explicit
+    /// player action may call it.
+    pub fn clear(&mut self) {
+        self.spells = Default::default();
+        self.rev = self.rev.wrapping_add(1);
+    }
+
+    /// Today's local day number (days since 1970-01-01 in the device's time
+    /// zone), from `web/progress.js`. Outside 19 000..=80 000 (years 2022 to
+    /// 2189) it reads as 0, unknown. Not a progress change.
+    pub fn set_day(&mut self, d: u32) {
+        self.day = if (19_000..=80_000).contains(&d) { d } else { 0 };
+    }
 
     pub fn get(&self, i: usize) -> Option<&SpellProgress> {
         self.spells.get(i)
@@ -122,8 +196,25 @@ impl Book {
         self.rev
     }
 
+    /// One line, `p1` then `|id:stage:xp:builds:build_days:last_build_day:predicted`
+    /// for each spell not at the default. `rev` and `day` are not saved.
     pub fn encode(&self) -> String {
-        "p1".to_string()
+        let mut s = String::from("p1");
+        for (i, p) in self.spells.iter().enumerate() {
+            if *p != SpellProgress::default() {
+                s.push_str(&format!(
+                    "|{}:{}:{}:{}:{}:{}:{}",
+                    SPELL_IDS[i],
+                    p.stage as u8,
+                    p.xp,
+                    p.builds,
+                    p.build_days,
+                    p.last_build_day,
+                    p.predicted as u8
+                ));
+            }
+        }
+        s
     }
 
     pub fn state_json(&self) -> String {
@@ -147,16 +238,144 @@ impl Book {
     }
 }
 
-pub fn decode(_s: &str) -> Result<[SpellProgress; 4], DecodeError> {
-    Err(DecodeError::Prefix)
+fn add_xp(p: &mut SpellProgress, xp: u32) {
+    p.xp = p.xp.saturating_add(xp).min(XP_MAX);
 }
 
+/// Learning with enough XP becomes Practised; then Practised with 3 builds
+/// over 2 days and a prediction becomes Mastered. Never lowers a stage.
+fn settle(i: usize, p: &mut SpellProgress) -> Vec<Transition> {
+    let mut out = Vec::new();
+    if p.stage == Stage::Learning && p.xp >= PRACTISED_XP {
+        p.stage = Stage::Practised;
+        out.push(Transition {
+            spell: i,
+            to: Stage::Practised,
+        });
+    }
+    if p.stage == Stage::Practised
+        && p.builds >= BUILDS_NEEDED
+        && p.build_days >= DAYS_NEEDED
+        && p.predicted
+    {
+        p.stage = Stage::Mastered;
+        out.push(Transition {
+            spell: i,
+            to: Stage::Mastered,
+        });
+    }
+    out
+}
+
+/// An unsigned decimal of at most `max`; no sign, no spaces, no leading `+`.
+fn num(s: &str, max: u32) -> Result<u32, DecodeError> {
+    if s.is_empty() || s.len() > 10 || !s.bytes().all(|c| c.is_ascii_digit()) {
+        return Err(DecodeError::Range);
+    }
+    match s.parse::<u64>() {
+        Ok(v) if v <= max as u64 => Ok(v as u32),
+        _ => Err(DecodeError::Range),
+    }
+}
+
+/// Parses a save. Rejects the whole save, never part of it. The stage is
+/// kept exactly as saved (no `settle`), above or below what its fields
+/// allow: mastery never fades, and a load is not a progress change.
+pub fn decode(s: &str) -> Result<[SpellProgress; 4], DecodeError> {
+    if s.len() > MAX_SAVE {
+        return Err(DecodeError::TooLong);
+    }
+    let mut parts = s.split('|');
+    if parts.next() != Some("p1") {
+        return Err(DecodeError::Prefix);
+    }
+    let mut out = [SpellProgress::default(); 4];
+    let mut seen = [false; 4];
+    for entry in parts {
+        let f: Vec<&str> = entry.split(':').collect();
+        if f.len() != 7 {
+            return Err(DecodeError::Fields);
+        }
+        let i = index_of(f[0]).ok_or(DecodeError::Id)?;
+        if seen[i] {
+            return Err(DecodeError::Repeated);
+        }
+        seen[i] = true;
+        let stage = match num(f[1], 3)? {
+            0 => Stage::Unknown,
+            1 => Stage::Learning,
+            2 => Stage::Practised,
+            _ => Stage::Mastered,
+        };
+        out[i] = SpellProgress {
+            stage,
+            xp: num(f[2], XP_MAX)?,
+            builds: num(f[3], BUILDS_NEEDED as u32)? as u8,
+            build_days: num(f[4], DAYS_NEEDED as u32)? as u8,
+            last_build_day: num(f[5], 80_000)?,
+            predicted: num(f[6], 1)? == 1,
+        };
+    }
+    Ok(out)
+}
+
+/// Runs one `prog ...` command (the words after `prog`). `load` and `day`
+/// are always allowed; the rest need `?debug`. On `Err` nothing changes.
 pub fn apply_cmd(
-    _b: &mut Book,
-    _args: &[&str],
-    _debug: bool,
+    b: &mut Book,
+    args: &[&str],
+    debug: bool,
 ) -> Result<Vec<Transition>, &'static str> {
-    Ok(Vec::new())
+    let idx = |k: usize| -> Result<usize, &'static str> {
+        args.get(k)
+            .and_then(|s| s.parse::<usize>().ok())
+            .ok_or("needs a spell index")
+    };
+    let flag = |k: usize| -> Result<bool, &'static str> {
+        match args.get(k).copied() {
+            Some("0") => Ok(false),
+            Some("1") => Ok(true),
+            _ => Err("needs 0 or 1"),
+        }
+    };
+    let name = args.first().copied().ok_or("needs a subcommand")?;
+    match name {
+        "load" => {
+            let s = args.get(1).ok_or("needs a save")?;
+            if args.len() != 2 {
+                return Err("bad save");
+            }
+            b.spells = decode(s).map_err(|_| "bad save")?;
+            Ok(Vec::new())
+        }
+        "day" => {
+            let d = args
+                .get(1)
+                .and_then(|s| s.parse::<u32>().ok())
+                .ok_or("needs a day number")?;
+            b.set_day(d);
+            Ok(Vec::new())
+        }
+        "learn" | "worked" | "instant" | "build" | "predict" | "clear" if !debug => {
+            Err("needs ?debug")
+        }
+        "learn" => Ok(b.learn(idx(1)?)),
+        "worked" => {
+            let (i, c) = (idx(1)?, flag(2)?);
+            Ok(b.worked_cast(i, c))
+        }
+        "instant" => Ok(b.instant_cast(idx(1)?)),
+        "build" => Ok(b.unaided_build(idx(1)?)),
+        "predict" => {
+            let (i, c) = (idx(1)?, flag(2)?);
+            Ok(b.predict(i, c))
+        }
+        "clear" => {
+            b.clear();
+            Ok(Vec::new())
+        }
+        _ => Err("unknown prog command"),
+    }
 }
 
 /// The stable id of spell `i` (`Spell::ALL` order), or `""` out of range.
