@@ -64,4 +64,20 @@ The Water, Frost and CO2 streams now have dark outlines (a toon convention, an i
 
 ## Golden
 
-GOLDEN_PLACEHOLDER
+Full `BASE_URL= QUERY=?low node tests/e2e/golden.mjs` at `0668400` (the notes commit changes no code), each run alone under the Chromium lock. 124 checks: 107 existing + 17 new.
+
+| run | result | failures |
+|---|---|---|
+| 1 | 123/124 | `cast: a real click casts exactly once` (casts 1 -> 2 -> 2, lit[1] burning=true) |
+| 2 | 123/124 | same |
+| 3 | 122/124 | same, plus `clock: cast cadence keeps the 0.3 s cooldown in wall time` (casts 9, need 10, 18 frames) |
+
+All 17 `streams:` checks passed in all 3 runs. I-019's blue-pixel check (after 54794 px, need 5676), its flashing guard, its `holding the button keeps casting` (+3 casts over about 1.55 game s), test 16 (`hid: another fire in view` after 3 steps) and I-022's two `review: Hints off ...` checks passed in all 3 runs, with no edits.
+
+**Neither failure comes from this branch:**
+- `cast: a real click casts exactly once` fails the same way on the base. Run as `ONLY=castingYouCanSee` on the stub build (05d43a5 plus the neutral stub, which does not touch casting) on the same machine the same night: `FAIL cast: a real click casts exactly once casts 1 -> 2 -> 2 (20 frames on), lit[1] burning=true`. I-022's round note records the same failure on its a0e2ecb base, and I-024's on main at load average 4.7. The click casts once (casts +1), but lit[1] is still burning 20 frames later. It needs its own item; this item does not edit the check.
+- `clock: cast cadence ...` sends `cast` commands every 100 ms and never uses the held path, so the hold delay cannot change it. I-022 recorded the same miss (casts 9 or 10, need one more, at 18-19 frames) when frames were slow. Load average was about 4-6 during these runs, from other sessions on the box.
+
+So the gate "every existing check 3/3" is **not met**, but only by the two failures above, which also happen on main. Test 17 (perf pairs against a 05d43a5 build) is the tester's job and was not run here. Brotli size is in the rust note (+1,310 B).
+
+Slow click (test 9) per run: run 1 had one invalid attempt (span 0.382, max_dt 0.182, casts +2, so it was retried) and then a valid one (span 0.244, +1 cast). Runs 2 and 3: first attempt valid (span 0.293 and 0.226, +1 cast). First repeat while held: 0.537, 0.648 and 0.640 s after the click.
