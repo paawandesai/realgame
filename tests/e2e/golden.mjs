@@ -1831,7 +1831,7 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
     await frames(20);
     const later = await st();
     check('cast: a real click casts exactly once', lockOk && a.locked && r.ok && later.casts === a.casts + 1,
-      `casts ${a.casts} -> ${r.x.casts} -> ${later.casts} (20 frames on), aimObj at click ${a.aimObj}`);
+      `casts ${a.casts} -> ${r.x.casts} -> ${later.casts} (20 frames on), aimObj at click ${a.aimObj}, at the cast frame ${r.x.aimObj} (yaw ${fmt(a.yaw, 2)} -> ${fmt(r.x.yaw, 2)}, pitch ${fmt(a.pitch, 2)} -> ${fmt(r.x.pitch, 2)}), impacts ${a.impacts} -> ${later.impacts}, hitKind ${later.hitKind}`);
     const t1 = Date.now();
     let rec = await page.evaluate(() => window.__i046rec);
     while (!rec.done && Date.now() - t1 < 20000) { await sleep(50); rec = await page.evaluate(() => window.__i046rec); }
