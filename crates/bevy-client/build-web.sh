@@ -18,7 +18,7 @@ fi
 cargo build --release --locked --target wasm32-unknown-unknown ${FEATURES[@]+"${FEATURES[@]}"}
 OUT=web/pkg-out
 rm -rf "$OUT" && mkdir -p "$OUT"
-cp web/index.html web/style.css web/boot.js web/hud.js web/favicon.svg "$OUT/"
+cp web/index.html web/style.css web/boot.js web/hud.js web/progress.js web/favicon.svg "$OUT/"
 wasm-bindgen --target web --no-typescript --out-dir "$OUT" --out-name bevy-client \
   "$TARGET_DIR/wasm32-unknown-unknown/release/bevy-client.wasm"
 if [[ "${WASM_OPT:-0}" == 1 ]]; then

@@ -346,6 +346,8 @@ function check(name, ok, detail = '') {
 
   await reviewFollowups({ page, st, cmd, until, frames, sleep, idx: (n) => s.objs.filter((o) => o.n === n).map((o) => o.i), lit, locked, base, browser, errors });
 
+  await spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors });
+
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
   console.log(`\n${results.length - fails.length}/${results.length} passed`);
@@ -1049,8 +1051,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   const I019_KEYS = ['clicks', 'firesLeft', 'nearFire', 'fireBearing', 'fireElev', 'fireOff', 'streams', 'fxWater'];
   // I-025 appends fireInView after them (its Contract item 3).
   const I025_KEYS = ['fireInView'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS].every((k, i) => keys[i] === k);
+  // I-027 appends its progress keys after them (its Contract).
+  const I027_KEYS = ['progress', 'progRev', 'progSave'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The
@@ -1319,8 +1323,11 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     const s0 = await st();
     const keys = Object.keys(s0);
     check('streams: fireInView is a boolean, the last state key',
-      typeof s0.fireInView === 'boolean' && keys[keys.length - 1] === 'fireInView' && keys[keys.length - 2] === 'fxWater',
-      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-3).join(',')}`);
+      // I-027 appends exactly its three progress keys after fireInView (its
+      // Contract); fireInView is still the last key before them, after fxWater.
+      typeof s0.fireInView === 'boolean' && keys[keys.length - 4] === 'fireInView' && keys[keys.length - 5] === 'fxWater'
+        && keys.slice(-3).join() === 'progress,progRev,progSave',
+      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-5).join(',')}`);
   }
 
   // 6. The arrow stays away while a fire is aimed at or on screen.
@@ -2608,4 +2615,235 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
     check('review: Esc with Hints off never flashes the aim hint', ok, note);
   }
   await fresh();
+}
+
+// ---------------------------------------------------------------------------
+// Spell progress saved on this device (docs/loop/items/I-027/spec.md, tests
+// 16-23, 25a and 25b): the `progress`, `progRev` and `progSave` keys, saving
+// to localStorage['rg.progress.v1'] through web/progress.js, surviving R and
+// a reload, the path to mastery by `prog` commands, the debug gate, blocked
+// and corrupt storage, gameplay unchanged, and a boot that a missing
+// progress.js cannot stop. Ends with the save removed, so runs start fresh.
+async function spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors }) {
+  const KEY = 'rg.progress.v1';
+  const IDS = ['fire', 'water', 'frost', 'co2'];
+  const stored = (p = page) => p.evaluate((k) => { try { return localStorage.getItem(k); } catch { return 'THREW'; } }, KEY);
+  // Waits for a (re)loaded page to publish state and run a few frames.
+  const booted = async (p) => {
+    for (const t0 = Date.now(); !(await p.evaluate(() => !!window.__gameState && !!window.__game));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    const f0 = await p.evaluate(() => window.__game.state().frame);
+    for (const t0 = Date.now(); Date.now() - t0 < 60000; await sleep(150)) {
+      if ((await p.evaluate(() => window.__game.state().frame)) >= f0 + 5) return true;
+    }
+    return false;
+  };
+  const reload = async () => { await page.reload(); await booted(page); };
+  const brief = (x) => x && x.progress ? x.progress.map((e) => `${e.id}:${e.st}:${e.xp}`).join(',') + ` rev=${x.progRev} save=${x.progSave}` : String(x && x.progress);
+  // Casts Frost with select 3 + cast on page p; returns the casts delta and the spell index.
+  const castFrost = async (p) => {
+    const sp = () => p.evaluate(() => window.__game.state());
+    await p.evaluate(() => window.__game.cmd('select 3'));
+    let x = await sp();
+    for (const t0 = Date.now(); x.spell !== 2 && Date.now() - t0 < 15000; await sleep(100)) x = await sp();
+    const c0 = x.casts;
+    await sleep(400); // clear of the 0.3 s cooldown
+    await p.evaluate(() => window.__game.cmd('cast'));
+    for (const t0 = Date.now(); Date.now() - t0 < 20000; await sleep(100)) { x = await sp(); if (x.casts > c0) break; }
+    return { delta: x.casts - c0, spell: x.spell };
+  };
+
+  // 16. Shape.
+  {
+    let ok = false, note = '';
+    try {
+      await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, KEY);
+      await reload();
+      const x = await st();
+      const keys = Object.keys(x);
+      const tail = keys.slice(keys.indexOf('fireInView') + 1);
+      const fresh = Array.isArray(x.progress) && x.progress.length === 4
+        && x.progress.every((e, i) => e.id === IDS[i] && e.st === 'unknown' && e.xp === 0
+          && Object.keys(e).join() === 'id,st,xp,builds,days,predicted');
+      ok = fresh && x.progRev === 0 && x.progSave === 'p1' && tail.join() === 'progress,progRev,progSave';
+      note = `${brief(x)} tail=${tail.join()}`;
+    } catch (e) { note = `error: ${e && e.message}`; }
+    check('progress: fresh state has 4 unknown spells, progRev 0, progSave p1, keys in order', ok, note);
+  }
+
+  // 17. A change is saved (within 2 s).
+  {
+    await cmd('prog learn 1');
+    const t0 = Date.now();
+    let x = await st(), v = await stored();
+    while (!(x.progress[1].st === 'learning' && v === x.progSave) && Date.now() - t0 < 2000) { await sleep(100); x = await st(); v = await stored(); }
+    const want = 'p1|water:1:10:0:0:0:0';
+    check('progress: prog learn 1 is saved within 2 s', x.progress[1].st === 'learning' && x.progress[1].xp === 10 && x.progRev === 1 && x.progSave === want && v === want,
+      `${brief(x)} stored=${v} after ${Date.now() - t0} ms`);
+  }
+
+  // 18. It survives R and a reload.
+  {
+    await cmd('reset');
+    await frames(5);
+    const afterR = await st();
+    await reload();
+    const x = await until((q) => q.progress && q.progress[1].st === 'learning', 10000);
+    check('progress: survives reset and a reload (progRev 0 after load)',
+      afterR.progress[1].st === 'learning' && x.progress[1].st === 'learning' && x.progress[1].xp === 10 && x.progRev === 0,
+      `after R ${brief(afterR)}; after reload ${brief(x)}`);
+  }
+
+  // 19. The path to mastery, end to end (prog commands only).
+  {
+    const steps = [];
+    const run = async (c, pred) => { await cmd(c); const x = await until(pred, 10000); steps.push(`${c} -> ${x.progress[1].st}:${x.progress[1].xp}`); return x; };
+    await run('prog worked 1 1', (q) => q.progress[1].xp === 20);
+    let x = await run('prog worked 1 1', (q) => q.progress[1].xp === 30);
+    const practised = x.progress[1].st === 'practised';
+    await cmd('prog day 20755');
+    for (let k = 1; k <= 3; k++) x = await run('prog build 1', (q) => q.progress[1].builds === k);
+    x = await run('prog predict 1 1', (q) => q.progress[1].predicted);
+    const stillPractised = x.progress[1].st === 'practised' && x.progress[1].days === 1;
+    await cmd('prog day 20756');
+    x = await run('prog build 1', (q) => q.progress[1].st === 'mastered');
+    const mastered = x.progress[1].st === 'mastered';
+    await sleep(800); // one saver poll
+    await reload();
+    const y = await until((q) => q.progress && q.progress[1].st === 'mastered', 10000);
+    check('progress: worked casts, 3 builds over 2 days and a prediction reach mastered, kept on reload',
+      practised && stillPractised && mastered && y.progress[1].st === 'mastered',
+      `${steps.join('; ')}; after reload ${brief(y)}`);
+  }
+
+  // 23a. Gameplay unchanged with water mastered.
+  {
+    const x = await st();
+    const r = await castFrost(page);
+    check('progress: with water mastered, select 3 + cast still casts Frost', x.progress[1].st === 'mastered' && r.delta === 1 && r.spell === 2,
+      `water=${x.progress[1].st} casts +${r.delta} spell=${r.spell}`);
+  }
+
+  // 22. Corrupt save (and 23b, gameplay with everything unknown).
+  {
+    await page.evaluate((k) => localStorage.setItem(k, 'garbage'), KEY);
+    const e0 = errors.length;
+    await reload();
+    await frames(10);
+    const x = await st();
+    const kept = await stored();
+    const allUnknown = x.progress.every((e) => e.st === 'unknown');
+    const r = await castFrost(page);
+    check('progress: with all spells unknown, select 3 + cast still casts Frost', allUnknown && r.delta === 1 && r.spell === 2,
+      `${brief(x)} casts +${r.delta} spell=${r.spell}`);
+    await cmd('prog learn 0');
+    const t0 = Date.now();
+    let v = await stored();
+    while (v !== 'p1|fire:1:10:0:0:0:0' && Date.now() - t0 < 5000) { await sleep(100); v = await stored(); }
+    check('progress: a corrupt save boots fresh, is kept until the first change, then replaced',
+      allUnknown && kept === 'garbage' && v === 'p1|fire:1:10:0:0:0:0' && errors.length === e0,
+      `${brief(x)} stored before=${kept} after=${v} new errors=${errors.slice(e0).join(' | ')}`);
+  }
+
+  // 25a. progress.js is shipped next to the page, byte for byte.
+  {
+    let ok = false, note = '';
+    try {
+      const { readFile } = await import('node:fs/promises');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+      const src = await readFile(join(dirname(fileURLToPath(import.meta.url)), '../../crates/bevy-client/web/progress.js'), 'utf8');
+      const served = await page.evaluate(async () => { const r = await fetch(new URL('progress.js', location.href)); return r.ok ? r.text() : `HTTP ${r.status}`; });
+      ok = served === src;
+      note = `served ${served.length} bytes, source ${src.length} bytes`;
+    } catch (e) { note = `error: ${e && e.message}`; }
+    check('progress: progress.js is served and matches web/progress.js', ok, note);
+  }
+
+  // Leave the main page fresh.
+  await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, KEY);
+  await reload();
+  {
+    const x = await st();
+    check('progress: the save is removed at the end (fresh on reload)', x.progress.every((e) => e.st === 'unknown') && (await stored()) === null, brief(x));
+  }
+
+  const root = base.replace(/\?.*$/, '');
+  const query = (base.match(/\?(.*)$/) || ['', ''])[1].split('&').filter((p) => p && p !== 'debug');
+  const urlWith = (extra) => `${root}?${[...query, ...extra].join('&')}`;
+  const VW2 = 1280, VH2 = 720;
+
+  // 20. Not a cheat outside debug.
+  {
+    const ctx = await browser.newContext({ viewport: { width: VW2, height: VH2 } });
+    const p = await ctx.newPage();
+    const msgs = [];
+    p.on('console', (m) => msgs.push({ type: m.type(), text: m.text() }));
+    let ok = false, note = '';
+    try {
+      await p.goto(urlWith([]));
+      await booted(p);
+      await p.evaluate(() => window.__game.cmd('prog learn 2'));
+      const t0 = Date.now();
+      let warned = false;
+      while (!warned && Date.now() - t0 < 2000) { await sleep(100); warned = msgs.some((m) => m.text.includes('prog learn 2') && m.text.includes('needs ?debug')); }
+      await sleep(300);
+      const x = await p.evaluate(() => window.__game.state());
+      const errProg = msgs.filter((m) => m.type === 'error' && m.text.includes('prog'));
+      ok = x.progress[2].st === 'unknown' && warned && errProg.length === 0;
+      note = `frost=${x.progress[2].st} warned=${warned} error msgs with prog=${errProg.length}`;
+    } catch (e) { note = `error: ${e && e.message}`; }
+    check('progress: prog learn is refused without ?debug (needs ?debug, not an error)', ok, note);
+    await ctx.close();
+  }
+
+  // 21. Blocked storage.
+  {
+    const ctx = await browser.newContext({ viewport: { width: VW2, height: VH2 } });
+    await ctx.addInitScript(() => {
+      Storage.prototype.getItem = () => { throw new Error('blocked'); };
+      Storage.prototype.setItem = () => { throw new Error('blocked'); };
+    });
+    const p = await ctx.newPage();
+    const errs = [];
+    p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+    p.on('pageerror', (e) => errs.push(e.message));
+    let ok = false, note = '';
+    try {
+      await p.goto(urlWith(['debug']));
+      await booted(p);
+      await p.evaluate(() => window.__game.cmd('prog learn 1'));
+      let x;
+      for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(150)) { x = await p.evaluate(() => window.__game.state()); if (x.progress[1].st === 'learning') break; }
+      await sleep(1200); // a couple of saver polls hit the throwing setItem
+      ok = x.progress[1].st === 'learning' && errs.length === 0;
+      note = `water=${x.progress[1].st} errors=${errs.slice(0, 2).join(' | ')}`;
+    } catch (e) { note = `error: ${e && e.message}`; }
+    check('progress: blocked storage boots, progress works in the page, no errors', ok, note);
+    await ctx.close();
+  }
+
+  // 25b. A missing progress.js cannot stop the boot.
+  {
+    const ctx = await browser.newContext({ viewport: { width: VW2, height: VH2 } });
+    await ctx.route('**/progress.js', (r) => r.fulfill({ status: 404, body: '' }));
+    const p = await ctx.newPage();
+    const pageErrs = [];
+    const consoleErrs = [];
+    p.on('console', (m) => { if (m.type() === 'error') consoleErrs.push({ text: m.text(), url: (m.location() || {}).url || '' }); });
+    p.on('pageerror', (e) => pageErrs.push(e.message));
+    let ok = false, note = '';
+    try {
+      await p.goto(urlWith(['debug']));
+      const up = await booted(p);
+      const r = await castFrost(p);
+      const other = consoleErrs.filter((e) => !(/Failed to load resource/.test(e.text) && /progress\.js/.test(e.url + e.text)));
+      ok = up && r.delta === 1 && r.spell === 2 && pageErrs.length === 0 && other.length === 0;
+      note = `booted=${up} casts +${r.delta} spell=${r.spell} pageerrors=${pageErrs.length} console errors=${consoleErrs.length} (other: ${other.map((e) => e.text).slice(0, 2).join(' | ')})`;
+    } catch (e) { note = `error: ${e && e.message}`; }
+    check('progress: a missing progress.js does not stop the boot', ok, note);
+    await ctx.close();
+  }
 }
