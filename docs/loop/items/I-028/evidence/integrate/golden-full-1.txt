@@ -1,0 +1,189 @@
+locked Sat Oct 31 21:21:49 UTC 2026
+PASS boots objs=14 burning=3
+PASS three fires at start 
+PASS a click over a target locks the pointer and does not cast hover was 6, locked=true, casts 0 -> 0
+PASS mouse look turns yaw 0 -> 349.11
+PASS WASD moves moved 2.33 m
+PASS jump y=0.9
+PASS keys 1-4 select spells 0,1,2,3
+PASS wheel switches spell spell=0
+PASS left click casts while locked casts 0 -> 1
+PASS aim turns while the fire button is held yaw 0 -> 8.16
+PASS fire spreads to neighbours burning=5 after 80 s of sim
+PASS unchecked fire reaches the greenhouse (lose) lost
+PASS reset burning=3
+PASS fire ignites the dry hedge temp=800
+PASS foam smothers the hedge ext=0
+PASS a fire the player lit does not count toward the objective ext=0
+PASS foam blanket stops re-ignition (no O2) No oxygen under the CO₂ blanket, so the fire cannot start.
+PASS fire melts the ice wall into a puddle The ice melted at 0 °C: H₂O(s) → H₂O(l). Now it is a puddle.
+PASS frost refreezes the meltwater Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+PASS lab bench: water-splitting placeholder Water-splitting station (coming soon): 2H₂O → 2H₂ + O₂ with electricity.
+PASS frost on the steam vent temp=5
+PASS frost freezes the puddle Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+PASS water puts out fire 1 Fire out! Water cooled it below its ignition temperature.
+PASS frost puts out fire 2 Fire out! Liquid nitrogen at −196 °C cooled it far below ignition.
+PASS Esc releases the mouse and pauses paused=true locked=false
+PASS drag-to-look turns the view without pointer lock yaw 302.2 -> 295.66
+PASS hover finds the target under the cursor hover=6
+PASS click-to-target casts without lock You saved the greenhouse! Water, frost and CO₂ each stop fire in their own way.
+PASS Save the Greenhouse win ext=3 burning=0
+PASS win banner shown You saved the greenhouse!
+PASS clock: game time keeps up with the wall clock and stops while paused frames=24 dGame=5.750 expected=5.750 wall=7.988 maxDt=0.25 paused=true paused frames=10 dGame paused=0.0000
+PASS clock: walking covers 5 m/s of game time dist=13.75 m expectedGame=2.750 s frames=12 bounds [11.39, 15.32]
+PASS clock: no tunnelling through the 0.1 m greenhouse pane at large dt sprint max x=-8.400 strafe max x=-8.400 (limit -8.34)
+FAIL clock: cast cadence keeps the 0.3 s cooldown in wall time casts=8 need 9 expectedGame=3.750 frames=16
+PASS clock: a spell lands on a target 15 m away at large dt impacts 0 -> 1 after 2 frames, 415 ms; aim=0 dist=15.00
+PASS clock: no 0.05 s dt clamp left; every per-frame system uses clock::frame_dt clamped in [] missing frame_dt in [] MAX_FRAME_DT=true clock.rs=true motion.rs=true
+PASS clock: state JSON keeps the base keys in order, appends gameTime and dt, and parses every frame keys ok=true (n=52, last=progress,progRev,progSave) objs ok=true parsed=201 errors=0 key changes=0
+PASS clock: memory stays flat (heap +8 MB at most, wasm memory at most 96 MB) 92 STATS lines, heap_live 25 -> 25.1 MB, wasm max 33.5 MB
+PASS feel: default view is 90° wide (58.7° tall) fov=58.72 hfov=90.0
+PASS feel: View width slider sets the FOV live fov=67.67 want 67.67 label=100°
+PASS feel: the cursor ray uses the live FOV hover=0 want 0 fov=67.67
+PASS feel: camera stays at the eye; hand sway moves the gauntlet when on camOk=true vm spread=0.0110,0.0044,0.0000
+PASS feel: hand sway off holds the gauntlet still camOk=true vm spread=0.00000,0.00000,0.00000
+PASS feel: the view never moves without input (assist on) yaw 32.74 -> 32.74, pitch -1.84 -> -1.84
+PASS feel: 100 px turns 5.44° at sens 1 turned 5.440°
+PASS feel: sens 2 turns twice as far sens1 5.440° sens2 10.890°
+PASS feel: Look speed slider sets sens live sens=1.5 label=1.50 range=0.25,3
+PASS feel: aim assist catches a near miss bush 5 aimObj=5 assisted=true
+PASS feel: Aim help toggles at runtime without a reload off: assist=false aim=-1; on: assisted=true aim=5
+PASS feel: a cast pulses the crosshair cast at frame 701
+PASS feel: cooldown ring shows and empties cooldown=0.3 max=0.3 ring=true cleared=true
+PASS feel: the on-target crosshair shows a ring (shape cue) rgb(255, 225, 74)
+PASS feel: water on a bush shows the hit marker and sound in the same frame hitKind=hit show={"t":292538.10000000894,"cls":"show kind-hit","frame":716,"impacts":1,"hitKind":"hit","hitFrame":716,"hitX":0.5,"hitY":0.5,"locked":false,"sound":{"name":"hit","n":99,"played":true,"peak":0.12,"frame":716},"x":true,"slash":false,"star":false,"box":[626,346,28,28]}
+PASS feel: fire on the wet bush shows the fizzle marker and sound hitKind=fizzle show={"t":296573.5,"cls":"show kind-fizzle","frame":729,"impacts":2,"hitKind":"fizzle","hitFrame":729,"hitX":0.5,"hitY":0.5,"locked":false,"sound":{"name":"fizzle","n":101,"played":true,"peak":0.05,"frame":729},"x":false,"slash":true,"star":false,"box":[626,346,28,28]}
+PASS feel: putting a fire out shows the big star and the cheer hitKind=out width=96 peak=0.15
+PASS feel: the marker clears within 1 s 775 ms
+PASS feel: a miss shows no marker and has its own sound hitKind=miss shows=0 sound=miss
+PASS feel: Sound off mutes but still counts {"name":"out","n":107,"played":false,"peak":0.15,"frame":781}
+PASS feel: point-and-click marker sits on the impact marker (752.9, 360.0) impact (752.9, 360.0) hitX=0.5882
+PASS feel: locked marker sits at the crosshair marker (640.0,360.0) centre (640,360)
+PASS feel: input reaches the game within 2 frames turn 1, cast 1, sens 1 frames
+PASS feel: the out marker does not flash the screen worst frame-to-frame change 2.1%
+PASS feel: a burst of casts flashes at most 3 times a second 6 casts sent, 6 fired, 4 samples, big changes 0, max/s 0
+PASS feel: all HUD and pause text is at least 18 px and slots fit 
+PASS feel: Text size 200% doubles text and keeps the HUD on screen 
+PASS feel: pause controls are at least 24 px (buttons 40 px) 
+PASS feel: text contrast is at least 4.5:1 on its panel 
+PASS feel: idle hint appears after 45 s with no progress (not before 40 s) shown at 46175 ms, early=false
+PASS feel: turning Hints off clears the idle hint within 2 frames 0 frames, now {"hint":"Point and click: click a glowing target to cast at it. Drag to look.","nudge":false}
+PASS feel: the idle clock restarts after a pause none for 40 s
+PASS feel: settings are saved {"sens":1.5,"hfov":100,"sway":true,"assist":true,"hints":false,"sound":true,"text":1}
+PASS feel: saved settings apply after a reload sens=1.5 fov=67.67 hints=false
+PASS feel: with nothing saved the defaults return sens=1 fov=58.72
+PASS feel: blocked storage + reduced motion boots with URL sens and no sway sens=2 fov=58.72 sway box=false state=false anim=none errors=
+PASS streams: fireInView is a boolean, the last state key fireInView=true (boolean) last keys fxWater,fireInView,progress,progRev,progSave
+PASS streams: no arrow while aiming at a fire (the nearest fire off screen) target 0 aimObj=0 nearFire=6 fireOff=true fireInView=true finder=false
+PASS streams: the arrow shows exactly when no fire is in view (sweep) all 24 yaws agree
+PASS streams: the sweep both hides the arrow for a fire in view and shows it fireOff&&fireInView at 8 yaws, finder shown at 11 yaws
+PASS streams: behind the greenhouse the finder follows the rule (occlusion recorded) aimObj=-1 nearFire=6 fireOff=false fireInView=true finder=false
+PASS streams: the Water stream stands out against the sky along its length try 1: 10/10 caught@3 streams=1 runs 20:29 30:42 40:56 50:70 60:81 70:96 80:109 90:121 100:129 110:137
+PASS streams: the Frost stream stands out against the sky along its length try 1: 10/10 caught@3 streams=1 runs 20:28 30:41 40:54 50:70 60:80 70:95 80:109 90:121 100:128 110:135
+PASS streams: the CO2 stream stands out against the sky along its length try 1: 10/10 caught@3 streams=1 runs 20:28 30:41 40:54 50:70 60:80 70:96 80:109 90:121 100:128 110:135
+PASS streams: the Water stream stands out against the ground try 1: pose -4,14 10/10 kept (0 skipped) caught@1 streams=1 runs 20:39 30:51 40:63 50:78 60:90 70:103 80:112 90:121 100:129 110:137
+PASS streams: the Frost stream stands out against the ground try 1: pose -4,14 10/10 kept (0 skipped) caught@1 streams=1 runs 20:40 30:50 40:62 50:78 60:88 70:102 80:112 90:121 100:109 110:108
+PASS streams: the CO2 stream stands out against the ground try 1: pose -4,14 10/10 kept (0 skipped) caught@1 streams=1 runs 20:40 30:49 40:63 50:78 60:88 70:102 80:112 90:121 100:109 110:108
+PASS streams: a slow click (0.35 s) casts once span 0.218 max_dt 0.149 casts +1
+PASS streams: holding repeats, first after half a second casts +6; first repeat 0.554 s after the click (need >= 0.250)
+PASS streams: Frost and CO2 streams do not flash the screen Frost far (tp 0 5.5 -> lit[0]): flash 0.7% mist 0.0% | Frost near (tp 0 0 -> lit[2]): flash 7.0% mist 0.6% | CO2 far (tp 0 5.5 -> lit[0]): flash 0.6% mist 0.0% | CO2 near (tp 0 0 -> lit[2]): flash 5.9% mist 1.0%
+PASS streams: Frost and CO2 mist covers under 15% of the view Frost far (tp 0 5.5 -> lit[0]): flash 0.7% mist 0.0% | Frost near (tp 0 0 -> lit[2]): flash 7.0% mist 0.6% | CO2 far (tp 0 5.5 -> lit[0]): flash 0.6% mist 0.0% | CO2 near (tp 0 0 -> lit[2]): flash 5.9% mist 1.0%
+PASS streams: pickHint follows banner > idle > note > locked > start {"banner":["",""],"idle":"Look for a fire. Press 2 for Water, aim at the fire and click.","note":"N","aim":"Aim at a fire and click.","aimDone":"","start":"Click to look around. Esc shows the controls and point-and-click mode.","started":""}
+PASS streams: the point-and-click note shows within 2 frames hint "Point and click: click a glowing target to cast at it. Drag to look."
+PASS cast: Water is the spell selected on boot first state spell=1 water slot sel=true
+PASS cast: one synthetic click casts once and puts the fire out locked=true clicks 0 -> 1, casts 0 -> 1, impacts 0 -> 1, burning=false, ext 0 -> 1, hitKind=out, firesLeft 3 -> 2, frames 1
+PASS cast: a real click casts exactly once casts 1 -> 2 -> 2 (20 frames on), lit[1] burning=false
+PASS cast: holding the button keeps casting casts +3 over 1.522 game s (1608 ms wall)
+PASS cast: a click casts and shows a stream within 2 frames cast after 1 frames, stream after 1 frames (aim 0, cooldown 0)
+PASS cast: Water and CO2 land within 0.25 s of game time from 18 m Water: pose (-4, 14) dist 19.47 m, g_i - g_c = 0.000 s, d = 0.2500, 0 frames cast->impact; CO2: pose (-4, 14) dist 19.47 m, g_i - g_c = 0.000 s, d = 0.2500, 0 frames cast->impact
+PASS cast: a Water stream shows for 3 frames or more from the cast cast row 0, longest stream run 3 frames from row 0; rows [[129,1,1,1,25],[130,1,1,1,24],[131,1,1,1,19],[132,1,0,1,5],[133,1,0,1,0],[134,1,0,1,0],[135,1,0,1,0],[136,1,0,1,0],[137,1,0,1,0]]
+PASS cast: the Water splash has 20 particles or more fxWater at impact 25
+PASS cast: the Water stream shows on screen (blue pixels) before 2911/2911 noise 0 after 54794 need 5676 caught@1 streams=1
+PASS cast: the objective shows one number of fires to put out text "Fires to put out: 3" firesLeft=3 pips=3
+PASS cast: the counter follows the fires that spread burning=5 ext=0 firesLeft=5 text "Fires to put out: 5" pips=5
+PASS cast: putting out a counted fire lowers the number by one target 0: 5 -> 4 (firesLeft 4, burning 4, ext 1)
+PASS cast: a fire behind the player shows the arrow on its side fireOff=true nearFire=6 bearing=-122.2 finder={"vis":true,"right":false,"left":true,"w":72}
+PASS cast: turning toward the arrow brings the fire into view 3 steps, consistent=true, bearing=-97.7 fireOff=true fireInView=true hid: another fire in view [-114L -105.9L -97.7-]
+PASS cast: pausing hides the arrow finder={"vis":false,"right":false,"left":true,"w":0} paused=true
+PASS cast: Esc pauses and frees the mouse under automation locked before=true pause shown=true paused=true locked=false lockElement null=true
+PASS cast: P pauses and P again resumes; the pause card lists Esc or P relocked=true P: shown=true paused=true locked=false; P again: paused=false; row=true
+PASS cast: the crosshair adds a fire ring only on a burning target locked=true bush 5: true, fire 0: true (on fire), shadow {"withFire":"rgba(0, 0, 0, 0.75) 0px 0px 0px 2px, rgb(255, 122, 26) 0px 0px 0px 5px, rgba(0, 0, 0, 0.6) 0px 0px 0px 6px","without":"none"}
+PASS cast: the locked hint says to aim at a fire hint "Aim at a fire and click."
+PASS cast: point mode marks a fire under the cursor apart from a bush fire: hover=6 [hover hover-fire]; bush: hover=5 [hover]
+PASS cast: nothing shows under the lose banner outcome=lost locked=false hint "" finder={"vis":false,"right":false,"left":true,"w":0} nudge=false
+PASS cast: nothing shows under the win banner outcome=won hint "" finder={"vis":false,"right":false,"left":true,"w":0} nudge=false
+PASS cast: the stream and splash do not flash the screen worst frame-to-frame change: Water 2.2%, CO2 2.1%
+PASS review: Hints off hides the locked hint, on brings it back locked=true ticked=true before "Aim at a fire and click." (ext=0); off "" ok=true; on "Aim at a fire and click." ok=true
+PASS review: Hints off keeps the start line and the point-and-click note start "Click to look around. Esc shows the controls and point-and-click mode." (locked=false casts=0); point mode=true note "Point and click: click a glowing target to cast at it. Drag to look."
+PASS review: Hints is ticked and saved again afterwards {"sens":1,"hfov":90,"sway":true,"assist":true,"hints":true,"sound":true,"text":1}
+PASS review: Aim help off turns off the tap and hover cone near miss on bush 5: true; point mode=true; on: hover=5; off: hover=-1 assist=false; on again: hover=5
+PASS review: an exact point-and-click hit still works with Aim help off hover=0 want 0 assist=false
+PASS review: View width is 90° wide at 4:3 and 21:9, live 4:3 fov=73.74 want 73.74; 21:9 fov=46.40 want 46.40; 4:3 at 100: fov=83.58 want 83.58 label=100°; back at 1280x720: fov=58.72
+PASS review: View width 100° holds at 4:3 and the label says 100° 4:3 fov=73.74 want 73.74; 21:9 fov=46.40 want 46.40; 4:3 at 100: fov=83.58 want 83.58 label=100°; back at 1280x720: fov=58.72
+PASS review: the cursor ray matches the view off-centre at 4:3 and 21:9 960x720 fov=73.74 pose "tp 0 5.5 face 0" P=(728,234) placed=true hover@P=0 want 0; (i stale vfov 58.72) P'=(810,192) |P'-P|=92.6 px hover=-1; (ii 16:9 aspect) P'=(666,234) |P'-P|=61.9 px hover=-1 | 1680x720 fov=46.40 pose "tp 0 5.5 face 0" P=(1264,236) placed=true hover@P=0 want 0; (i stale vfov 58.72) P'=(1163,266) |P'-P|=105.2 px hover=-1; (ii 16:9 aspect) P'=(1396,236) |P'-P|=132.5 px hover=-1
+PASS review: the view returns to 58.72° tall at the default size 4:3 fov=73.74 want 73.74; 21:9 fov=46.40 want 46.40; 4:3 at 100: fov=83.58 want 83.58 label=100°; back at 1280x720: fov=58.72
+PASS review: the gauntlet's spell gem stays on screen at 21:9 1680x720 hfov 70: fov=33.41 vm=[0.2100,-0.1359,-0.4363] (orbit [0.2100,-0.1359,-0.4363] ok) gem 11.72° below (limit 13.70) G=(1336,609) blue 128 vs mirror 0 streams=0 | 1680x720 hfov 75: fov=36.41 vm=[0.2100,-0.1473,-0.4326] (orbit [0.2100,-0.1473,-0.4326] ok) gem 13.22° below (limit 15.20) G=(1295,617) blue 136 vs mirror 0 streams=0 | 960x720 hfov 70: fov=55.41 vm=[0.2100,-0.1800,-0.4200] (orbit [0.2100,-0.1800,-0.4200] ok) gem 17.62° below (limit 24.70) G=(771,578) blue 105 vs mirror 0 streams=0
+PASS review: the gauntlet does not move at the default view 1280x720 hfov 90: fov=58.72 vm=[0.2100,-0.1800,-0.4200] want [0.21,-0.18,-0.42] ± 0.002
+PASS review: Esc with Hints off never flashes the aim hint locked=true before: casts=0 ext=0; after Esc locked=false paused=true; shown ["Click to look around. Esc shows the controls and point-and-click mode."]
+PASS progress: fresh state has 4 unknown spells, progRev 0, progSave p1, keys in order fire:unknown:0,water:unknown:0,frost:unknown:0,co2:unknown:0 rev=0 save=p1 tail=progress,progRev,progSave
+PASS progress: prog learn 1 is saved within 2 s fire:unknown:0,water:learning:10,frost:unknown:0,co2:unknown:0 rev=1 save=p1|water:1:10:0:0:0:0 stored=p1|water:1:10:0:0:0:0 after 1333 ms
+PASS progress: survives reset and a reload (progRev 0 after load) after R fire:unknown:0,water:learning:10,frost:unknown:0,co2:unknown:0 rev=1 save=p1|water:1:10:0:0:0:0; after reload fire:unknown:0,water:learning:10,frost:unknown:0,co2:unknown:0 rev=0 save=p1|water:1:10:0:0:0:0
+PASS progress: worked casts, 3 builds over 2 days and a prediction reach mastered, kept on reload prog worked 1 1 -> learning:20; prog worked 1 1 -> practised:30; prog build 1 -> practised:50; prog build 1 -> practised:70; prog build 1 -> practised:90; prog predict 1 1 -> practised:110; prog build 1 -> mastered:130; after reload fire:unknown:0,water:mastered:130,frost:unknown:0,co2:unknown:0 rev=0 save=p1|water:3:130:3:2:20756:1
+PASS progress: with water mastered, select 3 + cast still casts Frost water=mastered casts +1 spell=2
+PASS progress: with all spells unknown, select 3 + cast still casts Frost fire:unknown:0,water:unknown:0,frost:unknown:0,co2:unknown:0 rev=0 save=p1 casts +1 spell=2
+PASS progress: a corrupt save boots fresh, is kept until the first change, then replaced fire:unknown:0,water:unknown:0,frost:unknown:0,co2:unknown:0 rev=0 save=p1 stored before=garbage after=p1|fire:1:10:0:0:0:0 new errors=
+PASS progress: progress.js is served and matches web/progress.js served 3187 bytes, source 3187 bytes
+PASS progress: the save is removed at the end (fresh on reload) fire:unknown:0,water:unknown:0,frost:unknown:0,co2:unknown:0 rev=0 save=p1
+PASS progress: prog learn is refused without ?debug (needs ?debug, not an error) frost=unknown warned=true error msgs with prog=0
+PASS progress: blocked storage boots, progress works in the page, no errors water=learning errors=
+PASS progress: a missing progress.js does not stop the boot booted=true casts +1 spell=2 pageerrors=0 console errors=1 (other: )
+PASS bench: a missing bench.js does not stop the boot booted=true casts +1 spell=2 pageerrors=0 console errors=1 (other: )
+PASS bench: closed shape after boot {"v":1,"atBench":false,"open":false}
+PASS bench: the pad is on screen from the start pose bearing -40.6 deg, half view 45.0 deg, pos 0,0,18 yaw 0
+PASS bench: standing on the pad lights the button and never opens the bench locked=true
+PASS bench: no collider pushes the player off the pad pos -3,0,14.5 -> -3,0,14.5
+PASS bench: leaving the pad clears atBench and near {"b":{"v":1,"atBench":false,"open":false},"near":false}
+PASS bench: B opens it from a locked game (lock freed, paused, on top, the rest inert) locked=true {"open":true,"lock":false,"paused":true,"atCentre":true,"inert":[true,true,true,true]}
+PASS bench: Escape closes it, unpauses and gives the canvas focus {"open":false,"paused":false,"inert":[false,false,false,false],"focus":"game"}
+PASS bench: a key held when it opens is released in the game relocked=true pos 0,0,9.25 -> 0,0,9.25
+PASS bench: opened from the pause card, closing returns to it opened=true {"paused":true,"card":true}
+PASS bench: the first open asks with three 160 px pictures [{"band":"sprout","w":168,"h":168,"svg":true},{"band":"seedling","w":168,"h":168,"svg":true},{"band":"apprentice","w":168,"h":168,"svg":true}]
+PASS bench: choosing 8 to 10 lists the four spells Fire,Water,Frost,CO₂
+PASS bench: reopened on the same page load it does not ask again {"open":true,"band":"seedling","view":"list","pick":0}
+PASS bench: Change age shows the chooser again {"open":true,"band":"seedling","view":"chooser","pick":0} buttons=3
+PASS bench: after a reload it asks again; no storage key holds the band {"open":true,"band":null,"view":"chooser","pick":0} keys=
+PASS bench: Sprout lists exactly Water, Frost and CO2, each card at least 120 px Water,Frost,CO₂ [[150,150],[150,150],[150,150]]
+PASS bench: picking Water speaks the prompt and shows 2 H and 1 O said=["Make water! Copy the balls in the picture."] recipe={"H":2,"O":1}
+PASS bench: H, O then Make fizzles (atoms_off) with the Sprout reason and a crossed H row; atom cards at least 96 px {"n":1,"slot":2,"ok":false,"code":"atoms_off","diffs":[["H",1,2]],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"unknown"} {"reason":"Look again. Count the balls in the picture.","cross":true} cards=[["H",104,104],["O",104,104],["C",104,104],["N",104,104]]
+PASS bench: H then Make learns Water (done panel, Learning badge, xp 10) {"n":2,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} {"line":"You made Water!","badge":"Learning"} prog={"id":"water","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: the fizzle line was spoken too ["Make water! Copy the balls in the picture.","Look again. Count the balls in the picture.","You made Water!"]
+PASS bench: five more correct builds earn nothing (learned false, xp stays 10) true/false true/false true/false true/false true/false prog={"id":"water","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: the game stays frozen while it is open (gameTime, tick, casts, spell) gameTime 1.484->1.484 tick 52->52 casts 0->0 spell 1->1
+PASS bench: an Unknown spell still casts (the bench gates nothing) casts 0 -> 1
+PASS bench: after a reload the Water badge reads Learning prog={"id":"water","st":"learning","xp":10,"builds":0,"days":0,"predicted":false} badge=Learning
+PASS bench: with sound off nothing is spoken, the prompt is still on screen said=[] prompt=Make water! Copy the balls in the picture.
+PASS bench: Fire at Seedling shows the pans and a tilted beam {"pans":["C 1, H 4, O 2","C 1, H 2, O 3"],"level":"false"}
+PASS bench: an unbalanced Make fizzles with the conservation reason; fire stays unknown {"n":1,"slot":1,"ok":false,"code":"unbalanced","diffs":[["H",4,2],["O",2,3]],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"unknown"} reason=The scale is not level. Atoms are never made or lost, so both sides need the same atoms.
+PASS bench: two taps level the beam (C 1, H 4, O 4 on both pans) {"pans":["C 1, H 4, O 4","C 1, H 4, O 4"],"level":"true"}
+PASS bench: the balanced Make learns Fire {"n":2,"slot":1,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} prog={"id":"fire","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: Water at Seedling from tiles (H 2, O 1) is ok {"n":3,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"}
+PASS bench: Apprentice shows no recipe and focuses the text box {"recipe":0,"focus":"bench-input"}
+PASS bench: typing does not reach the game (spell, captionId, gameTime unchanged; no reset, no pause toggle) spell 1->1 cap 1->1 t 0.726->0.726 {"open":true,"pauseHidden":false,"value":"Br2 R 3 P"}
+PASS bench: N2 -> state_missing (reason shown), N2(g) -> wrong_state, N₂(l) -> ok and frost learning state_missing "Right atoms. Now add its state: (s), (l) or (g)." wrong_state {"n":3,"slot":3,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} prog={"id":"frost","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: Apprentice gets atom counts only on the third wrong try ["Not yet. Which atoms does Water have, and how many?","Not yet. Which atoms does Water have, and how many?","Count again: H should be 2. You have 1."]
+PASS bench: Escape in the text box closes the bench {"open":false,"paused":false}
+FAIL bench: keyboard only reaches Water and builds it (focus never leaves the bench) reached=true inside=false {"n":1,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"}
+PASS bench: Escape closes it and the canvas has focus {"open":false,"focus":"game"}
+PASS bench: every control is at least 48 px (Sprout 96/120), text at least 18 px (Sprout prompt 24), fits the screen; text size 2 doubles it  title@2=52 texts sprout:10/15 seedling:12/16 apprentice:12/7 sprout:10/15 seedling:12/16 apprentice:12/7
+PASS bench: every text has 4.5:1 contrast against its nearest opaque background 
+PASS bench: the done icon pops once (count 1); every bench animation runs once; with reduced motion none, and no transition on the beam {"a":{"icon":{"anim":"benchpop","count":"1","trans":"0s"},"beam":{"anim":"none","trans":"0.2s"},"others":["1"],"btn":"none"},"b":{"icon":{"anim":"none","count":"1","trans":"0s"},"beam":{"anim":"none","trans":"0s"},"others":[],"btn":"none"}}
+PASS bench: B and the button do nothing while another aria-modal dialog shows age=true open=true other=true open2=true
+PASS bench: #benchbtn is 64 px, labelled, opens the bench unlocked; locked it shows with pointer-events none {"w":72,"h":72,"label":"Formula Bench (B)","pe":"auto","hint":false,"vis":"visible"} opened=true locked=true {"locked":true,"pe":"none","w":72}
+PASS bench: the attention ring shows after the first cast; the pause card lists Formula Bench | B before=false after cast=true row=true
+PASS bench: learning a spell removes the ring for good {"n":1,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} after=false after cast=false
+PASS bench: band seedling reaches the game with the bench closed {"v":1,"atBench":false,"open":false,"band":"seedling"}
+PASS bench: ?band=apprentice reaches the game within 2 s of the first state, without an open {"v":1,"atBench":false,"open":false,"band":"apprentice"} after 1598 ms
+PASS bench: at Sprout pick 1 is ignored and try 1 is not_for_band pick=undefined {"n":1,"slot":1,"ok":false,"code":"not_for_band","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"unknown"}
+PASS no console errors 
+184/186 passed
+GOLDEN_EXIT 1 Sat Oct 31 22:01:25 UTC 2026

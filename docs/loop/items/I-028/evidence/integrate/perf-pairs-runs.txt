@@ -1,0 +1,7 @@
+[pairs] low@4x round 1 base cpu_p50=29.3 p99=54.6 tti=5752 fetch=534 compile_init=1568 first_frame=3544 to_interactive=106 valid=true
+[pairs] low@4x round 1 cand cpu_p50=27.2 p99=48.9 tti=5201.9 fetch=446.7 compile_init=1511.3 first_frame=3170 to_interactive=73.9 valid=true
+[pairs] low@4x round 2 cand cpu_p50=27.8 p99=48.1 tti=5721.2 fetch=543.7 compile_init=1729.3 first_frame=3370 to_interactive=78.2 valid=true
+[pairs] low@4x round 2 base cpu_p50=27 p99=50.2 tti=5503.3 fetch=405.3 compile_init=1682.7 first_frame=3318 to_interactive=97.3 valid=true
+[pairs] low@4x round 3 base cpu_p50=28.2 p99=45.5 tti=5445.7 fetch=422.6 compile_init=1531.4 first_frame=3424 to_interactive=67.7 valid=true
+[pairs] low@4x round 3 cand cpu_p50=27.4 p99=41.5 tti=5348 fetch=451.6 compile_init=1576.4 first_frame=3226 to_interactive=94 valid=true
+[pairs] keep=false reasons=["cpu 0.972 > 0.92","wins 2/3"] low@4x tti limit 500 ms; tti spread {"low@4x":768}

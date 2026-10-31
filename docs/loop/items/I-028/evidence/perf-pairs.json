@@ -1,0 +1,153 @@
+{
+  "base": "/tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/I-028/base/crates/bevy-client/web/pkg-out",
+  "cand": "/tmp/claude-0/-home-claude-realgame/34cda59c-5a69-523a-9ddb-ee80e87701c3/scratchpad/I-028/cand-pkg-out",
+  "rounds": 3,
+  "configs": [
+    "low@4x"
+  ],
+  "runs": [
+    {
+      "config": "low@4x",
+      "round": 1,
+      "side": "base",
+      "cpu_p50_ms": 29.3,
+      "p99_ms": 54.6,
+      "tti_ms": 5752,
+      "tti_phases": {
+        "fetch_ms": 534,
+        "compile_init_ms": 1568,
+        "first_frame_ms": 3544,
+        "to_interactive_ms": 106
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 1,
+      "side": "cand",
+      "cpu_p50_ms": 27.2,
+      "p99_ms": 48.9,
+      "tti_ms": 5201.9,
+      "tti_phases": {
+        "fetch_ms": 446.7,
+        "compile_init_ms": 1511.3,
+        "first_frame_ms": 3170,
+        "to_interactive_ms": 73.9
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 2,
+      "side": "cand",
+      "cpu_p50_ms": 27.8,
+      "p99_ms": 48.1,
+      "tti_ms": 5721.2,
+      "tti_phases": {
+        "fetch_ms": 543.7,
+        "compile_init_ms": 1729.3,
+        "first_frame_ms": 3370,
+        "to_interactive_ms": 78.2
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 2,
+      "side": "base",
+      "cpu_p50_ms": 27,
+      "p99_ms": 50.2,
+      "tti_ms": 5503.3,
+      "tti_phases": {
+        "fetch_ms": 405.3,
+        "compile_init_ms": 1682.7,
+        "first_frame_ms": 3318,
+        "to_interactive_ms": 97.3
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 3,
+      "side": "base",
+      "cpu_p50_ms": 28.2,
+      "p99_ms": 45.5,
+      "tti_ms": 5445.7,
+      "tti_phases": {
+        "fetch_ms": 422.6,
+        "compile_init_ms": 1531.4,
+        "first_frame_ms": 3424,
+        "to_interactive_ms": 67.7
+      },
+      "valid": true,
+      "rerun": false
+    },
+    {
+      "config": "low@4x",
+      "round": 3,
+      "side": "cand",
+      "cpu_p50_ms": 27.4,
+      "p99_ms": 41.5,
+      "tti_ms": 5348,
+      "tti_phases": {
+        "fetch_ms": 451.6,
+        "compile_init_ms": 1576.4,
+        "first_frame_ms": 3226,
+        "to_interactive_ms": 94
+      },
+      "valid": true,
+      "rerun": false
+    }
+  ],
+  "medians": {
+    "base": {
+      "low@4x": {
+        "cpu_p50_ms": 28.2,
+        "tti_ms": 5503.3,
+        "p99_ms": 50.2,
+        "tti_phases": {
+          "fetch_ms": 422.6,
+          "compile_init_ms": 1568,
+          "first_frame_ms": 3424,
+          "to_interactive_ms": 97.3
+        }
+      }
+    },
+    "cand": {
+      "low@4x": {
+        "cpu_p50_ms": 27.4,
+        "tti_ms": 5348,
+        "p99_ms": 48.1,
+        "tti_phases": {
+          "fetch_ms": 451.6,
+          "compile_init_ms": 1576.4,
+          "first_frame_ms": 3226,
+          "to_interactive_ms": 78.2
+        }
+      }
+    }
+  },
+  "paired_tti_diff_ms": {
+    "low@4x": -97.7
+  },
+  "tti_spread_ms": {
+    "low@4x": 768
+  },
+  "low_tti_limit_ms": 500,
+  "brotli_mb": {
+    "base": 3.596,
+    "cand": 3.62
+  },
+  "wins": {
+    "low@4x": 2
+  },
+  "keep": false,
+  "reasons": [
+    "cpu 0.972 > 0.92",
+    "wins 2/3"
+  ]
+}
