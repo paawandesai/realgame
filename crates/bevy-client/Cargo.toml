@@ -31,6 +31,9 @@ bevy = { version = "0.20.1", default-features = false, features = [
     "mouse",
     "bevy_anti_alias",
 ] }
+# Spells as data (content/spells.json) and the sourced reaction table, without
+# the 2D game or its wasm-bindgen exports.
+realgame-sim = { path = "../sim", default-features = false }
 
 [features]
 default = ["bloom", "webgl2"]
