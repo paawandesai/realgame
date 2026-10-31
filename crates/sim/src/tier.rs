@@ -33,3 +33,42 @@ impl Tier {
         Tier::ALL.into_iter().find(|t| t.id() == s)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::reactions::ReactionBook;
+
+    #[test]
+    fn bands_are_ordered_lowest_first() {
+        assert!(Tier::Sprout < Tier::Seedling);
+        assert!(Tier::Seedling < Tier::Apprentice);
+        assert!(Tier::Apprentice < Tier::Adept);
+    }
+
+    #[test]
+    fn ids_round_trip_exactly() {
+        for t in Tier::ALL {
+            assert_eq!(Tier::from_id(t.id()), Some(t));
+        }
+        assert_eq!(
+            Tier::ALL.map(Tier::id),
+            ["sprout", "seedling", "apprentice", "adept"]
+        );
+        assert_eq!(Tier::from_id("Sprout"), None);
+        assert_eq!(Tier::from_id(""), None);
+    }
+
+    #[test]
+    fn every_reaction_tier_min_is_a_known_band() {
+        let book = ReactionBook::load();
+        for (r, _) in &book.reactions {
+            assert!(
+                Tier::from_id(&r.tier_min).is_some(),
+                "reaction {} has unknown tier_min {:?}",
+                r.id,
+                r.tier_min
+            );
+        }
+    }
+}

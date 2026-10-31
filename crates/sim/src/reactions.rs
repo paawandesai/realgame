@@ -52,6 +52,9 @@ pub struct Reaction {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PhaseChange {
     pub id: String,
+    /// The substance changing phase, as a plain formula (`"H2O"`, `"N2"`).
+    #[serde(default)]
+    pub substance: String,
     pub temperature_c: f32,
     pub latent_heat_kj_per_mol: f32,
     #[serde(default)]
@@ -229,5 +232,29 @@ mod tests {
             .unwrap();
         assert!(p.source.contains("NIST") && p.source.contains("44.0"));
         assert!(p.note.as_deref().unwrap_or("").contains("2 × 44.0"));
+    }
+
+    #[test]
+    fn nitrogen_boiling_is_sourced_from_nist() {
+        let book = ReactionBook::load();
+        let n = book
+            .phase_changes
+            .iter()
+            .find(|p| p.id == "nitrogen_boiling")
+            .expect("nitrogen_boiling row");
+        assert_eq!(n.substance, "N2");
+        assert!(
+            (-195.85..=-195.75).contains(&n.temperature_c),
+            "{}",
+            n.temperature_c
+        );
+        assert_eq!(n.temperature_c.round(), -196.0);
+        assert!(
+            (5.5..=5.65).contains(&n.latent_heat_kj_per_mol),
+            "{}",
+            n.latent_heat_kj_per_mol
+        );
+        assert!(n.source.contains("NIST"), "{}", n.source);
+        assert!(n.source.contains("Nitrogen"), "{}", n.source);
     }
 }
