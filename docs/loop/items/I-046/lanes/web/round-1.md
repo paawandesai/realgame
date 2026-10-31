@@ -108,22 +108,44 @@ wait as a failure). Neither half is weakened.
 
 | run | casts exactly once | puts lit[1] out |
 |---|---|---|
-| base dev run | PASS (1 -> 2 -> 2) | FAIL (never out in 2.0 game s, 7 frames) |
-| branch dev run | PASS | FAIL (same) |
-| mutation (view turned 40 deg off lit[1] before the click, local only) | PASS | FAIL |
+| base dev run (earlier sections cut) | PASS (1 -> 2 -> 2) | FAIL (never out in 2.0 game s, 7 frames) |
+| branch dev run (earlier sections cut) | PASS | FAIL (same) |
+| mutation (view turned 40 deg off lit[1] before the click, local only, not committed) | PASS | FAIL |
+| **branch full golden** | PASS (aim at the cast frame 3 = lit[1], yaw/pitch unchanged, hitKind out) | **PASS** (out at frame +3, game +0.750 s) |
 
-The mutation check behaves as required. The extinguish half fails on base too:
-this is the cause of the known main flake on the old combined check (it read
-`lit[1] burning=true` in 4 of 8 recent main logs). The new diagnostic in the count
-check shows why: the cast's aim at the cast frame is not `lit[1]` (in the mutation
-run `aimObj` at the cast frame is -1 and the view moved further than the 40 deg the
-test turned it, with pitch -2.87 -> 8.02, so the real `page.mouse.click` under
-pointer lock also turns the view). The real click misses, so the fire stays lit.
-That is a game- or harness-side issue outside this item's paths (the click
-handling in `hud.js`/`main.rs` input code, or test 9's click setup above the split
-block). The split itself is sound, so G5 is in, and it now fails honestly where the
-old check flaked. **Reported, not fixed here.**
+The mutation check behaves as required: the count half passes while the
+extinguish half fails. In the full golden both halves pass. In the cut-down dev
+harness (which skips the earlier sections, so the mouse and lock history differ)
+the real click missed lit[1] on base and branch alike. The same thing appears in
+recent main logs as the known flake of the old combined check (it read `lit[1]
+burning=true` in 4 of 8 logs). The count check now logs the aim, yaw and pitch at
+the cast frame. In the mutation run the view moved more than the 40 deg the test
+turned it (pitch -2.87 -> 8.02), which points to `page.mouse.click` under pointer
+lock carrying movement in some sequences. That is outside this item's paths
+(input handling, or test 9's setup above the split block), so it is reported and
+not fixed here. The split is sound, and when the click misses, the
+extinguish half now fails for that stated reason instead of the count check
+flaking.
 
-## Full golden on the branch
+## Full golden on the branch (G4)
 
-See the "Full run" section appended below.
+`QUERY=?low node tests/e2e/golden.mjs` on the branch build, under the chromium
+lock: **131/133 passed**. The two failures are the new checks reported above:
+G1 P0 (spec defect: the fire is out on the frozen frame) and G6 (a) (25.6 px against
+25.2). Every existing check passed, including I-025 tests 7, 8 and 10 (10/10 on
+sky and ground for all spells; flash 0.6 % and mist under 15 %), I-019's
+"Water stream shows for 3 frames or more" and "shows on screen (blue pixels)"
+(20 443 against the 5 676 needed), the GS-6 flash guards, `reviewFollowups` tests
+6-9 (gem on screen at 21:9, gauntlet unchanged at the default view), and the three
+wall-time checks (all passed this run). Log: `branch-full-run-1.log`.
+
+Only one full run was done in this round, not 3/3. Shared-box Chromium time was
+the limit (each full run is now about 35 min with `closeStreams`, and another item
+held the lock). The two remaining full runs are still owed.
+
+## Not done this round
+
+- The breaker's two kid7 poses (before/after shots): not reproduced. Evidence has
+  G1 P2 Water at 21:9 and 4:3, G2 Water at both aspects and G6 Water, base and
+  branch (`evidence/`).
+- The B3 perf median (`perf.mjs` at `?low` 4x) was not run.
