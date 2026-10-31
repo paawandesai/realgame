@@ -30,3 +30,4 @@
 2026-10-30T20:40 main wave 8 done: I-024 measured, no profile kept (P1 0.960 not reproduced, P2 brotli +0.83 MB), tooling+evidence PR #34; I-022 built (golden 105/107, both failures load-sensitive I-019 cast checks also flaky on base), re-break running; I-025 critiqued (approve at rev 2); I-043 (first-frame load time) filed
 2026-10-30T22:15 main I-024 merged (PR #34), I-022 merged (PR #36; 24 h cap on the session id + ANALYTICS.md wording, from break-1 should-fix); wave 9: I-025 building; design-ahead I-043 and I-044 critiqued (rev 2); I-045 filed
 2026-10-31T02:25 main I-025 merged (PR #39; breaker no blocking, should-fix close-up stream width -> I-046, golden real-click split -> I-046); wave 10: I-026 and I-044 building, I-046 design-ahead
+2026-10-31T08:40 main I-026 merged (PR #41, no blocking), I-044 merged (PR #42, round 2 fixed gem hidden by wrist ring at 21:9); I-046 critiqued (revise, all 7 accepted); wave 11: I-046 and I-027 building, I-028/I-029 refresh
