@@ -50,3 +50,59 @@ Single lane, no contract step.
 
 - **I-028 (building):** owns `bench.js`, `bench.rs`, `style.css`, golden `formulaBench`. No shared hunk; if both add a call line near `golden:347-349`, the later merge rebases the one-line conflict.
 - **I-046 (open):** edits golden `closeStreams` and the test 9 block of `castingYouCanSee`; I-047 edits neither. Either order works; after both merge, I-046's G5 should stop being invalid.
+
+---
+
+## Round 2 (Planner, wave 12): signature rule replaces the time/half-window rule
+
+Round 1 stopped at the probe (`lanes/web/round-1.md`) and break-1 (`break-1.md`) confirmed it. The sections above are history; where they conflict with this section, this section wins. Fix steps 1-2 (edge time, `EDGE_MS`, the `0.4·W / 0.4·H` test) are **withdrawn**. Steps 3-4 (drop, do not clamp; everything else stays) still hold as amended below.
+
+### Evidence the rule must fit (headless Chromium, `?low`, 1280x720)
+
+- The bogus locked move is **minus the CDP (Puppeteer) mouse position**, not half the window: never moved -> `(0,0)` (no bogus move at all); centre -> `(-640,-360)`; `(100,100)` -> `(-100,-100)`; lock taken by clicking `#resume` at `(489.6,645.9)` -> `(-489,-645)`.
+- It arrives **458-847 ms** after the edge (the next frame at about 1.5 fps) and is **always the first pointermove after the press or release** (first coalesced part, followed by `(0,0)` parts). One per edge. Its `mousemove` twin carries the same numbers.
+- Its `clientX/Y` is either `(0,0)` or the frozen lock point, and break-1 saw both in two runs of the same script, on **every** locked event. So the move's own `clientX/Y = (0,0)` does not tell a bogus move from a normal one. **The optional second signature ("move client exactly (0,0) while edgePos was elsewhere") is not supported by the probe and is not part of the rule.**
+- Under lock, `clientX/Y` of `pointerdown`/`pointerup` stays at the lock point, but the CDP mouse can be elsewhere: break-1 case C moved the mouse +450 px after locking, and the bogus move was `(-939,-645)` with client still `(489.64,645.89)`. Golden `cast: a real click casts exactly once` (`golden:1806`) moves the mouse to `(VW/2, VH/2)` under lock first, so its bogus move is `(-640,-360)` while the edge client is the lock point. **An edge-client-only rule misses exactly that flaky check.**
+- Every `page.mouse.move` under lock produces `movement = +(new absolute position)` (both components >= 0) and one frame or more later `-(that position)`; the symmetric ±200 clamp cancels them to a net 0 turn. So the CDP mouse position is visible to the page as the most recent locked move with both components >= 0.
+- `pointerlockchange` is a plain `Event` with no `clientX/Y`.
+- The committed T2 dispatches a synthetic `pointerup` with client `(0,0)` and a move of `(-innerWidth/2, -innerHeight/2)` with client `(0,0)`. It must pass unedited, so the rule has to drop `-(W/2, H/2)` even with no edge position. That point is also the real case in golden's real-click check (mouse parked at the centre).
+
+### The rule (hud.js only; replaces steps 1-2)
+
+State, kept next to `onMove`:
+
+- `lastPtr`: `clientX/Y` of the most recent pointer event (down, up or move) seen while **not** locked. It is the cursor position at the moment the lock is taken.
+- `edgePos`: the reference point of the last edge (below).
+- `cdpPos`: the most recent **locked** raw move part whose `movementX >= 0` and `movementY >= 0` and is not `(0,0)`, or `null`. Reset to `null` on every `pointerlockchange`.
+- Two one-shot flags, `armPtr` (for the pointermove stream) and `armMouse` (for the `mousemove` fallback stream), so the bogus pointermove and its mousemove twin are each tested once.
+
+1. **Arm at each edge.** A capture-phase listener on `window`, registered next to `onMove`, for `pointerdown`, `pointerup` (any button) and `document`'s `pointerlockchange`:
+   - `pointerdown`/`pointerup`: `edgePos = (e.clientX, e.clientY)`.
+   - `pointerlockchange`: `edgePos = lastPtr` (the event has no position).
+   - Then set `armPtr = armMouse = true`.
+   No timing is used anywhere.
+2. **Test the first locked move after an edge.** While a stream's flag is armed, take the first raw unit of that stream that is not `(0,0)`: the first non-zero coalesced part of the pointermove (`getCoalescedEvents()`, when it has more than one part), or the event itself when it has no parts (untrusted events have none); for the fallback, the `mousemove` event itself. `(0,0)` units neither drop nor disarm. Let `m = (movementX, movementY)` of that unit. Candidates `c` are `edgePos`, `lastPtr`, `cdpPos` and the window centre `(innerWidth/2, innerHeight/2)`, skipping any that are `null` or within 2 px of `(0,0)` on both axes (the "never moved" case: `(0,0)`-from-`(0,0)` is not a signature, and that move is harmless anyway). **Drop the unit** if for some candidate `|m.x + c.x| <= 2` **and** `|m.y + c.y| <= 2`, i.e. the move is minus a known cursor position. Either way, the flag disarms after this one unit (kept or dropped).
+3. **Drop, do not clamp** (step 3 above, unchanged in spirit). A dropped unit adds nothing to `input.dx/dy`, does not set `moveWorks` and does not add to `drag.moved`. Other parts of the same event still count (sum the kept parts with `delta` as today). Never drop a whole event because its sum matches.
+4. **Update `cdpPos` after the test,** from kept and dropped locked units alike (a dropped unit has negative components, so it never qualifies).
+5. **Everything else stays.** The ±200 px clamp stays for every move that is not dropped. Unlocked hover/drag position code, sensitivity, Rust, `cmd('fire')`, drag rules and the `pointerrawupdate` guard are unchanged. Update the comment above `delta`: headless Chromium follows each locked button edge with one move of minus the CDP mouse position (see I-047); the "huge jump after lock" wording stays for the clamp.
+
+**Why real mice are safe.** The test runs only on the first non-zero move after a press, release or lock change, and only drops it when it equals minus one of at most four specific points (the lock point, the edge point, the last down-right locked move, the window centre) within 2 px on both axes. A real hand's first move after a click landing in one of four 5x5 px targets in a range of hundreds of px per axis is vanishingly unlikely (well under 1 in 1 000 for a large move, and it would also need the exact opposite sign of a screen coordinate on both axes). If it did happen, the loss is one nudge of the view. The `cdpPos` candidate is the least specific one: a real down-right move, then a click, then its exact negation as the first move. That also loses one nudge at worst.
+
+**Why the golden flakes should go.** `cast: a real click casts exactly once`: after `page.mouse.move(VW/2, VH/2)` and `frames(2)`, the press and release each bring `(-640,-360)`, which matches both the centre and `cdpPos = (640,360)`, so both are dropped. Whatever order the four CDP moves (+P, -P, press -P, release -P) arrive in, the two drops land on `-P` units, and the kept `+P` and `-P` cancel through the clamp, so the net turn is 0. If the press arrived before the `+P` unit, that would break this argument; the builder records the order (below). `streams: a slow click (0.35 s) casts once` and T1: the mouse is at the `#resume` click point, which is `lastPtr` and the edge client, so `(-489,-645)` is dropped.
+
+### Builder checks before the full golden
+
+- Re-run `round1-probe.cjs` cases (centre, (100,100), #resume) and break-1's case C (+450 px move, then press/release) and the golden real-click sequence on the **fixed** build, logging per unit: stream, `m`, which candidate matched, dropped or kept, and Δyaw/Δpitch. Pass: Δ < 0.5° in each case. If any case shows a bogus move that is not the first non-zero unit after its edge, or that matches no candidate, the lane **stops and reports**; it does not widen the rule (no extra candidates, no larger tolerance, no multi-move arming) on its own.
+
+### Acceptance (round 2)
+
+- **T1-T4: unchanged** (the committed `lockedClickNoTurn` section; assertions, setup and thresholds are not edited). T1 and T2 must now pass, T3 and T4 must still pass. Two edits are allowed and are not edits to pass: move T1's `stopImmediatePropagation` patch restore and recorder removal into a `finally` (break-1 note), and correct the header/T2 comments that describe the bogus move as "(-VW/2, -VH/2) right after the edge".
+- **T5: full golden** with `BASE_URL= QUERY=?low`, holding the chromium lock, run in the background: every check passes, including the two known flaky real-click checks `cast: a real click casts exactly once` and `streams: a slow click (0.35 s) casts once` (the slow click must pass on its **first** attempt; the lane logs its `spans`). 3 runs out of 3 is the target; if the box's runtime (35-90 min each) makes 3 impractical, 2 clean runs plus break-2's run count. `clock: cast cadence keeps the 0.3 s cooldown in wall time` is reported but does not gate if it also fails on base.
+- **T6 (new, add to `lockedClickNoTurn` after T4). A real first move after a press still turns the view.** Locked, still view, `look 0 10`. CDP moves cannot model a real move under lock (break-1 finding 1), so the events are synthetic. In one `page.evaluate`: dispatch on `document` a `PointerEvent('pointerdown', {button: 0, pointerType: 'mouse', bubbles: true, clientX: 489, clientY: 645})`, then on `#game` a `pointermove` with `movementX: 30, movementY: 0`, then a `pointerup` like the down, then a `pointermove` with `movementX: -150, movementY: -100`. Wait 10 frames. **Pass: Δyaw within ±0.5° of the expected `(30 - 150) · LOOK_PER_PX` in degrees (about -6.5°), Δpitch within ±0.5° of `-100 · LOOK_PER_PX` (about -5.4°, sign as the game applies it), and |Δyaw| >= 1°.** Both first moves are kept: neither is minus a candidate. Must pass on base and branch. Log the expected and measured numbers.
+- **T7 (new, failing first). The bogus move after a moved CDP mouse is dropped** (models break-1 case C and golden's real click without CDP). Locked, still view, `look 0 10`, no edge for 500 ms. Dispatch a synthetic `pointermove` `(+420, +300)`, wait 2 frames, dispatch `(-420, -300)`, wait 2 frames (net 0 through the clamp), record yaw/pitch, then in one `page.evaluate` dispatch a synthetic `pointerup` (client at the lock point 489,645, as in T6) and a `pointermove` `(-420, -300)`. Wait 10 frames. **Pass: |Δyaw| < 0.5° and |Δpitch| < 0.5°** from the recorded pose. On base it fails (about 10.9° each).
+- **Failing-first record:** the lane runs `lockedClickNoTurn` alone on the base build (temporary local call order, not committed) and records T1, T2, T7 failing and T3, T4, T6 passing, then the same on the fixed build with all six passing.
+- **`npm test`** still passes.
+
+### Lanes (round 2)
+
+Unchanged: single `web` lane owning the `hud.js` pointer-movement block plus the new edge listener, and golden's `lockedClickNoTurn` (T6, T7, the `finally` and comment fixes only) and its call line. I-028 still owns `bench.js`, `bench.rs`, `style.css` and golden's `formulaBench`; not touched.
