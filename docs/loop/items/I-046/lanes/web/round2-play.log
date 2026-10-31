@@ -1,0 +1,11 @@
+PASS 16:9 picker shows before pointer lock and closes on a pick :: visible=true lockedWhilePicker=false bands=sprout,seedling,apprentice hiddenAfter=true
+PASS 16:9 hints: start line shows; locked hint gated by Hints; start line kept with Hints off :: start "Click to look around. Esc shows the controls and point-and-click mode."; locked=true hint "Aim at a fire and click."; Hints off ""; on "Aim at a fire and click."; unlocked + Hints off "Click to look around. Esc shows the controls and point-and-click mode."
+PASS 16:9 edge aim: a click on a fire near the right edge casts once at it :: pointMode=true yaw 35.0 (turned 35.0°, hfov 90.0°) hover@1210,340 (95 % of width); casts 0 -> 1; streams 1; fire 6 wet 0 -> 0.98, temp 800 -> 97; errors 0
+PASS 4:3 picker shows before pointer lock and closes on a pick :: visible=true lockedWhilePicker=false bands=sprout,seedling,apprentice hiddenAfter=true
+PASS 4:3 hints: start line shows; locked hint gated by Hints; start line kept with Hints off :: start "Click to look around. Esc shows the controls and point-and-click mode."; locked=true hint "Aim at a fire and click."; Hints off ""; on "Aim at a fire and click."; unlocked + Hints off "Click to look around. Esc shows the controls and point-and-click mode."
+PASS 4:3 edge aim: a click on a fire near the right edge casts once at it :: pointMode=true yaw 35.0 (turned 35.0°, hfov 90.0°) hover@907,380 (94 % of width); casts 0 -> 1; streams 1; fire 6 wet 0 -> 0.99, temp 800 -> 98; errors 0
+PASS 21:9 picker shows before pointer lock and closes on a pick :: visible=true lockedWhilePicker=false bands=sprout,seedling,apprentice hiddenAfter=true
+PASS 21:9 hints: start line shows; locked hint gated by Hints; start line kept with Hints off :: start "Click to look around. Esc shows the controls and point-and-click mode."; locked=true hint "Aim at a fire and click."; Hints off ""; on "Aim at a fire and click."; unlocked + Hints off "Click to look around. Esc shows the controls and point-and-click mode."
+PASS 21:9 edge aim: a click on a fire near the right edge casts once at it :: pointMode=true yaw 35.0 (turned 35.0°, hfov 90.0°) hover@1590,340 (95 % of width); casts 0 -> 1; streams 1; fire 6 wet 0 -> 0.98, temp 800 -> 97; errors 0
+ALL 9 PASS
+exit 0
