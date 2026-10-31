@@ -1021,7 +1021,7 @@ export function startBench() {
     if (e.key === 'Tab') { e.preventDefault(); moveFocus(e.shiftKey ? -1 : 1); return; }
     const inInput = !!t && t.tagName === 'INPUT';
     if (inInput && e.key === 'Enter') { e.preventDefault(); if (typeof t._benchMake === 'function') t._benchMake(); return; }
-    if (e.key.startsWith('Arrow')) {
+    if (String(e.key || '').startsWith('Arrow')) {
       if (inInput) return;
       if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && typeof t._benchStep === 'function') {
         e.preventDefault();
@@ -1101,7 +1101,8 @@ export function startBench() {
       fakeView = v;
       if (v.band && bandOf(v.band)) ui.band = bandOf(v.band);
       noteNames(v.spells);
-      if (v.pick && v.pick !== ui.pick) { ui.pick = v.pick; ui.view = 'build'; showBuild(); }
+      const same = v.pick === ui.pick && (ui.view === 'build' || ui.view === 'fizzle');
+      if (v.pick && !same) { ui.pick = v.pick; ui.view = 'build'; builderKey = ''; showBuild(); }
       else if (!v.pick && ui.view !== 'chooser') showList();
       sync();
     };
