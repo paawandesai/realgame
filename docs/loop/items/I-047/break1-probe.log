@@ -1,0 +1,186 @@
+keys state,cmd,lock,pause,mode,lastSound,hudState,pickHint
+state0 {"yaw":0,"pitch":-2.86,"locked":false,"frame":3,"casts":0,"paused":false}
+after lock {"yaw":0,"pitch":-2.86,"locked":true,"frame":20,"casts":0,"paused":false} mouse at #resume
+
+== A press+release at lock point: locked true->true dyaw=21.77 dpitch=21.77 casts 0->1
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerdown dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=736 mv=(-489,-645) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=853 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerup   dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=657 mv=(-489,-645) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1081 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1456 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1714 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1951 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2212 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2511 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2833 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3115 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3538 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3939 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== B flick +450,0 (1 step): locked true->true dyaw=0.00 dpitch=0.00 casts 1->1
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(939,645) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(-939,-645) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== C press+release after mouse moved +450: locked true->true dyaw=21.77 dpitch=21.77 casts 1->2
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerdown dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1010 mv=(-939,-645) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1185 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerup   dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1010 mv=(-939,-645) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1714 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2223 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2557 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3436 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=4478 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=5615 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=6407 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=7387 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=7631 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=8017 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== D flick -600,-300 (1 step): locked true->true dyaw=0.00 dpitch=0.00 casts 2->2
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(339,345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(-339,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== E press, flick +300 (5 steps), release: locked true->true dyaw=21.77 dpitch=21.77 casts 2->15
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerdown dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=790 mv=(-339,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1585 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1599 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1599 mv=(399,345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2259 mv=(-399,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3114 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3972 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3975 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3979 mv=(459,345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=5032 mv=(-459,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=6357 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=7483 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=7486 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=7486 mv=(519,345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=8510 mv=(-519,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=9389 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=10326 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=10332 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=10332 mv=(579,345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=11332 mv=(-579,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=12249 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=13074 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=13082 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=13082 mv=(639,345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=14053 mv=(-639,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=15029 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=15035 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerup   dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1124 mv=(-639,-345) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1904 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2489 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2864 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3101 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3314 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3605 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3864 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=4082 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=4340 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=4582 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== F synthetic pointerup + (-640,-360): locked true->true dyaw=10.89 dpitch=10.89 casts 15->15
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerup   dEdge=0 mv=(0,0) client=(0,0) tr=false
+  pointermove dEdge=0 mv=(-640,-360) client=(0,0) tr=false
+  pointermove dEdge=1 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=599 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1154 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1831 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=2563 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3105 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3767 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=4396 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=5325 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=6185 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=7219 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== H move to (0,0): locked true->true dyaw=0.00 dpitch=0.00 casts 15->15
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== H2 press+release with mouse parked at (0,0): locked true->true dyaw=0.00 dpitch=0.00 casts 15->16
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerdown dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=870 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=980 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointerup   dEdge=0 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=765 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=1772 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=3091 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=4124 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=5159 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=5940 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=6821 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=6993 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=8278 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=9104 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=9860 mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+
+== G ArrowLeft held 600ms: locked true->true dyaw=0.00 dpitch=0.00 casts 16->16
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
+  pointermove dEdge=- mv=(0,0) client=(489.6400146484375,645.8900146484375) tr=true
