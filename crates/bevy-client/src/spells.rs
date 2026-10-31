@@ -49,7 +49,7 @@ impl ClientSpells {
             assert_eq!(
                 effect,
                 Some(Spell::ALL[i]),
-                "spell {}: slot {} must have effect {:?}",
+                "spell {}: slot {} must have effect {}",
                 def.id,
                 def.slot,
                 Spell::ALL[i].effect_id()

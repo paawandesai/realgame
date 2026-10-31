@@ -1,5 +1,6 @@
 // Source lint for B6 ("science is right"): every player-facing science string
-// in the 3D client must have a row in content/science-sources.md, every `_C`
+// in the 3D client (its Rust, HTML and JS, and the player text in
+// content/spells.json) must have a row in content/science-sources.md, every `_C`
 // temperature constant in chem.rs must match its register value, and register
 // rows must not go stale. The format and the claim heuristic are fixed by
 // docs/loop/items/I-004/spec.md (Contract) and docs/loop/science-review.md.
@@ -13,7 +14,8 @@
 // The test never fails on `error` verdicts: those are a B6 score input and a
 // backlog trigger, not a CI break.
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -458,13 +460,44 @@ function walk(dir: string, ext: string): string[] {
   return out;
 }
 
-const rel = (abs: string) => abs.slice(SCAN_ROOT.length + 1).split("\\").join("/");
+const relTo = (root: string, abs: string) => abs.slice(root.length + 1).split("\\").join("/");
+
+/** The spell data file (I-026). Only these keys of each `spells[]` entry are player text. */
+const SPELLS_JSON = "content/spells.json";
+const SPELL_TEXT_KEYS = ["name", "label", "hotbar_label", "cast_caption"] as const;
+
+/** Player text in content/spells.json: string values of SPELL_TEXT_KEYS in each `spells[]` entry, nothing else. */
+function spellsJsonTexts(src: string): string[] {
+  let doc: unknown;
+  try {
+    doc = JSON.parse(src);
+  } catch (e) {
+    throw new UnsupportedSyntax(`invalid JSON: ${(e as Error).message}`);
+  }
+  const list = (doc as { spells?: unknown }).spells;
+  if (!Array.isArray(list)) throw new UnsupportedSyntax("no spells[] array");
+  const out: string[] = [];
+  for (const spell of list) {
+    if (spell === null || typeof spell !== "object") continue;
+    for (const key of SPELL_TEXT_KEYS) {
+      const v = (spell as Record<string, unknown>)[key];
+      if (typeof v === "string") out.push(v);
+    }
+  }
+  return out;
+}
 
 /** All extracted strings of one client file, normalized, with the machine-output skips split off. */
 function extractFileAll(relPath: string, src: string): { kept: string[]; skipped: string[] } {
-  const raw = relPath.endsWith(".rs") ? rustStrings(src) : relPath.endsWith(".html") ? htmlTexts(src) : jsStrings(src);
+  const raw = relPath.endsWith(".rs")
+    ? rustStrings(src)
+    : relPath.endsWith(".html")
+      ? htmlTexts(src)
+      : relPath === SPELLS_JSON
+        ? spellsJsonTexts(src)
+        : jsStrings(src);
   const all = raw.map(normalize).filter((s) => s !== "");
-  // Both skip shapes are Rust format strings (`{{` is Rust's escaped brace); .html and .js strings are never skipped.
+  // Both skip shapes are Rust format strings (`{{` is Rust's escaped brace); .html, .js and spells.json strings are never skipped.
   if (!relPath.endsWith(".rs")) return { kept: all, skipped: [] };
   return { kept: all.filter((s) => !isSkipped(s)), skipped: all.filter(isSkipped) };
 }
@@ -478,12 +511,13 @@ function scanClient(root: string): { perFile: Map<string, Set<string>>; found: F
     ...walk(join(root, CLIENT, "src"), ".rs"),
     ...walk(join(root, CLIENT, "web"), ".html"),
     ...walk(join(root, CLIENT, "web"), ".js"),
+    ...(existsSync(join(root, SPELLS_JSON)) ? [join(root, SPELLS_JSON)] : []),
   ];
   const perFile = new Map<string, Set<string>>();
   const found: Found[] = [];
   const skipped: Found[] = [];
   for (const abs of files) {
-    const file = rel(abs);
+    const file = relTo(root, abs);
     let strings: { kept: string[]; skipped: string[] };
     try {
       strings = extractFileAll(file, readFileSync(abs, "utf8"));
@@ -929,4 +963,67 @@ test("fixture: register parsing catches malformed rows", () => {
   has(/C-005: cites \[S99\]/);
   has(/P-002: \[S0\] needs a note/);
   assert.ok(!r.errors.some((e) => /P-003|P-001/.test(e)), r.errors.join("\n"));
+});
+
+// ---------------------------------------------------------------------------
+// content/spells.json scan (I-026 acceptance test 17)
+// ---------------------------------------------------------------------------
+
+/** A throwaway scan root holding only `content/spells.json`, for scanClient. */
+function withSpellsFixture(spells: unknown, check: (root: string) => void): void {
+  const root = mkdtempSync(join(tmpdir(), "science-spells-"));
+  try {
+    mkdirSync(join(root, "content"), { recursive: true });
+    writeFileSync(join(root, "content/spells.json"), JSON.stringify(spells, null, 2));
+    check(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const BAD = "Water boils at 50 °C.";
+const fixtureSpell = (over: Record<string, unknown>) => ({
+  id: "water",
+  slot: 1,
+  effect: "water",
+  name: "Water",
+  label: "H₂O absorbs heat",
+  hotbar_label: "cools below ignition",
+  cast_caption: "Water soaks up heat and cools things below their ignition temperature.",
+  formula: "H2O(l)",
+  tier_min: "sprout",
+  reaction: { kind: "phase_change", id: "water_boiling", role: "absorbs_heat" },
+  ...over,
+});
+
+test("fixture: an unregistered cast_caption in content/spells.json is reported as unsourced", () => {
+  withSpellsFixture({ version: 1, spells: [fixtureSpell({ cast_caption: BAD })] }, (root) => {
+    const s = scanClient(root);
+    const hit = s.found.filter((f) => f.text === BAD);
+    assert.deepEqual(hit, [{ file: "content/spells.json", text: BAD }]);
+    assert.ok(!satisfied.has(BAD), "the fixture sentence must not be in the register");
+  });
+});
+
+test("fixture: spells.json notes, ids and formulas are not player text", () => {
+  withSpellsFixture(
+    { version: 1, notes: BAD, spells: [fixtureSpell({ id: BAD, formula: BAD, effect: BAD })] },
+    (root) => {
+      const s = scanClient(root);
+      assert.deepEqual(
+        s.found.filter((f) => f.text === BAD),
+        [],
+      );
+      // The four player-text keys are still read.
+      assert.ok(s.perFile.get("content/spells.json")?.has("cools below ignition"));
+    },
+  );
+});
+
+test("the real content/spells.json is scanned and fully sourced", () => {
+  const texts = scan.perFile.get("content/spells.json");
+  assert.ok(texts, "content/spells.json was not scanned");
+  assert.ok(texts.has(normalize("Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches.")));
+  const msgs = unsourced.filter((f) => f.file === "content/spells.json").map((f) => f.text);
+  assert.deepEqual(msgs, []);
 });
