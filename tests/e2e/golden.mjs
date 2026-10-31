@@ -348,6 +348,8 @@ function check(name, ok, detail = '') {
 
   await spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
+  await formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors });
+
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
   console.log(`\n${results.length - fails.length}/${results.length} passed`);
@@ -2844,6 +2846,54 @@ async function spellProgress({ page, st, cmd, until, frames, sleep, base, browse
       note = `booted=${up} casts +${r.delta} spell=${r.spell} pageerrors=${pageErrs.length} console errors=${consoleErrs.length} (other: ${other.map((e) => e.text).slice(0, 2).join(' | ')})`;
     } catch (e) { note = `error: ${e && e.message}`; }
     check('progress: a missing progress.js does not stop the boot', ok, note);
+    await ctx.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The Formula Bench (docs/loop/items/I-028/spec.md, tests 12-28b). Contract
+// stub: only test 12b, which passes on the stub; the web lane writes the rest.
+async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors }) {
+  const root = base.replace(/\?.*$/, '');
+  const query = (base.match(/\?(.*)$/) || ['', ''])[1].split('&').filter((p) => p && p !== 'debug');
+  const urlWith = (extra) => `${root}?${[...query, ...extra].join('&')}`;
+
+  // 12b. A missing bench.js cannot stop the boot (boot.js loads it with a
+  // guarded dynamic import).
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    await ctx.route('**/bench.js', (r) => r.fulfill({ status: 404, body: '' }));
+    const p = await ctx.newPage();
+    const pageErrs = [];
+    const consoleErrs = [];
+    p.on('console', (m) => { if (m.type() === 'error') consoleErrs.push({ text: m.text(), url: (m.location() || {}).url || '' }); });
+    p.on('pageerror', (e) => pageErrs.push(e.message));
+    const sp = () => p.evaluate(() => window.__game.state());
+    let ok = false, note = '';
+    try {
+      await p.goto(urlWith(['debug']));
+      for (const t0 = Date.now(); !(await p.evaluate(() => !!window.__gameState && !!window.__game));) {
+        if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+        await sleep(250);
+      }
+      const f0 = (await sp()).frame;
+      let up = false;
+      for (const t0 = Date.now(); Date.now() - t0 < 60000; await sleep(150)) {
+        if ((await sp()).frame >= f0 + 5) { up = true; break; }
+      }
+      await p.evaluate(() => window.__game.cmd('select 3'));
+      let x = await sp();
+      for (const t0 = Date.now(); x.spell !== 2 && Date.now() - t0 < 15000; await sleep(100)) x = await sp();
+      const c0 = x.casts;
+      await sleep(400); // clear of the 0.3 s cooldown
+      await p.evaluate(() => window.__game.cmd('cast'));
+      for (const t0 = Date.now(); Date.now() - t0 < 20000; await sleep(100)) { x = await sp(); if (x.casts > c0) break; }
+      const delta = x.casts - c0;
+      const other = consoleErrs.filter((e) => !(/Failed to load resource/.test(e.text) && /bench\.js/.test(e.url + e.text)));
+      ok = up && delta === 1 && x.spell === 2 && pageErrs.length === 0 && other.length === 0;
+      note = `booted=${up} casts +${delta} spell=${x.spell} pageerrors=${pageErrs.length} console errors=${consoleErrs.length} (other: ${other.map((e) => e.text).slice(0, 2).join(' | ')})`;
+    } catch (e) { note = `error: ${e && e.message}`; }
+    check('bench: a missing bench.js does not stop the boot', ok, note);
     await ctx.close();
   }
 }

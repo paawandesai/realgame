@@ -92,6 +92,14 @@ pub struct SpellDef {
     pub formula: Formula,
     pub tier_min: Tier,
     pub reaction: ReactionRef,
+    /// Formula Bench prompts (I-028), one per band from `tier_min` up to
+    /// Apprentice (Adept uses Apprentice's). Player text.
+    #[serde(default)]
+    pub prompt_sprout: Option<String>,
+    #[serde(default)]
+    pub prompt_seedling: Option<String>,
+    #[serde(default)]
+    pub prompt_apprentice: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -106,6 +114,7 @@ pub enum SpellError {
     Unsourced { spell: String, id: String },
     TierBelowReaction { spell: String },
     RoleMismatch { spell: String, why: String },
+    Prompt { spell: String, band: Tier },
 }
 
 #[derive(Debug, Deserialize)]
