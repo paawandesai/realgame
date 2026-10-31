@@ -2,7 +2,8 @@
 // copy (pkg-out + age.js + analytics.js, rg-analytics on, as build-site.sh
 // makes it). At 16:9, 4:3 and 21:9 (1280x720, 960x720, 1680x720):
 //   1. the age picker shows before pointer lock, has 3 bands, closes on a pick;
-//   2. the start hint shows; Hints off clears it; Hints on brings it back;
+//   2. the start hint shows; while locked, Hints off clears the locked hint
+//      and on brings it back; unlocked, the start line stays with Hints off;
 //   3. edge aim: in point-and-click mode, a fire turned to about 85 % of the
 //      width (near the right edge) is hovered and a real click there casts
 //      exactly once, at that fire, with a stream live (screenshot saved).
@@ -54,21 +55,33 @@ for (const [W, H, tag] of [[1280, 720, '16:9'], [960, 720, '4:3'], [1680, 720, '
   const until = async (pred, ms = 30000) => { const t0 = Date.now(); let x = await st(); while (!pred(x) && Date.now() - t0 < ms) { await sleep(150); x = await st(); } return x; };
   const hint = () => page.evaluate(() => { const h = document.getElementById('hint'); return h && !h.hidden && getComputedStyle(h).display !== 'none' ? h.textContent.trim() : ''; });
   await sleep(2000);
+  // Hints gate the locked hint only; the start line and the point-and-click
+  // note stay with Hints off by design (golden: "review: Hints off keeps the
+  // start line and the point-and-click note").
   const h0 = await hint();
   const pauseShown = () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'));
-  const setHints = async (v) => {
+  const setHints = (v) => page.evaluate((v) => { const el = document.getElementById('hints'); el.checked = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+  let locked = false;
+  for (let k = 0; k < 6 && !locked; k++) {
     if (!(await pauseShown())) await page.evaluate(() => window.__game.pause(true));
-    await sleep(300);
-    await page.evaluate((v) => { const el = document.getElementById('hints'); if (el.checked !== v) el.click(); }, v);
-    await page.evaluate(() => window.__game.pause(false));
-    await until((x) => !x.paused, 8000);
-    await sleep(600);
-    return hint();
-  };
-  const hOff = await setHints(false);
-  const hOn = await setHints(true);
-  check(`${tag} start hint shows, Hints off clears it, on brings it back`, h0.length > 0 && hOff === '' && hOn.length > 0,
-    `start "${h0}" off "${hOff}" on "${hOn}"`);
+    await page.click('#resume');
+    locked = (await until((q) => q.locked, 4000)).locked;
+    if (!locked) await sleep(1200);
+  }
+  await sleep(600);
+  const hLocked = await hint();
+  await setHints(false); await sleep(600);
+  const hOff = await hint();
+  await setHints(true); await sleep(600);
+  const hOn = await hint();
+  await page.evaluate(() => document.exitPointerLock());
+  await until((q) => !q.locked, 8000);
+  await setHints(false); await page.evaluate(() => window.__game.pause(false)); await sleep(600);
+  const hStartOff = await hint();
+  await setHints(true);
+  check(`${tag} hints: start line shows; locked hint gated by Hints; start line kept with Hints off`,
+    h0.length > 0 && locked && hLocked.length > 0 && hOff === '' && hOn.length > 0 && hStartOff.length > 0,
+    `start "${h0}"; locked=${locked} hint "${hLocked}"; Hints off "${hOff}"; on "${hOn}"; unlocked + Hints off "${hStartOff}"`);
   // 3. Edge aim in point-and-click mode.
   await page.evaluate(() => window.__game.pause(true));
   await sleep(300);
