@@ -39,3 +39,12 @@ Only `crates/bevy-client/src/progress.rs` changed.
   not bump `rev`.
 - The file keeps `#![allow(dead_code)]` because I-028..I-030 are the callers of most of the API.
 - No `SpellBook::parse`/`load`, `ReactionBook::load`, `crate::`, Bevy or `realgame_sim`.
+
+## Other checks (final branch)
+
+| check | result |
+|---|---|
+| `cargo test --locked` in crates/bevy-client (native, temp target dir, deleted after) | 64 passed, 0 failed (includes the 12 progress tests and spells.rs tests) |
+| `cargo clippy --release --locked --target wasm32-unknown-unknown -- -D warnings` | clean (CI runs the same lint in the debug profile; not re-run here for disk) |
+| `cargo fmt --check` | clean |
+| `bash build-web.sh` | pass, wasm gzip 5 087 853 B (stub 5 084 359 B, +3.5 KB) |
