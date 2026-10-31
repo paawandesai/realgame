@@ -118,19 +118,201 @@ struct SpellFile {
     spells: Vec<SpellDef>,
 }
 
+/// `^[a-z][a-z0-9_]{0,31}$`
+fn is_content_id(id: &str) -> bool {
+    let b = id.as_bytes();
+    !b.is_empty()
+        && b.len() <= 32
+        && b[0].is_ascii_lowercase()
+        && b.iter()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'_')
+}
+
+/// `^C-[0-9]{3}$`, a claim row of `content/science-sources.md`.
+fn is_register_id(id: &str) -> bool {
+    let b = id.as_bytes();
+    b.len() == 5 && b.starts_with(b"C-") && b[2..].iter().all(u8::is_ascii_digit)
+}
+
+/// 1 to `max` characters, and nothing that could break the client's state
+/// JSON, which interpolates some of these fields unescaped: no `"`, `\` or
+/// control characters.
+fn is_player_text(text: &str, max: usize) -> bool {
+    let n = text.chars().count();
+    (1..=max).contains(&n)
+        && !text
+            .chars()
+            .any(|c| c == '"' || c == '\\' || c.is_control())
+}
+
+fn mismatch(s: &SpellDef, why: &str) -> SpellError {
+    SpellError::RoleMismatch {
+        spell: s.id.clone(),
+        why: why.to_string(),
+    }
+}
+
+fn unsourced(s: &SpellDef, source: &str) -> Result<(), SpellError> {
+    if source.trim().chars().count() <= 10 {
+        return Err(SpellError::Unsourced {
+            spell: s.id.clone(),
+            id: s.reaction.id.clone(),
+        });
+    }
+    Ok(())
+}
+
+fn unknown(s: &SpellDef) -> SpellError {
+    SpellError::UnknownRef {
+        spell: s.id.clone(),
+        id: s.reaction.id.clone(),
+    }
+}
+
+/// Resolves a spell's reference and checks its role and tier rules.
+fn check_reference(s: &SpellDef, book: &ReactionBook) -> Result<(), SpellError> {
+    let r = &s.reaction;
+    match r.kind {
+        RefKind::Reaction => {
+            let (reaction, eq) = book
+                .reactions
+                .iter()
+                .find(|(x, _)| x.id == r.id)
+                .ok_or_else(|| unknown(s))?;
+            unsourced(s, &reaction.source)?;
+            if r.role != Role::Runs {
+                return Err(mismatch(s, "a reaction reference needs role runs"));
+            }
+            if !s.formula.is_reaction() {
+                return Err(mismatch(s, "runs needs a formula with an arrow"));
+            }
+            if !s.formula.equation.is_balanced() {
+                return Err(mismatch(s, "runs needs a balanced formula"));
+            }
+            if s.formula.equation.to_string() != eq.to_string() {
+                return Err(mismatch(
+                    s,
+                    "runs needs exactly the referenced reaction's equation",
+                ));
+            }
+            let floor = Tier::from_id(&reaction.tier_min).ok_or_else(|| {
+                SpellError::Json(format!(
+                    "reaction {} has unknown tier_min {:?}",
+                    reaction.id, reaction.tier_min
+                ))
+            })?;
+            if s.tier_min < floor {
+                return Err(SpellError::TierBelowReaction {
+                    spell: s.id.clone(),
+                });
+            }
+        }
+        RefKind::PhaseChange => {
+            let phase = book
+                .phase_changes
+                .iter()
+                .find(|p| p.id == r.id)
+                .ok_or_else(|| unknown(s))?;
+            unsourced(s, &phase.source)?;
+            if r.role != Role::AbsorbsHeat {
+                return Err(mismatch(
+                    s,
+                    "a phase_change reference needs role absorbs_heat",
+                ));
+            }
+            let term = s
+                .formula
+                .single()
+                .ok_or_else(|| mismatch(s, "absorbs_heat needs a single substance"))?;
+            if term.formula != phase.substance {
+                return Err(mismatch(
+                    s,
+                    "absorbs_heat needs the phase change's substance",
+                ));
+            }
+            if term.state.is_none() {
+                return Err(mismatch(s, "absorbs_heat needs a state symbol"));
+            }
+            if phase.latent_heat_kj_per_mol <= 0.0 {
+                return Err(mismatch(s, "absorbs_heat needs a positive latent heat"));
+            }
+        }
+        RefKind::Register => {
+            if !is_register_id(&r.id) {
+                return Err(unknown(s));
+            }
+            if r.role != Role::Cites {
+                return Err(mismatch(s, "a register reference needs role cites"));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The spells, sorted by slot.
 pub struct SpellBook {
     pub spells: Vec<SpellDef>,
 }
 
 impl SpellBook {
+    /// Parses and validates `json` against the sourced reaction table.
+    ///
+    /// Checks run in this order and the first error wins: JSON and schema,
+    /// id pattern (ids and effects), unique ids, unique slots, slots exactly
+    /// `1..=n`, player text, then each spell's reference and tier.
     pub fn parse(json: &str, book: &ReactionBook) -> Result<SpellBook, SpellError> {
-        let _ = book;
         let file: SpellFile =
             serde_json::from_str(json).map_err(|e| SpellError::Json(e.to_string()))?;
-        let _ = file.version;
+        if file.version != 1 {
+            return Err(SpellError::Json(format!(
+                "spells.json version {} is not supported (expected 1)",
+                file.version
+            )));
+        }
         let mut spells = file.spells;
+        for s in &spells {
+            for id in [&s.id, &s.effect] {
+                if !is_content_id(id) {
+                    return Err(SpellError::BadId(id.clone()));
+                }
+            }
+        }
+        for (i, s) in spells.iter().enumerate() {
+            if spells[..i].iter().any(|t| t.id == s.id) {
+                return Err(SpellError::DuplicateId(s.id.clone()));
+            }
+        }
+        for (i, s) in spells.iter().enumerate() {
+            if spells[..i].iter().any(|t| t.slot == s.slot) {
+                return Err(SpellError::DuplicateSlot(s.slot));
+            }
+        }
         spells.sort_by_key(|s| s.slot);
+        let contiguous = spells
+            .iter()
+            .enumerate()
+            .all(|(i, s)| usize::from(s.slot) == i + 1);
+        if spells.is_empty() || spells.len() > 9 || !contiguous {
+            return Err(SpellError::SlotGap);
+        }
+        for s in &spells {
+            for (field, text, max) in [
+                ("name", &s.name, 40),
+                ("label", &s.label, 80),
+                ("hotbar_label", &s.hotbar_label, 80),
+                ("cast_caption", &s.cast_caption, 200),
+            ] {
+                if !is_player_text(text, max) {
+                    return Err(SpellError::BadText {
+                        spell: s.id.clone(),
+                        field,
+                    });
+                }
+            }
+        }
+        for s in &spells {
+            check_reference(s, book)?;
+        }
         Ok(SpellBook { spells })
     }
 

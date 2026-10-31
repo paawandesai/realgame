@@ -93,6 +93,15 @@
       "note": "Why 2H2 + O2 -> 2H2O(g) releases 483.6 kJ but splitting 2H2O(l) costs 571.7 kJ: the difference, about 88 kJ (2 × 44.0 kJ/mol), is the heat it takes to turn liquid water into steam at 25 °C.",
       "source": "NIST Chemistry WebBook: standard enthalpies of formation H2O(g) -241.826 and H2O(l) -285.830 kJ/mol differ by 44.004 kJ/mol, the standard enthalpy of vaporization of water at 25 °C (CRC Handbook of Chemistry and Physics gives 44.0 kJ/mol)",
       "reviewed_by": null
+    },
+    {
+      "id": "nitrogen_boiling",
+      "substance": "N2",
+      "temperature_c": -195.8,
+      "latent_heat_kj_per_mol": 5.6,
+      "note": "Liquid nitrogen boils at 77.34 K (-195.8 °C, shown in game as -196 °C). Each mole that boils takes in about 5.6 kJ, which is how the Frost spell pulls heat out of what it touches.",
+      "source": "NIST Chemistry WebBook, SRD 69, Nitrogen, phase change data (https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379&Mask=4): Tboil = 77.34 K (Jacobsen, Stewart, et al., 1986); enthalpy of vaporization 5.6 kJ/mol at 77 K (Giauque and Clayton, 1933)",
+      "reviewed_by": null
     }
   ]
 }
