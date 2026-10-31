@@ -7,10 +7,8 @@
 //! `window.__benchState` carries; building it here keeps escaping of
 //! player-typed text in one tested place.
 //!
-//! Contract stub: `judge`, `recipe`, `learnable` and `prompt` have
-//! placeholder bodies (the sim lane writes them); the types, `BenchView::closed`
-//! and `BenchView::to_json` are final.
 
+use crate::formula::{parse_equation, side_atoms, Equation, ParseError, Term};
 use crate::spellbook::SpellDef;
 use crate::tier::Tier;
 use serde::Serialize;
@@ -67,36 +65,263 @@ pub struct RecipeTerm {
 }
 
 /// Judges `text` as a build of the spell in `slot` (1-4, looked up by the
-/// def's `slot` field, never an index) at `band`. Spec section 4.
+/// def's `slot` field, never an index) at `band`. Spec section 4; the first
+/// matching rule wins.
 pub fn judge(spells: &[SpellDef], slot: u8, band: Tier, text: &str) -> Verdict {
-    // Contract stub: the sim lane writes the body.
-    let _ = (spells, slot, band, text);
+    // 1. Which spell, and may this band learn it?
+    let Some(def) = spells.iter().find(|d| d.slot == slot) else {
+        return fizzle(Code::NotForBand);
+    };
+    if !learnable(def, band) {
+        return fizzle(Code::NotForBand);
+    }
+    // 2. Does it parse?
+    let typed = match parse_equation(text) {
+        Ok(eq) => eq,
+        Err(ParseError::Empty) => return fizzle(Code::Empty),
+        Err(ParseError::UnknownElement(el)) => {
+            return Verdict {
+                bad: el,
+                ..fizzle(Code::Element)
+            }
+        }
+        Err(ParseError::BadCharacter(c)) => {
+            return Verdict {
+                bad: c.to_string(),
+                ..fizzle(Code::Parse)
+            }
+        }
+        Err(_) => return fizzle(Code::Parse),
+    };
+    match def.formula.single() {
+        Some(target) => judge_single(spells, def, target, band, &typed),
+        None => judge_reaction(spells, def, &typed),
+    }
+}
+
+fn fizzle(code: Code) -> Verdict {
     Verdict {
         ok: false,
-        code: Code::Parse,
+        code,
         ..Verdict::default()
     }
 }
 
+fn ok() -> Verdict {
+    Verdict {
+        ok: true,
+        code: Code::Ok,
+        ..Verdict::default()
+    }
+}
+
+/// Rule 3: the target is one substance (Water, Frost, CO2).
+fn judge_single(
+    spells: &[SpellDef],
+    def: &SpellDef,
+    target: &Term,
+    band: Tier,
+    typed: &Equation,
+) -> Verdict {
+    let u = match (typed.has_arrow, typed.reactants.as_slice()) {
+        (false, [u]) => u,
+        _ => return fizzle(Code::NotSingle),
+    };
+    // Atoms in one molecule; the coefficient (an amount) is ignored.
+    if u.atoms != target.atoms {
+        let other = spells
+            .iter()
+            .filter(|d| d.slot != def.slot)
+            .find(|d| d.formula.single().is_some_and(|t| t.atoms == u.atoms));
+        if let Some(other) = other {
+            return Verdict {
+                other: other.slot,
+                ..fizzle(Code::OtherSpell)
+            };
+        }
+        let mut els: Vec<&String> = u.atoms.keys().chain(target.atoms.keys()).collect();
+        els.sort();
+        els.dedup();
+        let diffs = els
+            .into_iter()
+            .filter_map(|el| {
+                let have = u.atoms.get(el).copied().unwrap_or(0);
+                let want = target.atoms.get(el).copied().unwrap_or(0);
+                (have != want).then(|| (el.clone(), have, want))
+            })
+            .collect();
+        return Verdict {
+            diffs,
+            ..fizzle(Code::AtomsOff)
+        };
+    }
+    // Sprout and Seedling never see state codes: the recipe gives the state.
+    if band < Tier::Apprentice {
+        return ok();
+    }
+    if let Some(want) = target.state {
+        match u.state {
+            None => {
+                return Verdict {
+                    bad: target.formula.clone(),
+                    ..fizzle(Code::StateMissing)
+                }
+            }
+            Some(s) if s != want => {
+                return Verdict {
+                    bad: want.symbol().to_string(),
+                    ..fizzle(Code::WrongState)
+                }
+            }
+            Some(_) => {}
+        }
+    }
+    // The amount the player wrote: a whole number, or 0 for a fraction.
+    let per = typed.per.max(1);
+    let amount = if u.coef % per == 0 { u.coef / per } else { 0 };
+    let canonical = u.formula == target.formula && per == 1 && u.coef == 1;
+    Verdict {
+        simplest: if canonical {
+            String::new()
+        } else {
+            def.formula.equation.with_states()
+        },
+        coef: if amount > 1 { amount } else { 0 },
+        ..ok()
+    }
+}
+
+/// Rule 4: the target is a reaction (Fire). Typed states are not judged.
+fn judge_reaction(spells: &[SpellDef], def: &SpellDef, typed: &Equation) -> Verdict {
+    let target = &def.formula.equation;
+    if !typed.has_arrow || typed.products.is_empty() {
+        return fizzle(Code::NoProducts);
+    }
+    let key = typed.species_key();
+    if key != target.species_key() {
+        let other = spells
+            .iter()
+            .filter(|d| d.slot != def.slot && d.formula.is_reaction())
+            .find(|d| d.formula.equation.species_key() == key);
+        return match other {
+            Some(other) => Verdict {
+                other: other.slot,
+                ..fizzle(Code::OtherSpell)
+            },
+            None => fizzle(Code::WrongSpecies),
+        };
+    }
+    if !typed.is_balanced() {
+        let left = side_atoms(&typed.reactants);
+        let right = side_atoms(&typed.products);
+        let mut els: Vec<&String> = left.keys().chain(right.keys()).collect();
+        els.sort();
+        els.dedup();
+        let diffs = els
+            .into_iter()
+            .filter_map(|el| {
+                let l = left.get(el).copied().unwrap_or(0);
+                let r = right.get(el).copied().unwrap_or(0);
+                (l != r).then(|| (el.clone(), l, r))
+            })
+            .collect();
+        return Verdict {
+            diffs,
+            ..fizzle(Code::Unbalanced)
+        };
+    }
+    let (simple, k) = typed.simplest();
+    if coefs(&simple) != coefs(&target.simplest().0) {
+        return fizzle(Code::WrongSpecies);
+    }
+    Verdict {
+        simplest: if k > 1 || typed.per > 1 {
+            target.with_states()
+        } else {
+            String::new()
+        },
+        ..ok()
+    }
+}
+
+/// One side of an equation as sorted (formula, coefficient) pairs.
+type Side<'a> = Vec<(&'a str, u32)>;
+
+/// (formula, coefficient) per side, sorted: term order does not matter.
+fn coefs(eq: &Equation) -> (Side<'_>, Side<'_>) {
+    (sorted_coefs(&eq.reactants), sorted_coefs(&eq.products))
+}
+
+fn sorted_coefs(terms: &[Term]) -> Vec<(&str, u32)> {
+    let mut v: Vec<(&str, u32)> = terms.iter().map(|t| (t.formula.as_str(), t.coef)).collect();
+    v.sort_unstable();
+    v
+}
+
 /// One entry per term of the spell's target formula, in order.
 pub fn recipe(def: &SpellDef) -> Vec<RecipeTerm> {
-    // Contract stub: the sim lane writes the body.
-    let _ = def;
-    vec![]
+    let eq = &def.formula.equation;
+    let side = |terms: &[Term], side: u8| {
+        terms
+            .iter()
+            .map(move |t| RecipeTerm {
+                side,
+                coef: t.coef,
+                formula: t.formula.clone(),
+                atoms: formula_order(t),
+                state: t.state.map(|s| s.symbol().to_string()),
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut out = side(&eq.reactants, 0);
+    out.extend(side(&eq.products, 1));
+    out
+}
+
+/// A term's atoms in the order their symbols first appear in its formula
+/// (`Term.atoms` is a `BTreeMap`, which iterates alphabetically).
+fn formula_order(t: &Term) -> Vec<(String, u32)> {
+    let chars: Vec<char> = t.formula.chars().collect();
+    let mut out: Vec<(String, u32)> = vec![];
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_uppercase() {
+            let mut sym = chars[i].to_string();
+            i += 1;
+            while i < chars.len() && chars[i].is_ascii_lowercase() {
+                sym.push(chars[i]);
+                i += 1;
+            }
+            if !out.iter().any(|(e, _)| *e == sym) {
+                if let Some(&n) = t.atoms.get(&sym) {
+                    out.push((sym, n));
+                }
+            }
+        } else {
+            i += 1;
+        }
+    }
+    // Anything the walk missed (never, for a parsed formula) goes last.
+    for (el, &n) in &t.atoms {
+        if !out.iter().any(|(e, _)| e == el) {
+            out.push((el.clone(), n));
+        }
+    }
+    out
 }
 
 /// True when `band >= def.tier_min`.
 pub fn learnable(def: &SpellDef, band: Tier) -> bool {
-    // Contract stub: the sim lane writes the body.
-    let _ = (def, band);
-    false
+    band >= def.tier_min
 }
 
 /// The spell's prompt for `band` (Adept uses the Apprentice prompt).
 pub fn prompt(def: &SpellDef, band: Tier) -> Option<&str> {
-    // Contract stub: the sim lane writes the body.
-    let _ = (def, band);
-    None
+    match band {
+        Tier::Sprout => def.prompt_sprout.as_deref(),
+        Tier::Seedling => def.prompt_seedling.as_deref(),
+        Tier::Apprentice | Tier::Adept => def.prompt_apprentice.as_deref(),
+    }
 }
 
 /// A spell in the bench's list, learnable at the band.
