@@ -1321,8 +1321,11 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     const s0 = await st();
     const keys = Object.keys(s0);
     check('streams: fireInView is a boolean, the last state key',
-      typeof s0.fireInView === 'boolean' && keys[keys.length - 1] === 'fireInView' && keys[keys.length - 2] === 'fxWater',
-      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-3).join(',')}`);
+      // I-027 appends exactly its three progress keys after fireInView (its
+      // Contract); fireInView is still the last key before them, after fxWater.
+      typeof s0.fireInView === 'boolean' && keys[keys.length - 4] === 'fireInView' && keys[keys.length - 5] === 'fxWater'
+        && keys.slice(-3).join() === 'progress,progRev,progSave',
+      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-5).join(',')}`);
   }
 
   // 6. The arrow stays away while a fire is aimed at or on screen.
@@ -2611,3 +2614,4 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
   }
   await fresh();
 }
+
