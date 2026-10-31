@@ -809,7 +809,12 @@ export function startBench() {
     if (needRecipe && !recipe && !fakeView) {
       if (!builderKey) {
         clearBody();
-        body.append(mk(document, 'p', 'bench-wait', 'Getting the bench ready'));
+        // The picked card is gone with the list: hold focus here (not
+        // tabbable) so it never falls back to <body> while the recipe comes.
+        const wait = mk(document, 'p', 'bench-wait', 'Getting the bench ready');
+        wait.tabIndex = -1;
+        body.append(wait);
+        if (ui.open) wait.focus();
         builderKey = 'wait';
       }
       return;

@@ -266,3 +266,4 @@ canvas.hover-fire { cursor: pointer; }
   #bench .bench-done-icon { animation: none; }
   #bench .bench-beam { transition: none; }
 }
+#bench .bench-wait:focus { outline: none; }
