@@ -1049,8 +1049,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   const I019_KEYS = ['clicks', 'firesLeft', 'nearFire', 'fireBearing', 'fireElev', 'fireOff', 'streams', 'fxWater'];
   // I-025 appends fireInView after them (its Contract item 3).
   const I025_KEYS = ['fireInView'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS].every((k, i) => keys[i] === k);
+  // I-027 appends its progress keys after them (its Contract).
+  const I027_KEYS = ['progress', 'progRev', 'progSave'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The

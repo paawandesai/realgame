@@ -20,6 +20,7 @@ mod feel;
 mod fx;
 mod motion;
 mod player;
+mod progress;
 mod spells;
 mod world;
 
@@ -138,6 +139,11 @@ struct Aim {
     obj: Option<usize>,
     assisted: bool,
 }
+
+/// Spell progress (I-027), saved in this browser by `web/progress.js`.
+/// Outside `Game`, so `reset` keeps it.
+#[derive(Resource, Default)]
+struct Progress(progress::Book);
 
 #[derive(Resource, Default)]
 struct Game {
@@ -373,6 +379,7 @@ fn main() {
         .insert_resource(settings)
         .init_resource::<Stats>()
         .init_resource::<Game>()
+        .init_resource::<Progress>()
         .init_resource::<WebIn>()
         .init_resource::<Player>()
         .add_systems(Startup, setup)
@@ -497,6 +504,12 @@ fn setup(
     mut game: ResMut<Game>,
 ) {
     info!("STARTUP t={:.0}ms", now_ms());
+    let _ = spells::book();
+    assert_eq!(
+        Spell::ALL.map(Spell::spell_id),
+        progress::SPELL_IDS,
+        "content/spells.json ids must match progress::SPELL_IDS"
+    );
     let (kit, colliders, chem) =
         world::build(&mut commands, &mut meshes, &mut materials, &mut images);
     commands.insert_resource(colliders);
@@ -745,6 +758,7 @@ fn control(
     mut chem: ResMut<Chem>,
     colliders: Res<Colliders>,
     mut cam: Query<(&mut Transform, &mut Projection), With<FpsCam>>,
+    mut prog: ResMut<Progress>,
     #[cfg(not(target_arch = "wasm32"))] mut cursor: Single<
         &mut bevy::window::CursorOptions,
         With<PrimaryWindow>,
@@ -828,6 +842,11 @@ fn control(
         }
         match name {
             Some("select") => game.spell = (f(1) as usize).clamp(1, 4) - 1,
+            Some("prog") => {
+                if let Err(e) = progress::apply_cmd(&mut prog.0, &a[1..], settings.debug) {
+                    warn!("{c:?}: {e}");
+                }
+            }
             Some("look") => {
                 player.yaw = f(1).to_radians();
                 player.pitch = f(2).clamp(-89.0, 89.0).to_radians();
@@ -1665,6 +1684,7 @@ fn publish(
     settings: Res<Settings>,
     fx: Res<Fx>,
     streams: StreamsAndBeams,
+    prog: Res<Progress>,
 ) {
     *frame += 1;
     // The frame in which the latest impact landed.
@@ -1691,7 +1711,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{}}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\"}}",
         *frame,
         w.ticks,
         game.locked,
@@ -1745,7 +1765,10 @@ fn publish(
         game.fire_off,
         streams.iter().count(),
         fx.water_live,
-        game.fire_in_view
+        game.fire_in_view,
+        prog.0.state_json(),
+        prog.0.rev(),
+        esc(&prog.0.encode())
     );
     bridge::publish(&json);
 }
