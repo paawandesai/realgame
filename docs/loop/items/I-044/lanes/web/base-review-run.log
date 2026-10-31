@@ -1,0 +1,44 @@
+PASS boots objs=14 burning=3
+PASS three fires at start 
+PASS a click over a target locks the pointer and does not cast hover was 6, locked=true, casts 0 -> 0
+PASS mouse look turns yaw 0 -> 349.11
+PASS WASD moves moved 2.33 m
+PASS jump y=0.9
+PASS keys 1-4 select spells 0,1,2,3
+PASS wheel switches spell spell=0
+PASS left click casts while locked casts 0 -> 1
+PASS aim turns while the fire button is held yaw 0 -> 8.16
+PASS fire spreads to neighbours burning=5 after 80 s of sim
+PASS unchecked fire reaches the greenhouse (lose) lost
+PASS reset burning=3
+PASS fire ignites the dry hedge temp=800
+PASS foam smothers the hedge ext=0
+PASS a fire the player lit does not count toward the objective ext=0
+PASS foam blanket stops re-ignition (no O2) No oxygen under the CO₂ blanket, so the fire cannot start.
+PASS fire melts the ice wall into a puddle The ice melted at 0 °C: H₂O(s) → H₂O(l). Now it is a puddle.
+PASS frost refreezes the meltwater Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+PASS lab bench: water-splitting placeholder Water-splitting station (coming soon): 2H₂O → 2H₂ + O₂ with electricity.
+PASS frost on the steam vent temp=5
+PASS frost freezes the puddle Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+PASS water puts out fire 1 Fire out! Water cooled it below its ignition temperature.
+PASS frost puts out fire 2 Fire out! Liquid nitrogen at −196 °C cooled it far below ignition.
+PASS Esc releases the mouse and pauses paused=true locked=false
+PASS drag-to-look turns the view without pointer lock yaw 302.2 -> 295.66
+PASS hover finds the target under the cursor hover=6
+PASS click-to-target casts without lock You saved the greenhouse! Water, frost and CO₂ each stop fire in their own way.
+PASS Save the Greenhouse win ext=3 burning=0
+PASS win banner shown You saved the greenhouse!
+PASS review: Hints off hides the locked hint, on brings it back locked=true ticked=true before "Aim at a fire and click." (ext=0); off "" ok=true; on "Aim at a fire and click." ok=true
+PASS review: Hints off keeps the start line and the point-and-click note start "Click to look around. Esc shows the controls and point-and-click mode." (locked=false casts=0); point mode=true note "Point and click: click a glowing target to cast at it. Drag to look."
+PASS review: Hints is ticked and saved again afterwards {"sens":1,"hfov":90,"sway":true,"assist":true,"hints":true,"sound":true,"text":1}
+PASS review: Aim help off turns off the tap and hover cone near miss on bush 5: true; point mode=true; on: hover=5; off: hover=-1 assist=false; on again: hover=5
+PASS review: an exact point-and-click hit still works with Aim help off hover=0 want 0 assist=false
+PASS review: View width is 90° wide at 4:3 and 21:9, live 4:3 fov=73.74 want 73.74; 21:9 fov=46.40 want 46.40; 4:3 at 100: fov=83.58 want 83.58 label=100°; back at 1280x720: fov=58.72
+PASS review: View width 100° holds at 4:3 and the label says 100° 4:3 fov=73.74 want 73.74; 21:9 fov=46.40 want 46.40; 4:3 at 100: fov=83.58 want 83.58 label=100°; back at 1280x720: fov=58.72
+PASS review: the cursor ray matches the view off-centre at 4:3 and 21:9 960x720 fov=73.74 pose "tp 0 5.5 face 0" P=(728,234) placed=true hover@P=0 want 0; (i stale vfov 58.72) P'=(810,192) |P'-P|=92.6 px hover=-1; (ii 16:9 aspect) P'=(666,234) |P'-P|=61.9 px hover=-1 | 1680x720 fov=46.40 pose "tp 0 5.5 face 0" P=(1264,236) placed=true hover@P=0 want 0; (i stale vfov 58.72) P'=(1163,266) |P'-P|=105.2 px hover=-1; (ii 16:9 aspect) P'=(1396,236) |P'-P|=132.5 px hover=-1
+PASS review: the view returns to 58.72° tall at the default size 4:3 fov=73.74 want 73.74; 21:9 fov=46.40 want 46.40; 4:3 at 100: fov=83.58 want 83.58 label=100°; back at 1280x720: fov=58.72
+FAIL review: the gauntlet's spell gem stays on screen at 21:9 1680x720 hfov 70: fov=33.41 vm=[0.2100,-0.1800,-0.4200] gem 17.62° below (limit 13.70) G=(1350,741) blue 0 vs mirror 0 streams=0 | 1680x720 hfov 75: fov=36.41 vm=[0.2100,-0.1800,-0.4200] gem 17.62° below (limit 15.20) G=(1305,708) blue 123 vs mirror 0 streams=0 | 960x720 hfov 70: fov=55.41 vm=[0.2100,-0.1800,-0.4200] gem 17.62° below (limit 24.70) G=(771,578) blue 105 vs mirror 0 streams=0
+PASS review: the gauntlet does not move at the default view 1280x720 hfov 90: fov=58.72 vm=[0.2100,-0.1800,-0.4200] want [0.21,-0.18,-0.42] ± 0.002
+FAIL review: Esc with Hints off never flashes the aim hint locked=true before: casts=0 ext=0; after Esc locked=false paused=true; shown ["Aim at a fire and click.","Click to look around. Esc shows the controls and point-and-click mode."]
+PASS no console errors 
+41/43 passed

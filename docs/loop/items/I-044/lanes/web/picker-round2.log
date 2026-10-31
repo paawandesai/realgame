@@ -1,0 +1,2 @@
+{"dnt":[null,null],"visible":true,"lockedWhilePicker":false,"buttons":["sprout","seedling","apprentice"],"focused":"sprout","hiddenAfter":true,"lockedAfterClick":true}
+PASS picker shows before pointer lock and closes on a pick

@@ -643,9 +643,12 @@ fn setup(
         )
     };
     let cam_id = camera.id();
+    let (vm_rest, vm_tilt) = feel::vm_rest(settings.fov_y());
     let root = commands
         .spawn((
-            Transform::from_xyz(0.21, -0.18, -0.42).with_scale(Vec3::splat(0.55)),
+            Transform::from_translation(Vec3::from(vm_rest))
+                .with_rotation(Quat::from_rotation_x(vm_tilt))
+                .with_scale(Vec3::splat(0.55)),
             Visibility::Inherited,
             Viewmodel,
         ))
@@ -1635,8 +1638,14 @@ fn viewmodel(
         } else {
             (0.0, 0.0)
         };
-        t.translation = Vec3::new(0.21 + bx, -0.18 + by + r * 0.015, -0.42 + r * 0.05);
-        t.rotation = Quat::from_rotation_x(r * 0.35) * Quat::from_rotation_y(0.1);
+        // The rest pose orbits up about the eye with the live vertical fov so
+        // the spell gem stays on screen, unhidden, in short, wide windows
+        // (I-044); exactly (0.21, -0.18, -0.42) and no tilt at the default view.
+        let (rest, tilt) = feel::vm_rest(settings.fov_y());
+        t.translation = Vec3::from(rest) + Vec3::new(bx, by + r * 0.015, r * 0.05);
+        t.rotation = Quat::from_rotation_x(tilt)
+            * Quat::from_rotation_x(r * 0.35)
+            * Quat::from_rotation_y(0.1);
         game.vm = t.translation;
     }
 }

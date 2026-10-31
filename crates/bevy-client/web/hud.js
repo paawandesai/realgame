@@ -457,8 +457,11 @@ export function startHud() {
   // Hints off (settings): coaching hints are hidden. Status notes (`note`)
   // and the start line (unlocked, nothing cast yet) stay: they say how to
   // play at all, not how to play better. The idle hint is gated in updateIdle.
+  // The start line is judged from `state.locked`, the same source frame()
+  // picks the hint from, so the frame between Esc and Bevy's next state
+  // cannot let the locked aim hint through (I-044).
   const hintAllowed = (text) => settings.hints || !text || text === note
-    || (!input.locked && !!state && state.casts === 0);
+    || (!!state && !state.locked && state.casts === 0);
   const setHint = (text) => {
     const shown = hintAllowed(text) ? text : '';
     if (hint.textContent !== shown) hint.textContent = shown;

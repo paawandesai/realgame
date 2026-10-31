@@ -2355,9 +2355,88 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
     await until((x) => x.assist === true, 5000);
   }
 
+  // I-044 test 6 helpers. World to camera space for a view at yaw, pitch
+  // (degrees; the camera is Ry(yaw)·Rx(pitch), looking down -z).
+  const toCam = (yawD, pitchD, v) => {
+    const y = yawD * DEGR, p = pitchD * DEGR;
+    const x1 = v[0] * Math.cos(y) - v[2] * Math.sin(y);
+    const z1 = v[0] * Math.sin(y) + v[2] * Math.cos(y);
+    return [x1, v[1] * Math.cos(p) + z1 * Math.sin(p), -v[1] * Math.sin(p) + z1 * Math.cos(p)];
+  };
+  // Pixel where a camera-space direction lands for a ray built with this
+  // vertical fov and aspect (the inverse of feel::ray_dir).
+  const toPx = (c, vfovD, aspect, W, H) => {
+    const t = Math.tan((vfovD * DEGR) / 2);
+    const u = c[0] / -c[2], v = c[1] / -c[2];
+    return { x: ((u / (t * aspect)) + 1) / 2 * W, y: (1 - v / t) / 2 * H };
+  };
+  const angDiff = (a, b) => ((((a - b) % 360) + 540) % 360) - 180;
+  const lookTo = async (yawD, pitchD) => {
+    await cmd(`look ${yawD.toFixed(4)} ${pitchD.toFixed(4)}`);
+    return until((x) => Math.abs(angDiff(x.yaw, yawD)) < 0.02 && Math.abs(x.pitch - pitchD) < 0.02, 10000);
+  };
+  const hoverAt = async (x, y, pred) => {
+    await page.mouse.move(x + 1, y + 1);
+    await page.mouse.move(x, y);
+    const f0 = (await st()).frame;
+    const r = await within(f0, 10, pred);
+    return r;
+  };
+  // Test 6 on one viewport: the target off-centre at about (0.75W, 0.30H),
+  // a hit at P, and both wrong-ray controls at least 25 px away and missing.
+  const rayOffCentre = async (W, H) => {
+    await page.setViewportSize({ width: W, height: H });
+    const want = vfovAt(90, W / H);
+    await within((await st()).frame, 10, (x) => Math.abs(x.fov - want) <= 0.3);
+    const tries = [];
+    for (const [px, pz, ti] of [[0, 5.5, lit[0]], [0, 12, lit[2]], [0, 12, lit[1]]]) {
+      const pose = `tp ${px} ${pz} face ${ti}`;
+      await tp(px, pz);
+      let f = (await st()).frame;
+      await cmd(`face ${ti}`);
+      let s0 = await until((x) => x.frame >= f + 2, 5000);
+      const yaw0 = s0.yaw, pitch0 = s0.pitch, cam = s0.cam;
+      const d = [-Math.sin(yaw0 * DEGR) * Math.cos(pitch0 * DEGR), Math.sin(pitch0 * DEGR), -Math.cos(yaw0 * DEGR) * Math.cos(pitch0 * DEGR)];
+      const T = [cam[0] + 16 * d[0], cam[1] + 16 * d[1], cam[2] + 16 * d[2]];
+      const tv = Math.tan((s0.fov * DEGR) / 2);
+      const aWant = Math.atan(0.5), bWant = Math.atan2(0.4 * tv, Math.sqrt(1.25));
+      let yaw = yaw0 + aWant / DEGR, pitch = pitch0 - bWant / DEGR;
+      let s1 = await lookTo(yaw, pitch);
+      let c = null, P = null, placed = false;
+      for (let k = 0; k <= 3; k++) {
+        const rel = [T[0] - s1.cam[0], T[1] - s1.cam[1], T[2] - s1.cam[2]];
+        c = toCam(s1.yaw, s1.pitch, rel);
+        P = toPx(c, s1.fov, W / H, W, H);
+        placed = c[2] < 0 && Math.abs(P.x - 0.75 * W) <= 0.05 * W && Math.abs(P.y - 0.30 * H) <= 0.05 * H;
+        if (placed || k === 3) break;
+        const a = Math.atan2(c[0], -c[2]), b = Math.atan2(c[1], Math.hypot(c[0], c[2]));
+        yaw = s1.yaw - (a - aWant) / DEGR;
+        pitch = s1.pitch + (b - bWant) / DEGR;
+        s1 = await lookTo(yaw, pitch);
+      }
+      const fov = s1.fov;
+      const hit = placed ? await hoverAt(P.x, P.y, (x) => x.hover === ti) : { ok: false, x: { hover: null } };
+      const ctl = [];
+      for (const [name, vc, ac] of [['i stale vfov 58.72', 58.72, W / H], ['ii 16:9 aspect', fov, 16 / 9]]) {
+        const Q = toPx(c, vc, ac, W, H);
+        const dist = Math.hypot(Q.x - P.x, Q.y - P.y);
+        const inside = Q.x >= 0 && Q.x <= W - 1 && Q.y >= 0 && Q.y <= H - 1;
+        const miss = inside ? await hoverAt(Q.x, Q.y, (x) => x.hover !== ti) : { ok: false, x: { hover: null } };
+        ctl.push({ name, Q, dist, inside, ok: inside && dist >= 25 && miss.ok, hover: miss.x.hover });
+      }
+      const ok = placed && hit.ok && ctl.every((q) => q.ok);
+      tries.push(`${W}x${H} fov=${fmt(fov)} pose "${pose}" P=(${fmt(P.x, 0)},${fmt(P.y, 0)}) placed=${placed} hover@P=${hit.x.hover} want ${ti}; `
+        + ctl.map((q) => `(${q.name}) P'=(${fmt(q.Q.x, 0)},${fmt(q.Q.y, 0)}) |P'-P|=${fmt(q.dist, 1)} px hover=${q.hover}${q.inside ? '' : ' off-screen'}`).join('; '));
+      // Only a control failure moves on to the next pose; a missed hit fails.
+      if (ok || !(placed && hit.ok)) return { ok, note: tries.join(' / ') };
+    }
+    return { ok: false, note: tries.join(' / ') };
+  };
+
   // 10. View width holds at 4:3 and 21:9, live.
   {
     const notes = [];
+    const rayNotes = [];
     let ok43 = false, ok219 = false, ok100 = false, hoverOk = false, back = false;
     try {
       await page.setViewportSize({ width: 960, height: 720 });
@@ -2380,13 +2459,23 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
       await until((x) => Math.abs(x.fov - vfovAt(90, 4 / 3)) <= 0.3, 10000);
       await unpause();
       const pm = await page.evaluate(() => window.__game.mode().pointMode) || await pointMode();
-      await cmd(`face ${lit[0]}`);
-      await centre(960, 720);
-      const h = await until((x) => x.hover === lit[0], 15000);
-      hoverOk = pm && h.hover === lit[0]; notes.push(`4:3 hover=${h.hover} want ${lit[0]}`);
+      // I-044 test 6: the cursor ray off-centre on both axes, Aim help off
+      // (so the hover cone cannot hide a wrong ray), with two wrong-ray
+      // controls that must miss.
+      await setCtl('#assist', false);
+      await until((x) => x.assist === false, 5000);
+      let both = pm;
+      for (const [W, H] of [[960, 720], [1680, 720]]) {
+        const r6 = await rayOffCentre(W, H);
+        both = both && r6.ok;
+        rayNotes.push(r6.note);
+      }
+      hoverOk = both;
     } catch (e) {
       notes.push(`error: ${e && e.message}`);
     } finally {
+      await setCtl('#assist', true);
+      await until((x) => x.assist === true, 5000);
       await page.setViewportSize({ width: VW, height: VH });
       const f0 = (await st()).frame;
       const r = await within(f0, 10, (x) => Math.abs(x.fov - 58.72) <= 0.2);
@@ -2395,8 +2484,128 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
     }
     check('review: View width is 90° wide at 4:3 and 21:9, live', ok43 && ok219, notes.join('; '));
     check('review: View width 100° holds at 4:3 and the label says 100°', ok100, notes.join('; '));
-    check('review: the cursor ray matches the view at 4:3', hoverOk, notes.join('; '));
+    check('review: the cursor ray matches the view off-centre at 4:3 and 21:9', hoverOk, rayNotes.join(' | '));
     check('review: the view returns to 58.72° tall at the default size', back, notes.join('; '));
+  }
+
+  // I-044 tests 7-9: the gauntlet's spell gem stays on screen in short, wide
+  // windows; the default look does not move; Esc with Hints off never
+  // flashes the aim hint.
+  {
+    const gemNotes = [], restNotes = [];
+    let gemOk = true, restOk = false;
+    const swayWas = await checked('#sway');
+    // The gem in camera space: the root plus Rx(tilt)·Ry(0.1)·(0, 0.0275,
+    // -0.0605) (local (0, 0.05, -0.11) scaled by 0.55; the Contract keeps
+    // these fixed). Round 2: the rest pose orbits up about the eye by
+    // tilt = 17.6 - clamp(fov/2 - 5, 4, 17.6) deg (feel::vm_tilt_deg),
+    // recomputed here from the live fov, not read back from the game.
+    const tiltOf = (fov) => (17.6 - Math.max(4, Math.min(17.6, fov / 2 - 5))) * DEGR;
+    const rotX = (t, [x, y, z]) => [x, y * Math.cos(t) - z * Math.sin(t), y * Math.sin(t) + z * Math.cos(t)];
+    const gemOf = (vm, fov) => {
+      const o = rotX(tiltOf(fov), [Math.sin(0.1) * -0.0605, 0.0275, Math.cos(0.1) * -0.0605]);
+      return [vm[0] + o[0], vm[1] + o[1], vm[2] + o[2]];
+    };
+    const setHud = (hide) => page.evaluate((hide) => {
+      for (const id of ['hud', 'pause']) { const e = document.getElementById(id); if (e) e.style.setProperty('display', hide ? 'none' : ''); }
+    }, hide);
+    const blueIn = (img, cx, cy) => {
+      let n = 0;
+      for (let y = Math.max(0, Math.round(cy) - 7); y <= Math.min(img.h - 1, Math.round(cy) + 7); y++) {
+        for (let x = Math.max(0, Math.round(cx) - 7); x <= Math.min(img.w - 1, Math.round(cx) + 7); x++) {
+          const k = (y * img.w + x) * img.bpp;
+          const R = img.data[k], B = img.data[k + 2];
+          if (B >= R + 40 && B >= 120) n++;
+        }
+      }
+      return n;
+    };
+    try {
+      await fresh();
+      const pm = await page.evaluate(() => window.__game.mode().pointMode) || await pointMode();
+      await setCtl('#sway', false);
+      await cmd('select 2');
+      const s0 = await until((x) => x.sway === false && x.spell === 1, 5000);
+      await lookTo(s0.yaw, -25);
+      for (const [W, H, hf] of [[1680, 720, 70], [1680, 720, 75], [960, 720, 70]]) {
+        await page.setViewportSize({ width: W, height: H });
+        await setCtl('#fov', hf);
+        const want = vfovAt(hf, W / H);
+        // At rest: fov live, no cast for 1 s (recoil 0), no stream in flight.
+        await sleep(1000);
+        const x = await until((q) => Math.abs(q.fov - want) <= 0.3 && q.streams === 0 && q.sway === false && q.spell === 1, 10000);
+        await frames(3);
+        const s1 = await st();
+        const g = gemOf(s1.vm, s1.fov);
+        const below = Math.atan(-g[1] / -g[2]) / DEGR;
+        // The root sits where the orbit puts it (so `g` is where the gem is).
+        const vmWant = rotX(tiltOf(s1.fov), [0.21, -0.18, -0.42]);
+        const vmOk = s1.vm.every((v, i) => Math.abs(v - vmWant[i]) <= 0.002);
+        const geoOk = Math.abs(s1.fov - want) <= 0.3 && vmOk && below <= s1.fov / 2 - 3;
+        await setHud(true);
+        await frames(2);
+        const img = await decodePng(await page.screenshot({ type: 'png', timeout: 180000 }));
+        await setHud(false);
+        const G = toPx(g, s1.fov, W / H, W, H);
+        const sx = img.w / W, sy = img.h / H;
+        const nGem = blueIn(img, G.x * sx, G.y * sy), nMirror = blueIn(img, (W - G.x) * sx, G.y * sy);
+        const pixOk = nGem >= 10 && nMirror < 10;
+        gemOk = gemOk && pm && geoOk && pixOk && s1.streams === 0;
+        gemNotes.push(`${W}x${H} hfov ${hf}: fov=${fmt(s1.fov)} vm=[${s1.vm.map((v) => fmt(v, 4)).join(',')}] (orbit [${vmWant.map((v) => fmt(v, 4)).join(',')}] ${vmOk ? 'ok' : 'OFF'}) gem ${fmt(below)}° below (limit ${fmt(s1.fov / 2 - 3)}) G=(${fmt(G.x, 0)},${fmt(G.y, 0)}) blue ${nGem} vs mirror ${nMirror} streams=${x.streams}`);
+      }
+      // 8. The default view: the gauntlet has not moved.
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await setCtl('#fov', 90);
+      await sleep(400);
+      const r = await until((q) => Math.abs(q.fov - 58.72) <= 0.2 && q.sway === false, 10000);
+      await frames(3);
+      const s2 = await st();
+      const rest = [0.21, -0.18, -0.42];
+      restOk = Math.abs(r.fov - 58.72) <= 0.2 && s2.vm.every((v, i) => Math.abs(v - rest[i]) <= 0.002);
+      restNotes.push(`1280x720 hfov 90: fov=${fmt(s2.fov)} vm=[${s2.vm.map((v) => fmt(v, 4)).join(',')}] want [0.21,-0.18,-0.42] ± 0.002`);
+    } catch (e) {
+      gemOk = false;
+      gemNotes.push(`error: ${e && e.message}`);
+    } finally {
+      await setHud(false);
+      await setCtl('#fov', 90);
+      await setCtl('#sway', swayWas !== false);
+      await page.setViewportSize({ width: VW, height: VH });
+      await until((q) => Math.abs(q.fov - vfovAt(90, VW / VH)) <= 0.3, 10000);
+    }
+    check("review: the gauntlet's spell gem stays on screen at 21:9", gemOk, gemNotes.join(' | '));
+    check('review: the gauntlet does not move at the default view', restOk, restNotes.join(' | '));
+  }
+
+  // 9. Esc with Hints off never flashes the aim hint.
+  {
+    const AIM = 'Aim at a fire and click.';
+    let ok = false, note = '';
+    try {
+      await setCtl('#hints', false);
+      await fresh();
+      const lk = await relock();
+      const s0 = await until((x) => x.locked && x.casts === 0 && x.extinguished === 0, 10000);
+      await page.evaluate(() => {
+        const e = document.getElementById('hint');
+        window.__i044Hints = [];
+        const rec = () => { if (!e.classList.contains('hidden')) window.__i044Hints.push(e.textContent.trim()); };
+        window.__i044Obs = new MutationObserver(rec);
+        window.__i044Obs.observe(e, { childList: true, characterData: true, subtree: true, attributes: true });
+      });
+      await page.keyboard.press('Escape');
+      await frames(15);
+      const seen = await page.evaluate(() => { window.__i044Obs.disconnect(); return window.__i044Hints; });
+      const s1 = await st();
+      ok = lk && s0.locked && s0.casts === 0 && s0.extinguished === 0 && !s1.locked && !seen.includes(AIM);
+      note = `locked=${lk} before: casts=${s0.casts} ext=${s0.extinguished}; after Esc locked=${s1.locked} paused=${s1.paused}; shown ${JSON.stringify(seen)}`;
+    } catch (e) {
+      note = `error: ${e && e.message}`;
+    } finally {
+      await setCtl('#hints', true);
+      await relock();
+    }
+    check('review: Esc with Hints off never flashes the aim hint', ok, note);
   }
   await fresh();
 }
