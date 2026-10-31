@@ -314,6 +314,25 @@ pub fn stream_split(len: f32, style: &StreamStyle) -> (f32, f32, f32) {
     (lead_len, k, len - lead_len)
 }
 
+/// The stream's two drawn parts for a stream `len` metres long, each as
+/// `(start, length, width)` along the stream from the hand: first the lead
+/// frustum (`width` at its far end, `width·lead_min` at its near end, the
+/// shape of the shared mesh), then the shared cylinder (`width` all along).
+/// From `lead` on, the cylinder is the full-width rod after the lead. A
+/// shorter stream (every cast while its head is still within `lead` of the
+/// hand, and a target that close) has no rod; its frustum is only
+/// `thick·k·lead_min` across at the hand, thinner than `stream_width(0)`.
+/// The idle cylinder then becomes a `thick·lead_min` core along the lead,
+/// so the drawn hand end is always `stream_width(0)` wide.
+pub fn stream_parts(len: f32, style: &StreamStyle) -> [(f32, f32, f32); 2] {
+    let (lead_len, k, rod_len) = stream_split(len, style);
+    let lead = (0.0, lead_len, style.thick * k);
+    if rod_len > 0.0 || lead_len <= 0.0 || k >= 1.0 {
+        return [lead, (lead_len, rod_len, style.thick)];
+    }
+    [lead, (0.0, lead_len, style.thick * style.lead_min.min(1.0))]
+}
+
 /// WCAG 2 relative luminance of an sRGB colour (channels 0..1). Used by the
 /// unit tests and for tuning the stream colours, not by the game.
 #[cfg_attr(not(test), allow(dead_code))]
@@ -594,6 +613,51 @@ mod i046_tests {
                     s += 0.01;
                 }
                 assert!(worst <= 0.20, "spell {spell}: depth {depth}: {worst} rad");
+            }
+        }
+    }
+
+    // U6 (I-046 round 2): the drawn parts, read as the shared meshes draw
+    // them, give `stream_width(0)` at the hand and `stream_width(len)` at
+    // the head for every length, including streams shorter than `lead`.
+    #[test]
+    fn drawn_stream_matches_width_at_both_ends() {
+        for spell in 0..=255u8 {
+            let st = stream_style(spell);
+            let mut len = 0.0f32;
+            while len <= 2.0 {
+                let parts = stream_parts(len, &st);
+                let near = |(a, l, w): (f32, f32, f32), frustum: bool| {
+                    if a > 1e-6 || l <= 0.0 {
+                        0.0
+                    } else if frustum {
+                        w * st.lead_min
+                    } else {
+                        w
+                    }
+                };
+                let far = |(a, l, w): (f32, f32, f32)| {
+                    if l > 0.0 && (a + l - len).abs() <= 1e-5 {
+                        w
+                    } else {
+                        0.0
+                    }
+                };
+                let hand = near(parts[0], true).max(near(parts[1], false));
+                let head = far(parts[0]).max(far(parts[1]));
+                let covered: f32 = parts.iter().map(|p| p.0 + p.1).fold(0.0, f32::max);
+                if len > 0.0 {
+                    assert!(
+                        (hand - stream_width(0.0, &st)).abs() <= 1e-6,
+                        "spell {spell}: len {len}: hand {hand}"
+                    );
+                    assert!(
+                        (head - stream_width(len, &st)).abs() <= 1e-6,
+                        "spell {spell}: len {len}: head {head}"
+                    );
+                    assert!((covered - len).abs() <= 1e-5, "spell {spell}: len {len}");
+                }
+                len += 0.01;
             }
         }
     }

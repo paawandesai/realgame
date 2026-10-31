@@ -261,10 +261,11 @@ fn spell_path(from: Vec3, to: Vec3, a: f32) -> Vec3 {
 struct StreamPart;
 
 /// The stream's two parts from the hand to the head (both meshes' axes are
-/// +Y, from -0.5 to +0.5): the lead frustum over the first
-/// `cues::stream_split` metres, `style.thick·k` across at its far end, and
-/// the rod, `style.thick` across, for the rest. A zero-length part is
-/// scaled to nothing.
+/// +Y, from -0.5 to +0.5), placed as `cues::stream_parts` says: the lead
+/// frustum over the first `lead` metres and the rod, `style.thick` across,
+/// for the rest; on a stream shorter than `lead` the rod is a thin core
+/// along the lead, so the hand end stays `stream_width(0)` wide. A
+/// zero-length part is scaled to nothing.
 fn stream_transforms(tail: Vec3, head: Vec3, style: &cues::StreamStyle) -> (Transform, Transform) {
     let v = head - tail;
     let len = v.length();
@@ -274,8 +275,8 @@ fn stream_transforms(tail: Vec3, head: Vec3, style: &cues::StreamStyle) -> (Tran
     }
     let dir = v / len;
     let rot = Quat::from_rotation_arc(Vec3::Y, dir);
-    let (lead_len, k, rod_len) = cues::stream_split(len, style);
-    let part = |a: f32, l: f32, w: f32| {
+    let [lead, rod] = cues::stream_parts(len, style);
+    let part = |(a, l, w): (f32, f32, f32)| {
         if l < 1e-4 {
             return none(tail + dir * a);
         }
@@ -283,10 +284,7 @@ fn stream_transforms(tail: Vec3, head: Vec3, style: &cues::StreamStyle) -> (Tran
             .with_rotation(rot)
             .with_scale(Vec3::new(w, l, w))
     };
-    (
-        part(0.0, lead_len, style.thick * k),
-        part(lead_len, rod_len, style.thick),
-    )
+    (part(lead), part(rod))
 }
 
 /// One helper for every spell's stream: an unmeshed `Stream` root with two

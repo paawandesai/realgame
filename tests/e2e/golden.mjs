@@ -2607,15 +2607,37 @@ async function closeStreams({ page, st, cmd, until, frames, sleep, idx, lit, loc
     {
       await setCtl('#assist', true);
       const notes = []; let all = true;
+      // The expected hand point mirrors feel::vm_hand (VM_HAND turned about
+      // the eye by feel::vm_tilt_deg = VM_GEM_DEG - vm_gem_deg, where
+      // vm_gem_deg = clamp(vfov/2 - VM_EDGE_MARGIN_DEG, VM_GEM_MIN_DEG,
+      // VM_GEM_DEG)). The state line does not report the hand, so the four
+      // constants are read from feel.rs itself: a retune there moves this
+      // check with it, and a renamed or reshaped constant fails here with
+      // that message instead of a wrong pixel verdict. If vm_hand's formula
+      // changes, change the lines below with it.
+      const feelSrc = await readFile(join(here, '..', '..', 'crates', 'bevy-client', 'src', 'feel.rs'), 'utf8');
+      const feelNum = (name) => {
+        const m = feelSrc.match(new RegExp(`pub const ${name}: f32 = (-?[0-9.]+);`));
+        return m ? +m[1] : NaN;
+      };
+      const hm = feelSrc.match(/pub const VM_HAND: \[f32; 3\] = \[(-?[0-9.]+), (-?[0-9.]+), (-?[0-9.]+)\];/);
+      const GEM = feelNum('VM_GEM_DEG'), MARGIN = feelNum('VM_EDGE_MARGIN_DEG'), GEM_MIN = feelNum('VM_GEM_MIN_DEG');
+      const HAND = hm ? [+hm[1], +hm[2], +hm[3]] : [NaN, NaN, NaN];
+      const feelOk = [GEM, MARGIN, GEM_MIN, ...HAND].every(Number.isFinite);
+      if (!feelOk) {
+        all = false;
+        notes.push(`could not read VM_GEM_DEG ${GEM}, VM_EDGE_MARGIN_DEG ${MARGIN}, VM_GEM_MIN_DEG ${GEM_MIN}, VM_HAND [${HAND}] from feel.rs; update G6 to match feel::vm_hand`);
+      }
       await viewport(1680, 720, 70);
-      for (const [spell, name] of [[2, 'Water'], [3, 'Frost']]) {
+      for (const [spell, name] of feelOk ? [[2, 'Water'], [3, 'Frost']] : []) {
         let pass = false; const log = [];
         for (let k = 0; k < 3 && !pass; k++) {
           const t = await skyTry(spell, k === 0 ? `i046-g6-1680x720-vw70-${name.toLowerCase()}` : null);
           const A = t.after, Wp = A.w, Hp = A.h, cx = Wp / 2, cy = Hp / 2;
           const vf = vfovAt(70, Wp / Hp);
-          const tilt = (17.6 - Math.max(4, Math.min(17.6, vf / 2 - 5))) * DEGR;
-          const p = [0.2, -0.15 * Math.cos(tilt) + 0.5 * Math.sin(tilt), -0.15 * Math.sin(tilt) - 0.5 * Math.cos(tilt)];
+          const tilt = (GEM - Math.max(GEM_MIN, Math.min(GEM, vf / 2 - MARGIN))) * DEGR;
+          const [hx0, hy0, hz0] = HAND, ct = Math.cos(tilt), stl = Math.sin(tilt);
+          const p = [hx0, hy0 * ct - hz0 * stl, hy0 * stl + hz0 * ct];
           const f = (Hp / 2) / Math.tan((vf * DEGR) / 2);
           const hx = cx + f * p[0] / -p[2], hy = cy - f * p[1] / -p[2];
           const L = Math.hypot(hx - cx, hy - cy); const ux = (hx - cx) / L, uy = (hy - cy) / L;
