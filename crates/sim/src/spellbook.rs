@@ -679,4 +679,130 @@ mod tests {
             fire.formula.equation.to_string()
         );
     }
+
+    // I-028 test 7: Formula Bench prompts.
+    #[test]
+    fn prompts_cover_exactly_the_learnable_bands() {
+        let e = err(mutated(|v| {
+            spell(v, 1)
+                .as_object_mut()
+                .unwrap()
+                .remove("prompt_seedling");
+        }));
+        assert_eq!(
+            e,
+            SpellError::Prompt {
+                spell: "water".into(),
+                band: Tier::Seedling
+            }
+        );
+        let e = err(mutated(|v| {
+            spell(v, 0)["prompt_sprout"] = json!("Make fire!")
+        }));
+        assert_eq!(
+            e,
+            SpellError::Prompt {
+                spell: "fire".into(),
+                band: Tier::Sprout
+            }
+        );
+        let e = err(mutated(|v| {
+            spell(v, 3)
+                .as_object_mut()
+                .unwrap()
+                .remove("prompt_apprentice");
+        }));
+        assert_eq!(
+            e,
+            SpellError::Prompt {
+                spell: "co2".into(),
+                band: Tier::Apprentice
+            }
+        );
+    }
+
+    // I-028 test 7: a prompt is player text (1-120 chars, no quote,
+    // backslash or control character).
+    #[test]
+    fn prompts_are_player_text() {
+        let bad = SpellError::BadText {
+            spell: "water".into(),
+            field: "prompt_sprout",
+        };
+        let e = err(mutated(|v| {
+            spell(v, 1)["prompt_sprout"] = json!("Make \"water\"!")
+        }));
+        assert_eq!(e, bad);
+        let e = err(mutated(|v| {
+            spell(v, 1)["prompt_sprout"] = json!("a".repeat(121))
+        }));
+        assert_eq!(e, bad);
+        let e = err(mutated(|v| spell(v, 1)["prompt_sprout"] = json!("")));
+        assert_eq!(e, bad);
+        // 120 characters (not bytes) is fine.
+        assert!(mutated(|v| spell(v, 1)["prompt_sprout"] = json!("₂".repeat(120))).is_ok());
+        // Text errors come before the coverage rule.
+        let e = err(mutated(|v| {
+            spell(v, 0)["prompt_sprout"] = json!("Make\nfire")
+        }));
+        assert_eq!(
+            e,
+            SpellError::BadText {
+                spell: "fire".into(),
+                field: "prompt_sprout"
+            }
+        );
+    }
+
+    // I-028 test 7, parity: the 11 shipped prompts, byte for byte.
+    #[test]
+    fn shipped_prompts_match_the_spec_table() {
+        let want: [(&str, Option<&str>, &str, &str); 4] = [
+            (
+                "fire",
+                None,
+                "Fire: methane burns with oxygen. Change the numbers until the scale is level.",
+                "Fire: write the balanced equation for methane burning in oxygen.",
+            ),
+            (
+                "water",
+                Some("Make water! Copy the balls in the picture."),
+                "Water: build one water molecule from atom tiles.",
+                "Water: write the formula of liquid water, with its state symbol.",
+            ),
+            (
+                "frost",
+                Some("Make liquid nitrogen! It is super cold. Copy the balls in the picture."),
+                "Frost: build one nitrogen molecule. Liquid nitrogen is very, very cold.",
+                "Frost: write the formula of liquid nitrogen, with its state symbol.",
+            ),
+            (
+                "co2",
+                Some("Make carbon dioxide! Copy the balls in the picture."),
+                "CO₂: build one carbon dioxide molecule.",
+                "CO₂: write the formula of carbon dioxide gas, with its state symbol.",
+            ),
+        ];
+        let b = shipped();
+        let mut n = 0;
+        for (s, (id, sprout, seedling, apprentice)) in b.spells.iter().zip(want) {
+            assert_eq!(s.id, id);
+            assert_eq!(s.prompt_sprout.as_deref(), sprout, "{id} sprout");
+            assert_eq!(
+                s.prompt_seedling.as_deref(),
+                Some(seedling),
+                "{id} seedling"
+            );
+            assert_eq!(
+                s.prompt_apprentice.as_deref(),
+                Some(apprentice),
+                "{id} apprentice"
+            );
+            n += [&s.prompt_sprout, &s.prompt_seedling, &s.prompt_apprentice]
+                .iter()
+                .filter(|p| p.is_some())
+                .count();
+        }
+        assert_eq!(n, 11);
+    }
 }
