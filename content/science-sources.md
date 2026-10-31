@@ -18,12 +18,12 @@ The single register of every science claim the first-person 3D client shows the 
 
 | id | claim | where | verdict | note | sources |
 |---|---|---|---|---|---|
-| C-001 | `CH4 + 2O2 → CO2 + 2H2O` | crates/bevy-client/src/chem.rs, crates/bevy-client/web/index.html | correct | | [S7] |
-| C-002 | `H2O absorbs heat` | crates/bevy-client/src/chem.rs | correct | | [S11] [S10] |
-| C-003 | `N2(l) boils at −196 °C` | crates/bevy-client/src/chem.rs, crates/bevy-client/web/index.html | correct | | [S1] |
-| C-004 | `CO2 blanket, no O2` | crates/bevy-client/src/chem.rs | simplified | Limiting case. A CO2 blanket dilutes and displaces O2; it does not remove all of it. Flaming stops well before O2 reaches zero (fuel-specific limits of roughly 12.5 to 16 vol% O2; 10 vol% stops nearly all fires), and CO2 extinguishes mainly by absorbing heat, with dilution secondary. Not false as a hotbar label for "keeps oxygen away"; the reviewer may escalate. | [S14] |
-| C-006 | `Water soaks up heat and cools things below their ignition temperature.` | crates/bevy-client/src/chem.rs | correct | | [S9] [S11] |
-| C-007 | `Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches.` | crates/bevy-client/src/chem.rs | correct | | [S1] |
+| C-001 | `CH4 + 2O2 → CO2 + 2H2O` | content/spells.json, crates/bevy-client/web/index.html | correct | | [S7] |
+| C-002 | `H2O absorbs heat` | content/spells.json | correct | | [S11] [S10] |
+| C-003 | `N2(l) boils at −196 °C` | content/spells.json, crates/bevy-client/web/index.html | correct | | [S1] |
+| C-004 | `CO2 blanket, no O2` | content/spells.json | simplified | Limiting case. A CO2 blanket dilutes and displaces O2; it does not remove all of it. Flaming stops well before O2 reaches zero (fuel-specific limits of roughly 12.5 to 16 vol% O2; 10 vol% stops nearly all fires), and CO2 extinguishes mainly by absorbing heat, with dilution secondary. Not false as a hotbar label for "keeps oxygen away"; the reviewer may escalate. | [S14] |
+| C-006 | `Water soaks up heat and cools things below their ignition temperature.` | content/spells.json | correct | | [S9] [S11] |
+| C-007 | `Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches.` | content/spells.json | correct | | [S1] |
 | C-009 | `It caught fire: hot enough to reach its ignition temperature, with oxygen around.` | crates/bevy-client/src/chem.rs | correct | | [S6] [S14] |
 | C-010 | `Fire out! Water cooled it below its ignition temperature.` | crates/bevy-client/src/chem.rs | correct | | [S9] |
 | C-011 | `Fire out! Liquid nitrogen at −196 °C cooled it far below ignition.` | crates/bevy-client/src/chem.rs | correct | | [S1] [S6] |
@@ -42,11 +42,11 @@ The single register of every science claim the first-person 3D client shows the 
 | C-027 | `Oh no! Heat from the fire reached the greenhouse. Press R to try again.` | crates/bevy-client/src/main.rs | correct | | [S6] |
 | C-028 | `Heat from a neighbour raised the {who} to its ignition temperature: it caught fire!` | crates/bevy-client/src/main.rs | correct | | [S6] |
 | C-030 | `Heat spread from bush to bush. Press R to try again.` | crates/bevy-client/web/hud.js | correct | | [S6] |
-| C-031 | `cools below ignition` | crates/bevy-client/web/index.html | correct | | [S9] |
-| C-032 | `CO₂ displaces O₂` | crates/bevy-client/web/index.html | correct | | [S14] [S5] [S8] |
+| C-031 | `cools below ignition` | crates/bevy-client/web/index.html, content/spells.json | correct | | [S9] |
+| C-032 | `CO₂ displaces O₂` | crates/bevy-client/web/index.html, content/spells.json | correct | | [S14] [S5] [S8] |
 | C-033 | `The greenhouse is heating up: ${state.ghTemp} °C. Wood can catch fire at about 300 °C!` | crates/bevy-client/web/hud.js | simplified | Piloted ignition of wood (a flame or spark present) that goes straight to flaming normally happens at surface temperatures of about 300 to 365 °C, and as low as about 250 °C under long, low heat flux (glowing first); autoignition with no pilot needs higher temperatures. "About 300 °C" is the typical piloted value, which is what the greenhouse frame models (P-004). The shown temperature is the game's one-number model of the frame's surface. | [S6] |
-| C-034 | `Fire spell: a gas flame. Methane burns: CH4 + 2O2 → CO2 + 2H2O, and lots of heat.` | crates/bevy-client/src/chem.rs | correct | | [S7] [S4] |
-| C-035 | `CO2 from an extinguisher is heavier than air: it smothers fire by pushing the oxygen away.` | crates/bevy-client/src/chem.rs | simplified | "Heavier than air" is correct: M(CO2) = 44.01 g/mol vs 28.96 g/mol for sea-level air, so about 1.52 times as dense at the same T and p. A CO2 extinguishing agent discharges carbon dioxide and puts fire out by lowering the oxygen concentration [S19]. "Pushing the oxygen away" is the textbook picture; the EPA review says CO2 puts out flames mainly by a thermophysical (heat-absorbing) mechanism, with dilution of the reacting species secondary [S14]. Incomplete, not false. | [S5] [S8] [S14] [S19] |
+| C-034 | `Fire spell: a gas flame. Methane burns: CH4 + 2O2 → CO2 + 2H2O, and lots of heat.` | content/spells.json | correct | | [S7] [S4] |
+| C-035 | `CO2 from an extinguisher is heavier than air: it smothers fire by pushing the oxygen away.` | content/spells.json | simplified | "Heavier than air" is correct: M(CO2) = 44.01 g/mol vs 28.96 g/mol for sea-level air, so about 1.52 times as dense at the same T and p. A CO2 extinguishing agent discharges carbon dioxide and puts fire out by lowering the oxygen concentration [S19]. "Pushing the oxygen away" is the textbook picture; the EPA review says CO2 puts out flames mainly by a thermophysical (heat-absorbing) mechanism, with dilution of the reacting species secondary [S14]. Incomplete, not false. | [S5] [S8] [S14] [S19] |
 | C-036 | `Fire out! The CO2 smothered it: no oxygen, no fire.` | crates/bevy-client/src/chem.rs | simplified | A CO2 extinguishing agent puts fire out by lowering the oxygen concentration [S19]. "No oxygen" is the limiting case: flaming stops well before O2 reaches zero (see C-004), and CO2 also works by absorbing heat [S14]. | [S19] [S14] |
 | C-037 | `Melting... it takes a lot of heat to turn ice into water.` | crates/bevy-client/src/chem.rs | correct | | [S10] |
 | C-038 | `A CO2 blanket covers it: no oxygen can reach it, so it cannot burn.` | crates/bevy-client/src/chem.rs | simplified | As C-036: CO2 lowers the oxygen concentration [S19]; "no oxygen" is the limiting case (see C-004). | [S19] [S14] |
@@ -88,7 +88,7 @@ The single register of every science claim the first-person 3D client shows the 
 | `Point and click: click a glowing target to cast at it. Drag to look.` | crates/bevy-client/web/hud.js | Game instruction (point-and-click mode). Flagged by sentence shape; it states no science. |
 | `Another bush is on fire! Put it out before it spreads.` | crates/bevy-client/src/chem.rs | Game event: a new fire started so the level can still be won after a fire burnt out by itself. Flagged by sentence shape and `fire`; it states no science. |
 | `Click again to lock the mouse.` | crates/bevy-client/web/hud.js | Game instruction (the browser refused a new pointer lock right after Esc). Flagged by sentence shape; it states no science. |
-| `CO2` | crates/bevy-client/src/chem.rs, crates/bevy-client/web/index.html | Name of spell 4 on the hotbar (carbon dioxide from an extinguisher). A label naming the substance; it asserts nothing. Its science is C-004, C-032 and C-035. |
+| `CO2` | content/spells.json, crates/bevy-client/web/index.html | Name of spell 4 on the hotbar (carbon dioxide from an extinguisher). A label naming the substance; it asserts nothing. Its science is C-004, C-032 and C-035. |
 | `Save the Greenhouse! Put out 3 fires before they spread. Water is ready: aim at a fire and click.` | crates/bevy-client/src/main.rs | Game instruction (the objective and which spell is ready). Flagged by sentence shape; it states no science. |
 | `Save the Greenhouse! Put out 3 fires before they spread.` | crates/bevy-client/src/main.rs | Game instruction (the objective). Flagged by sentence shape; it states no science. |
 | `You saved the greenhouse!` | crates/bevy-client/web/hud.js | Win banner. Flagged by sentence shape; it states no science. |
@@ -102,7 +102,7 @@ The single register of every science claim the first-person 3D client shows the 
 [S17] and [S20] were removed in I-012 once no row cited them; their ids are not reused.
 
 - [S0] Design choice: gameplay tuning or scenario assumption, no physical claim.
-- [S1] NIST Chemistry WebBook, SRD 69, Nitrogen, phase change data (Tboil = 77.34 K, Jacobsen, Stewart, et al., 1986): https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379&Mask=4
+- [S1] NIST Chemistry WebBook, SRD 69, Nitrogen, phase change data (Tboil = 77.34 K, Jacobsen, Stewart, et al., 1986; enthalpy of vaporization ΔvapH = 5.6 kJ/mol at 77 K, Giauque and Clayton, 1933): https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379&Mask=4
 - [S2] NIST Chemistry WebBook, SRD 69, Water, phase change data (Tboil = 373.17 ± 0.04 K, average of 7 values): https://webbook.nist.gov/cgi/cbook.cgi?ID=C7732185&Mask=4
 - [S3] NIST Chemistry WebBook, SRD 69, Water, condensed phase thermochemistry (ΔfH°liquid = −285.830 ± 0.040 kJ/mol, CODATA review value, Cox, Wagman, et al., 1984): https://webbook.nist.gov/cgi/cbook.cgi?ID=C7732185&Mask=2
 - [S4] NIST Chemistry WebBook, SRD 69, Methane, gas phase thermochemistry (ΔcH°gas = −890.7 ± 0.4 kJ/mol, Pittam and Pilcher, 1972): https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Mask=1

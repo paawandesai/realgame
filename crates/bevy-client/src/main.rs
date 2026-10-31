@@ -20,6 +20,7 @@ mod feel;
 mod fx;
 mod motion;
 mod player;
+mod spells;
 mod world;
 
 use bevy::anti_alias::fxaa::Fxaa;

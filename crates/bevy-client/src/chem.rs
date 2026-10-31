@@ -66,40 +66,21 @@ pub enum Spell {
 impl Spell {
     pub const ALL: [Spell; 4] = [Spell::Fire, Spell::Water, Spell::Frost, Spell::Foam];
 
-    pub fn name(self) -> &'static str {
+    /// The chemistry rule this spell runs, as `content/spells.json` names it
+    /// in `effect`. An engine key only: never save or send it (CO2's effect
+    /// is `foam`). The permanent spell id is `Spell::spell_id()` in spells.rs.
+    pub fn effect_id(self) -> &'static str {
         match self {
-            Spell::Fire => "Fire",
-            Spell::Water => "Water",
-            Spell::Frost => "Frost",
-            Spell::Foam => "CO₂",
+            Spell::Fire => "fire",
+            Spell::Water => "water",
+            Spell::Frost => "frost",
+            Spell::Foam => "foam",
         }
     }
 
-    pub fn formula(self) -> &'static str {
-        match self {
-            Spell::Fire => "CH₄ + 2O₂ → CO₂ + 2H₂O",
-            Spell::Water => "H₂O absorbs heat",
-            Spell::Frost => "N₂(l) boils at −196 °C",
-            Spell::Foam => "CO₂ blanket, no O₂",
-        }
-    }
-
-    /// The caption shown when the spell is cast.
-    pub fn cast_caption(self) -> &'static str {
-        match self {
-            Spell::Fire => {
-                "Fire spell: a gas flame. Methane burns: CH₄ + 2O₂ → CO₂ + 2H₂O, and lots of heat."
-            }
-            Spell::Water => {
-                "Water soaks up heat and cools things below their ignition temperature."
-            }
-            Spell::Frost => {
-                "Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches."
-            }
-            Spell::Foam => {
-                "CO₂ from an extinguisher is heavier than air: it smothers fire by pushing the oxygen away."
-            }
-        }
+    /// The inverse of `effect_id`; exact, lower case.
+    pub fn from_effect_id(id: &str) -> Option<Spell> {
+        Spell::ALL.into_iter().find(|s| s.effect_id() == id)
     }
 }
 
@@ -766,6 +747,19 @@ pub mod electrolysis {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn effect_ids_round_trip() {
+        assert_eq!(
+            Spell::ALL.map(Spell::effect_id),
+            ["fire", "water", "frost", "foam"]
+        );
+        for s in Spell::ALL {
+            assert_eq!(Spell::from_effect_id(s.effect_id()), Some(s));
+        }
+        assert_eq!(Spell::from_effect_id("co2"), None);
+        assert_eq!(Spell::from_effect_id("Fire"), None);
+    }
 
     fn row() -> World {
         // Three bushes 3 m apart (gap 1.2 m) and an isolated puddle.

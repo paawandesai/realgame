@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "notes": "The 3D game's spells, in hotbar slot order. id is permanent (saved and sent); effect names the client's chemistry rule and is never saved. Player text lives in name, label, hotbar_label and cast_caption, which the science lint scans. See docs/loop/items/I-026/spec.md.",
+  "spells": [
+    {
+      "id": "fire",
+      "slot": 1,
+      "effect": "fire",
+      "name": "Fire",
+      "label": "CH₄ + 2O₂ → CO₂ + 2H₂O",
+      "hotbar_label": "CH₄ + 2O₂ → CO₂ + 2H₂O",
+      "cast_caption": "Fire spell: a gas flame. Methane burns: CH₄ + 2O₂ → CO₂ + 2H₂O, and lots of heat.",
+      "formula": "CH4 + 2O2 -> CO2 + 2H2O",
+      "tier_min": "seedling",
+      "reaction": { "kind": "reaction", "id": "methane_combustion", "role": "runs" }
+    },
+    {
+      "id": "water",
+      "slot": 2,
+      "effect": "water",
+      "name": "Water",
+      "label": "H₂O absorbs heat",
+      "hotbar_label": "cools below ignition",
+      "cast_caption": "Water soaks up heat and cools things below their ignition temperature.",
+      "formula": "H2O(l)",
+      "tier_min": "sprout",
+      "reaction": { "kind": "phase_change", "id": "water_boiling", "role": "absorbs_heat" }
+    },
+    {
+      "id": "frost",
+      "slot": 3,
+      "effect": "frost",
+      "name": "Frost",
+      "label": "N₂(l) boils at −196 °C",
+      "hotbar_label": "N₂(l) boils at −196 °C",
+      "cast_caption": "Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches.",
+      "formula": "N2(l)",
+      "tier_min": "sprout",
+      "reaction": { "kind": "phase_change", "id": "nitrogen_boiling", "role": "absorbs_heat" }
+    },
+    {
+      "id": "co2",
+      "slot": 4,
+      "effect": "foam",
+      "name": "CO₂",
+      "label": "CO₂ blanket, no O₂",
+      "hotbar_label": "CO₂ displaces O₂",
+      "cast_caption": "CO₂ from an extinguisher is heavier than air: it smothers fire by pushing the oxygen away.",
+      "formula": "CO2(g)",
+      "tier_min": "sprout",
+      "reaction": { "kind": "register", "id": "C-035", "role": "cites" }
+    }
+  ]
+}

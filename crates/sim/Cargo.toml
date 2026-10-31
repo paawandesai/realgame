@@ -11,7 +11,15 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-wasm-bindgen = "0.2"
+wasm-bindgen = { version = "0.2", optional = true }
+
+# Default builds the 2D game and its wasm-bindgen surface, as before. The 3D
+# client links only the content and chemistry modules with
+# `default-features = false` (formula, reactions, spellbook, tier, ...).
+[features]
+default = ["web"]
+game = []
+web = ["game", "dep:wasm-bindgen"]
 
 # wasm-opt is downloaded from GitHub at build time, which some build machines
 # block. The unoptimised module is about 280 KB; turn this back on in CI.
