@@ -51,6 +51,15 @@ The single register of every science claim the first-person 3D client shows the 
 | C-037 | `Melting... it takes a lot of heat to turn ice into water.` | crates/bevy-client/src/chem.rs | correct | | [S10] |
 | C-038 | `A CO2 blanket covers it: no oxygen can reach it, so it cannot burn.` | crates/bevy-client/src/chem.rs | simplified | As C-036: CO2 lowers the oxygen concentration [S19]; "no oxygen" is the limiting case (see C-004). | [S19] [S14] |
 | C-039 | `You saved the greenhouse! Water, frost and CO2 each stop fire in their own way.` | crates/bevy-client/src/main.rs | correct | | [S9] [S1] [S19] |
+| C-040 | `Make liquid nitrogen! It is super cold. Copy the balls in the picture.` | content/spells.json | correct | Formula Bench prompt (Sprout, Frost). Liquid nitrogen boils at 77.34 K (−196 °C) at 1 atm, so it is very cold. | [S1] |
+| C-041 | `Frost: build one nitrogen molecule. Liquid nitrogen is very, very cold.` | content/spells.json | correct | Formula Bench prompt (Seedling, Frost). One N2 molecule is two nitrogen atoms; liquid nitrogen boils at 77.34 K at 1 atm. | [S1] |
+| C-042 | `Fire: methane burns with oxygen. Change the numbers until the scale is level.` | content/spells.json | correct | Formula Bench prompt (Seedling, Fire). Methane combustion CH4 + 2O2 → CO2 + 2H2O; the scale compares atom counts per side, not mass. | [S7] [S4] |
+| C-043 | `Fire: write the balanced equation for methane burning in oxygen.` | content/spells.json | correct | Formula Bench prompt (Apprentice, Fire). The judge accepts CH4 + 2O2 → CO2 + 2H2O and its multiples only. | [S7] [S4] |
+| C-044 | `The scale is not level. Atoms are never made or lost, so both sides need the same atoms.` | crates/bevy-client/web/bench.js | correct | Seedling reason for an unbalanced Fire build: conservation of atoms in a balanced equation. The scale counts atoms, not mass. | [S7] |
+| C-045 | `Water: write the formula of liquid water, with its state symbol.` | content/spells.json | correct | Formula Bench prompt (Apprentice, Water); the judge enforces H2O(l): water is a liquid between 273.15 K and 373.17 K at 1 atm, so at room conditions. | [S2] |
+| C-046 | `Frost: write the formula of liquid nitrogen, with its state symbol.` | content/spells.json | correct | Formula Bench prompt (Apprentice, Frost); the judge enforces N2(l): nitrogen is a liquid at or below its normal boiling point, 77.34 K at 1 atm. | [S1] |
+| C-047 | `CO₂: write the formula of carbon dioxide gas, with its state symbol.` | content/spells.json | correct | Formula Bench prompt (Apprentice, CO2); the judge enforces CO2(g): carbon dioxide is a gas at room temperature and 1 atm (an extinguisher's discharge leaves as gas and snow; I-026 chose CO2(g)). | [S5] |
+| C-048 | `A ${coef} in front would mean ${coef} molecules. One molecule is ${formula}.` | crates/bevy-client/web/bench.js | correct | Apprentice done-panel line for a single substance typed with a coefficient above 1 (for example 2H2O(l)): a coefficient counts molecules; subscripts count atoms in one molecule. | [S7] |
 
 ## Parameters
 
@@ -96,6 +105,30 @@ The single register of every science claim the first-person 3D client shows the 
 | `The greenhouse caught fire` | crates/bevy-client/web/hud.js | Lose banner: it reports the game outcome. Flagged by the keyword `caught fire`; the science of why (heat spread) is the subtitle, C-030. |
 | `Without locking the mouse you can also click (or tap) a glowing target to cast at it.` | crates/bevy-client/web/index.html | Game instruction (controls). Flagged by sentence shape; it states no science. |
 | `Look for a fire. Press 2 for Water, aim at the fire and click.` | crates/bevy-client/web/hud.js | Idle hint after 45 s with no progress (a key and aiming instruction). Flagged by sentence shape and `fire`; it states no science. |
+| `Make water! Copy the balls in the picture.` | content/spells.json | Formula Bench prompt (Sprout, Water): a copy-the-picture instruction. Flagged by sentence shape; it states no science. |
+| `Water: build one water molecule from atom tiles.` | content/spells.json | Formula Bench prompt (Seedling, Water): a build instruction; the recipe beside it shows H2O. Flagged by sentence shape; it states no science. |
+| `Make carbon dioxide! Copy the balls in the picture.` | content/spells.json | Formula Bench prompt (Sprout, CO2): a copy-the-picture instruction. Flagged by sentence shape; it states no science. |
+| `CO₂: build one carbon dioxide molecule.` | content/spells.json | Formula Bench prompt (Seedling, CO2): a build instruction naming the substance. Flagged by sentence shape and a formula; it states no property. |
+| `You made ${name}!` | crates/bevy-client/web/bench.js | Formula Bench done line (Sprout). Flagged by sentence shape; it states no science. |
+| `${formula} is right! You are learning ${name}.` | crates/bevy-client/web/bench.js | Formula Bench done line (Seedling, Apprentice); the formula is the spell's sourced formula from content/spells.json, judged by crates/sim. Flagged by sentence shape; it adds no claim. |
+| `Tap the balls to build it.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Sprout, empty build). Flagged by sentence shape; it states no science. |
+| `Tap the tiles to build it.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Seedling, empty build). Flagged by sentence shape; it states no science. |
+| `Write a formula first.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, empty build). Flagged by sentence shape; it states no science. |
+| `Look again. Count the balls in the picture.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Sprout, atoms off). Flagged by sentence shape; it states no science. |
+| `Count again: ${el} should be ${want}. You have ${have}.` | crates/bevy-client/web/bench.js | Formula Bench reason (atoms off): a count of atoms built against the recipe. A game count; it states no science. |
+| `Not yet. Which atoms does ${name} have, and how many?` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, atoms off before the third try). Flagged by sentence shape; it states no science. |
+| `That makes ${other}. This one is ${name}.` | crates/bevy-client/web/bench.js | Formula Bench reason: the build is another spell's formula (judged by crates/sim). Flagged by sentence shape; it states no science. |
+| `Not balanced yet: ${el}: ${left} before, ${right} after.` | crates/bevy-client/web/bench.js | Formula Bench reason (Apprentice, unbalanced): atom counts per side. A game count; it states no science. |
+| `Right atoms. Now add its state: (s), (l) or (g).` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, state missing): names the three state symbols. Flagged by sentence shape and state symbols; the state each spell needs is C-045 to C-047. |
+| `Right atoms. This spell needs it as ${stateWord}.` | crates/bevy-client/web/bench.js | Formula Bench reason (Apprentice, wrong state); the state is the spell's sourced state (C-045 to C-047). Flagged by sentence shape; it adds no claim. |
+| `This spell is one substance. Write just its formula.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, an equation typed for a single substance). Flagged by sentence shape; it states no science. |
+| `Add an arrow and what it makes.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, no products). Flagged by sentence shape; it states no science. |
+| `Those are not the substances in this reaction. Check what burns and what it makes.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, wrong species). Flagged by sentence shape and `burn`; it states no science. |
+| `"${bad}" is not an element symbol.` | crates/bevy-client/web/bench.js | Formula Bench reason (Apprentice): the typed symbol is not in the periodic table the parser knows. Flagged by sentence shape; it states no science. |
+| `Pick a spell from the list.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (a spell the band cannot learn). Flagged by sentence shape; it states no science. |
+| `Use element symbols, numbers, + and an arrow.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, text the parser cannot read). Flagged by sentence shape; it states no science. |
+| `How old are you?` | crates/bevy-client/web/bench.js | Formula Bench band chooser question. Flagged by sentence shape; it states no science. |
+| `more atoms` | crates/bevy-client/web/bench.js | Seedling balance scale label under the pan with the larger atom count. The scale compares **atom counts**, not mass: no bench text may say "heavier", "weight" or "mass" about it. Not flagged by the lint; listed for the review. |
 
 ## Sources
 

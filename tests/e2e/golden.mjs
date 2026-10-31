@@ -2896,4 +2896,710 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     check('bench: a missing bench.js does not stop the boot', ok, note);
     await ctx.close();
   }
+
+  // ---- Tests 12-28b (web lane). Each section reloads with ?low&debug (and
+  // &band=... where the spec says) after removing the progress save. On the
+  // contract stub the judge says `parse` to everything and lists no spells,
+  // so the checks that need a verdict or a card fail until the sim lane lands.
+  const PROG = 'rg.progress.v1';
+  const SETTINGS = 'alchemist.settings.v1';
+  const STATION = [-3, 14.5];
+  const VW = +(process.env.VW || 1280), VH = +(process.env.VH || 720);
+  const bs = () => page.evaluate(() => { try { return JSON.parse(window.__benchState); } catch { return null; } });
+  const bui = () => page.evaluate(() => (window.__bench ? window.__bench.ui() : null));
+  const pcmd = (c) => page.evaluate((c) => window.__bench.cmd(c), c);
+  const brief = (x) => String(JSON.stringify(x)).slice(0, 300);
+  // Waits until pred(value) holds, at most n game frames (and at least 1.5 s of wall time).
+  const withinFrames = async (get, pred, n = 10) => {
+    const f0 = (await st()).frame;
+    const t0 = Date.now();
+    let v = await get();
+    while (!pred(v)) {
+      const f = (await st()).frame;
+      if (f >= f0 + n && Date.now() - t0 > 1500) break;
+      if (Date.now() - t0 > 60000) break;
+      await sleep(100);
+      v = await get();
+    }
+    return v;
+  };
+  // Removes the save (unless keep), then (re)loads with the extra params and waits for the game and the bench.
+  const load = async (extra = [], { keep = false, settings } = {}) => {
+    await page.evaluate(([k, keep]) => { try { if (!keep) localStorage.removeItem(k); } catch { /* none */ } }, [PROG, keep]);
+    if (settings !== undefined) {
+      await page.evaluate(([k, v]) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* none */ } }, [SETTINGS, settings]);
+    }
+    await page.goto(urlWith(['debug', ...extra]));
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__bench));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+  };
+  const isOpen = () => page.evaluate(() => { const b = document.getElementById('bench'); return !!b && !b.hidden; });
+  const lockNow = async () => {
+    if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    }
+    return false;
+  };
+  const center = (sel) => page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  }, sel);
+  // A real mouse click at the element's centre (test 17: mouse only).
+  const clickAt = async (sel) => {
+    const c = await center(sel);
+    if (!c) throw new Error(`no ${sel}`);
+    await page.mouse.click(c.x, c.y);
+  };
+  const text = (sel) => page.evaluate((sel) => { const el = document.querySelector(sel); return el ? el.textContent : null; }, sel);
+  const cardNames = () => page.evaluate(() => [...document.querySelectorAll('#bench .bench-spell .bench-spell-name')].map((e) => e.textContent));
+  // The next result after a Make: one whose n is above the last one seen.
+  const resultAfter = async (n0, frames = 10) => withinFrames(bs, (x) => !!x && !!x.result && x.result.n > n0, frames);
+  const lastN = async () => { const x = await bs(); return x && x.result ? x.result.n : 0; };
+  const prog = async (i) => { const x = await st(); return x.progress && x.progress[i] ? x.progress[i] : null; };
+  const bearing = (x) => {
+    const y = x.yaw * Math.PI / 180;
+    const f = [-Math.sin(y), -Math.cos(y)];
+    const d = [STATION[0] - x.pos[0], STATION[1] - x.pos[2]];
+    const cross = f[0] * d[1] - f[1] * d[0];
+    const dot = f[0] * d[0] + f[1] * d[1];
+    return Math.atan2(cross, dot) * 180 / Math.PI;
+  };
+  // Speech stub (test 17): records every speak(u) as u.text.
+  await page.addInitScript(() => {
+    const said = [];
+    window.__said = said;
+    try {
+      Object.defineProperty(window, 'speechSynthesis', {
+        configurable: true,
+        value: { speak: (u) => said.push(u && u.text), cancel: () => {}, getVoices: () => [{ name: 'stub' }], speaking: false },
+      });
+    } catch { /* keep the real one */ }
+  });
+  const said = () => page.evaluate(() => (window.__said || []).slice());
+  const clearSaid = () => page.evaluate(() => { if (window.__said) window.__said.length = 0; });
+  const run = async (name, fn) => {
+    try { await fn(); } catch (e) { check(name, false, `error: ${e && e.message}`); }
+  };
+
+  // 12. Closed shape.
+  await run('bench: closed shape after boot', async () => {
+    await load([], { settings: null });
+    const x = await withinFrames(bs, (v) => !!v, 10);
+    check('bench: closed shape after boot', !!x && JSON.stringify(x) === '{"v":1,"atBench":false,"open":false}', brief(x));
+  });
+
+  // 13. The station is a landmark and never opens the bench by itself.
+  await run('bench: the pad is on screen from the start pose', async () => {
+    const x = await st();
+    const b = bearing(x);
+    check('bench: the pad is on screen from the start pose', Math.abs(b) < hfovOf(x.fov) / 2, `bearing ${b.toFixed(1)} deg, half view ${(hfovOf(x.fov) / 2).toFixed(1)} deg, pos ${x.pos} yaw ${x.yaw}`);
+  });
+  await run('bench: standing on the pad lights the button and never opens the bench', async () => {
+    const locked = await lockNow();
+    await cmd(`tp ${STATION[0]} ${STATION[1]}`);
+    await until((q) => Math.abs(q.pos[0] - STATION[0]) < 0.5 && Math.abs(q.pos[2] - STATION[1]) < 0.5, 10000);
+    const f0 = (await st()).frame;
+    let ok = locked;
+    let note = `locked=${locked}`;
+    while ((await st()).frame < f0 + 30) {
+      const v = await page.evaluate(() => ({
+        at: (() => { try { return JSON.parse(window.__benchState).atBench; } catch { return null; } })(),
+        near: document.getElementById('benchbtn')?.classList.contains('near'),
+        hidden: document.getElementById('bench')?.hidden,
+        lock: document.pointerLockElement === document.getElementById('game'),
+        paused: window.__game.state().paused,
+      }));
+      if (!(v.at === true && v.near && v.hidden && v.lock && v.paused === false)) { ok = false; note = JSON.stringify(v); break; }
+      await sleep(150);
+    }
+    check('bench: standing on the pad lights the button and never opens the bench', ok, note);
+    const p0 = (await st()).pos;
+    await frames(10);
+    const p1 = (await st()).pos;
+    check('bench: no collider pushes the player off the pad', Math.hypot(p1[0] - STATION[0], p1[2] - STATION[1]) < 0.01, `pos ${p0} -> ${p1}`);
+    await cmd('tp 0 18');
+    const y = await withinFrames(async () => ({ b: await bs(), near: await page.evaluate(() => document.getElementById('benchbtn').classList.contains('near')) }), (v) => v.b && v.b.atBench === false && !v.near, 10);
+    check('bench: leaving the pad clears atBench and near', y.b && y.b.atBench === false && !y.near, brief(y));
+  });
+
+  // 14. The B key, locked; and a key held while it opens.
+  await run('bench: B opens it from a locked game', async () => {
+    const locked = await lockNow();
+    await page.keyboard.press('KeyB');
+    const v = await withinFrames(() => page.evaluate(() => ({
+      open: !document.getElementById('bench').hidden,
+      lock: document.pointerLockElement !== null,
+      paused: window.__game.state().paused,
+      atCentre: !!document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('#bench'),
+      inert: ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id).inert),
+    })), (q) => q.open && !q.lock && q.paused && q.atCentre && q.inert.every(Boolean), 10);
+    check('bench: B opens it from a locked game (lock freed, paused, on top, the rest inert)', locked && v.open && !v.lock && v.paused && v.atCentre && v.inert.every(Boolean), `locked=${locked} ${JSON.stringify(v)}`);
+    await page.keyboard.press('Escape');
+    const c = await withinFrames(() => page.evaluate(() => ({
+      open: !document.getElementById('bench').hidden,
+      paused: window.__game.state().paused,
+      inert: ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id).inert),
+      focus: document.activeElement && document.activeElement.id,
+    })), (q) => !q.open && q.paused === false && q.inert.every((i) => !i) && q.focus === 'game', 10);
+    check('bench: Escape closes it, unpauses and gives the canvas focus', !c.open && c.paused === false && c.inert.every((i) => !i) && c.focus === 'game', JSON.stringify(c));
+  });
+  await run('bench: a key held when it opens is released in the game', async () => {
+    await lockNow();
+    await page.keyboard.down('KeyW');
+    await frames(5);
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    await page.keyboard.up('KeyW');
+    await frames(2);
+    await clickAt('#bench .bench-close');
+    await withinFrames(isOpen, (o) => !o, 10);
+    const relocked = await lockNow();
+    await until((q) => !q.paused, 8000);
+    await frames(3);
+    const p0 = (await st()).pos;
+    await frames(30);
+    const p1 = (await st()).pos;
+    check('bench: a key held when it opens is released in the game', Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) < 0.01, `relocked=${relocked} pos ${p0} -> ${p1}`);
+    await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+  });
+
+  // 15. Opened from the pause card, closing returns to it.
+  await run('bench: opened from the pause card, closing returns to it', async () => {
+    await load();
+    await page.evaluate(() => window.__game.pause(true));
+    await page.keyboard.press('KeyB');
+    const opened = await withinFrames(isOpen, (o) => o, 10);
+    await page.keyboard.press('Escape');
+    await withinFrames(isOpen, (o) => !o, 10);
+    await frames(3);
+    const v = await page.evaluate(() => ({ paused: window.__game.state().paused, card: !document.getElementById('pause').classList.contains('hidden') }));
+    check('bench: opened from the pause card, closing returns to it', opened && v.paused && v.card, `opened=${opened} ${JSON.stringify(v)}`);
+    await page.evaluate(() => window.__game.pause(false));
+  });
+
+  // 16. Band chooser.
+  await run('bench: the band chooser', async () => {
+    await load();
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    const bands = await page.evaluate(() => [...document.querySelectorAll('#bench [data-band]')].map((b) => {
+      const r = b.getBoundingClientRect();
+      return { band: b.getAttribute('data-band'), w: r.width, h: r.height, svg: !!b.querySelector('svg') };
+    }));
+    check('bench: the first open asks with three 160 px pictures', bands.length === 3 && bands.every((b) => b.w >= 160 && b.h >= 160 && b.svg), JSON.stringify(bands));
+    await clickAt('#bench .bench-band[data-band="seedling"]');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    const names = await cardNames();
+    check('bench: choosing 8 to 10 lists the four spells', names.length === 4, names.join(','));
+    await clickAt('#bench .bench-close');
+    await withinFrames(isOpen, (o) => !o, 10);
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    const u = await bui();
+    check('bench: reopened on the same page load it does not ask again', u && u.view !== 'chooser' && u.band === 'seedling', brief(u));
+    await clickAt('#bench .bench-change');
+    const u2 = await bui();
+    const again = await page.evaluate(() => document.querySelectorAll('#bench .bench-band[data-band]').length);
+    check('bench: Change age shows the chooser again', u2.view === 'chooser' && again === 3, `${brief(u2)} buttons=${again}`);
+    await page.keyboard.press('Escape');
+    await load();
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    const u3 = await bui();
+    const stored = await page.evaluate(() => {
+      const keys = [];
+      for (const s of [localStorage, sessionStorage]) for (let i = 0; i < s.length; i++) keys.push(s.key(i));
+      return keys;
+    });
+    check('bench: after a reload it asks again; no storage key holds the band', u3.view === 'chooser' && !stored.some((k) => /band/i.test(k)), `${brief(u3)} keys=${stored.join(',')}`);
+    await page.keyboard.press('Escape');
+  });
+
+  // 17, 21, 22, 23. A 6-year-old learns Water with the mouse only; no farming; the game stays frozen; it survives a reload.
+  await run('bench: Sprout learns Water with the mouse', async () => {
+    await load(['band=sprout'], { settings: null });
+    await clearSaid();
+    await clickAt('#benchbtn');
+    await withinFrames(cardNames, (n) => n.length === 3, 10);
+    const names = await cardNames();
+    const sizes = await page.evaluate(() => [...document.querySelectorAll('#bench .bench-spell')].map((c) => { const r = c.getBoundingClientRect(); return [r.width, r.height]; }));
+    check('bench: Sprout lists exactly Water, Frost and CO2, each card at least 120 px', names.join(',') === 'Water,Frost,CO₂' && sizes.length === 3 && sizes.every(([w, h]) => w >= 120 && h >= 120), `${names.join(',')} ${JSON.stringify(sizes)}`);
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-recipe .bench-ball').length), (n) => n > 0, 10);
+    const recipe = await page.evaluate(() => ({
+      H: document.querySelectorAll('#bench .bench-recipe .bench-ball[data-el="H"]').length,
+      O: document.querySelectorAll('#bench .bench-recipe .bench-ball[data-el="O"]').length,
+    }));
+    const s1 = await said();
+    check('bench: picking Water speaks the prompt and shows 2 H and 1 O', s1.includes('Make water! Copy the balls in the picture.') && recipe.H === 2 && recipe.O === 1, `said=${JSON.stringify(s1)} recipe=${JSON.stringify(recipe)}`);
+    const cards = await page.evaluate(() => [...document.querySelectorAll('#bench .bench-atom')].map((c) => { const r = c.getBoundingClientRect(); return [c.getAttribute('data-el'), r.width, r.height]; }));
+    let n0 = await lastN();
+    await clickAt('#bench .bench-atom[data-el="H"]');
+    await clickAt('#bench .bench-atom[data-el="O"]');
+    await clickAt('#bench .bench-make');
+    let x = await resultAfter(n0);
+    await frames(1);
+    const fizz = await page.evaluate(() => ({
+      reason: document.querySelector('#bench .bench-reason')?.textContent,
+      cross: !!document.querySelector('#bench .bench-diff[data-el="H"][data-ok="false"] .bench-mark.cross'),
+    }));
+    check('bench: H, O then Make fizzles (atoms_off) with the Sprout reason and a crossed H row; atom cards at least 96 px',
+      x && x.result && x.result.ok === false && x.result.code === 'atoms_off' && fizz.reason === 'Look again. Count the balls in the picture.' && fizz.cross
+        && cards.length === 4 && cards.every(([, w, h]) => w >= 96 && h >= 96) && (await prog(1))?.st === 'unknown',
+      `${brief(x && x.result)} ${JSON.stringify(fizz)} cards=${JSON.stringify(cards)}`);
+    n0 = await lastN();
+    await clickAt('#bench .bench-atom[data-el="H"]');
+    await clickAt('#bench .bench-make');
+    x = await resultAfter(n0);
+    await frames(1);
+    const done = await page.evaluate(() => ({
+      line: document.querySelector('#bench .bench-done-line')?.textContent,
+      badge: document.querySelector('#bench .bench-done .bench-stage[data-stage="learning"]')?.textContent,
+    }));
+    const p = await withinFrames(() => prog(1), (q) => q && q.st === 'learning', 10);
+    const s2 = await said();
+    check('bench: H then Make learns Water (done panel, Learning badge, xp 10)',
+      x && x.result && x.result.ok && x.result.learned && done.line === 'You made Water!' && /Learning/.test(done.badge || '') && p && p.st === 'learning' && p.xp === 10 && s2.includes('You made Water!'),
+      `${brief(x && x.result)} ${JSON.stringify(done)} prog=${JSON.stringify(p)}`);
+    check('bench: the fizzle line was spoken too', s2.includes('Look again. Count the balls in the picture.'), JSON.stringify(s2));
+
+    // 21. No farming.
+    const reps = [];
+    for (let k = 0; k < 5; k++) {
+      await clickAt('#bench .bench-again');
+      await withinFrames(cardNames, (n) => n.length === 3, 10);
+      await clickAt('#bench .bench-spell[data-slot="2"]');
+      await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-atom').length), (n) => n === 4, 10);
+      for (const el of ['H', 'H', 'O']) await clickAt(`#bench .bench-atom[data-el="${el}"]`);
+      const m0 = await lastN();
+      await clickAt('#bench .bench-make');
+      const y = await resultAfter(m0);
+      reps.push(y && y.result ? `${y.result.ok}/${y.result.learned}` : 'none');
+    }
+    const p2 = await prog(1);
+    check('bench: five more correct builds earn nothing (learned false, xp stays 10)', reps.every((r) => r === 'true/false') && p2 && p2.xp === 10, `${reps.join(' ')} prog=${JSON.stringify(p2)}`);
+
+    // 22. The game stays frozen.
+    const g0 = await st();
+    await page.mouse.move(VW / 2, VH / 2);
+    await page.mouse.wheel(0, 120);
+    await clickAt('#bench .bench-title');
+    await sleep(2000);
+    const g1 = await st();
+    check('bench: the game stays frozen while it is open (gameTime, tick, casts, spell)',
+      g1.gameTime === g0.gameTime && g1.tick === g0.tick && g1.casts === g0.casts && g1.spell === g0.spell,
+      `gameTime ${g0.gameTime}->${g1.gameTime} tick ${g0.tick}->${g1.tick} casts ${g0.casts}->${g1.casts} spell ${g0.spell}->${g1.spell}`);
+
+    // 21b. The bench gates nothing: Frost (unknown) still casts.
+    await clickAt('#bench .bench-close');
+    await withinFrames(isOpen, (o) => !o, 10);
+    await cmd('select 3');
+    let z = await until((q) => q.spell === 2, 15000);
+    const c0 = z.casts;
+    await sleep(400);
+    await cmd('cast');
+    z = await until((q) => q.casts > c0, 20000);
+    check('bench: an Unknown spell still casts (the bench gates nothing)', z.casts === c0 + 1 && (await prog(2))?.st === 'unknown', `casts ${c0} -> ${z.casts}`);
+
+    // 23. Progress survives a reload.
+    await load(['band=sprout'], { keep: true });
+    const q = await until((s) => s.progress && s.progress[1] && s.progress[1].st === 'learning', 10000);
+    await clickAt('#benchbtn');
+    await withinFrames(cardNames, (n) => n.length === 3, 10);
+    const badge = await text('#bench .bench-spell[data-slot="2"] .bench-stage');
+    check('bench: after a reload the Water badge reads Learning', q.progress[1].st === 'learning' && /Learning/.test(badge || ''), `prog=${JSON.stringify(q.progress[1])} badge=${badge}`);
+    await page.keyboard.press('Escape');
+
+    // 17 (sound off). With sound:false saved, picking Water speaks nothing.
+    await load(['band=sprout'], { settings: JSON.stringify({ sound: false }) });
+    await clearSaid();
+    await clickAt('#benchbtn');
+    await withinFrames(cardNames, (n) => n.length === 3, 10);
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await frames(2);
+    const s3 = await said();
+    const promptShown = await text('#bench .bench-prompt');
+    check('bench: with sound off nothing is spoken, the prompt is still on screen', s3.length === 0 && promptShown === 'Make water! Copy the balls in the picture.', `said=${JSON.stringify(s3)} prompt=${promptShown}`);
+    await page.keyboard.press('Escape');
+    await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, SETTINGS);
+  });
+
+  // 18. A 9-year-old learns Fire on the scale.
+  await run('bench: Seedling learns Fire on the scale', async () => {
+    await load(['band=seedling']);
+    await page.keyboard.press('KeyB');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    await clickAt('#bench .bench-spell[data-slot="1"]');
+    await withinFrames(() => page.evaluate(() => !!document.querySelector('#bench .bench-scale')), (o) => o, 10);
+    const pans = () => page.evaluate(() => ({
+      pans: [...document.querySelectorAll('#bench .bench-pan-count')].map((e) => e.textContent),
+      level: document.querySelector('#bench .bench-scale')?.getAttribute('data-level'),
+    }));
+    const a = await pans();
+    check('bench: Fire at Seedling shows the pans and a tilted beam', a.pans.join('|') === 'C 1, H 4, O 2|C 1, H 2, O 3' && a.level === 'false', JSON.stringify(a));
+    let n0 = await lastN();
+    await clickAt('#bench .bench-make');
+    let x = await resultAfter(n0);
+    await frames(1);
+    const reason = await text('#bench .bench-reason');
+    check('bench: an unbalanced Make fizzles with the conservation reason; fire stays unknown',
+      x && x.result && x.result.code === 'unbalanced' && reason === 'The scale is not level. Atoms are never made or lost, so both sides need the same atoms.' && (await prog(0))?.st === 'unknown',
+      `${brief(x && x.result)} reason=${reason}`);
+    await clickAt('#bench .bench-coef[data-term="1"]');
+    await clickAt('#bench .bench-coef[data-term="3"]');
+    const b = await withinFrames(pans, (q) => q.level === 'true', 2);
+    check('bench: two taps level the beam (C 1, H 4, O 4 on both pans)', b.level === 'true' && b.pans.join('|') === 'C 1, H 4, O 4|C 1, H 4, O 4', JSON.stringify(b));
+    n0 = await lastN();
+    await clickAt('#bench .bench-make');
+    x = await resultAfter(n0);
+    const p = await withinFrames(() => prog(0), (q) => q && q.st === 'learning', 10);
+    check('bench: the balanced Make learns Fire', x && x.result && x.result.ok && p && p.st === 'learning', `${brief(x && x.result)} prog=${JSON.stringify(p)}`);
+    await clickAt('#bench .bench-again');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-tile').length), (n) => n === 4, 10);
+    await clickAt('#bench .bench-tile[data-el="H"]');
+    await clickAt('#bench .bench-tile[data-el="H"]');
+    await clickAt('#bench .bench-tile[data-el="O"]');
+    n0 = await lastN();
+    await clickAt('#bench .bench-make');
+    x = await resultAfter(n0);
+    check('bench: Water at Seedling from tiles (H 2, O 1) is ok', x && x.result && x.result.ok === true, brief(x && x.result));
+    await page.keyboard.press('Escape');
+  });
+
+  // 19. A 13-year-old learns Frost by typing; keys do not leak.
+  await run('bench: Apprentice learns Frost by typing', async () => {
+    await load(['band=apprentice']);
+    await page.keyboard.press('KeyB');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    await clickAt('#bench .bench-spell[data-slot="3"]');
+    await withinFrames(() => page.evaluate(() => document.activeElement && document.activeElement.id), (id) => id === 'bench-input', 10);
+    const v0 = await page.evaluate(() => ({ recipe: document.querySelectorAll('#bench .bench-recipe, #bench .bench-ball').length, focus: document.activeElement && document.activeElement.id }));
+    check('bench: Apprentice shows no recipe and focuses the text box', v0.recipe === 0 && v0.focus === 'bench-input', JSON.stringify(v0));
+    const before = await st();
+    const pauseBefore = await page.evaluate(() => document.getElementById('pause').classList.contains('hidden'));
+    await page.keyboard.type('Br2 R 3 P');
+    await frames(5);
+    const after = await st();
+    const leak = await page.evaluate(() => ({ open: !document.getElementById('bench').hidden, pauseHidden: document.getElementById('pause').classList.contains('hidden'), value: document.getElementById('bench-input').value }));
+    check('bench: typing does not reach the game (spell, captionId, gameTime unchanged; no reset, no pause toggle)',
+      after.spell === before.spell && after.captionId === before.captionId && after.gameTime === before.gameTime && leak.open && leak.pauseHidden === pauseBefore && leak.value === 'Br2 R 3 P',
+      `spell ${before.spell}->${after.spell} cap ${before.captionId}->${after.captionId} t ${before.gameTime}->${after.gameTime} ${JSON.stringify(leak)}`);
+    const clearBox = () => page.evaluate(() => { const i = document.getElementById('bench-input'); i.value = ''; i.dispatchEvent(new Event('input')); i.focus(); });
+    const typeTry = async (s, insert = false) => {
+      const m0 = await lastN();
+      if (insert) await page.keyboard.insertText(s); else await page.keyboard.type(s);
+      await page.keyboard.press('Enter');
+      return resultAfter(m0);
+    };
+    await clearBox();
+    let x = await typeTry('N2');
+    await frames(1);
+    const r1 = await text('#bench .bench-reason');
+    x = x && x.result ? x.result.code : null;
+    const r2x = await typeTry('(g)');
+    await frames(1);
+    const r2 = r2x && r2x.result ? r2x.result.code : null;
+    await clearBox();
+    const okx = await typeTry('N₂(l)', true);
+    const p = await withinFrames(() => prog(2), (q) => q && q.st === 'learning', 10);
+    check('bench: N2 -> state_missing (reason shown), N2(g) -> wrong_state, N₂(l) -> ok and frost learning',
+      x === 'state_missing' && !!r1 && r2 === 'wrong_state' && okx && okx.result && okx.result.ok && p && p.st === 'learning',
+      `${x} "${r1}" ${r2} ${brief(okx && okx.result)} prog=${JSON.stringify(p)}`);
+    // Three wrong tries on Water: counts only on the third.
+    await clickAt('#bench .bench-again');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await withinFrames(() => page.evaluate(() => document.activeElement && document.activeElement.id), (id) => id === 'bench-input', 10);
+    const reasons = [];
+    for (let k = 0; k < 3; k++) {
+      await clearBox();
+      await typeTry('HO(l)');
+      await frames(1);
+      reasons.push(await text('#bench .bench-reason'));
+    }
+    check('bench: Apprentice gets atom counts only on the third wrong try',
+      reasons.length === 3 && !/\d/.test(reasons[0] || '1') && !/\d/.test(reasons[1] || '1') && /H/.test(reasons[2] || '') && /2/.test(reasons[2] || ''),
+      JSON.stringify(reasons));
+    // Escape in the text box closes the bench.
+    await clearBox();
+    await page.keyboard.type('N2');
+    await page.keyboard.press('Escape');
+    const c = await withinFrames(() => page.evaluate(() => ({ open: !document.getElementById('bench').hidden, paused: window.__game.state().paused })), (q) => !q.open && q.paused === false, 10);
+    check('bench: Escape in the text box closes the bench', !c.open && c.paused === false, JSON.stringify(c));
+  });
+
+  // 20. Keyboard only.
+  await run('bench: keyboard only', async () => {
+    await load(['band=sprout']);
+    await page.evaluate(() => document.getElementById('game').focus());
+    await page.keyboard.press('KeyB');
+    await withinFrames(cardNames, (n) => n.length === 3, 10);
+    let inside = true;
+    const press = async (k) => {
+      await page.keyboard.press(k);
+      if (!(await page.evaluate(() => !!document.activeElement && !!document.activeElement.closest('#bench')))) inside = false;
+    };
+    const focusTo = async (sel, key = 'Tab') => {
+      for (let k = 0; k < 30; k++) {
+        if (await page.evaluate((sel) => !!document.activeElement && document.activeElement.matches(sel), sel)) return true;
+        await press(key);
+      }
+      return false;
+    };
+    const reached = await focusTo('.bench-spell[data-slot="2"]', 'ArrowRight');
+    await press('Enter');
+    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-atom').length), (n) => n === 4, 10);
+    await focusTo('.bench-atom[data-el="H"]');
+    await press('Enter');
+    await press('Space');
+    await focusTo('.bench-atom[data-el="O"]', 'ArrowRight');
+    await press('Enter');
+    await focusTo('.bench-make');
+    const n0 = await lastN();
+    await press('Enter');
+    const x = await resultAfter(n0);
+    await press('Shift+Tab');
+    check('bench: keyboard only reaches Water and builds it (focus never leaves the bench)', reached && inside && x && x.result && x.result.ok, `reached=${reached} inside=${inside} ${brief(x && x.result)}`);
+    await page.keyboard.press('Escape');
+    const f = await withinFrames(() => page.evaluate(() => ({ open: !document.getElementById('bench').hidden, focus: document.activeElement && document.activeElement.id })), (q) => !q.open && q.focus === 'game', 10);
+    check('bench: Escape closes it and the canvas has focus', !f.open && f.focus === 'game', JSON.stringify(f));
+  });
+
+  // 24, 25. Sizes, text and contrast in every band's list and build views.
+  await run('bench: sizes, text and contrast', async () => {
+    const measure = () => page.evaluate(() => {
+      const root = document.getElementById('bench');
+      const panel = root.querySelector('.bench-panel');
+      const sprout = !!root.querySelector('.band-sprout');
+      const bad = [];
+      let texts = 0;
+      const rgba = (s) => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(',').map((v) => parseFloat(v)); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+      const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+      for (const el of root.querySelectorAll('button, input')) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0) continue;
+        let min = 48;
+        if (sprout && (el.matches('.bench-atom') || el.matches('.bench-make') || el.matches('.bench-undo'))) min = 96;
+        if (sprout && el.matches('.bench-spell')) min = 120;
+        if (r.width < min - 0.5 || r.height < min - 0.5) bad.push(`size ${el.className || el.id} ${r.width.toFixed(0)}x${r.height.toFixed(0)} < ${min}`);
+      }
+      const contrast = [];
+      for (const el of root.querySelectorAll('*')) {
+        const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+        if (!own || el.getClientRects().length === 0) continue;
+        texts++;
+        const cs = getComputedStyle(el);
+        const fs = parseFloat(cs.fontSize);
+        const minFs = sprout && el.matches('.bench-prompt') ? 24 : 18;
+        if (fs < minFs - 0.01) bad.push(`font ${el.className || el.tagName} ${fs}px < ${minFs}`);
+        let bg = null;
+        for (let a = el; a; a = a.parentElement) { const c = rgba(getComputedStyle(a).backgroundColor); if (c && c.a >= 1) { bg = c; break; } }
+        const fg = rgba(cs.color);
+        if (bg && fg) {
+          const L1 = lum(fg), L2 = lum(bg);
+          const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+          if (ratio < 4.5) contrast.push(`${el.className || el.tagName} ${ratio.toFixed(2)}`);
+        } else contrast.push(`${el.className || el.tagName} no opaque background`);
+      }
+      const fits = panel.scrollHeight <= panel.clientHeight + 1 || getComputedStyle(panel).overflowY === 'auto';
+      const pageScroll = document.documentElement.scrollHeight > innerHeight + 1 || document.documentElement.scrollWidth > innerWidth + 1;
+      if (!fits || pageScroll) bad.push(`fit panel=${fits} pageScroll=${pageScroll}`);
+      return { bad, texts, contrast, title: parseFloat(getComputedStyle(root.querySelector('.bench-title')).fontSize) };
+    });
+    const sizeBad = [];
+    const contrastBad = [];
+    const notes = [];
+    for (const [w, h] of [[1280, 720], [1366, 768]]) {
+      await page.setViewportSize({ width: w, height: h });
+      for (const band of ['sprout', 'seedling', 'apprentice']) {
+        await load([`band=${band}`]);
+        await page.keyboard.press('KeyB');
+        await withinFrames(cardNames, (n) => n.length >= 3, 10);
+        const list = await measure();
+        await clickAt('#bench .bench-spell[data-slot="2"]');
+        await withinFrames(() => page.evaluate(() => !!document.querySelector('#bench .bench-make')), (o) => o, 10);
+        const build = await measure();
+        for (const [name, m] of [['list', list], ['build', build]]) {
+          if (m.texts === 0) sizeBad.push(`${w}x${h} ${band} ${name}: no text`);
+          sizeBad.push(...m.bad.map((b) => `${w}x${h} ${band} ${name}: ${b}`));
+          contrastBad.push(...m.contrast.map((b) => `${w}x${h} ${band} ${name}: ${b}`));
+        }
+        notes.push(`${band}:${list.texts}/${build.texts}`);
+        await page.keyboard.press('Escape');
+      }
+    }
+    await page.setViewportSize({ width: VW, height: VH });
+    // Text size 2 doubles the bench's text.
+    await load([], { settings: JSON.stringify({ text: 2 }) });
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    const big = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#bench .bench-title')).fontSize));
+    await page.keyboard.press('Escape');
+    await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, SETTINGS);
+    check('bench: every control is at least 48 px (Sprout 96/120), text at least 18 px (Sprout prompt 24), fits the screen; text size 2 doubles it',
+      sizeBad.length === 0 && big === 52, `${sizeBad.slice(0, 4).join(' | ')} title@2=${big} texts ${notes.join(' ')}`);
+    check('bench: every text has 4.5:1 contrast against its nearest opaque background', contrastBad.length === 0, contrastBad.slice(0, 4).join(' | '));
+  });
+
+  // 26. Reduced motion and no flashing (positive control with fake panels under ?debug).
+  await run('bench: animations run once, none under reduced motion', async () => {
+    const FIRE = [
+      { side: 0, coef: 1, formula: 'CH4', atoms: [['C', 1], ['H', 4]], state: null },
+      { side: 0, coef: 2, formula: 'O2', atoms: [['O', 2]], state: null },
+      { side: 1, coef: 1, formula: 'CO2', atoms: [['C', 1], ['O', 2]], state: null },
+      { side: 1, coef: 2, formula: 'H2O', atoms: [['H', 2], ['O', 1]], state: null },
+    ];
+    const spells = [{ slot: 1, id: 'fire', name: 'Fire', formula: 'CH4 + 2O2 -> CO2 + 2H2O', stage: 'unknown', prompt: 'p' }];
+    const probe = (n) => page.evaluate(([spells, FIRE, n]) => {
+      const base = { v: 1, atBench: false, open: true, band: 'seedling', spells, pick: 1, recipe: FIRE };
+      window.__bench.fake(base);
+      const beam = document.querySelector('#bench .bench-beam');
+      const bcs = beam ? getComputedStyle(beam) : null;
+      const beamOut = bcs ? { anim: bcs.animationName, trans: bcs.transitionDuration } : null;
+      window.__bench.fake({ ...base, result: { n, slot: 1, ok: true, code: 'ok', diffs: [], other: 0, bad: '', simplest: '', coef: 0, learned: true, stage: 'learning' } });
+      const icon = document.querySelector('#bench .bench-done-icon');
+      const ic = icon ? getComputedStyle(icon) : null;
+      const ics = ic ? { animationName: ic.animationName, animationIterationCount: ic.animationIterationCount, transitionDuration: ic.transitionDuration } : null;
+      const others = [...document.querySelectorAll('#bench *')].map((e) => getComputedStyle(e)).filter((c) => c.animationName !== 'none').map((c) => c.animationIterationCount);
+      const btn = document.getElementById('benchbtn');
+      btn.classList.add('hint', 'near');
+      const bAnim = getComputedStyle(btn).animationName;
+      btn.classList.remove('hint', 'near');
+      window.__bench.close();
+      return { icon: ics ? { anim: ics.animationName, count: ics.animationIterationCount, trans: ics.transitionDuration } : null, beam: beamOut, others, btn: bAnim };
+    }, [spells, FIRE, n]);
+    await load();
+    const a = await probe(1e6);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const b = await probe(2e6);
+    await page.emulateMedia({ reducedMotion: null });
+    check('bench: the done icon pops once (count 1); every bench animation runs once; with reduced motion none, and no transition on the beam',
+      a.icon && a.icon.anim !== 'none' && a.icon.count === '1' && a.others.every((c) => c === '1') && b.icon && b.icon.anim === 'none' && b.icon.trans === '0s'
+        && b.beam && b.beam.anim === 'none' && b.beam.trans === '0s' && a.btn === 'none' && b.btn === 'none',
+      JSON.stringify({ a, b }));
+  });
+
+  // 27. One modal gate.
+  await run('bench: one modal gate', async () => {
+    await load();
+    await page.evaluate(() => { document.getElementById('age').hidden = false; });
+    await page.keyboard.press('KeyB');
+    await frames(3);
+    const blockedAge = !(await isOpen());
+    await page.evaluate(() => { document.getElementById('age').hidden = true; });
+    await page.keyboard.press('KeyB');
+    const opened = await withinFrames(isOpen, (o) => o, 10);
+    await page.keyboard.press('Escape');
+    await withinFrames(isOpen, (o) => !o, 10);
+    await page.evaluate(() => {
+      const d = document.createElement('div');
+      d.id = 'stand-in-modal';
+      d.setAttribute('aria-modal', 'true');
+      d.setAttribute('role', 'dialog');
+      d.textContent = 'stand-in';
+      d.style.cssText = 'position:fixed;left:10px;bottom:10px;width:200px;height:80px;background:#000;color:#fff;z-index:950';
+      document.body.append(d);
+    });
+    await page.keyboard.press('KeyB');
+    await clickAt('#benchbtn');
+    await frames(3);
+    const blockedOther = !(await isOpen());
+    await page.evaluate(() => document.getElementById('stand-in-modal').remove());
+    await page.keyboard.press('KeyB');
+    const opened2 = await withinFrames(isOpen, (o) => o, 10);
+    await page.keyboard.press('Escape');
+    check('bench: B and the button do nothing while another aria-modal dialog shows', blockedAge && opened && blockedOther && opened2, `age=${blockedAge} open=${opened} other=${blockedOther} open2=${opened2}`);
+  });
+
+  // 28, 28a. The bench button; the attention ring and the controls row.
+  await run('bench: the bench button', async () => {
+    await load();
+    const u = await page.evaluate(() => {
+      const b = document.getElementById('benchbtn');
+      const r = b.getBoundingClientRect();
+      return { w: r.width, h: r.height, label: b.getAttribute('aria-label'), pe: getComputedStyle(b).pointerEvents, hint: b.classList.contains('hint'), vis: getComputedStyle(b).visibility };
+    });
+    await clickAt('#benchbtn');
+    const opened = await withinFrames(isOpen, (o) => o, 10);
+    await page.keyboard.press('Escape');
+    await withinFrames(isOpen, (o) => !o, 10);
+    const locked = await lockNow();
+    const l = await withinFrames(() => page.evaluate(() => {
+      const b = document.getElementById('benchbtn');
+      return { locked: b.classList.contains('locked'), pe: getComputedStyle(b).pointerEvents, w: b.getBoundingClientRect().width };
+    }), (q) => q.locked, 5);
+    await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+    check('bench: #benchbtn is 64 px, labelled, opens the bench unlocked; locked it shows with pointer-events none',
+      u.w >= 64 && u.h >= 64 && /Formula Bench/.test(u.label || '') && u.pe === 'auto' && opened && locked && l.locked && l.pe === 'none' && l.w >= 64,
+      `${JSON.stringify(u)} opened=${opened} locked=${locked} ${JSON.stringify(l)}`);
+    // 28a.
+    await load();
+    const h0 = await page.evaluate(() => document.getElementById('benchbtn').classList.contains('hint'));
+    await page.evaluate(() => window.__game.pause(false));
+    await cmd('cast');
+    const h1 = await withinFrames(() => page.evaluate(() => document.getElementById('benchbtn').classList.contains('hint')), (o) => o, 10);
+    const row = await page.evaluate(() => [...document.querySelectorAll('#pause table tr')].some((tr) => {
+      const td = [...tr.querySelectorAll('td')].map((d) => d.textContent.trim());
+      return td[0] === 'Formula Bench' && td[1] === 'B';
+    }));
+    check('bench: the attention ring shows after the first cast; the pause card lists Formula Bench | B', !h0 && h1 && row, `before=${h0} after cast=${h1} row=${row}`);
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    await clickAt('#bench .bench-change');
+    await clickAt('#bench .bench-band[data-band="sprout"]');
+    await withinFrames(cardNames, (n) => n.length === 3, 10);
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-atom').length), (n) => n === 4, 10);
+    for (const el of ['H', 'H', 'O']) await clickAt(`#bench .bench-atom[data-el="${el}"]`);
+    const n0 = await lastN();
+    await clickAt('#bench .bench-make');
+    const x = await resultAfter(n0);
+    await clickAt('#bench .bench-close');
+    await withinFrames(isOpen, (o) => !o, 10);
+    const h2 = await withinFrames(() => page.evaluate(() => document.getElementById('benchbtn').classList.contains('hint')), (o) => !o, 10);
+    await sleep(400);
+    await cmd('cast');
+    await frames(10);
+    const h3 = await page.evaluate(() => document.getElementById('benchbtn').classList.contains('hint'));
+    check('bench: learning a spell removes the ring for good', x && x.result && x.result.ok && !h2 && !h3, `${brief(x && x.result)} after=${h2} after cast=${h3}`);
+  });
+
+  // 28b. The band reaches Rust with the bench closed; Sprout cannot pick or learn Fire.
+  await run('bench: the band reaches the game with the bench closed', async () => {
+    await load();
+    await pcmd('band seedling');
+    const x = await withinFrames(bs, (v) => v && v.band === 'seedling', 10);
+    check('bench: band seedling reaches the game with the bench closed', JSON.stringify(x) === '{"v":1,"atBench":false,"open":false,"band":"seedling"}', brief(x));
+    await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
+    await page.goto(urlWith(['debug', 'band=apprentice']));
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(100);
+    }
+    const t1 = Date.now();
+    let y = await bs();
+    while (!(y && y.band === 'apprentice') && Date.now() - t1 < 2000) { await sleep(100); y = await bs(); }
+    check('bench: ?band=apprentice reaches the game within 2 s of the first state, without an open', y && y.band === 'apprentice' && y.open === false, `${brief(y)} after ${Date.now() - t1} ms`);
+    await load(['band=sprout']);
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    await pcmd('pick 1');
+    await frames(3);
+    const z = await bs();
+    const n0 = z && z.result ? z.result.n : 0;
+    await pcmd('try 1 CH4 + 2O2 -> CO2 + 2H2O');
+    const r = await resultAfter(n0);
+    check('bench: at Sprout pick 1 is ignored and try 1 is not_for_band', z && z.pick === undefined && r && r.result && r.result.code === 'not_for_band', `pick=${z && z.pick} ${brief(r && r.result)}`);
+    await page.keyboard.press('Escape');
+    await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
+  });
 }
