@@ -1,0 +1,674 @@
+  console: INFO src/main.rs:1772 FIRST_FRAME t=2605ms
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=2.5 fps_p5=0.6 avg_ms=789.33 p50_ms=401.20 p95_ms=1680.60 worst_ms=1680.6 update_ms_p50=2.80 update_ms_p95=48.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.8 heap_peak_
+PASS boots objs=14 burning=3
+PASS three fires at start 
+  console: CPUFRAME n=14 p50_ms=7.30 p95_ms=286.00 max_ms=309.80
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.3 fps_p5=2.9 avg_ms=309.71 p50_ms=303.50 p95_ms=344.00 worst_ms=344.0 update_ms_p50=1.30 update_ms_p95=2.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.8 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=3.0 fps_p50=3.0 fps_p5=2.9 avg_ms=330.76 p50_ms=328.20 p95_ms=346.50 worst_ms=346.5 update_ms_p50=1.70 update_ms_p95=2.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.8 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=7.50 p95_ms=9.00 max_ms=9.80
+  console: INFO src/main.rs:1795 STATS fps=2.5 fps_p50=2.7 fps_p5=1.5 avg_ms=399.45 p50_ms=365.90 p95_ms=664.40 worst_ms=664.4 update_ms_p50=1.30 update_ms_p95=2.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+PASS a click over a target locks the pointer and does not cast hover was 6, locked=true, casts 0 -> 0
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.3 fps_p5=1.0 avg_ms=793.80 p50_ms=745.20 p95_ms=1017.30 worst_ms=1017.3 update_ms_p50=1.50 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_m
+  console: CPUFRAME n=12 p50_ms=8.70 p95_ms=12.60 max_ms=21.00
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.5 fps_p5=1.7 avg_ms=429.44 p50_ms=396.20 p95_ms=578.90 worst_ms=578.9 update_ms_p50=1.60 update_ms_p95=2.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=7.70 p95_ms=12.00 max_ms=12.00
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.2 fps_p5=2.0 avg_ms=416.28 p50_ms=447.30 p95_ms=496.80 worst_ms=496.8 update_ms_p50=1.30 update_ms_p95=2.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.5 fps_p50=2.7 fps_p5=1.8 avg_ms=404.74 p50_ms=374.90 p95_ms=571.00 worst_ms=571.0 update_ms_p50=1.10 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=7.70 p95_ms=10.90 max_ms=10.90
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.1 avg_ms=423.52 p50_ms=410.30 p95_ms=471.00 worst_ms=471.0 update_ms_p50=2.70 update_ms_p95=3.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  look via synthetic pointermove (movementX)
+PASS mouse look turns yaw 0 -> 349.11
+  console: INFO src/main.rs:1795 STATS fps=2.8 fps_p50=2.8 fps_p5=2.2 avg_ms=351.73 p50_ms=353.10 p95_ms=446.20 worst_ms=446.2 update_ms_p50=1.40 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb=
+PASS WASD moves moved 2.33 m
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=1.9 avg_ms=413.44 p50_ms=419.80 p95_ms=521.10 worst_ms=521.1 update_ms_p50=1.30 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+PASS jump y=0.9
+  console: CPUFRAME n=16 p50_ms=6.80 p95_ms=13.10 max_ms=17.50
+  console: INFO src/main.rs:1795 STATS fps=2.8 fps_p50=2.6 fps_p5=2.3 avg_ms=362.75 p50_ms=386.90 p95_ms=429.20 worst_ms=429.2 update_ms_p50=1.30 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=7.00 p95_ms=16.60 max_ms=16.60
+  console: INFO src/main.rs:1795 STATS fps=2.9 fps_p50=2.9 fps_p5=2.5 avg_ms=346.42 p50_ms=350.50 p95_ms=404.80 worst_ms=404.8 update_ms_p50=1.30 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+PASS keys 1-4 select spells 0,1,2,3
+  console: INFO src/main.rs:1795 STATS fps=2.5 fps_p50=2.6 fps_p5=1.9 avg_ms=394.23 p50_ms=389.70 p95_ms=527.70 worst_ms=527.7 update_ms_p50=1.40 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+PASS wheel switches spell spell=0
+  console: CPUFRAME n=11 p50_ms=6.90 p95_ms=11.60 max_ms=11.60
+PASS left click casts while locked casts 0 -> 1
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.5 fps_p5=2.4 avg_ms=245.89 p50_ms=223.30 p95_ms=417.20 worst_ms=417.2 update_ms_p50=1.40 update_ms_p95=3.50 entities=622 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.00 p95_ms=11.00 max_ms=11.40
+  console: INFO src/main.rs:1795 STATS fps=3.8 fps_p50=3.8 fps_p5=2.6 avg_ms=266.02 p50_ms=261.80 p95_ms=383.00 worst_ms=383.0 update_ms_p50=1.60 update_ms_p95=3.90 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=4.60 p95_ms=9.60 max_ms=10.40
+  console: INFO src/main.rs:1795 STATS fps=3.4 fps_p50=3.5 fps_p5=2.5 avg_ms=291.64 p50_ms=282.80 p95_ms=404.10 worst_ms=404.1 update_ms_p50=1.30 update_ms_p95=1.60 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.20 p95_ms=9.00 max_ms=9.70
+  console: INFO src/main.rs:1795 STATS fps=3.5 fps_p50=3.1 fps_p5=3.0 avg_ms=281.80 p50_ms=319.90 p95_ms=336.20 worst_ms=336.2 update_ms_p50=1.40 update_ms_p95=4.10 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.20 p95_ms=8.30 max_ms=16.40
+PASS aim turns while the fire button is held yaw 0 -> 8.16
+PASS fire spreads to neighbours burning=5 after 80 s of sim
+PASS unchecked fire reaches the greenhouse (lose) lost
+PASS reset burning=3
+  console: INFO src/main.rs:1795 STATS fps=4.9 fps_p50=5.5 fps_p5=3.2 avg_ms=202.53 p50_ms=182.70 p95_ms=312.90 worst_ms=675.5 update_ms_p50=1.50 update_ms_p95=2.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=5.10 p95_ms=13.20 max_ms=13.80
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.4 fps_p5=1.1 avg_ms=771.27 p50_ms=738.70 p95_ms=947.40 worst_ms=947.4 update_ms_p50=1.60 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.5 fps_p5=1.3 avg_ms=719.07 p50_ms=680.80 p95_ms=799.80 worst_ms=799.8 update_ms_p50=1.40 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=9 Fire -> Ignited
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.3 fps_p5=1.2 avg_ms=735.90 p50_ms=797.60 p95_ms=843.80 worst_ms=843.8 update_ms_p50=2.80 update_ms_p95=3.00 entities=622 burning=4 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.8 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.90 p95_ms=9.70 max_ms=11.80
+  console: INFO src/main.rs:1795 STATS fps=1.2 fps_p50=1.1 fps_p5=1.1 avg_ms=815.40 p50_ms=880.80 p95_ms=919.90 worst_ms=919.9 update_ms_p50=1.30 update_ms_p95=2.50 entities=621 burning=4 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.4 fps_p5=1.4 avg_ms=682.17 p50_ms=730.70 p95_ms=731.30 worst_ms=731.3 update_ms_p50=1.60 update_ms_p95=2.20 entities=621 burning=4 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.1 fps_p50=1.1 fps_p5=1.1 avg_ms=882.50 p50_ms=934.60 p95_ms=950.60 worst_ms=950.6 update_ms_p50=1.20 update_ms_p95=1.50 entities=621 burning=4 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.10 p95_ms=22.90 max_ms=22.90
+PASS fire ignites the dry hedge temp=800
+  caption: It caught fire: hot enough to reach its ignition temperature, with oxygen around.
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.4 fps_p5=1.2 avg_ms=731.67 p50_ms=697.50 p95_ms=836.80 worst_ms=836.8 update_ms_p50=1.40 update_ms_p95=1.50 entities=621 burning=4 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=9 Foam -> Extinguished(Foam)
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.3 fps_p5=1.3 avg_ms=700.67 p50_ms=793.90 p95_ms=797.10 worst_ms=797.1 update_ms_p50=2.40 update_ms_p95=3.20 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+PASS foam smothers the hedge ext=0
+PASS a fire the player lit does not count toward the objective ext=0
+  console: INFO src/main.rs:1795 STATS fps=1.1 fps_p50=1.1 fps_p5=1.0 avg_ms=925.83 p50_ms=931.90 p95_ms=1021.20 worst_ms=1021.2 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_m
+  console: CPUFRAME n=12 p50_ms=6.00 p95_ms=11.80 max_ms=19.60
+  console: INFO src/main.rs:1795 STATS fps=1.2 fps_p50=1.2 fps_p5=1.1 avg_ms=833.10 p50_ms=865.90 p95_ms=916.80 worst_ms=916.8 update_ms_p50=1.60 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=9 Fire -> Fizzle(NoOxygen)
+PASS foam blanket stops re-ignition (no O2) No oxygen under the CO₂ blanket, so the fire cannot start.
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.2 fps_p5=1.1 avg_ms=777.43 p50_ms=803.20 p95_ms=886.80 worst_ms=886.8 update_ms_p50=1.20 update_ms_p95=2.70 entities=622 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.80 p95_ms=14.20 max_ms=14.20
+  console: INFO src/main.rs:1795 STATS fps=1.6 fps_p50=1.5 fps_p5=1.5 avg_ms=607.85 p50_ms=646.20 p95_ms=660.90 worst_ms=660.9 update_ms_p50=1.40 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.8 fps_p5=1.0 avg_ms=710.30 p50_ms=563.50 p95_ms=1011.70 worst_ms=1011.7 update_ms_p50=1.10 update_ms_p95=2.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_m
+  console: INFO src/main.rs:1387 IMPACT obj=10 Fire -> Melting
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=725.93 p50_ms=735.00 p95_ms=777.50 worst_ms=777.5 update_ms_p50=1.60 update_ms_p95=2.40 entities=622 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=7.40 p95_ms=14.90 max_ms=14.90
+  console: INFO src/main.rs:1795 STATS fps=1.2 fps_p50=1.3 fps_p5=1.2 avg_ms=803.80 p50_ms=781.30 p95_ms=856.70 worst_ms=856.7 update_ms_p50=1.10 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=727.33 p50_ms=730.20 p95_ms=743.70 worst_ms=743.7 update_ms_p50=1.20 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=10 Fire -> Melting
+  console: INFO src/main.rs:1795 STATS fps=1.2 fps_p50=1.2 fps_p5=1.1 avg_ms=812.53 p50_ms=846.80 p95_ms=882.20 worst_ms=882.2 update_ms_p50=1.70 update_ms_p95=2.20 entities=622 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=7.50 p95_ms=12.60 max_ms=12.60
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=713.63 p50_ms=737.30 p95_ms=786.00 worst_ms=786.0 update_ms_p50=1.40 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=10 Fire -> Melted
+  console: INFO src/main.rs:1795 STATS fps=1.6 fps_p50=1.5 fps_p5=1.5 avg_ms=631.38 p50_ms=670.20 p95_ms=673.50 worst_ms=673.5 update_ms_p50=1.70 update_ms_p95=2.70 entities=622 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+PASS fire melts the ice wall into a puddle The ice melted at 0 °C: H₂O(s) → H₂O(l). Now it is a puddle.
+  console: CPUFRAME n=11 p50_ms=5.50 p95_ms=9.90 max_ms=9.90
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.4 fps_p5=1.4 avg_ms=669.27 p50_ms=718.60 p95_ms=729.20 worst_ms=729.2 update_ms_p50=1.40 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=10 Frost -> Froze
+  console: INFO src/main.rs:1795 STATS fps=1.2 fps_p50=1.2 fps_p5=1.2 avg_ms=802.03 p50_ms=819.90 p95_ms=833.10 worst_ms=833.1 update_ms_p50=1.20 update_ms_p95=1.90 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+PASS frost refreezes the meltwater Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+  console: INFO src/main.rs:1795 STATS fps=1.0 fps_p50=1.0 fps_p5=1.0 avg_ms=968.07 p50_ms=1030.90 p95_ms=1050.40 worst_ms=1050.4 update_ms_p50=1.30 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_
+  console: CPUFRAME n=10 p50_ms=6.10 p95_ms=10.30 max_ms=10.30
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.5 fps_p5=1.3 avg_ms=678.10 p50_ms=676.50 p95_ms=771.50 worst_ms=771.5 update_ms_p50=1.40 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=24.9 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=13 Water -> Station
+PASS lab bench: water-splitting placeholder Water-splitting station (coming soon): 2H₂O → 2H₂ + O₂ with electricity.
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.4 fps_p5=1.4 avg_ms=681.70 p50_ms=692.60 p95_ms=719.30 worst_ms=719.3 update_ms_p50=1.60 update_ms_p95=2.80 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.5 fps_p5=1.4 avg_ms=652.28 p50_ms=671.40 p95_ms=709.60 worst_ms=709.6 update_ms_p50=1.30 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=12 Frost -> Chilled
+  console: CPUFRAME n=14 p50_ms=8.50 p95_ms=10.90 max_ms=13.40
+PASS frost on the steam vent temp=5
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.5 fps_p5=1.4 avg_ms=672.60 p50_ms=675.10 p95_ms=719.30 worst_ms=719.3 update_ms_p50=1.70 update_ms_p95=2.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=723.57 p50_ms=730.40 p95_ms=743.50 worst_ms=743.5 update_ms_p50=1.20 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.00 p95_ms=9.60 max_ms=9.60
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.3 fps_p5=1.3 avg_ms=668.12 p50_ms=750.20 p95_ms=775.10 worst_ms=775.1 update_ms_p50=1.20 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=11 Frost -> Froze
+  console: INFO src/main.rs:1795 STATS fps=1.0 fps_p50=0.9 fps_p5=0.9 avg_ms=1000.35 p50_ms=1096.00 p95_ms=1096.00 worst_ms=1096.0 update_ms_p50=2.00 update_ms_p95=2.00 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak
+  console: INFO src/main.rs:1795 STATS fps=0.9 fps_p50=0.9 fps_p5=0.9 avg_ms=1080.15 p50_ms=1082.10 p95_ms=1082.10 worst_ms=1082.1 update_ms_p50=1.20 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.2 fps_p5=1.2 avg_ms=788.23 p50_ms=800.10 p95_ms=801.60 worst_ms=801.6 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.70 p95_ms=8.50 max_ms=8.50
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.3 fps_p5=1.2 avg_ms=771.83 p50_ms=767.70 p95_ms=832.00 worst_ms=832.0 update_ms_p50=1.20 update_ms_p95=2.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb=
+PASS frost freezes the puddle Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+  console: INFO src/main.rs:1795 STATS fps=1.2 fps_p50=1.2 fps_p5=1.1 avg_ms=822.77 p50_ms=806.60 p95_ms=885.90 worst_ms=885.9 update_ms_p50=1.60 update_ms_p95=2.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.3 fps_p5=1.0 avg_ms=791.37 p50_ms=775.90 p95_ms=1010.60 worst_ms=1010.6 update_ms_p50=1.00 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_m
+  console: CPUFRAME n=12 p50_ms=5.60 p95_ms=9.00 max_ms=11.10
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.3 fps_p5=1.2 avg_ms=754.23 p50_ms=768.30 p95_ms=814.80 worst_ms=814.8 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.5 fps_p5=1.1 avg_ms=732.00 p50_ms=678.40 p95_ms=887.90 worst_ms=887.9 update_ms_p50=1.30 update_ms_p95=1.80 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb=
+PASS water puts out fire 1 Fire out! Water cooled it below its ignition temperature.
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.2 fps_p5=1.1 avg_ms=752.17 p50_ms=813.50 p95_ms=877.10 worst_ms=877.1 update_ms_p50=1.30 update_ms_p95=2.00 entities=621 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=19.30 max_ms=19.30
+  console: INFO src/main.rs:1387 IMPACT obj=3 Frost -> Extinguished(Frost)
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.4 fps_p5=1.0 avg_ms=733.47 p50_ms=705.40 p95_ms=963.80 worst_ms=963.8 update_ms_p50=2.10 update_ms_p95=3.00 entities=623 burning=1 extinguished=2 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb=
+PASS frost puts out fire 2 Fire out! Liquid nitrogen at −196 °C cooled it far below ignition.
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=1.3 fps_p5=1.1 avg_ms=761.40 p50_ms=740.80 p95_ms=942.70 worst_ms=942.7 update_ms_p50=1.20 update_ms_p95=4.60 entities=623 burning=1 extinguished=2 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+PASS Esc releases the mouse and pauses paused=true locked=false
+  console: INFO src/main.rs:1795 STATS fps=2.9 fps_p50=2.8 fps_p5=2.8 avg_ms=349.68 p50_ms=353.40 p95_ms=358.10 worst_ms=358.1 update_ms_p50=1.00 update_ms_p95=1.10 entities=623 burning=1 extinguished=2 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.10 p95_ms=10.10 max_ms=10.80
+  console: INFO src/main.rs:1795 STATS fps=3.0 fps_p50=3.0 fps_p5=2.7 avg_ms=333.99 p50_ms=328.20 p95_ms=369.20 worst_ms=369.2 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=1 extinguished=2 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.2 fps_p5=3.0 avg_ms=314.50 p50_ms=312.80 p95_ms=331.00 worst_ms=331.0 update_ms_p50=1.10 update_ms_p95=2.20 entities=621 burning=1 extinguished=2 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=4.90 p95_ms=5.90 max_ms=9.90
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.3 fps_p5=2.8 avg_ms=310.84 p50_ms=307.00 p95_ms=354.80 worst_ms=354.8 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=1 extinguished=2 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+PASS drag-to-look turns the view without pointer lock yaw 302.2 -> 295.66
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.2 fps_p5=2.0 avg_ms=415.00 p50_ms=460.00 p95_ms=501.60 worst_ms=501.6 update_ms_p50=1.30 update_ms_p95=1.60 entities=621 burning=1 extinguished=2 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.70 p95_ms=7.30 max_ms=9.30
+PASS hover finds the target under the cursor hover=6
+  console: INFO src/main.rs:1387 IMPACT obj=6 Water -> Extinguished(Water)
+PASS click-to-target casts without lock You saved the greenhouse! Water, frost and CO₂ each stop fire in their own way.
+PASS Save the Greenhouse win ext=3 burning=0
+PASS win banner shown You saved the greenhouse!
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=500.92 p50_ms=505.60 p95_ms=514.90 worst_ms=514.9 update_ms_p50=1.70 update_ms_p95=1.90 entities=621 burning=0 extinguished=3 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=6.20 p95_ms=8.80 max_ms=8.80
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=479.84 p50_ms=475.00 p95_ms=529.40 worst_ms=529.4 update_ms_p50=1.10 update_ms_p95=2.00 entities=621 burning=0 extinguished=3 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.9 fps_p50=3.4 fps_p5=2.1 avg_ms=350.13 p50_ms=297.60 p95_ms=483.70 worst_ms=483.7 update_ms_p50=1.00 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.20 p95_ms=6.10 max_ms=8.60
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.2 fps_p5=3.0 avg_ms=313.94 p50_ms=313.90 p95_ms=331.50 worst_ms=331.5 update_ms_p50=1.30 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=3.4 fps_p50=3.4 fps_p5=3.1 avg_ms=297.21 p50_ms=293.80 p95_ms=319.50 worst_ms=319.5 update_ms_p50=1.10 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.50 p95_ms=8.30 max_ms=14.20
+  console: INFO src/main.rs:1795 STATS fps=3.1 fps_p50=3.2 fps_p5=2.5 avg_ms=324.31 p50_ms=314.10 p95_ms=397.10 worst_ms=397.1 update_ms_p50=1.10 update_ms_p95=3.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  canvas 960 540 1
+INFO src/main.rs:1795 STATS fps=2.9 fps_p50=3.4 fps_p5=2.1 avg_ms=350.13 p50_ms=297.60 p95_ms=483.70 worst_ms=483.7 update_ms_p50=1.00 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=26.9 biggest_alloc_mb=4.0 winit_events=1
+CPUFRAME n=15 p50_ms=5.20 p95_ms=6.10 max_ms=8.60
+INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.2 fps_p5=3.0 avg_ms=313.94 p50_ms=313.90 p95_ms=331.50 worst_ms=331.5 update_ms_p50=1.30 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=26.9 biggest_alloc_mb=4.0 winit_events=1
+INFO src/main.rs:1795 STATS fps=3.4 fps_p50=3.4 fps_p5=3.1 avg_ms=297.21 p50_ms=293.80 p95_ms=319.50 worst_ms=319.5 update_ms_p50=1.10 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=26.9 biggest_alloc_mb=4.0 winit_events=1
+CPUFRAME n=15 p50_ms=5.50 p95_ms=8.30 max_ms=14.20
+INFO src/main.rs:1795 STATS fps=3.1 fps_p50=3.2 fps_p5=2.5 avg_ms=324.31 p50_ms=314.10 p95_ms=397.10 worst_ms=397.1 update_ms_p50=1.10 update_ms_p95=3.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=26.9 biggest_alloc_mb=4.0 winit_events=1
+  -- close streams (I-046) --
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.2 fps_p5=2.9 avg_ms=316.56 p50_ms=314.70 p95_ms=349.20 worst_ms=349.2 update_ms_p50=1.10 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.50 p95_ms=7.80 max_ms=8.40
+  console: INFO src/main.rs:1795 STATS fps=3.3 fps_p50=3.3 fps_p5=3.1 avg_ms=304.27 p50_ms=300.80 p95_ms=326.60 worst_ms=326.6 update_ms_p50=1.20 update_ms_p95=2.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=457.54 p50_ms=464.80 p95_ms=483.60 worst_ms=483.6 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.60 p95_ms=8.20 max_ms=8.40
+  console: INFO src/main.rs:1795 STATS fps=1.7 fps_p50=1.6 fps_p5=1.4 avg_ms=571.75 p50_ms=638.20 p95_ms=713.20 worst_ms=713.2 update_ms_p50=1.20 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=458.88 p50_ms=462.70 p95_ms=472.40 worst_ms=472.4 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.90 p95_ms=7.30 max_ms=8.40
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.0 fps_p5=2.0 avg_ms=486.88 p50_ms=489.70 p95_ms=509.50 worst_ms=509.5 update_ms_p50=1.20 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=493.90 p50_ms=498.00 p95_ms=518.40 worst_ms=518.4 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.80 p95_ms=8.90 max_ms=8.90
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=484.46 p50_ms=481.10 p95_ms=513.50 worst_ms=513.5 update_ms_p50=1.20 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.0 avg_ms=464.40 p50_ms=455.70 p95_ms=507.10 worst_ms=507.1 update_ms_p50=1.30 update_ms_p95=2.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.0 avg_ms=459.54 p50_ms=453.30 p95_ms=488.70 worst_ms=488.7 update_ms_p50=1.10 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.90 p95_ms=9.90 max_ms=12.00
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.9 avg_ms=470.56 p50_ms=460.30 p95_ms=526.40 worst_ms=526.4 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=460.74 p50_ms=456.50 p95_ms=485.10 worst_ms=485.1 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=454.12 p50_ms=455.30 p95_ms=480.10 worst_ms=480.1 update_ms_p50=0.90 update_ms_p95=2.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.20 p95_ms=9.10 max_ms=12.90
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.2 avg_ms=445.80 p50_ms=452.80 p95_ms=464.20 worst_ms=464.2 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=1.9 avg_ms=461.16 p50_ms=463.20 p95_ms=522.30 worst_ms=522.3 update_ms_p50=1.00 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.70 p95_ms=7.20 max_ms=7.40
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=2.0 avg_ms=466.48 p50_ms=475.50 p95_ms=493.30 worst_ms=493.3 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=448.86 p50_ms=448.80 p95_ms=480.30 worst_ms=480.3 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.2 avg_ms=442.84 p50_ms=442.30 p95_ms=459.10 worst_ms=459.1 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=4.80 p95_ms=6.30 max_ms=6.50
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.0 avg_ms=441.82 p50_ms=437.70 p95_ms=489.30 worst_ms=489.3 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=9.8 fps_p50=20.0 fps_p5=2.5 avg_ms=101.68 p50_ms=50.00 p95_ms=395.40 worst_ms=401.4 update_ms_p50=0.00 update_ms_p95=0.90 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=10 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:1795 STATS fps=1.0 fps_p50=20.0 fps_p5=20.0 avg_ms=995.84 p50_ms=50.00 p95_ms=50.00 worst_ms=16129.3 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_m
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=1.8 avg_ms=455.78 p50_ms=431.90 p95_ms=541.00 worst_ms=541.0 update_ms_p50=1.10 update_ms_p95=3.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.60 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=1.8 fps_p50=1.5 fps_p5=1.5 avg_ms=551.40 p50_ms=654.50 p95_ms=661.90 worst_ms=661.9 update_ms_p50=1.40 update_ms_p95=3.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=443.56 p50_ms=443.70 p95_ms=467.10 worst_ms=467.1 update_ms_p50=0.90 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=2.0 avg_ms=467.64 p50_ms=463.10 p95_ms=493.40 worst_ms=493.4 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.00 p95_ms=9.00 max_ms=11.70
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=463.98 p50_ms=459.00 p95_ms=484.60 worst_ms=484.6 update_ms_p50=1.20 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.9 avg_ms=465.86 p50_ms=456.10 p95_ms=527.10 worst_ms=527.1 update_ms_p50=1.00 update_ms_p95=9.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.90 p95_ms=13.90 max_ms=13.90
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.4 fps_p5=2.0 avg_ms=427.44 p50_ms=409.20 p95_ms=503.50 worst_ms=503.5 update_ms_p50=1.30 update_ms_p95=3.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.3 avg_ms=423.04 p50_ms=420.30 p95_ms=440.70 worst_ms=440.7 update_ms_p50=1.20 update_ms_p95=3.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=8.10 max_ms=8.10
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.3 avg_ms=415.26 p50_ms=415.70 p95_ms=429.90 worst_ms=429.9 update_ms_p50=0.90 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.3 avg_ms=414.28 p50_ms=414.90 p95_ms=437.00 worst_ms=437.0 update_ms_p50=0.90 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=4.50 p95_ms=6.30 max_ms=6.30
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.3 avg_ms=427.04 p50_ms=427.70 p95_ms=439.00 worst_ms=439.0 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=4.90 p95_ms=6.20 max_ms=8.80
+  console: INFO src/main.rs:1795 STATS fps=2.5 fps_p50=2.5 fps_p5=2.3 avg_ms=406.88 p50_ms=401.40 p95_ms=437.70 worst_ms=437.7 update_ms_p50=0.90 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=1.9 avg_ms=450.84 p50_ms=429.90 p95_ms=533.20 worst_ms=533.2 update_ms_p50=1.20 update_ms_p95=3.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=6.00 p95_ms=11.10 max_ms=11.10
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.0 fps_p5=1.9 avg_ms=482.86 p50_ms=488.60 p95_ms=532.00 worst_ms=532.0 update_ms_p50=1.00 update_ms_p95=4.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.2 avg_ms=417.56 p50_ms=420.50 p95_ms=461.30 worst_ms=461.3 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.8 fps_p5=1.7 avg_ms=523.62 p50_ms=543.70 p95_ms=575.80 worst_ms=575.8 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.70 p95_ms=9.10 max_ms=11.40
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.4 fps_p5=1.9 avg_ms=450.00 p50_ms=419.80 p95_ms=519.50 worst_ms=519.5 update_ms_p50=1.10 update_ms_p95=2.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=5.9 fps_p50=20.0 fps_p5=2.4 avg_ms=169.19 p50_ms=50.00 p95_ms=418.50 worst_ms=429.5 update_ms_p50=0.00 update_ms_p95=1.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:1795 STATS fps=1.6 fps_p50=20.0 fps_p5=20.0 avg_ms=628.70 p50_ms=50.00 p95_ms=50.00 worst_ms=15096.2 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_m
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.8 avg_ms=478.98 p50_ms=461.60 p95_ms=558.00 worst_ms=558.0 update_ms_p50=1.20 update_ms_p95=7.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.90 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=1.7 fps_p50=1.5 fps_p5=1.4 avg_ms=604.82 p50_ms=663.00 p95_ms=723.50 worst_ms=723.5 update_ms_p50=1.40 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=2.0 fps_p5=1.7 avg_ms=513.10 p50_ms=508.10 p95_ms=581.60 worst_ms=581.6 update_ms_p50=1.30 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.8 avg_ms=478.36 p50_ms=475.90 p95_ms=542.10 worst_ms=542.1 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.60 p95_ms=6.90 max_ms=8.10
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.2 avg_ms=423.28 p50_ms=416.10 p95_ms=450.90 worst_ms=450.9 update_ms_p50=0.90 update_ms_p95=0.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.2 avg_ms=431.34 p50_ms=441.70 p95_ms=462.60 worst_ms=462.6 update_ms_p50=1.10 update_ms_p95=4.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=448.62 p50_ms=450.10 p95_ms=476.20 worst_ms=476.2 update_ms_p50=1.50 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.10 p95_ms=7.40 max_ms=8.40
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.4 fps_p5=2.2 avg_ms=428.40 p50_ms=421.70 p95_ms=459.60 worst_ms=459.6 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.5 fps_p5=2.3 avg_ms=408.44 p50_ms=403.40 p95_ms=427.50 worst_ms=427.5 update_ms_p50=1.00 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=8.40 max_ms=8.40
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.2 avg_ms=420.46 p50_ms=421.10 p95_ms=451.90 worst_ms=451.9 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.5 fps_p50=2.5 fps_p5=2.4 avg_ms=407.74 p50_ms=404.70 p95_ms=420.50 worst_ms=420.5 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=4.60 p95_ms=8.70 max_ms=8.70
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.0 avg_ms=433.80 p50_ms=427.80 p95_ms=497.10 worst_ms=497.1 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.1 avg_ms=422.76 p50_ms=414.70 p95_ms=477.50 worst_ms=477.5 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.90 p95_ms=7.10 max_ms=7.10
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.2 avg_ms=428.88 p50_ms=427.30 p95_ms=460.80 worst_ms=460.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.6 fps_p50=2.6 fps_p5=2.3 avg_ms=391.90 p50_ms=388.00 p95_ms=425.80 worst_ms=425.8 update_ms_p50=0.90 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.00 p95_ms=6.00 max_ms=6.70
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=439.84 p50_ms=434.50 p95_ms=468.80 worst_ms=468.8 update_ms_p50=1.20 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=439.14 p50_ms=442.50 p95_ms=469.00 worst_ms=469.0 update_ms_p50=0.80 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=4.90 p95_ms=7.70 max_ms=7.70
+  console: CPUFRAME n=12 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=8.3 fps_p50=20.0 fps_p5=2.1 avg_ms=120.05 p50_ms=50.00 p95_ms=466.30 worst_ms=469.6 update_ms_p50=0.00 update_ms_p95=1.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:1795 STATS fps=1.2 fps_p50=20.0 fps_p5=20.0 avg_ms=806.79 p50_ms=50.00 p95_ms=50.00 worst_ms=15185.7 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_m
+  G1 P0 1680x720 Water: try 1: pose -4,14 fire at (841,363) want (840,360) err 3.1 px; warm before 2560/2487/2512 (min 2487) after 1537 ratio 0.62; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15923 ms; mask-in-square 1442; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (839,360) want (840,360) err 1.0 px; warm before 2355/2597/2442 (min 2355) after 1471 ratio 0.62; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15080 ms; mask-in-square 1575; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (839,361) want (840,360) err 1.4 px; warm before 2583/2398/2663 (min 2398) after 1564 ratio 0.65; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15131 ms; mask-in-square 1403; after burning=true aim=0 assisted=false streams=1
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=1.9 avg_ms=446.18 p50_ms=429.30 p95_ms=515.60 worst_ms=515.6 update_ms_p50=0.90 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.8 fps_p5=1.7 avg_ms=513.72 p50_ms=547.50 p95_ms=581.00 worst_ms=581.0 update_ms_p50=2.00 update_ms_p95=2.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.1 avg_ms=446.76 p50_ms=443.10 p95_ms=477.10 worst_ms=477.1 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.70 p95_ms=6.50 max_ms=8.20
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=442.92 p50_ms=443.70 p95_ms=467.70 worst_ms=467.7 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=500.10 p50_ms=504.00 p95_ms=525.10 worst_ms=525.1 update_ms_p50=1.10 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=7.20 max_ms=7.20
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.9 avg_ms=476.18 p50_ms=462.70 p95_ms=531.60 worst_ms=531.6 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=438.88 p50_ms=436.60 p95_ms=472.80 worst_ms=472.8 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=4.70 p95_ms=7.50 max_ms=9.00
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=1.7 avg_ms=462.32 p50_ms=428.20 p95_ms=580.30 worst_ms=580.3 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.3 avg_ms=421.22 p50_ms=415.90 p95_ms=438.80 worst_ms=438.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.70 p95_ms=8.80 max_ms=8.80
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.0 avg_ms=451.56 p50_ms=448.60 p95_ms=502.30 worst_ms=502.3 update_ms_p50=1.30 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.0 avg_ms=439.62 p50_ms=437.20 p95_ms=510.60 worst_ms=510.6 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.3 avg_ms=412.44 p50_ms=408.20 p95_ms=440.40 worst_ms=440.4 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.30 p95_ms=6.80 max_ms=9.20
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=444.60 p50_ms=447.10 p95_ms=482.20 worst_ms=482.2 update_ms_p50=1.10 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.0 avg_ms=454.98 p50_ms=435.20 p95_ms=488.20 worst_ms=488.2 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.60 p95_ms=7.20 max_ms=8.90
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.2 avg_ms=434.20 p50_ms=432.10 p95_ms=463.90 worst_ms=463.9 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.00 p95_ms=6.20 max_ms=6.50
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.0 avg_ms=446.66 p50_ms=433.40 p95_ms=499.60 worst_ms=499.6 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.0 avg_ms=463.82 p50_ms=447.10 p95_ms=503.60 worst_ms=503.6 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=6.90 p95_ms=13.00 max_ms=13.00
+  console: INFO src/main.rs:1795 STATS fps=4.9 fps_p50=20.0 fps_p5=2.1 avg_ms=203.25 p50_ms=50.00 p95_ms=471.90 worst_ms=471.9 update_ms_p50=0.00 update_ms_p95=1.30 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Frost -> Extinguished(Frost)
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=20.0 fps_p5=20.0 avg_ms=669.49 p50_ms=50.00 p95_ms=50.00 worst_ms=8722.9 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.5 fps_p5=2.1 avg_ms=421.12 p50_ms=393.40 p95_ms=487.10 worst_ms=487.1 update_ms_p50=1.20 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=7.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=1.8 fps_p50=1.6 fps_p5=1.6 avg_ms=545.55 p50_ms=619.70 p95_ms=624.30 worst_ms=624.3 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.7 fps_p50=1.7 fps_p5=1.7 avg_ms=576.03 p50_ms=599.50 p95_ms=601.20 worst_ms=601.2 update_ms_p50=1.70 update_ms_p95=3.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.20 p95_ms=9.20 max_ms=10.20
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.1 fps_p5=1.8 avg_ms=488.68 p50_ms=480.00 p95_ms=557.60 worst_ms=557.6 update_ms_p50=1.20 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.0 fps_p5=2.0 avg_ms=484.76 p50_ms=495.90 p95_ms=511.60 worst_ms=511.6 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=2.0 fps_p5=1.6 avg_ms=527.42 p50_ms=508.50 p95_ms=607.30 worst_ms=607.3 update_ms_p50=1.30 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.80 p95_ms=7.40 max_ms=9.90
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=1.9 fps_p5=1.9 avg_ms=496.50 p50_ms=523.50 p95_ms=528.00 worst_ms=528.0 update_ms_p50=1.30 update_ms_p95=2.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=6.00 p95_ms=8.90 max_ms=8.90
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=475.26 p50_ms=469.30 p95_ms=536.50 worst_ms=536.5 update_ms_p50=1.00 update_ms_p95=4.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.1 fps_p5=1.8 avg_ms=488.52 p50_ms=479.70 p95_ms=543.80 worst_ms=543.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.30 p95_ms=9.80 max_ms=9.80
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.8 fps_p5=1.7 avg_ms=535.65 p50_ms=549.20 p95_ms=593.30 worst_ms=593.3 update_ms_p50=1.20 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.8 avg_ms=475.74 p50_ms=461.00 p95_ms=544.70 worst_ms=544.7 update_ms_p50=1.30 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.0 avg_ms=451.56 p50_ms=441.70 p95_ms=490.70 worst_ms=490.7 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.30 p95_ms=8.40 max_ms=18.70
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.0 avg_ms=458.10 p50_ms=444.20 p95_ms=501.90 worst_ms=501.9 update_ms_p50=1.30 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.90 p95_ms=10.40 max_ms=10.40
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.1 fps_p5=1.6 avg_ms=503.96 p50_ms=468.30 p95_ms=633.60 worst_ms=633.6 update_ms_p50=1.10 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.8 fps_p50=1.8 fps_p5=1.7 avg_ms=543.40 p50_ms=556.60 p95_ms=580.10 worst_ms=580.1 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=473.80 p50_ms=477.40 p95_ms=516.20 worst_ms=516.2 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.00 p95_ms=6.90 max_ms=9.20
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.8 fps_p5=1.8 avg_ms=513.55 p50_ms=551.60 p95_ms=555.70 worst_ms=555.7 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.1 fps_p5=1.8 avg_ms=488.40 p50_ms=467.30 p95_ms=546.90 worst_ms=546.9 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.90 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=7.8 fps_p50=20.0 fps_p5=2.1 avg_ms=127.57 p50_ms=50.00 p95_ms=467.60 worst_ms=469.4 update_ms_p50=0.00 update_ms_p95=1.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Frost -> Extinguished(Frost)
+  console: INFO src/main.rs:1795 STATS fps=0.7 fps_p50=20.0 fps_p5=0.1 avg_ms=1459.16 p50_ms=50.00 p95_ms=9914.10 worst_ms=9914.1 update_ms_p50=0.00 update_ms_p95=1.30 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.9 avg_ms=466.60 p50_ms=464.20 p95_ms=513.10 worst_ms=513.1 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=6.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.6 fps_p5=1.6 avg_ms=540.53 p50_ms=618.40 p95_ms=620.20 worst_ms=620.2 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=2.0 avg_ms=479.60 p50_ms=479.80 p95_ms=496.50 worst_ms=496.5 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.40 p95_ms=6.40 max_ms=7.30
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.3 fps_p5=2.2 avg_ms=420.54 p50_ms=438.80 p95_ms=446.10 worst_ms=446.1 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.4 fps_p5=1.9 avg_ms=440.94 p50_ms=424.30 p95_ms=521.80 worst_ms=521.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.7 fps_p5=0.9 avg_ms=722.00 p50_ms=576.30 p95_ms=1109.80 worst_ms=1109.8 update_ms_p50=0.90 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_m
+  console: CPUFRAME n=13 p50_ms=4.80 p95_ms=6.40 max_ms=6.90
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=453.68 p50_ms=457.40 p95_ms=478.70 worst_ms=478.7 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.8 avg_ms=485.92 p50_ms=477.00 p95_ms=559.90 worst_ms=559.9 update_ms_p50=1.30 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.0 avg_ms=455.46 p50_ms=458.70 p95_ms=491.20 worst_ms=491.2 update_ms_p50=0.90 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.90 p95_ms=7.60 max_ms=7.70
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.1 avg_ms=425.32 p50_ms=415.70 p95_ms=482.50 worst_ms=482.5 update_ms_p50=0.80 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=431.96 p50_ms=433.30 p95_ms=470.50 worst_ms=470.5 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.30 p95_ms=8.10 max_ms=8.10
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.0 avg_ms=462.40 p50_ms=464.10 p95_ms=488.30 worst_ms=488.3 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.4 fps_p5=2.2 avg_ms=420.72 p50_ms=424.90 p95_ms=455.70 worst_ms=455.7 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=2.0 avg_ms=471.56 p50_ms=450.80 p95_ms=511.00 worst_ms=511.0 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.60 p95_ms=6.80 max_ms=7.90
+  console: INFO src/main.rs:1795 STATS fps=2.5 fps_p50=2.5 fps_p5=2.2 avg_ms=404.36 p50_ms=405.10 p95_ms=447.90 worst_ms=447.9 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=445.00 p50_ms=449.30 p95_ms=482.70 worst_ms=482.7 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.60 p95_ms=7.00 max_ms=7.30
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.3 fps_p5=1.8 avg_ms=468.12 p50_ms=440.80 p95_ms=546.80 worst_ms=546.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.0 fps_p5=1.9 avg_ms=486.14 p50_ms=497.90 p95_ms=517.00 worst_ms=517.0 update_ms_p50=1.10 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.80 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Frost -> Extinguished(Frost)
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=20.0 fps_p5=20.0 avg_ms=499.83 p50_ms=50.00 p95_ms=50.00 worst_ms=9046.7 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_mb
+  G1 P0 1680x720 Frost: try 1: pose -4,14 fire at (843,360) want (840,360) err 2.5 px; warm before 2554/2521/2448 (min 2448) after 998 ratio 0.41; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8051 ms; mask-in-square 2050; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (840,360) want (840,360) err 0.6 px; warm before 2362/2567/2491 (min 2362) after 603 ratio 0.26; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 9010 ms; mask-in-square 2700; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (838,358) want (840,360) err 3.0 px; warm before 2364/2598/2511 (min 2364) after 1405 ratio 0.59; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8313 ms; mask-in-square 1762; after burning=true aim=0 assisted=false streams=1
+  console: CPUFRAME n=10 p50_ms=6.50 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=473.20 p50_ms=474.30 p95_ms=513.80 worst_ms=513.8 update_ms_p50=1.20 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=1.6 fps_p5=1.6 avg_ms=506.70 p50_ms=614.70 p95_ms=617.80 worst_ms=617.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=452.66 p50_ms=449.90 p95_ms=474.90 worst_ms=474.9 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.20 p95_ms=6.30 max_ms=9.90
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.8 avg_ms=479.24 p50_ms=465.30 p95_ms=563.80 worst_ms=563.8 update_ms_p50=1.10 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=475.86 p50_ms=473.40 p95_ms=513.40 worst_ms=513.4 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.30 p95_ms=6.10 max_ms=6.10
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=495.62 p50_ms=491.90 p95_ms=519.90 worst_ms=519.9 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=1.9 fps_p5=1.8 avg_ms=510.65 p50_ms=535.90 p95_ms=548.70 worst_ms=548.7 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.00 p95_ms=6.90 max_ms=8.10
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.2 avg_ms=446.26 p50_ms=444.50 p95_ms=460.30 worst_ms=460.3 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.3 fps_p5=1.9 avg_ms=469.94 p50_ms=443.30 p95_ms=535.30 worst_ms=535.3 update_ms_p50=0.90 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=470.96 p50_ms=473.10 p95_ms=517.80 worst_ms=517.8 update_ms_p50=1.00 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.70 p95_ms=7.50 max_ms=10.60
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=451.64 p50_ms=455.60 p95_ms=485.90 worst_ms=485.9 update_ms_p50=1.10 update_ms_p95=2.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.8 avg_ms=496.84 p50_ms=496.70 p95_ms=545.70 worst_ms=545.7 update_ms_p50=1.20 update_ms_p95=15.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb
+  console: INFO src/main.rs:1795 STATS fps=1.8 fps_p50=1.7 fps_p5=1.6 avg_ms=556.50 p50_ms=582.60 p95_ms=629.00 worst_ms=629.0 update_ms_p50=1.70 update_ms_p95=3.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.90 p95_ms=9.70 max_ms=22.20
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.3 fps_p5=1.8 avg_ms=465.60 p50_ms=444.40 p95_ms=553.10 worst_ms=553.1 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.20 p95_ms=8.60 max_ms=8.60
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=438.44 p50_ms=428.00 p95_ms=485.00 worst_ms=485.0 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.9 fps_p5=1.9 avg_ms=514.45 p50_ms=517.30 p95_ms=534.90 worst_ms=534.9 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=2.0 avg_ms=469.48 p50_ms=482.20 p95_ms=491.90 worst_ms=491.9 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.30 p95_ms=6.00 max_ms=8.80
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=484.28 p50_ms=483.10 p95_ms=523.30 worst_ms=523.3 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=12 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=15.9 fps_p50=20.0 fps_p5=20.0 avg_ms=63.05 p50_ms=50.00 p95_ms=50.00 worst_ms=467.7 update_ms_p50=0.00 update_ms_p95=0.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=0 Foam -> Extinguished(Foam)
+  console: INFO src/main.rs:1795 STATS fps=0.2 fps_p50=20.0 fps_p5=0.1 avg_ms=5379.30 p50_ms=50.00 p95_ms=16037.90 worst_ms=16037.9 update_ms_p50=0.00 update_ms_p95=1.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_pea
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.0 avg_ms=456.26 p50_ms=435.80 p95_ms=512.50 worst_ms=512.5 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=10.10 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.6 fps_p5=1.5 avg_ms=539.22 p50_ms=620.90 p95_ms=655.80 worst_ms=655.8 update_ms_p50=1.40 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.60 p95_ms=7.60 max_ms=7.60
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=446.56 p50_ms=452.90 p95_ms=467.50 worst_ms=467.5 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.4 fps_p5=2.1 avg_ms=430.58 p50_ms=425.00 p95_ms=468.10 worst_ms=468.1 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=2.0 avg_ms=473.86 p50_ms=474.90 p95_ms=500.40 worst_ms=500.4 update_ms_p50=1.20 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.80 p95_ms=8.50 max_ms=9.20
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=488.36 p50_ms=501.40 p95_ms=527.30 worst_ms=527.3 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.3 avg_ms=429.48 p50_ms=431.40 p95_ms=443.00 worst_ms=443.0 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.30 p95_ms=8.20 max_ms=8.20
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.5 fps_p5=2.2 avg_ms=412.82 p50_ms=400.10 p95_ms=449.40 worst_ms=449.4 update_ms_p50=0.90 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.4 fps_p50=2.5 fps_p5=2.0 avg_ms=424.80 p50_ms=407.40 p95_ms=502.40 worst_ms=502.4 update_ms_p50=0.90 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=452.12 p50_ms=462.10 p95_ms=483.40 worst_ms=483.4 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=4.50 p95_ms=6.10 max_ms=7.20
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.4 fps_p5=2.1 avg_ms=434.72 p50_ms=418.50 p95_ms=482.30 worst_ms=482.3 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.1 fps_p5=1.7 avg_ms=500.10 p50_ms=487.30 p95_ms=582.20 worst_ms=582.2 update_ms_p50=1.20 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=6.10 p95_ms=11.40 max_ms=21.20
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.8 avg_ms=502.76 p50_ms=494.60 p95_ms=548.30 worst_ms=548.3 update_ms_p50=1.10 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.8 avg_ms=475.76 p50_ms=458.60 p95_ms=565.30 worst_ms=565.3 update_ms_p50=1.30 update_ms_p95=3.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.0 avg_ms=463.44 p50_ms=449.50 p95_ms=512.40 worst_ms=512.4 update_ms_p50=1.20 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.60 p95_ms=7.20 max_ms=7.40
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.1 avg_ms=449.46 p50_ms=438.20 p95_ms=486.00 worst_ms=486.0 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.50 p95_ms=7.30 max_ms=7.30
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=484.56 p50_ms=476.50 p95_ms=518.60 worst_ms=518.6 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=7.4 fps_p50=20.0 fps_p5=2.1 avg_ms=134.98 p50_ms=50.00 p95_ms=475.60 worst_ms=482.1 update_ms_p50=0.00 update_ms_p95=0.90 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Foam -> Extinguished(Foam)
+  console: INFO src/main.rs:1795 STATS fps=1.3 fps_p50=20.0 fps_p5=20.0 avg_ms=787.28 p50_ms=50.00 p95_ms=50.00 worst_ms=16270.1 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_peak_m
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=2.0 fps_p5=1.7 avg_ms=514.97 p50_ms=510.10 p95_ms=578.30 worst_ms=578.3 update_ms_p50=1.40 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=7.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=1.9 fps_p50=1.7 fps_p5=1.6 avg_ms=522.40 p50_ms=597.90 p95_ms=621.40 worst_ms=621.4 update_ms_p50=0.90 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=2.1 avg_ms=469.28 p50_ms=468.20 p95_ms=479.00 worst_ms=479.0 update_ms_p50=1.10 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.80 p95_ms=6.50 max_ms=6.50
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=1.9 fps_p5=1.9 avg_ms=507.75 p50_ms=517.50 p95_ms=532.00 worst_ms=532.0 update_ms_p50=1.20 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=462.88 p50_ms=456.30 p95_ms=486.00 worst_ms=486.0 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=4.90 p95_ms=11.10 max_ms=11.10
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.2 fps_p5=1.8 avg_ms=472.72 p50_ms=463.40 p95_ms=544.00 worst_ms=544.0 update_ms_p50=0.80 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=1.9 avg_ms=486.72 p50_ms=476.40 p95_ms=539.50 worst_ms=539.5 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=4.80 p95_ms=8.20 max_ms=8.20
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.1 avg_ms=445.76 p50_ms=443.60 p95_ms=465.70 worst_ms=465.7 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=491.40 p50_ms=490.00 p95_ms=537.90 worst_ms=537.9 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=4.80 p95_ms=7.40 max_ms=11.40
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=461.44 p50_ms=464.30 p95_ms=476.70 worst_ms=476.7 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=2.1 avg_ms=444.52 p50_ms=430.10 p95_ms=480.20 worst_ms=480.2 update_ms_p50=1.10 update_ms_p95=3.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.80 p95_ms=7.70 max_ms=8.20
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=2.0 avg_ms=477.24 p50_ms=481.10 p95_ms=508.70 worst_ms=508.7 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.0 fps_p50=1.9 fps_p5=1.9 avg_ms=500.40 p50_ms=514.80 p95_ms=530.60 worst_ms=530.6 update_ms_p50=1.30 update_ms_p95=4.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.1 fps_p50=2.1 fps_p5=2.0 avg_ms=468.88 p50_ms=475.40 p95_ms=489.90 worst_ms=489.9 update_ms_p50=1.20 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.60 p95_ms=8.30 max_ms=13.20
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.1 avg_ms=443.88 p50_ms=434.40 p95_ms=485.90 worst_ms=485.9 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.4 fps_p5=2.1 avg_ms=429.90 p50_ms=421.30 p95_ms=482.30 worst_ms=482.3 update_ms_p50=0.90 update_ms_p95=1.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.3 fps_p50=2.3 fps_p5=2.2 avg_ms=442.50 p50_ms=438.30 p95_ms=459.80 worst_ms=459.8 update_ms_p50=1.20 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=5.00 p95_ms=6.90 max_ms=7.80
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.3 fps_p5=1.9 avg_ms=445.90 p50_ms=427.90 p95_ms=523.50 worst_ms=523.5 update_ms_p50=0.90 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=11 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=15.7 fps_p50=20.0 fps_p5=20.0 avg_ms=63.62 p50_ms=50.00 p95_ms=50.00 worst_ms=485.8 update_ms_p50=0.00 update_ms_p95=0.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1387 IMPACT obj=0 Foam -> Extinguished(Foam)
+  console: INFO src/main.rs:1795 STATS fps=0.2 fps_p50=20.0 fps_p5=0.1 avg_ms=5390.50 p50_ms=50.00 p95_ms=16071.50 worst_ms=16071.5 update_ms_p50=0.00 update_ms_p95=0.90 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.1 heap_pea
+  G1 P0 1680x720 CO2: try 1: pose -4,14 fire at (839,358) want (840,360) err 2.0 px; warm before 2488/2454/2603 (min 2454) after 1091 ratio 0.44; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15745 ms; mask-in-square 2019; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (841,362) want (840,360) err 2.6 px; warm before 2556/2583/2397 (min 2397) after 1263 ratio 0.53; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 16096 ms; mask-in-square 1366; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (837,359) want (840,360) err 2.9 px; warm before 2348/2578/2513 (min 2348) after 1150 ratio 0.49; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15786 ms; mask-in-square 2033; after burning=true aim=0 assisted=false streams=1
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=2.2 fps_p5=1.7 avg_ms=452.04 p50_ms=447.50 p95_ms=594.60 worst_ms=594.6 update_ms_p50=1.20 update_ms_p95=1.90 entities=621 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=6.30 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=3.4 fps_p50=3.8 fps_p5=2.5 avg_ms=290.71 p50_ms=260.10 p95_ms=398.40 worst_ms=398.4 update_ms_p50=1.10 update_ms_p95=5.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.2 fps_p5=3.8 avg_ms=235.99 p50_ms=236.00 p95_ms=262.10 worst_ms=262.1 update_ms_p50=0.90 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=4.80 p95_ms=6.30 max_ms=10.00
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.4 fps_p5=4.0 avg_ms=230.81 p50_ms=229.00 p95_ms=252.40 worst_ms=252.4 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=4.70 p95_ms=6.70 max_ms=6.70
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.3 fps_p5=4.2 avg_ms=229.10 p50_ms=231.20 p95_ms=239.70 worst_ms=239.7 update_ms_p50=0.90 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.4 fps_p5=3.6 avg_ms=232.56 p50_ms=229.30 p95_ms=276.80 worst_ms=276.8 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=4.60 p95_ms=6.70 max_ms=7.10
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.4 fps_p5=4.0 avg_ms=228.27 p50_ms=229.50 p95_ms=252.00 worst_ms=252.0 update_ms_p50=0.90 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.4 fps_p5=3.7 avg_ms=235.88 p50_ms=229.50 p95_ms=272.30 worst_ms=272.3 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=4.90 p95_ms=7.90 max_ms=8.50
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.3 fps_p5=3.9 avg_ms=235.04 p50_ms=232.00 p95_ms=258.20 worst_ms=258.2 update_ms_p50=0.90 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.2 fps_p5=3.6 avg_ms=245.13 p50_ms=240.80 p95_ms=278.70 worst_ms=278.7 update_ms_p50=0.90 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.20 p95_ms=9.10 max_ms=9.60
+  console: INFO src/main.rs:1795 STATS fps=7.8 fps_p50=20.0 fps_p5=4.3 avg_ms=127.63 p50_ms=50.00 p95_ms=230.60 worst_ms=266.7 update_ms_p50=0.00 update_ms_p95=1.10 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=15 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:1795 STATS fps=3.1 fps_p50=20.0 fps_p5=20.0 avg_ms=326.94 p50_ms=50.00 p95_ms=50.00 worst_ms=6973.6 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  console: CPUFRAME n=10 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=3.5 fps_p50=3.6 fps_p5=2.5 avg_ms=287.20 p50_ms=276.60 p95_ms=396.70 worst_ms=396.7 update_ms_p50=1.20 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=2.9 fps_p50=3.6 fps_p5=1.5 avg_ms=350.00 p50_ms=279.20 p95_ms=683.20 worst_ms=683.2 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.60 p95_ms=8.20 max_ms=10.20
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.3 fps_p5=3.7 avg_ms=235.80 p50_ms=231.60 p95_ms=269.10 worst_ms=269.1 update_ms_p50=1.10 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.90 p95_ms=9.10 max_ms=9.10
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.2 fps_p5=3.6 avg_ms=242.04 p50_ms=237.50 p95_ms=275.30 worst_ms=275.3 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.20 p95_ms=8.70 max_ms=9.00
+  console: INFO src/main.rs:1795 STATS fps=4.5 fps_p50=4.6 fps_p5=3.9 avg_ms=223.37 p50_ms=219.40 p95_ms=255.30 worst_ms=255.3 update_ms_p50=1.00 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=7.50 max_ms=7.50
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.4 fps_p5=4.0 avg_ms=231.46 p50_ms=228.30 p95_ms=247.80 worst_ms=247.8 update_ms_p50=1.00 update_ms_p95=2.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.5 fps_p50=4.5 fps_p5=4.0 avg_ms=219.87 p50_ms=219.90 p95_ms=250.70 worst_ms=250.7 update_ms_p50=1.00 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=5.10 p95_ms=6.60 max_ms=8.60
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.3 fps_p5=3.5 avg_ms=240.97 p50_ms=233.00 p95_ms=282.30 worst_ms=282.3 update_ms_p50=1.00 update_ms_p95=4.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.1 fps_p5=3.7 avg_ms=243.19 p50_ms=243.90 p95_ms=272.90 worst_ms=272.9 update_ms_p50=0.90 update_ms_p95=2.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.30 p95_ms=10.50 max_ms=11.40
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.4 fps_p5=3.4 avg_ms=238.17 p50_ms=227.30 p95_ms=292.60 worst_ms=292.6 update_ms_p50=1.00 update_ms_p95=2.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=15 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:1795 STATS fps=3.7 fps_p50=20.0 fps_p5=20.0 avg_ms=268.39 p50_ms=50.00 p95_ms=50.00 worst_ms=7484.3 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  console: CPUFRAME n=16 p50_ms=13.50 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=3.6 fps_p50=3.8 fps_p5=2.7 avg_ms=280.61 p50_ms=264.30 p95_ms=369.90 worst_ms=369.9 update_ms_p50=1.30 update_ms_p95=3.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.3 fps_p5=3.9 avg_ms=236.56 p50_ms=233.30 p95_ms=255.00 worst_ms=255.0 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=4.60 p95_ms=5.80 max_ms=7.40
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.2 fps_p5=3.7 avg_ms=237.74 p50_ms=236.30 p95_ms=268.90 worst_ms=268.9 update_ms_p50=1.00 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=4.4 fps_p5=2.2 avg_ms=252.79 p50_ms=225.40 p95_ms=455.20 worst_ms=455.2 update_ms_p50=1.00 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.10 p95_ms=7.40 max_ms=11.50
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.3 fps_p5=3.4 avg_ms=236.60 p50_ms=232.80 p95_ms=292.10 worst_ms=292.1 update_ms_p50=1.10 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.0 fps_p5=3.7 avg_ms=246.23 p50_ms=247.80 p95_ms=271.80 worst_ms=271.8 update_ms_p50=1.20 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.70 p95_ms=6.60 max_ms=8.80
+  console: INFO src/main.rs:1795 STATS fps=3.9 fps_p50=3.8 fps_p5=3.7 avg_ms=258.76 p50_ms=263.60 p95_ms=273.90 worst_ms=273.9 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=6.30 p95_ms=11.60 max_ms=11.60
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=3.9 fps_p5=3.4 avg_ms=252.89 p50_ms=253.50 p95_ms=291.50 worst_ms=291.5 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.1 fps_p5=3.7 avg_ms=245.16 p50_ms=245.20 p95_ms=267.30 worst_ms=267.3 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=4.90 p95_ms=5.90 max_ms=6.00
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=4.1 fps_p5=3.1 avg_ms=250.13 p50_ms=241.20 p95_ms=319.70 worst_ms=319.7 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.20 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=16 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=14 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:1795 STATS fps=3.8 fps_p50=20.0 fps_p5=20.0 avg_ms=264.46 p50_ms=50.00 p95_ms=50.00 worst_ms=7360.2 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  G1 P0 1024x768 Water: try 1: pose -4,14 fire at (512,383) want (512,384) err 0.6 px; warm before 984/977/1061 (min 977) after 657 ratio 0.67; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 7716 ms; mask-in-square 1599; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (512,384) want (512,384) err 0.2 px; warm before 1059/1035/1027 (min 1027) after 614 ratio 0.60; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8170 ms; mask-in-square 1555; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (512,384) want (512,384) err 0.5 px; warm before 1052/1005/960 (min 960) after 627 ratio 0.65; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8133 ms; mask-in-square 1538; after burning=true aim=0 assisted=false streams=1
+  console: INFO src/main.rs:1795 STATS fps=3.7 fps_p50=3.9 fps_p5=2.8 avg_ms=271.79 p50_ms=257.40 p95_ms=357.90 worst_ms=357.9 update_ms_p50=1.00 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=5.80 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.3 fps_p5=3.8 avg_ms=232.48 p50_ms=232.30 p95_ms=263.40 worst_ms=263.4 update_ms_p50=1.20 update_ms_p95=2.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.2 fps_p5=3.7 avg_ms=238.50 p50_ms=238.90 p95_ms=273.70 worst_ms=273.7 update_ms_p50=1.10 update_ms_p95=2.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.60 p95_ms=8.30 max_ms=8.50
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.2 fps_p5=3.9 avg_ms=234.48 p50_ms=236.70 p95_ms=253.40 worst_ms=253.4 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=10.70 max_ms=10.70
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.3 fps_p5=3.6 avg_ms=237.74 p50_ms=232.70 p95_ms=277.20 worst_ms=277.2 update_ms_p50=0.90 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.10 p95_ms=13.80 max_ms=13.80
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.2 fps_p5=4.0 avg_ms=236.54 p50_ms=235.40 p95_ms=249.80 worst_ms=249.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.00 p95_ms=6.00 max_ms=8.60
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.4 fps_p5=3.6 avg_ms=240.06 p50_ms=228.70 p95_ms=275.90 worst_ms=275.9 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=4.0 fps_p5=3.4 avg_ms=250.64 p50_ms=248.80 p95_ms=290.80 worst_ms=290.8 update_ms_p50=1.00 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=4.90 p95_ms=7.60 max_ms=8.20
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.5 fps_p5=3.2 avg_ms=232.97 p50_ms=224.40 p95_ms=308.20 worst_ms=308.2 update_ms_p50=1.00 update_ms_p95=4.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=4.60 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=6.4 fps_p50=4.7 fps_p5=4.2 avg_ms=157.17 p50_ms=214.10 p95_ms=237.50 worst_ms=254.3 update_ms_p50=0.80 update_ms_p95=1.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Frost -> Extinguished(Frost)
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=20.0 fps_p5=20.0 avg_ms=316.29 p50_ms=50.00 p95_ms=50.00 worst_ms=4044.3 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  console: INFO src/main.rs:1795 STATS fps=3.6 fps_p50=3.7 fps_p5=3.0 avg_ms=275.09 p50_ms=270.50 p95_ms=331.90 worst_ms=331.9 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.10 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.3 fps_p5=3.9 avg_ms=228.17 p50_ms=230.50 p95_ms=256.20 worst_ms=256.2 update_ms_p50=1.10 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=4.0 fps_p5=3.8 avg_ms=246.93 p50_ms=248.30 p95_ms=262.80 worst_ms=262.8 update_ms_p50=1.10 update_ms_p95=2.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=20 p50_ms=5.60 p95_ms=7.20 max_ms=7.30
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.1 fps_p5=3.7 avg_ms=243.12 p50_ms=246.60 p95_ms=272.70 worst_ms=272.7 update_ms_p50=1.10 update_ms_p95=2.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.4 fps_p5=3.7 avg_ms=233.13 p50_ms=229.10 p95_ms=268.40 worst_ms=268.4 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.70 p95_ms=11.00 max_ms=13.70
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.4 fps_p5=3.8 avg_ms=229.78 p50_ms=228.50 p95_ms=261.90 worst_ms=261.9 update_ms_p50=1.00 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.1 fps_p5=3.6 avg_ms=240.42 p50_ms=242.40 p95_ms=275.20 worst_ms=275.2 update_ms_p50=1.20 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.20 p95_ms=7.10 max_ms=7.10
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.5 fps_p5=4.0 avg_ms=225.80 p50_ms=222.10 p95_ms=248.60 worst_ms=248.6 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.00 p95_ms=7.90 max_ms=7.90
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=4.2 fps_p5=3.3 avg_ms=250.66 p50_ms=236.70 p95_ms=300.20 worst_ms=300.2 update_ms_p50=0.90 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.10 p95_ms=9.70 max_ms=9.70
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=3.7 fps_p5=3.0 avg_ms=226.50 p50_ms=271.60 p95_ms=328.80 worst_ms=328.8 update_ms_p50=1.00 update_ms_p95=3.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Frost -> Extinguished(Frost)
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=20.0 fps_p5=20.0 avg_ms=311.36 p50_ms=50.00 p95_ms=50.00 worst_ms=4754.4 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  console: CPUFRAME n=15 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=3.8 fps_p50=4.4 fps_p5=2.5 avg_ms=262.19 p50_ms=228.10 p95_ms=399.90 worst_ms=399.9 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=7.80 max_ms=7.80
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.0 fps_p5=3.9 avg_ms=241.33 p50_ms=248.20 p95_ms=253.60 worst_ms=253.6 update_ms_p50=1.10 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.00 p95_ms=8.00 max_ms=8.50
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.3 fps_p5=3.8 avg_ms=237.34 p50_ms=231.60 p95_ms=264.80 worst_ms=264.8 update_ms_p50=0.90 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.10 p95_ms=8.30 max_ms=8.30
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.1 fps_p5=3.6 avg_ms=240.32 p50_ms=242.70 p95_ms=281.50 worst_ms=281.5 update_ms_p50=1.20 update_ms_p95=3.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.5 fps_p50=4.6 fps_p5=3.8 avg_ms=222.50 p50_ms=218.00 p95_ms=264.10 worst_ms=264.1 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=4.60 p95_ms=8.10 max_ms=9.50
+  console: INFO src/main.rs:1795 STATS fps=4.6 fps_p50=4.6 fps_p5=4.0 avg_ms=216.63 p50_ms=217.20 p95_ms=249.50 worst_ms=249.5 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=3.8 fps_p50=3.9 fps_p5=3.3 avg_ms=262.35 p50_ms=253.70 p95_ms=303.80 worst_ms=303.8 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=5.00 p95_ms=9.30 max_ms=10.90
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.4 fps_p5=3.9 avg_ms=227.00 p50_ms=227.70 p95_ms=259.50 worst_ms=259.5 update_ms_p50=1.00 update_ms_p95=2.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.6 fps_p50=4.7 fps_p5=3.9 avg_ms=216.88 p50_ms=213.60 p95_ms=255.00 worst_ms=255.0 update_ms_p50=1.00 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=4.70 p95_ms=7.30 max_ms=13.90
+  console: INFO src/main.rs:1795 STATS fps=10.0 fps_p50=20.0 fps_p5=4.4 avg_ms=100.11 p50_ms=50.00 p95_ms=228.40 worst_ms=233.7 update_ms_p50=0.00 update_ms_p95=1.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb
+  console: CPUFRAME n=17 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Frost -> Extinguished(Frost)
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=20.0 fps_p5=0.2 avg_ms=725.55 p50_ms=50.00 p95_ms=4103.30 worst_ms=4103.3 update_ms_p50=0.00 update_ms_p95=0.90 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_m
+  G1 P0 1024x768 Frost: try 1: pose -4,14 fire at (512,384) want (512,384) err 0.3 px; warm before 969/972/962 (min 962) after 603 ratio 0.63; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 4133 ms; mask-in-square 1689; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (512,384) want (512,384) err 0.3 px; warm before 936/984/953 (min 936) after 471 ratio 0.50; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 4706 ms; mask-in-square 1897; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (512,384) want (512,384) err 0.3 px; warm before 1056/1008/997 (min 997) after 368 ratio 0.37; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 4203 ms; mask-in-square 1860; after burning=true aim=0 assisted=false streams=1
+  console: INFO src/main.rs:1795 STATS fps=3.6 fps_p50=3.7 fps_p5=2.6 avg_ms=279.04 p50_ms=269.20 p95_ms=387.50 worst_ms=387.5 update_ms_p50=1.10 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=4.80 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=4.5 fps_p50=4.5 fps_p5=3.9 avg_ms=222.63 p50_ms=221.30 p95_ms=257.00 worst_ms=257.0 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=4.80 p95_ms=6.30 max_ms=6.30
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.5 fps_p5=3.7 avg_ms=228.58 p50_ms=224.60 p95_ms=267.20 worst_ms=267.2 update_ms_p50=0.90 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.5 fps_p50=4.6 fps_p5=3.7 avg_ms=222.22 p50_ms=219.40 p95_ms=272.00 worst_ms=272.0 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=4.80 p95_ms=7.20 max_ms=7.40
+  console: INFO src/main.rs:1795 STATS fps=4.5 fps_p50=4.5 fps_p5=4.0 avg_ms=224.32 p50_ms=220.40 p95_ms=251.30 worst_ms=251.3 update_ms_p50=1.00 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.4 fps_p5=3.9 avg_ms=224.97 p50_ms=226.50 p95_ms=257.00 worst_ms=257.0 update_ms_p50=1.00 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=5.30 p95_ms=6.60 max_ms=7.00
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.4 fps_p5=3.8 avg_ms=231.87 p50_ms=226.40 p95_ms=264.60 worst_ms=264.6 update_ms_p50=1.10 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.2 fps_p5=3.8 avg_ms=235.74 p50_ms=240.10 p95_ms=264.70 worst_ms=264.7 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=4.80 p95_ms=6.60 max_ms=7.30
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.6 fps_p5=3.7 avg_ms=229.38 p50_ms=219.30 p95_ms=269.90 worst_ms=269.9 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.30 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=7.9 fps_p50=20.0 fps_p5=3.8 avg_ms=127.06 p50_ms=50.00 p95_ms=266.20 worst_ms=319.0 update_ms_p50=0.00 update_ms_p95=1.30 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=15 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Foam -> Extinguished(Foam)
+  console: INFO src/main.rs:1795 STATS fps=2.8 fps_p50=20.0 fps_p5=20.0 avg_ms=360.17 p50_ms=50.00 p95_ms=50.00 worst_ms=7494.1 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  console: INFO src/main.rs:1795 STATS fps=3.6 fps_p50=3.8 fps_p5=2.6 avg_ms=280.89 p50_ms=260.60 p95_ms=382.00 worst_ms=382.0 update_ms_p50=1.20 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.30 p95_ms=6.20 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.3 fps_p5=3.9 avg_ms=232.73 p50_ms=230.50 p95_ms=254.20 worst_ms=254.2 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.3 fps_p5=3.4 avg_ms=239.23 p50_ms=229.90 p95_ms=297.70 worst_ms=297.7 update_ms_p50=1.00 update_ms_p95=1.90 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=4.80 p95_ms=6.60 max_ms=12.70
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.4 fps_p5=4.2 avg_ms=225.69 p50_ms=226.20 p95_ms=235.30 worst_ms=235.3 update_ms_p50=1.10 update_ms_p95=2.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.3 fps_p5=3.6 avg_ms=235.28 p50_ms=230.40 p95_ms=280.40 worst_ms=280.4 update_ms_p50=1.00 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=6.00 p95_ms=8.90 max_ms=9.60
+  console: INFO src/main.rs:1795 STATS fps=4.3 fps_p50=4.4 fps_p5=3.7 avg_ms=230.06 p50_ms=226.80 p95_ms=267.40 worst_ms=267.4 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.1 fps_p5=3.7 avg_ms=245.18 p50_ms=244.80 p95_ms=273.70 worst_ms=273.7 update_ms_p50=1.00 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=22 p50_ms=4.70 p95_ms=6.40 max_ms=12.40
+  console: INFO src/main.rs:1795 STATS fps=4.2 fps_p50=4.2 fps_p5=3.8 avg_ms=240.44 p50_ms=240.70 p95_ms=264.20 worst_ms=264.2 update_ms_p50=1.00 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=4.60 p95_ms=5.90 max_ms=5.90
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=4.4 fps_p5=3.9 avg_ms=225.17 p50_ms=225.60 p95_ms=256.00 worst_ms=256.0 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=7.3 fps_p50=20.0 fps_p5=4.0 avg_ms=136.06 p50_ms=50.00 p95_ms=249.90 worst_ms=272.2 update_ms_p50=0.00 update_ms_p95=1.00 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: CPUFRAME n=13 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Foam -> Extinguished(Foam)
+  console: INFO src/main.rs:1795 STATS fps=2.5 fps_p50=20.0 fps_p5=20.0 avg_ms=398.95 p50_ms=50.00 p95_ms=50.00 worst_ms=9122.7 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  console: CPUFRAME n=13 p50_ms=7.30 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.4 fps_p5=2.2 avg_ms=308.54 p50_ms=296.20 p95_ms=451.50 worst_ms=451.5 update_ms_p50=1.10 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.4 fps_p5=2.3 avg_ms=314.13 p50_ms=293.60 p95_ms=436.10 worst_ms=436.1 update_ms_p50=1.30 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=6.10 p95_ms=7.70 max_ms=8.60
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.1 fps_p5=3.5 avg_ms=242.23 p50_ms=241.40 p95_ms=288.10 worst_ms=288.1 update_ms_p50=0.90 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.1 fps_p5=3.7 avg_ms=246.11 p50_ms=245.30 p95_ms=268.10 worst_ms=268.1 update_ms_p50=1.20 update_ms_p95=2.00 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=17 p50_ms=5.50 p95_ms=7.70 max_ms=7.90
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=4.0 fps_p5=3.7 avg_ms=251.40 p50_ms=250.10 p95_ms=273.50 worst_ms=273.5 update_ms_p50=1.20 update_ms_p95=1.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=3.9 fps_p50=3.9 fps_p5=3.5 avg_ms=255.55 p50_ms=256.90 p95_ms=286.50 worst_ms=286.5 update_ms_p50=1.00 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.60 p95_ms=7.40 max_ms=8.00
+  console: INFO src/main.rs:1795 STATS fps=4.0 fps_p50=4.1 fps_p5=3.5 avg_ms=247.88 p50_ms=241.30 p95_ms=284.10 worst_ms=284.1 update_ms_p50=1.00 update_ms_p95=1.60 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.50 p95_ms=7.90 max_ms=7.90
+  console: INFO src/main.rs:1795 STATS fps=3.6 fps_p50=3.6 fps_p5=3.1 avg_ms=275.75 p50_ms=276.20 p95_ms=317.90 worst_ms=317.9 update_ms_p50=1.20 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=3.7 fps_p50=3.8 fps_p5=3.1 avg_ms=268.89 p50_ms=264.20 p95_ms=319.30 worst_ms=319.3 update_ms_p50=1.20 update_ms_p95=2.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.50 p95_ms=8.70 max_ms=10.20
+  console: INFO src/main.rs:1795 STATS fps=4.1 fps_p50=4.1 fps_p5=3.4 avg_ms=246.86 p50_ms=244.80 p95_ms=289.90 worst_ms=289.9 update_ms_p50=0.90 update_ms_p95=1.70 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=4.50 p95_ms=6.60 max_ms=6.60
+  console: CPUFRAME n=16 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=10.4 fps_p50=20.0 fps_p5=4.1 avg_ms=96.21 p50_ms=50.00 p95_ms=246.50 worst_ms=255.7 update_ms_p50=0.00 update_ms_p95=1.20 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=50.00 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1387 IMPACT obj=0 Foam -> Extinguished(Foam)
+  console: INFO src/main.rs:1795 STATS fps=2.2 fps_p50=20.0 fps_p5=20.0 avg_ms=463.92 p50_ms=50.00 p95_ms=50.00 worst_ms=7500.5 update_ms_p50=0.00 update_ms_p95=0.00 entities=623 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.4 heap_peak_mb
+  G1 P0 1024x768 CO2: try 1: pose -4,14 fire at (512,386) want (512,384) err 1.7 px; warm before 931/995/1022 (min 931) after 529 ratio 0.57; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8228 ms; mask-in-square 1665; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (513,385) want (512,384) err 0.9 px; warm before 1057/1015/1037 (min 1015) after 532 ratio 0.52; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 9679 ms; mask-in-square 1724; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (513,385) want (512,384) err 1.6 px; warm before 985/959/1049 (min 959) after 447 ratio 0.47; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8218 ms; mask-in-square 1553; after burning=true aim=0 assisted=false streams=1
+FAIL close streams: the targeted fire at the crosshair stays visible (Aim help on) 1680x720 Water FAIL: try 1: pose -4,14 fire at (841,363) want (840,360) err 3.1 px; warm before 2560/2487/2512 (min 2487) after 1537 ratio 0.62; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15923 ms; mask-in-square 1442; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (839,360) want (840,360) err 1.0 px; warm before 2355/2597/2442 (min 2355) after 1471 ratio 0.62; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15080 ms; mask-in-square 1575; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (839,361) want (840,360) err 1.4 px; warm before 2583/2398/2663 (min 2398) after 1564 ratio 0.65; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15131 ms; mask-in-square 1403; after burning=true aim=0 assisted=false streams=1 || 1680x720 Frost FAIL: try 1: pose -4,14 fire at (843,360) want (840,360) err 2.5 px; warm before 2554/2521/2448 (min 2448) after 998 ratio 0.41; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8051 ms; mask-in-square 2050; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (840,360) want (840,360) err 0.6 px; warm before 2362/2567/2491 (min 2362) after 603 ratio 0.26; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 9010 ms; mask-in-square 2700; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (838,358) want (840,360) err 3.0 px; warm before 2364/2598/2511 (min 2364) after 1405 ratio 0.59; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8313 ms; mask-in-square 1762; after burning=true aim=0 assisted=false streams=1 || 1680x720 CO2 FAIL: try 1: pose -4,14 fire at (839,358) want (840,360) err 2.0 px; warm before 2488/2454/2603 (min 2454) after 1091 ratio 0.44; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15745 ms; mask-in-square 2019; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (841,362) want (840,360) err 2.6 px; warm before 2556/2583/2397 (min 2397) after 1263 ratio 0.53; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 16096 ms; mask-in-square 1366; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (837,359) want (840,360) err 2.9 px; warm before 2348/2578/2513 (min 2348) after 1150 ratio 0.49; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 15786 ms; mask-in-square 2033; after burning=true aim=0 assisted=false streams=1 || 1024x768 Water FAIL: try 1: pose -4,14 fire at (512,383) want (512,384) err 0.6 px; warm before 984/977/1061 (min 977) after 657 ratio 0.67; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 7716 ms; mask-in-square 1599; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (512,384) want (512,384) err 0.2 px; warm before 1059/1035/1027 (min 1027) after 614 ratio 0.60; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8170 ms; mask-in-square 1555; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (512,384) want (512,384) err 0.5 px; warm before 1052/1005/960 (min 960) after 627 ratio 0.65; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8133 ms; mask-in-square 1538; after burning=true aim=0 assisted=false streams=1 || 1024x768 Frost FAIL: try 1: pose -4,14 fire at (512,384) want (512,384) err 0.3 px; warm before 969/972/962 (min 962) after 603 ratio 0.63; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 4133 ms; mask-in-square 1689; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (512,384) want (512,384) err 0.3 px; warm before 936/984/953 (min 936) after 471 ratio 0.50; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 4706 ms; mask-in-square 1897; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (512,384) want (512,384) err 0.3 px; warm before 1056/1008/997 (min 997) after 368 ratio 0.37; pre-impact frames 2 (dt 0.050,0.050), game +0.050 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 4203 ms; mask-in-square 1860; after burning=true aim=0 assisted=false streams=1 || 1024x768 CO2 FAIL: try 1: pose -4,14 fire at (512,386) want (512,384) err 1.7 px; warm before 931/995/1022 (min 931) after 529 ratio 0.57; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8228 ms; mask-in-square 1665; after burning=true aim=0 assisted=false streams=1 | try 2: pose -4,14 fire at (513,385) want (512,384) err 0.9 px; warm before 1057/1015/1037 (min 1015) after 532 ratio 0.52; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 9679 ms; mask-in-square 1724; after burning=true aim=0 assisted=false streams=1 | try 3: pose -4,14 fire at (513,385) want (512,384) err 1.6 px; warm before 985/959/1049 (min 959) after 447 ratio 0.47; pre-impact frames 4 (dt 0.050,0.050,0.050,0.050), game +0.150 s cast -> after, after -> impact 0.050 s (impact dt 0.0500), wall 8218 ms; mask-in-square 1553; after burning=true aim=0 assisted=false streams=1
+  console: CPUFRAME n=15 p50_ms=15.60 p95_ms=50.00 max_ms=50.00
+  console: INFO src/main.rs:1795 STATS fps=3.2 fps_p50=3.4 fps_p5=2.2 avg_ms=313.66 p50_ms=290.90 p95_ms=448.10 worst_ms=448.1 update_ms_p50=1.10 update_ms_p95=1.80 entities=621 burning=2 extinguished=1 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.80 p95_ms=12.30 max_ms=12.30
+  console: INFO src/main.rs:1795 STATS fps=1.8 fps_p50=1.9 fps_p5=1.3 avg_ms=544.50 p50_ms=514.00 p95_ms=758.70 worst_ms=758.7 update_ms_p50=1.30 update_ms_p95=3.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=4.5 fps_p50=19.4 fps_p5=1.2 avg_ms=222.70 p50_ms=51.60 p95_ms=831.80 worst_ms=831.8 update_ms_p50=1.10 update_ms_p95=1.30 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=28 p50_ms=4.00 p95_ms=9.60 max_ms=12.30
+  console: INFO src/main.rs:1795 STATS fps=14.4 fps_p50=20.6 fps_p5=7.1 avg_ms=69.47 p50_ms=48.60 p95_ms=140.00 worst_ms=153.1 update_ms_p50=0.90 update_ms_p95=1.20 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=23 p50_ms=4.30 p95_ms=6.20 max_ms=6.50
+  console: INFO src/main.rs:1795 STATS fps=7.1 fps_p50=7.1 fps_p5=6.7 avg_ms=141.59 p50_ms=140.30 p95_ms=149.40 worst_ms=180.5 update_ms_p50=1.00 update_ms_p95=1.30 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=4.60 p95_ms=5.90 max_ms=8.20
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=7.8 fps_p5=1.4 avg_ms=225.23 p50_ms=128.60 p95_ms=724.30 worst_ms=724.3 update_ms_p50=1.10 update_ms_p95=3.80 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=5.9 fps_p50=19.3 fps_p5=1.4 avg_ms=169.68 p50_ms=51.80 p95_ms=723.60 worst_ms=790.7 update_ms_p50=1.20 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=21 p50_ms=5.50 p95_ms=8.60 max_ms=8.60
+  console: INFO src/main.rs:1795 STATS fps=10.5 fps_p50=15.2 fps_p5=6.2 avg_ms=95.63 p50_ms=65.80 p95_ms=160.50 worst_ms=162.9 update_ms_p50=1.00 update_ms_p95=1.80 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=22 p50_ms=4.90 p95_ms=9.30 max_ms=11.20
+  console: INFO src/main.rs:1795 STATS fps=6.9 fps_p50=7.6 fps_p5=5.0 avg_ms=144.13 p50_ms=131.70 p95_ms=200.20 worst_ms=596.6 update_ms_p50=0.90 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=4.20 p95_ms=5.90 max_ms=6.10
+  console: INFO src/main.rs:1795 STATS fps=1.6 fps_p50=1.5 fps_p5=1.4 avg_ms=639.25 p50_ms=686.90 p95_ms=721.00 worst_ms=721.0 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=34 p50_ms=4.10 p95_ms=4.90 max_ms=6.00
+  console: INFO src/main.rs:1795 STATS fps=14.3 fps_p50=20.6 fps_p5=6.6 avg_ms=69.81 p50_ms=48.60 p95_ms=152.20 worst_ms=152.7 update_ms_p50=0.90 update_ms_p95=1.40 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=4.90 p95_ms=6.10 max_ms=7.70
+  G6 Water: try 1: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 638 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@4 streams=1 | try 2: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 638 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@4 streams=1 | try 3: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 638 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@4 streams=1
+  console: INFO src/main.rs:1795 STATS fps=6.9 fps_p50=7.0 fps_p5=6.0 avg_ms=144.74 p50_ms=142.80 p95_ms=166.80 worst_ms=512.0 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=7.10 max_ms=7.10
+  console: INFO src/main.rs:1795 STATS fps=1.5 fps_p50=1.4 fps_p5=1.2 avg_ms=688.27 p50_ms=715.40 p95_ms=805.20 worst_ms=805.2 update_ms_p50=1.20 update_ms_p95=1.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=12.7 fps_p50=19.2 fps_p5=15.2 avg_ms=78.54 p50_ms=52.20 p95_ms=65.70 worst_ms=753.7 update_ms_p50=0.90 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=37 p50_ms=4.70 p95_ms=6.60 max_ms=8.50
+  console: INFO src/main.rs:1795 STATS fps=7.9 fps_p50=7.1 fps_p5=5.9 avg_ms=126.12 p50_ms=140.00 p95_ms=168.10 worst_ms=170.6 update_ms_p50=1.00 update_ms_p95=1.30 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=4.30 p95_ms=5.90 max_ms=24.30
+  console: INFO src/main.rs:1795 STATS fps=6.6 fps_p50=6.9 fps_p5=6.1 avg_ms=150.49 p50_ms=143.90 p95_ms=164.90 worst_ms=485.3 update_ms_p50=1.10 update_ms_p95=1.40 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.50 p95_ms=5.90 max_ms=6.00
+  console: INFO src/main.rs:1795 STATS fps=1.4 fps_p50=1.3 fps_p5=1.3 avg_ms=699.77 p50_ms=750.80 p95_ms=797.50 worst_ms=797.5 update_ms_p50=1.30 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1795 STATS fps=11.9 fps_p50=19.4 fps_p5=14.1 avg_ms=84.30 p50_ms=51.60 p95_ms=70.70 worst_ms=823.3 update_ms_p50=1.00 update_ms_p95=1.60 entities=624 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=33 p50_ms=4.90 p95_ms=7.20 max_ms=8.90
+  console: INFO src/main.rs:1795 STATS fps=6.8 fps_p50=6.8 fps_p5=6.4 avg_ms=146.03 p50_ms=146.70 p95_ms=156.70 worst_ms=165.3 update_ms_p50=1.10 update_ms_p95=1.40 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=4.40 p95_ms=5.90 max_ms=6.60
+  console: INFO src/main.rs:1795 STATS fps=4.4 fps_p50=7.3 fps_p5=1.4 avg_ms=225.81 p50_ms=137.70 p95_ms=701.60 worst_ms=701.6 update_ms_p50=0.90 update_ms_p95=1.50 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=4.60 p95_ms=6.90 max_ms=7.60
+  console: INFO src/main.rs:1795 STATS fps=6.5 fps_p50=19.1 fps_p5=1.4 avg_ms=154.26 p50_ms=52.40 p95_ms=692.60 worst_ms=750.5 update_ms_p50=1.00 update_ms_p95=1.10 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=28 p50_ms=4.50 p95_ms=8.00 max_ms=8.20
+  console: INFO src/main.rs:1795 STATS fps=10.8 fps_p50=12.5 fps_p5=6.8 avg_ms=92.99 p50_ms=80.10 p95_ms=147.40 worst_ms=150.5 update_ms_p50=1.00 update_ms_p95=1.70 entities=623 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.2 heap_peak_mb=
+  G6 Frost: try 1: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 614 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@3 streams=1 | try 2: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 614 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@3 streams=1 | try 3: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 614 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@3 streams=1
+FAIL close streams: the stream leaves the lifted hand at 21:9, View width 70 Water FAIL: try 1: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 638 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@4 streams=1 | try 2: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 638 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@4 streams=1 | try 3: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 638 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@4 streams=1 || Frost FAIL: try 1: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 614 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@3 streams=1 | try 2: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 614 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@3 streams=1 | try 3: tilt 5.90° Hs'=(1308,589) 229 px below C; farthest stream px (1622,719): t_max - L 339.3 px (L 520.9), across -21.2 px (a FAIL, limit ±25.2), Euclidean 340.0 px from Hs' (old rule, not judged); beyond 614 px, up to 339.3 px past Hs' (b FAIL); attached (c) caught@3 streams=1
+  console: CPUFRAME n=19 p50_ms=5.20 p95_ms=8.70 max_ms=26.70
+  console: INFO src/main.rs:1795 STATS fps=10.3 fps_p50=14.5 fps_p5=6.1 avg_ms=97.39 p50_ms=69.10 p95_ms=162.90 worst_ms=281.9 update_ms_p50=1.10 update_ms_p95=2.20 entities=621 burning=3 extinguished=0 wasm_mem_mb=33.4 heap_live_mb=25.3 heap_peak_mb=
+PASS no console errors 
+
+31/33 passed
+EXIT 1
