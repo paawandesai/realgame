@@ -644,7 +644,8 @@ fn setup(
     let cam_id = camera.id();
     let root = commands
         .spawn((
-            Transform::from_xyz(0.21, -0.18, -0.42).with_scale(Vec3::splat(0.55)),
+            Transform::from_xyz(0.21, feel::vm_root_y(settings.fov_y()), -0.42)
+                .with_scale(Vec3::splat(0.55)),
             Visibility::Inherited,
             Viewmodel,
         ))
@@ -1634,7 +1635,10 @@ fn viewmodel(
         } else {
             (0.0, 0.0)
         };
-        t.translation = Vec3::new(0.21 + bx, -0.18 + by + r * 0.015, -0.42 + r * 0.05);
+        // The root's y follows the live vertical fov so the spell gem stays
+        // on screen in short, wide windows (I-044); -0.18 at the default view.
+        let y0 = feel::vm_root_y(settings.fov_y());
+        t.translation = Vec3::new(0.21 + bx, y0 + by + r * 0.015, -0.42 + r * 0.05);
         t.rotation = Quat::from_rotation_x(r * 0.35) * Quat::from_rotation_y(0.1);
         game.vm = t.translation;
     }
