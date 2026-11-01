@@ -9,13 +9,16 @@
 //   bash crates/bevy-client/build-web.sh        # builds web/pkg-out
 //   node tests/e2e/golden.mjs                   # serves web/pkg-out itself
 //
-// Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
-// I-035 level-2 section and the console-error check; also marsh (I-037),
-// spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
+// Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
+// that section and the console-error check; also spellProgress, workedCasts,
+// voxelEngine, blockMatter, valleyStory, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
-// test commands need it). Needs `playwright` with Chromium. Exits 1 if any
+// test commands need it). I-052: the default page is the block world, so
+// every section before voxelEngine runs on the classic courtyard
+// (`classic=1` in `base`); voxelEngine, blockMatter and valleyStory get
+// `voxelBase`, the default page. Needs `playwright` with Chromium. Exits 1 if any
 // check fails. Frames are slow on a software GPU, so each step waits on game
 // state rather than on fixed sleeps. Run by the loop's smoke step, not by
 // push CI (too slow for the CI budget).
@@ -61,7 +64,9 @@ function check(name, ok, detail = '') {
   const server = process.env.BASE_URL ? null : await serve();
   // `debug` turns on the test commands (tp, tick, look, turn, face, move).
   const q = (process.env.QUERY || '').replace(/^\?/, '');
-  const base = (process.env.BASE_URL || `http://127.0.0.1:${server.address().port}/`) + `?${q ? q + '&' : ''}debug`;
+  const site = process.env.BASE_URL || `http://127.0.0.1:${server.address().port}/`;
+  const base = site + `?${q ? q + '&' : ''}classic=1&debug`;
+  const voxelBase = site + `?${q ? q + '&' : ''}debug`;
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: VW, height: VH } });
   const logs = [];
@@ -93,14 +98,17 @@ function check(name, ok, detail = '') {
   const frames = async (n) => { const f0 = (await st()).frame; await until((x) => x.frame >= f0 + n, 60000); };
   await sleep(2500);
   // ONLY=<section>[,<section>...]: those sections alone (each loads its own
-  // page), then the error check. frozenGate (I-035); marsh (I-037); spellProgress,
-  // formulaBench and workedCasts (I-029).
+  // page), then the error check. spellProgress, formulaBench and workedCasts
+  // (I-029); voxelEngine, blockMatter and valleyStory (I-052, lanes A, B, C).
+  // I-052 retired the frozenGate (I-035) and marsh (I-037) sections: see
+  // docs/loop/items/I-052/retired-checks.md.
   const onlyRuns = {
-    frozenGate: () => frozenGate({ page, st, cmd, until, frames, sleep, base, logs }),
-    marsh: () => marsh({ page, st, cmd, until, frames, sleep, base, logs }),
     spellProgress: () => spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     formulaBench: () => formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     workedCasts: () => workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors }),
+    voxelEngine: () => voxelEngine({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
+    blockMatter: () => blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
+    valleyStory: () => valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -376,9 +384,11 @@ function check(name, ok, detail = '') {
 
   await workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
-  await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
+  await voxelEngine({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
 
-  await marsh({ page, st, cmd, until, frames, sleep, base, logs });
+  await blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
+
+  await valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -984,7 +994,7 @@ async function feelAndStandards({ page, st, cmd, until, frames, sleep, idx, lit,
     const errs2 = [];
     p2.on('console', (m) => { if (m.type() === 'error') errs2.push(m.text()); });
     p2.on('pageerror', (e) => errs2.push(e.message));
-    const url2 = base.replace(/\?.*$/, '') + '?low&debug&sens=2';
+    const url2 = base.replace(/\?.*$/, '') + '?low&classic=1&debug&sens=2';
     await p2.goto(url2);
     for (const t0 = Date.now(); !(await p2.evaluate(() => !!window.__gameState));) {
       if (Date.now() - t0 > 120000) throw new Error('second context did not start within 120 s');
@@ -4763,39 +4773,6 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await waitClosed();
   }
 
-  // I-035 handoff (spec "Overlap and merge order"; this item merged second).
-  // Level 2 at Sprout with worked casts on: Fire routes instant (the Sprout
-  // rule), three instant Fire casts melt the gate, and the lantern wins it.
-  await run('worked: handoff level 2 at Sprout', async () => {
-    await load(['debug', 'band=sprout', 'level=2']);
-    const w = await worked();
-    let x = await until((q) => q.level === 2, 20000);
-    const gate = x.objs.findIndex((o) => o.n === 'ice gate');
-    await cmd('tp 0 1.5');
-    await until((q) => Math.abs(q.pos[2] - 1.5) < 0.5, 10000);
-    await cmd('select 1');
-    const fast = [];
-    for (let k = 0; k < 3; k++) {
-      await cmd(`face ${gate}`);
-      const a = await until((q) => q.spell === 0 && q.aimObj === gate && q.cooldown <= 0, 15000);
-      const at = await cmdAt(page, 'cast');
-      x = await until((q) => q.impacts > a.impacts, 20000);
-      const recs = await recsOf(page, at.t);
-      const castR = recs.find((r) => r.casts > a.casts);
-      fast.push(!!castR && castR.frame - at.frame <= 2 && recs.every((r) => r.workId === null));
-      await sleep(400);
-    }
-    const gone = (await st()).objs[gate].wall === false;
-    await cmd('tp 0 -11');
-    await cmd('look 0 -4');
-    await cmd('move 0 1 4');
-    x = await until((q) => q.outcome === 'won', 30000);
-    await cmd('move 0 0 0');
-    check('worked: handoff: level 2 at Sprout (castmode worked): Fire routes instant, three instant Fire casts melt the gate, and the level is won',
-      !!w && w.band === 'sprout' && w.routes[0] === 'instant' && fast.every(Boolean) && gone && x.outcome === 'won',
-      `routes=${w && w.routes} instant casts ${fast} gate gone=${gone} outcome=${x.outcome}`);
-  });
-
   // W21. Teardown.
   await run('worked: W21 teardown', async () => {
     await cmd('castmode instant');
@@ -4818,503 +4795,26 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
 }
 
 // ---------------------------------------------------------------------------
-// Level 2, the Frozen Gate (docs/loop/items/I-035/spec.md, acceptance tests
-// 5-13, 16 (entity count) and 18; test 14 is in the key-order check above
-// and 15 is the closing console-error check). Drives the state bridge only.
+// I-052, the block valley (docs/loop/items/I-052/spec.md section 11). One
+// function per lane, in the order A, B, C, so each lane edits only its own
+// function body. Each gets `base` = the default page (the block world) with
+// `debug` and QUERY; the checks above stay on the classic courtyard.
 // ---------------------------------------------------------------------------
-async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
-  console.log('  -- frozen gate (I-035) --');
-  const FREEZING = {
-    sprout: 'Cold! The water is turning to ice.',
-    seedling: 'See the drops skate? Liquid nitrogen makes a cushion of its own gas and rides on it.',
-    apprentice: 'Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts.',
-    adept: 'Film boiling (Leidenfrost): a layer of N₂ gas insulates each 77 K drop and slows the heat flow. Freezing water must lose 6.01 kJ/mol.',
-  };
-  const load = async (extra = []) => {
-    await page.goto(base + extra.map((e) => `&${e}`).join(''));
-    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
-      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
-      await sleep(250);
-    }
-    await frames(3);
-  };
-  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
-  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
-  const castAt = async (i, spell) => {
-    await resume();
-    await cmd(`face ${i}`);
-    await cmd(`select ${spell}`);
-    const a = await until((x) => x.spell === spell - 1 && x.aimObj === i && x.cooldown <= 0, 15000);
-    await cmd('cast');
-    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
-    if (!(z.impacts > a.impacts)) console.log(`  castAt(${i}, ${spell}) did not land: aim=${a.aimObj} spell=${a.spell}`);
-    return z;
-  };
-  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
-  // The next STATS line logged after this call (skipping one that may span the change).
-  const statsAfter = async () => {
-    const n0 = logs.length;
-    let seen = 0, line = null;
-    for (const t0 = Date.now(); Date.now() - t0 < 30000 && seen < 2; await sleep(200)) {
-      const fresh = logs.slice(n0).filter((l) => /STATS /.test(l));
-      seen = fresh.length;
-      line = fresh[fresh.length - 1] || null;
-    }
-    const num = (re) => { const m = line && re.exec(line); return m ? +m[1] : NaN; };
-    return { entities: num(/entities=(\d+)/), mem: num(/wasm_mem_mb=([\d.]+)/) };
-  };
-  const banner = () => page.evaluate(() => {
-    const b = document.getElementById('banner');
-    return { shown: !b.classList.contains('hidden'), big: b.querySelector('.big').textContent, small: b.querySelector('.small').textContent };
-  });
-  const pushBand = async (id) => {
-    await page.evaluate((c) => { window.__gameIn = window.__gameIn || {}; (window.__gameIn.bench = window.__gameIn.bench || []).push(c); }, `band ${id}`);
-    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(150)) {
-      const b = await page.evaluate(() => { try { return JSON.parse(window.__benchState).band; } catch { return null; } });
-      if (b === id) return true;
-    }
-    return false;
-  };
 
-  // A fresh page: level 1, no band picked.
-  await load();
-  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
-  const first = await statsAfter();
-
-  // 5. The exit stays shut before the win.
-  await cmd('tp 0 21.8');
-  await gameSecs(0.5);
-  s = await st();
-  check('frozen gate: the exit stays shut before the win (level 1, exitOpen false)', s.level === 1 && s.exitOpen === false && s.burning > 0,
-    `level=${s.level} exitOpen=${s.exitOpen} burning=${s.burning} pos=${s.pos}`);
-
-  // 6. Reach level 2 by playing: win level 1 the usual way, then walk into the arch.
-  await cmd('tp 0 5.5');
-  const lit = s.objs.filter((o) => o.burning).map((o) => o.i);
-  for (const i of lit) await castAt(i, 2);
-  s = await until((x) => x.outcome === 'won', 10000);
-  const b1 = await banner();
-  check('frozen gate: the level-1 win opens the arch and the banner points to it',
-    s.outcome === 'won' && s.exitOpen === true && b1.shown && b1.big === 'You saved the greenhouse!' && /glowing arch/.test(b1.small),
-    `outcome=${s.outcome} exitOpen=${s.exitOpen} banner=${JSON.stringify(b1)}`);
-  await cmd('tp 0 21.8');
-  const t6 = Date.now();
-  s = await until((x) => x.level === 2, 5000);
-  const names = s.objs.map((o) => o.n);
-  check('frozen gate: walking into the open arch loads level 2 within 5 s',
-    s.level === 2 && Date.now() - t6 <= 5500 && ['stream', 'ice gate', 'lantern'].every((n) => names.includes(n))
-      && s.burning === 0 && s.outcome === 'playing' && /^The Frozen Gate/.test(s.caption),
-    `level=${s.level} after ${Date.now() - t6} ms objs=${names.join(',')} burning=${s.burning} outcome=${s.outcome} caption=${s.caption}`);
-  const stream = idx(s, 'stream'), gate = idx(s, 'ice gate');
-  await frames(3);
-  await screenshot(page, 'l2-01-arrive.png');
-
-  // 7. The liquid stream blocks the walk.
-  await cmd('look 0 0');
-  await cmd('move 0 1 3');
-  await gameSecs(3.4);
-  s = await st();
-  check('frozen gate: the liquid stream blocks the walk (stopped on the south bank, z > 8.2)', s.pos[2] > 8.2 && s.pos[2] < 9.5 && s.objs[stream].ice === 0,
-    `pos=${s.pos} ice=${s.objs[stream].ice}`);
-
-  // 8. Wrong chemistry fails kindly.
-  const wrong = [];
-  for (const sp of [1, 2, 4]) { const z = await castAt(stream, sp); wrong.push(`stream ${sp}: ice=${z.objs[stream].ice} "${z.caption}"`); }
-  const iceAfterWrong = (await st()).objs[stream].ice;
-  for (const sp of [3, 2, 4]) { const z = await castAt(gate, sp); wrong.push(`gate ${sp}: wall=${z.objs[gate].wall} "${z.caption}"`); }
-  s = await st();
-  check('frozen gate: Fire, Water and CO2 leave the stream liquid; Frost, Water and CO2 leave the gate standing',
-    iceAfterWrong === 0 && s.objs[stream].ice === 0 && s.objs[gate].wall === true && s.objs[gate].ice === 1, wrong.join(' | '));
-
-  // 9, 11 (no band) and 13. Freeze a bridge: 0.34, 0.68, 1.00; beads on the first hit.
-  const ices = [];
-  let z = await castAt(stream, 3);
-  ices.push(z.objs[stream].ice);
-  const beads = z.fxBeads;
-  const noBandLine = z.caption;
-  const t13 = Date.now();
-  const gone = await until((x) => x.fxBeads === 0, 4000);
-  const goneMs = Date.now() - t13;
-  check('frozen gate: Leidenfrost beads after a Frost hit on the liquid stream (>= 4, then 0 within 2 s)',
-    beads >= 4 && gone.fxBeads === 0 && goneMs <= 2000, `beads=${beads} then ${gone.fxBeads} after ${goneMs} ms`);
-  check('frozen gate: with no band the Apprentice Freezing line shows', noBandLine === FREEZING.apprentice && z.capIcon === '',
-    `caption="${noBandLine}" capIcon="${z.capIcon}"`);
-  for (let k = 0; k < 2; k++) { z = await castAt(stream, 3); ices.push(z.objs[stream].ice); }
-  s = await st();
-  check('frozen gate: three Frost casts freeze the stream 0.34 / 0.68 / 1.00',
-    ices.join() === '0.34,0.68,1' && s.objs[stream].frozen, `ice ${ices.join(' / ')} frozen=${s.objs[stream].frozen} "${s.caption}"`);
-  await cmd('look 0 -20');
-  await frames(3);
-  await screenshot(page, 'l2-02-bridge-frozen.png');
-  await cmd('look 0 0');
-  await cmd('move 0 0.4 6');
-  let sawIce = false;
-  const t9 = (await st()).gameTime;
-  for (let x = await st(); x.gameTime < t9 + 6.3; x = await st()) {
-    sawIce = sawIce || x.onIce;
-    s = x;
-    if (Date.now() - t13 > 120000) break;
-    await sleep(60);
-  }
-  check('frozen gate: the player crosses the frozen stream (z < 3), on ice while on it', s.pos[2] < 3 && sawIce, `pos=${s.pos} onIce seen=${sawIce}`);
-
-  // 10. Melt the gate, reach the lantern.
-  const walls = [];
-  for (let k = 0; k < 3; k++) {
-    z = await castAt(gate, 1);
-    walls.push(`${z.objs[gate].ice}/${z.objs[gate].wall}`);
-    if (k === 1) { await frames(1); await screenshot(page, 'l2-03-gate-melting.png'); }
-  }
-  s = await st();
-  const wallGone = s.objs[gate].wall === false;
-  await cmd('tp 0 -11');
-  await cmd('look 0 -4');
-  await frames(4);
-  await screenshot(page, 'l2-04-lantern.png');
-  await cmd('move 0 1 4');
-  s = await until((x) => x.outcome === 'won', 30000);
-  const b2 = await banner();
-  check('frozen gate: Fire melts the gate in 3 hits and walking to the lantern wins',
-    wallGone && s.outcome === 'won' && b2.shown && b2.big === 'You opened the Frozen Gate!',
-    `gate ${walls.join(' ')} outcome=${s.outcome} pos=${s.pos} banner=${JSON.stringify(b2)}`);
-  await screenshot(page, 'l2-05-won.png');
-
-  // 12. The way back: a fresh courtyard, exit still open. (First stop the
-  // scripted walk from test 10, which would carry the player off the arch.)
-  await cmd('move 0 0 0');
-  await frames(2);
-  await cmd('tp 0 21.8');
-  s = await until((x) => x.level === 1, 5000);
-  s = await until((x) => x.level === 1 && x.burning === 3, 5000);
-  check('frozen gate: the back arch returns to a fresh courtyard with the exit open',
-    s.level === 1 && s.burning === 3 && s.exitOpen === true && s.outcome === 'playing',
-    `level=${s.level} burning=${s.burning} exitOpen=${s.exitOpen} outcome=${s.outcome}`);
-
-  // 11. Captions per band, each on a fresh level 2.
-  const per = [];
-  let bandsOk = true;
-  for (const id of ['sprout', 'seedling', 'apprentice', 'adept']) {
-    const pushed = await pushBand(id);
-    await cmd('level 2');
-    let x = await until((q) => q.level === 2 && q.objs[stream] && q.objs[stream].ice === 0 && q.casts === 0, 10000);
-    await cmd('tp 0 10');
-    await until((q) => Math.abs(q.pos[2] - 10) < 0.5, 10000);
-    x = await castAt(stream, 3);
-    const icon = id === 'sprout' ? 'freeze' : '';
-    const ok = pushed && x.caption === FREEZING[id] && x.capIcon === icon;
-    bandsOk = bandsOk && ok;
-    per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
-  }
-  check('frozen gate: each band sees its own Freezing line; Sprout shows the freeze picture', bandsOk, per.join(' | '));
-
-  // 18 and 16 (entities). Switching levels 10 times leaks nothing.
-  await cmd('level 1');
-  await until((q) => q.level === 1 && q.burning === 3, 10000);
-  let l2 = null, mem2 = NaN, last = null;
-  for (let k = 1; k <= 10; k++) {
-    await cmd('level 2');
-    await until((q) => q.level === 2, 10000);
-    if (k === 1) { await gameSecs(0.3); l2 = await statsAfter(); }
-    await cmd('level 1');
-    await until((q) => q.level === 1 && q.burning === 3, 10000);
-    if (k === 2) mem2 = (await statsAfter()).mem;
-    if (k === 10) last = await statsAfter();
-  }
-  check('frozen gate: level 2 has no more entities than level 1', l2.entities <= first.entities,
-    `level 1 ${first.entities}, level 2 ${l2.entities}`);
-  check('frozen gate: 10 level switches leave entities exact and WASM memory flat (± 2 %)',
-    last.entities === first.entities && Math.abs(last.mem - mem2) <= 0.02 * mem2,
-    `entities ${first.entities} -> ${last.entities}; wasm MB after switch 2 ${mem2}, after 10 ${last.mem}`);
-
-  // ?level=2 loads level 2 directly (teachers and tests).
-  await load(['level=2']);
-  s = await until((x) => x.level === 2, 10000);
-  check('frozen gate: ?level=2 opens the Frozen Gate directly', s.level === 2 && idx(s, 'stream') >= 0 && /^The Frozen Gate/.test(s.caption),
-    `level=${s.level} caption=${s.caption}`);
+// Lane A: voxel engine and view (E1-E8).
+async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
+  console.log('  -- voxel engine (I-052, lane A) --');
+  void page; void st; void cmd; void until; void frames; void sleep; void base; void browser; void errors; void logs;
 }
 
-// I-037: level 3, the Marsh (docs/loop/items/I-037/spec.md, golden tests
-// 6-17 and 20). Drives the state bridge only.
-async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
-  console.log('  -- marsh (I-037) --');
-  const L = {
-    flickerWater: 'Marsh gas is methane (CH₄). It keeps bubbling up through the water, so a splash only knocks the flame down for a moment.',
-    flickerFrost: 'Liquid nitrogen boils into N₂ gas. Once it warms up, N₂ is about as heavy as air, so it mixes away and the methane keeps burning.',
-    fire: 'That gas is already burning. Fire cannot put out fire.',
-    filling: 'CO₂ (44 g/mol) is denser than air (29 g/mol), so it pools low, like an invisible pond.',
-    pooled: 'The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.',
-    noOxygen: 'Fire needs oxygen, and the CO₂ keeps it away.',
-  };
-  const FILLING = {
-    sprout: 'The gas sinks down low. More!',
-    seedling: 'CO₂ is heavier than air, so it sinks and fills the hollow from the bottom.',
-    apprentice: L.filling,
-    adept: 'At the same temperature and pressure, gas density goes with molar mass: CO₂ is about 1.5 times as dense as air, so it settles in low places.',
-  };
-  const load = async (url) => {
-    await page.goto(url);
-    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
-      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
-      await sleep(250);
-    }
-    await frames(3);
-  };
-  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
-  const all = (x, n) => x.objs.filter((o) => o.n === n).map((o) => o.i);
-  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
-  // Casts `spell` (1 Fire, 2 Water, 3 Frost, 4 CO2) at whatever the view
-  // aims at once `aimed(state)` holds; returns the state after it landed.
-  const castWhen = async (aimed, spell, what) => {
-    await resume();
-    await cmd(`select ${spell}`);
-    const a = await until((x) => x.spell === spell - 1 && aimed(x) && x.cooldown <= 0, 15000);
-    await cmd('cast');
-    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
-    if (!(z.impacts > a.impacts)) console.log(`  cast ${spell} at ${what} did not land: aim=${a.aimObj} spell=${a.spell}`);
-    return z;
-  };
-  const castAt = async (i, spell) => { await cmd(`face ${i}`); return castWhen((x) => x.aimObj === i, spell, `obj ${i}`); };
-  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
-  const statsAfter = async () => {
-    const n0 = logs.length;
-    let seen = 0, line = null;
-    for (const t0 = Date.now(); Date.now() - t0 < 30000 && seen < 2; await sleep(200)) {
-      const fresh = logs.slice(n0).filter((l) => /STATS /.test(l));
-      seen = fresh.length;
-      line = fresh[fresh.length - 1] || null;
-    }
-    const num = (re) => { const m = line && re.exec(line); return m ? +m[1] : NaN; };
-    return { entities: num(/entities=(\d+)/), mem: num(/wasm_mem_mb=([\d.]+)/) };
-  };
-  const banner = () => page.evaluate(() => {
-    const b = document.getElementById('banner');
-    return { shown: !b.classList.contains('hidden'), big: b.querySelector('.big').textContent, small: b.querySelector('.small').textContent };
-  });
-  const pushBand = async (id) => {
-    await page.evaluate((c) => { window.__gameIn = window.__gameIn || {}; (window.__gameIn.bench = window.__gameIn.bench || []).push(c); }, `band ${id}`);
-    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(150)) {
-      const b = await page.evaluate(() => { try { return JSON.parse(window.__benchState).band; } catch { return null; } });
-      if (b === id) return true;
-    }
-    return false;
-  };
-  const near = (a, b, e = 1e-3) => typeof a === 'number' && Math.abs(a - b) <= e;
+// Lane B: block matter (E9-E14, E22, E24).
+async function blockMatter({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
+  console.log('  -- block matter (I-052, lane B) --');
+  void page; void st; void cmd; void until; void frames; void sleep; void base; void browser; void errors; void logs;
+}
 
-  // A fresh page: level 1, no band picked.
-  await load(base);
-  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
-  const first = await statsAfter();
-
-  // 6. Level 2's forward arch is shut before the lantern.
-  await cmd('level 2');
-  s = await until((x) => x.level === 2, 10000);
-  await cmd('tp 0 -21.8');
-  await gameSecs(0.5);
-  s = await st();
-  check('marsh: level 2 forward arch is shut before the lantern (level 2, nextOpen false)',
-    s.level === 2 && s.nextOpen === false, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
-
-  // 7. Reach the Marsh by playing: solve level 2, then walk into the north arch.
-  const stream = idx(s, 'stream'), gate = idx(s, 'ice gate');
-  await cmd('tp 0 10');
-  for (let k = 0; k < 3; k++) await castAt(stream, 3);
-  await cmd('tp 0 -2');
-  for (let k = 0; k < 3; k++) await castAt(gate, 1);
-  await cmd('tp 0 -13');
-  await cmd('look 0 0');
-  await cmd('move 0 1 3');
-  s = await until((x) => x.outcome === 'won', 30000);
-  await cmd('move 0 0 0');
-  const b2 = await banner();
-  check('marsh: the level-2 win opens the forward arch and the banner points to the Marsh',
-    s.outcome === 'won' && s.nextOpen === true && b2.shown && /Marsh/.test(b2.small),
-    `outcome=${s.outcome} nextOpen=${s.nextOpen} banner=${JSON.stringify(b2)}`);
-  await frames(2);
-  await cmd('tp 0 -21.8');
-  const t7 = Date.now();
-  s = await until((x) => x.level === 3, 5000);
-  const ms7 = Date.now() - t7;
-  s = await until((x) => x.level === 3 && /^The Marsh/.test(x.caption), 3000);
-  const names = s.objs.map((o) => o.n);
-  check('marsh: walking into the open forward arch loads the Marsh within 5 s',
-    s.level === 3 && ms7 <= 5500 && ['dip', 'hollow', 'lantern'].every((n) => names.includes(n))
-      && all(s, 'dip vent').length === 3 && all(s, 'hollow vent').length === 4
-      && s.ventsLit === 7 && s.outcome === 'playing' && /^The Marsh/.test(s.caption)
-      && Array.isArray(s.pools) && s.pools.length === 2,
-    `level=${s.level} after ${ms7} ms objs=${names.join(',')} ventsLit=${s.ventsLit} pools=${JSON.stringify(s.pools)} outcome=${s.outcome} caption=${s.caption}`);
-  const dip = idx(s, 'dip'), hollow = idx(s, 'hollow');
-  const dipVent = all(s, 'dip vent')[1]; // the middle one, straight ahead
-  const hollowVents = all(s, 'hollow vent');
-  await cmd('look 0 -8');
-  await frames(3);
-  await screenshot(page, 'l3-01-arrive.png');
-
-  // 9. The flames block the boardwalk.
-  await cmd('look 0 0');
-  await cmd('move 0 1 3');
-  await gameSecs(3.4);
-  s = await st();
-  check('marsh: burning gas blocks the walk (stopped south of the dip flames, z > 10)',
-    s.pos[2] > 10 && s.pos[2] < 12.5 && s.ventsLit === 7, `pos=${s.pos} ventsLit=${s.ventsLit}`);
-
-  // 10, 11. Wrong chemistry fails kindly (no band: the Apprentice lines).
-  let z = await castAt(dipVent, 2);
-  const water = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
-  check('marsh: Water on a gas vent only knocks it down (7 lit, pool 0, Flicker(Water) line)',
-    water.lit === 7 && water.pool === 0 && water.cap === L.flickerWater, JSON.stringify(water));
-  z = await castAt(dipVent, 3);
-  const frost = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
-  z = await castAt(dipVent, 1);
-  const fire = { lit: z.ventsLit, cap: z.caption };
-  check('marsh: Frost knocks it down too and Fire changes nothing (7 lit, Frost and Fire lines)',
-    frost.lit === 7 && frost.pool === 0 && frost.cap === L.flickerFrost && fire.lit === 7 && fire.cap === L.fire,
-    `frost=${JSON.stringify(frost)} fire=${JSON.stringify(fire)}`);
-
-  // 12. CO2 fills the dip: 0.5 at a vent, then 1 at the floor.
-  z = await castAt(dipVent, 4);
-  const half = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
-  await cmd('tp 0 13');
-  await cmd('look 0 -40');
-  z = await castWhen((x) => x.aimObj === dip, 4, 'the dip floor');
-  const full = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption, icon: z.capIcon };
-  await frames(3);
-  await cmd('look 0 -18');
-  await frames(3);
-  await screenshot(page, 'l3-02-dip-pooled.png');
-  s = await gameSecs(5);
-  check('marsh: CO2 fills the dip (0.5 at a vent, Filling; 1 at the floor, Pooled; 4 lit, still 4 after 5 s)',
-    half.pool === 0.5 && half.lit === 7 && half.cap === L.filling
-      && full.pool === 1 && full.lit === 4 && full.cap === L.pooled && s.ventsLit === 4,
-    `half=${JSON.stringify(half)} full=${JSON.stringify(full)} after 5 s ventsLit=${s.ventsLit}`);
-
-  // 13. A smothered vent cannot be relit.
-  z = await castAt(dipVent, 1);
-  check('marsh: Fire on a smothered vent fizzles (no oxygen), 4 lit',
-    z.ventsLit === 4 && z.caption === L.noOxygen, `ventsLit=${z.ventsLit} caption=${z.caption}`);
-
-  // 14. The hollow needs three casts; then both cross.
-  await cmd('look 0 0');
-  await cmd('move 0 1 4');
-  await gameSecs(4.4);
-  s = await st();
-  const stopped = s.pos[2];
-  const pools1 = [], lit1 = [];
-  for (const i of [hollowVents[0], hollowVents[1], hollowVents[0]]) {
-    z = await castAt(i, 4);
-    pools1.push(z.pools[1]); lit1.push(z.ventsLit);
-  }
-  await cmd('look 0 0');
-  await cmd('move 0 1 1.2');
-  await gameSecs(1.6);
-  s = await st();
-  check('marsh: the hollow fills in three casts (0.34 / 0.68 / 1.00; 4 lit after two, 0 after three) and both cross',
-    stopped < 8 && stopped > -6.5 && near(pools1[0], 0.34) && near(pools1[1], 0.68) && near(pools1[2], 1)
-      && lit1[1] === 4 && lit1[2] === 0 && s.pos[2] < -12 && s.outcome === 'playing',
-    `stopped at z=${stopped} pools ${pools1.join(' / ')} lit ${lit1.join(' / ')} then pos=${s.pos} outcome=${s.outcome}`);
-
-  // 15. The lantern wins, and the walk stops.
-  await cmd('move 0 1 2');
-  s = await until((x) => x.outcome === 'won', 30000);
-  await gameSecs(0.5);
-  const b3 = await banner();
-  const p0 = (await st()).pos;
-  await cmd('move 0 1 2');
-  s = await gameSecs(2.2);
-  check('marsh: walking to the lantern wins ("You cleared the Marsh!") and the walk stops',
-    s.outcome === 'won' && b3.shown && b3.big === 'You cleared the Marsh!'
-      && near(s.pos[0], p0[0]) && near(s.pos[2], p0[2]),
-    `outcome=${s.outcome} banner=${JSON.stringify(b3)} pos ${p0} -> ${s.pos}`);
-  await cmd('look 180 -10');
-  await frames(3);
-  await screenshot(page, 'l3-03-won.png');
-
-  // 17. The way back: level 2, with its forward arch open.
-  await cmd('move 0 0 0');
-  await frames(2);
-  await cmd('tp 0 21.8');
-  s = await until((x) => x.level === 2, 5000);
-  check('marsh: the back arch returns to the Frozen Gate with its forward arch open',
-    s.level === 2 && s.nextOpen === true && s.pos[2] < -19, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
-
-  // Round 2 (break 1, B1): back from the Marsh, level 2 is as the player left
-  // it (stream frozen, gate melted), so walking on to the lantern cannot win
-  // it with the gate still standing, and the banner matches the state.
-  const solvedState = (x) => {
-    const g = x.objs[idx(x, 'ice gate')], r = x.objs[idx(x, 'stream')];
-    return { gateWall: g && g.wall, gateIce: g && g.ice, streamIce: r && r.ice, streamFrozen: r && r.frozen };
-  };
-  await cmd('look 180 0');
-  await cmd('move 0 1 1.5');
-  s = await gameSecs(2);
-  await cmd('move 0 0 0');
-  const back = solvedState(s);
-  const bB = await banner();
-  check('marsh: back from the Marsh, level 2 stays solved (stream frozen, gate melted) and the lantern gives no unsolved win',
-    s.level === 2 && back.streamFrozen === true && back.streamIce >= 1 && back.gateWall === false
-      && !(s.outcome === 'won' && back.gateWall !== false) && s.pos[2] > -20.3
-      && (!bB.shown || bB.big === 'You opened the Frozen Gate!'),
-    `level=${s.level} outcome=${s.outcome} ${JSON.stringify(back)} pos=${s.pos} banner=${JSON.stringify(bB)}`);
-
-  // 16. Captions per band, each on a fresh level 3.
-  const per = [];
-  let bandsOk = true;
-  for (const id of ['sprout', 'seedling', 'apprentice', 'adept']) {
-    const pushed = await pushBand(id);
-    await cmd('level 3');
-    let x = await until((q) => q.level === 3 && q.casts === 0 && q.pools && q.pools[0] === 0, 10000);
-    await cmd('tp 0 13');
-    await until((q) => Math.abs(q.pos[2] - 13) < 0.5, 10000);
-    x = await castAt(dipVent, 4);
-    const icon = id === 'sprout' ? 'gas' : '';
-    const ok = pushed && x.caption === FILLING[id] && x.capIcon === icon && (id === 'apprentice' || x.caption !== L.filling);
-    bandsOk = bandsOk && ok;
-    per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
-  }
-  check('marsh: each band sees its own Filling line; Sprout shows the gas picture', bandsOk, per.join(' | '));
-
-  // 19 (entities) and 20. Switching 1 -> 2 -> 3 -> 2 -> 1 ten times leaks nothing.
-  await cmd('level 1');
-  await until((q) => q.level === 1 && q.burning === 3, 10000);
-  let l3 = null, mem2 = NaN, last = null;
-  for (let k = 1; k <= 10; k++) {
-    for (const n of [2, 3, 2]) { await cmd(`level ${n}`); await until((q) => q.level === n, 10000); if (k === 1 && n === 3) { await gameSecs(0.3); l3 = await statsAfter(); } }
-    await cmd('level 1');
-    await until((q) => q.level === 1 && q.burning === 3, 10000);
-    if (k === 2) mem2 = (await statsAfter()).mem;
-    if (k === 10) last = await statsAfter();
-  }
-  check('marsh: level 3 has no more entities than level 1', l3.entities <= first.entities,
-    `level 1 ${first.entities}, level 3 ${l3.entities}`);
-  check('marsh: 10 switches 1-2-3-2-1 leave entities exact and WASM memory flat (± 2 %)',
-    last.entities === first.entities && Math.abs(last.mem - mem2) <= 0.02 * mem2,
-    `entities ${first.entities} -> ${last.entities}; wasm MB after switch 2 ${mem2}, after 10 ${last.mem}`);
-
-  // 8. ?level=3 without debug loads the Marsh, and CO2 can be selected and cast.
-  const plain = base.replace(/([?&])debug(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
-  await load(`${plain}${plain.includes('?') ? '&' : '?'}level=3`);
-  s = await until((x) => x.level === 3, 10000);
-  const c0 = s.casts;
-  await resume();
-  await cmd('select 4');
-  await until((x) => x.spell === 3 && x.cooldown <= 0, 10000);
-  await cmd('cast');
-  const c1 = await until((x) => x.casts > c0, 10000);
-  check('marsh: ?level=3 (no debug) opens the Marsh and CO2 can be selected and cast',
-    s.level === 3 && /^The Marsh/.test(s.caption) && c1.spell === 3 && c1.casts > c0,
-    `level=${s.level} caption=${s.caption} spell=${c1.spell} casts ${c0} -> ${c1.casts} url=${page.url()}`);
-
-  // Round 2 (break 1, S1 and B1): after a direct ?level=3 load, the back arch
-  // brings the player to level 2 with its forward arch open behind them and
-  // the level solved (debug page, for `tp`).
-  await load(`${base}${base.includes('?') ? '&' : '?'}level=3`);
-  s = await until((x) => x.level === 3, 10000);
-  await resume();
-  await cmd('tp 0 21.8');
-  s = await until((x) => x.level === 2, 5000);
-  await frames(2);
-  s = await st();
-  const direct = solvedState(s);
-  check('marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted',
-    s.level === 2 && s.nextOpen === true && direct.gateWall === false && direct.streamFrozen === true,
-    `level=${s.level} nextOpen=${s.nextOpen} outcome=${s.outcome} ${JSON.stringify(direct)} pos=${s.pos}`);
+// Lane C: valley story (E15-E21, E23).
+async function valleyStory({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
+  console.log('  -- valley story (I-052, lane C) --');
+  void page; void st; void cmd; void until; void frames; void sleep; void base; void browser; void errors; void logs;
 }

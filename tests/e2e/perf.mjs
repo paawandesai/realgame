@@ -103,10 +103,12 @@ function rerunPlan(run, attempt, maxReruns = 2) {
 }
 
 // The workload's tp/move/look/turn/face commands work only with `?debug`
-// (it gates nothing else), like golden.mjs.
+// (it gates nothing else), like golden.mjs. I-052: `classic=1` keeps the
+// measured workload on today's courtyard (the default page is now the block
+// world, whose workload is golden E6 for now).
 function pageUrl(base, tier, query = '') {
   const extra = String(query || '').replace(/^[?&]+/, '');
-  return base + (tier === 'low' ? '?low&debug' : '?debug') + (extra ? `&${extra}` : '');
+  return base + (tier === 'low' ? '?low&classic=1&debug' : '?classic=1&debug') + (extra ? `&${extra}` : '');
 }
 // `--query level=2` (I-035) measures level 2, the Frozen Gate: nothing burns
 // there, so the workload casts at the stream and the gate instead of fires

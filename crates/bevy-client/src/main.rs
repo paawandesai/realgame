@@ -13,6 +13,7 @@
 //! time).
 
 mod bench;
+mod blockchem;
 mod bridge;
 mod chem;
 mod clock;
@@ -25,6 +26,8 @@ mod motion;
 mod player;
 mod progress;
 mod spells;
+mod story;
+mod voxel_view;
 mod worked;
 mod world;
 
@@ -53,6 +56,124 @@ use fx::{Fx, P};
 use player::Player;
 use realgame_sim::bench as simbench;
 use world::{ArchDoor, ArchMats, Chem, Colliders, Kit, LevelRoot};
+
+/// Which game runs (I-052, spec section 3.3), read once at startup.
+/// `Voxel`, the default, is the block world; `Classic` is today's courtyard
+/// and its levels, kept whole as the fixture for the Bench, worked-cast,
+/// feel, mastery and analytics checks.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Voxel,
+    Classic,
+}
+
+/// Voxel mode's start biome (`?biome=`, or `?level=2` / `?level=3`).
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StartBiome(pub realgame_voxel::Biome);
+
+/// The mode rule (spec section 3.3): `Classic` when the URL has `classic`
+/// (any value) or `level=1`; otherwise `Voxel`, where `level=2` and
+/// `level=3` open the Frozen Fields and the Marsh and `biome=` names any
+/// biome (unknown ids fall back to the Village). With `classic`, a
+/// `level` of 2 or 3 still loads the old level (it stays reachable until
+/// the follow-up deletes it).
+fn mode_from(
+    classic: Option<&str>,
+    level: Option<&str>,
+    biome: Option<&str>,
+) -> (Mode, realgame_voxel::Biome) {
+    use realgame_voxel::Biome;
+    if classic.is_some() || level == Some("1") {
+        return (Mode::Classic, Biome::Village);
+    }
+    let b = match level {
+        Some("2") => Biome::Frozen,
+        Some("3") => Biome::Marsh,
+        _ => biome.and_then(Biome::from_id).unwrap_or(Biome::Village),
+    };
+    (Mode::Voxel, b)
+}
+
+fn is_classic(mode: Res<Mode>) -> bool {
+    *mode == Mode::Classic
+}
+
+/// What the player did in the block world (spec section 10, contract
+/// rules), sent by `voxel_view` and heard by `story::on_event`, which passes
+/// it to the quest. Constructed by Lane A's `voxel_view`.
+#[allow(dead_code)]
+#[derive(Message, Debug, Clone, PartialEq)]
+pub(crate) enum PlayerEvent {
+    Dug {
+        mat: u8,
+    },
+    Placed {
+        mat: u8,
+    },
+    EnteredBiome {
+        id: &'static str,
+    },
+    /// The player stands inside stamp `realgame_voxel::stamp::*` (its id).
+    InBox {
+        stamp: &'static str,
+    },
+    UsedRig,
+    UsedLever,
+    UsedKilnDoor,
+}
+
+/// A `realgame_matter::MatterEvent` as a Bevy message (the matter crate has
+/// no Bevy types), sent by `blockchem` and heard by `story::on_event`.
+#[allow(dead_code)]
+#[derive(Message, Debug, Clone, Copy, PartialEq)]
+pub(crate) struct MatterEvent(pub realgame_matter::MatterEvent);
+
+/// The voxel-mode state keys, each plugin's values (spec section 8).
+#[derive(bevy::ecs::system::SystemParam)]
+struct ModeKeys<'w> {
+    mode: Res<'w, Mode>,
+    view: Res<'w, voxel_view::Keys>,
+    matter: Res<'w, blockchem::Keys>,
+    story: Res<'w, story::Keys>,
+}
+
+impl ModeKeys<'_> {
+    /// The keys voxel mode appends after `ventsLit`, in the spec's order,
+    /// each with its leading comma; empty in classic mode, so classic
+    /// publishes exactly today's keys.
+    fn json(&self) -> String {
+        if *self.mode == Mode::Classic {
+            return String::new();
+        }
+        let (v, m, s) = (&*self.view, &*self.matter, &*self.story);
+        let pack: Vec<String> = s
+            .pack
+            .iter()
+            .map(|(item, n)| format!("{{\"item\":\"{}\",\"n\":{n}}}", esc(item)))
+            .collect();
+        let look = v.look_cell.map_or("null".to_string(), |c| {
+            format!("[{},{},{},{}]", c[0], c[1], c[2], c[3])
+        });
+        let bearing = s
+            .obj_bearing
+            .map_or("null".to_string(), |b| format!("{b:.1}"));
+        format!(
+            ",\"mode\":\"voxel\",\"biome\":\"{}\",\"quest\":{},\"questLine\":\"{}\",\"pack\":[{}],\"hot\":{},\"lookCell\":{look},\"digT\":{:.3},\"objBearing\":{bearing},\"chunksMeshed\":{},\"meshQ\":{},\"activeChunks\":{},\"matterMs\":{:.3},\"gasCO2Max\":{:.3},\"ending\":{}",
+            v.biome,
+            s.quest,
+            esc(&s.quest_line),
+            pack.join(","),
+            v.hot,
+            v.dig_t,
+            v.chunks_meshed,
+            v.mesh_q,
+            m.active_chunks,
+            m.matter_ms,
+            m.gas_co2_max,
+            s.ending,
+        )
+    }
+}
 
 /// Which level is loaded (I-035): 1, the courtyard, 2, the Frozen Gate, or
 /// 3, the Marsh (I-037). `cleared1` and `cleared2` last the page load: once a
@@ -452,6 +573,11 @@ struct Stats {
 
 fn main() {
     let settings = read_settings();
+    let (game_mode, start_biome) = mode_from(
+        param("classic").as_deref(),
+        param("level").as_deref(),
+        param("biome").as_deref(),
+    );
     let mode = worked::mode_from(
         settings.debug,
         param("cast").as_deref(),
@@ -465,8 +591,8 @@ fn main() {
         resolution: (1280, 720).into(),
         ..default()
     };
-    App::new()
-        .add_plugins(
+    let mut app = App::new();
+    app.add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {
                     primary_window: Some(window),
@@ -522,12 +648,19 @@ fn main() {
             n: 1,
             cleared1: false,
             cleared2: false,
-            pending: match param("level").as_deref() {
-                Some("2") => Some(2),
-                Some("3") => Some(3),
+            pending: match (game_mode, param("level").as_deref()) {
+                (Mode::Classic, Some("2")) => Some(2),
+                (Mode::Classic, Some("3")) => Some(3),
                 _ => None,
             },
         })
+        .insert_resource(game_mode)
+        .insert_resource(StartBiome(start_biome))
+        .init_resource::<voxel_view::Keys>()
+        .init_resource::<blockchem::Keys>()
+        .init_resource::<story::Keys>()
+        .add_message::<PlayerEvent>()
+        .add_message::<MatterEvent>()
         .add_systems(Startup, setup)
         .add_systems(First, frame_start)
         .add_systems(FixedUpdate, chem_tick)
@@ -535,13 +668,13 @@ fn main() {
             Update,
             (
                 control,
-                levels,
+                levels.run_if(is_classic),
                 aim_and_cast,
                 projectiles,
                 react,
                 sync_visuals,
-                level_visuals,
-                level3_visuals,
+                level_visuals.run_if(is_classic),
+                level3_visuals.run_if(is_classic),
                 viewmodel,
                 fx::update_fx,
                 publish,
@@ -551,8 +684,14 @@ fn main() {
         .add_systems(Last, report)
         .add_systems(Update, bench::run.after(control).before(publish))
         .add_systems(Startup, bench::spawn_station)
-        .add_systems(Startup, tag_bench_pad.after(bench::spawn_station))
-        .run();
+        .add_systems(Startup, tag_bench_pad.after(bench::spawn_station));
+    // Voxel mode: the block world's view, chemistry and story (spec section
+    // 3.3). Until their Mode branches land (Lane A, spec section 9), the
+    // shared systems still run on the courtyard's resources.
+    if game_mode == Mode::Voxel {
+        app.add_plugins((voxel_view::plugin, blockchem::plugin, story::plugin));
+    }
+    app.run();
 }
 
 /// Query parameters on the web; `--key=value` arguments natively.
@@ -2406,6 +2545,7 @@ fn publish(
     streams: StreamsAndBeams,
     prog: Res<Progress>,
     level: Res<Level>,
+    keys: ModeKeys,
 ) {
     *frame += 1;
     // The frame in which the latest impact landed.
@@ -2432,7 +2572,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\",\"level\":{},\"exitOpen\":{},\"capIcon\":\"{}\",\"fxBeads\":{},\"nextOpen\":{},\"pools\":[{}],\"ventsLit\":{}}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\",\"level\":{},\"exitOpen\":{},\"capIcon\":\"{}\",\"fxBeads\":{},\"nextOpen\":{},\"pools\":[{}],\"ventsLit\":{}{}}}",
         *frame,
         w.ticks,
         game.locked,
@@ -2500,7 +2640,8 @@ fn publish(
             .map(|p| format!("{p:.3}"))
             .collect::<Vec<_>>()
             .join(","),
-        level3::vents_lit(w)
+        level3::vents_lit(w),
+        keys.json()
     );
     bridge::publish(&json);
 }
@@ -2570,5 +2711,34 @@ fn report(
         let _ = &game;
 
         stats.window_start = Some(now);
+    }
+}
+
+#[cfg(test)]
+mod mode_tests {
+    use super::*;
+    use realgame_voxel::Biome;
+
+    /// Spec section 3.3: the mode rule and the `?level` / `?biome` mapping.
+    #[test]
+    fn mode_rule() {
+        let m = |c, l, b| mode_from(c, l, b);
+        assert_eq!(m(None, None, None), (Mode::Voxel, Biome::Village));
+        assert_eq!(m(Some("1"), None, None).0, Mode::Classic);
+        assert_eq!(m(Some(""), None, None).0, Mode::Classic, "any value");
+        assert_eq!(m(None, Some("1"), None).0, Mode::Classic);
+        assert_eq!(m(None, Some("2"), None), (Mode::Voxel, Biome::Frozen));
+        assert_eq!(m(None, Some("3"), None), (Mode::Voxel, Biome::Marsh));
+        assert_eq!(
+            m(None, Some("2"), Some("cave")),
+            (Mode::Voxel, Biome::Frozen)
+        );
+        assert_eq!(m(Some("1"), Some("2"), None).0, Mode::Classic);
+        assert_eq!(m(None, None, Some("kiln")), (Mode::Voxel, Biome::Kiln));
+        assert_eq!(
+            m(None, None, Some("nowhere")),
+            (Mode::Voxel, Biome::Village)
+        );
+        assert_eq!(m(None, Some("7"), None), (Mode::Voxel, Biome::Village));
     }
 }

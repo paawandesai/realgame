@@ -4176,13 +4176,33 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "js-sys",
+ "realgame-matter",
  "realgame-sim",
+ "realgame-voxel",
  "wasm-bindgen",
  "web-sys",
 ]
 
 [[package]]
+name = "realgame-matter"
+version = "0.1.0"
+dependencies = [
+ "realgame-sim",
+ "realgame-voxel",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "realgame-sim"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "realgame-voxel"
 version = "0.1.0"
 dependencies = [
  "serde",
