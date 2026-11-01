@@ -501,3 +501,32 @@ test("13: boot.js imports worked.js, and every imported module is on build-web.s
   }
   assert.ok(seen.has("worked.js"));
 });
+
+// I-030 N4: practised -> mastered shows a Mastered toast with a star.
+test("I-030 N4: a practised -> mastered change shows the Mastered toast; the Practised toast is unchanged", () => {
+  const t = setup();
+  t.w.update(ws(null, { stages: ["unknown", "learning", "unknown", "unknown"] }));
+  t.w.update(ws(null, { stages: ["unknown", "practised", "unknown", "unknown"] }));
+  let toast = t.doc.getElementById("worked-toast") as El;
+  assert.equal(toast.textContent, "◑P(Water): Practised!", "the old toast text exactly");
+  t.w.update(ws(null, { stages: ["unknown", "mastered", "unknown", "unknown"] }));
+  toast = t.doc.getElementById("worked-toast") as El;
+  assert.ok(!toast.hidden);
+  assert.equal(toast.textContent, "★P(Water): Mastered!");
+  assert.ok(toast.querySelector(".worked-toast-shape"));
+  // A loaded Mastered save (unknown -> mastered) shows no toast change.
+  const u = setup();
+  u.w.update(ws(null, { stages: ["unknown", "unknown", "unknown", "unknown"] }));
+  u.w.update(ws(null, { stages: ["unknown", "mastered", "unknown", "unknown"] }));
+  assert.equal(u.doc.getElementById("worked-toast"), null);
+  // Sprout: the icon and the star, the words as the label.
+  const k = setup();
+  k.w.update(ws(work(5, view("sprout", "practised")), { band: "sprout" }));
+  k.w.update(ws(null, { band: "sprout", stages: ["unknown", "practised", "unknown", "unknown"] }));
+  k.w.update(ws(null, { band: "sprout", stages: ["unknown", "mastered", "unknown", "unknown"] }));
+  const st = k.doc.getElementById("worked-toast") as El;
+  assert.doesNotMatch(st.textContent, /[A-Za-z]/);
+  assert.ok(st.textContent.includes("★"));
+  assert.ok(st.querySelector(".icon.water"));
+  assert.match(st.getAttribute("aria-label") ?? "", /Mastered!/);
+});

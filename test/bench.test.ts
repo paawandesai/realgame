@@ -432,3 +432,97 @@ test("round 2 (S1): reasonFor never returns an empty line when diffs are missing
   const u = { slot: 1, code: "unbalanced", diffs: [] as Array<[string, number, number]> };
   for (const band of ["seedling", "apprentice"]) assert.ok(reasonFor(band, u, NAMES, 1).trim().length > 0, band);
 });
+
+// ---------------------------------------------------------------------------
+// I-030 N1: mountBuilder's `unaided` option (the Mastery trial builds from memory).
+
+test("I-030 N1: unaided Sprout has no recipe card, and HHO + Make still sends H2O", () => {
+  const doc = new Doc();
+  const div = doc.createElement("div");
+  const made: string[] = [];
+  mountBuilder(div as unknown as HTMLElement, { band: "sprout", spell: WATER_CARD, recipe: WATER, prompt: "p", unaided: true, onMake: (t: string) => made.push(t) });
+  assert.equal(div.querySelector(".bench-recipe"), null);
+  assert.equal(div.querySelectorAll(".bench-ball").length > 0, true, "the atom cards still show their balls");
+  assert.equal(div.querySelectorAll(".bench-tray .bench-ball").length, 0);
+  const tok = (t: string) => div.querySelector(`[data-token="${t}"]`) as El;
+  tok("H").click();
+  tok("H").click();
+  tok("O").click();
+  (div.querySelector(".bench-make") as El).click();
+  assert.deepEqual(made, ["H2O"]);
+});
+
+test("I-030 N1: unaided Seedling water has no formula card and no data-match ticks", () => {
+  const doc = new Doc();
+  const div = doc.createElement("div");
+  const made: string[] = [];
+  mountBuilder(div as unknown as HTMLElement, { band: "seedling", spell: WATER_CARD, recipe: WATER, prompt: "p", unaided: true, onMake: (t: string) => made.push(t) });
+  assert.equal(div.querySelector(".bench-formula"), null);
+  assert.equal(div.querySelector(".bench-recipe"), null);
+  assert.equal(div.querySelectorAll(".bench-tile").length, 4);
+  assert.equal(div.querySelectorAll("[data-match]").length, 0);
+  const tile = (el: string) => div.querySelector(`.bench-tile[data-el="${el}"]`) as El;
+  tile("O").click();
+  tile("H").click();
+  tile("H").click();
+  assert.equal(div.querySelectorAll("[data-match]").length, 0, "still no ticks after taps");
+  (div.querySelector(".bench-make") as El).click();
+  assert.deepEqual(made, ["H2O"]);
+});
+
+test("I-030 N1: unaided Seedling Fire has coefficient tiles but no scale, and Make sends the equation", () => {
+  const doc = new Doc();
+  const div = doc.createElement("div");
+  const made: string[] = [];
+  mountBuilder(div as unknown as HTMLElement, { band: "seedling", spell: FIRE_CARD, recipe: FIRE, prompt: "p", unaided: true, onMake: (t: string) => made.push(t) });
+  const coefs = div.querySelectorAll(".bench-coef");
+  assert.equal(coefs.length, 4);
+  assert.equal(div.querySelector(".bench-scale"), null);
+  assert.equal(div.querySelector(".bench-pan"), null);
+  assert.equal(div.querySelectorAll(".bench-op").length, 3, "the + and arrow row stays");
+  coefs[1]?.click();
+  coefs[3]?.click();
+  (div.querySelector(".bench-make") as El).click();
+  assert.deepEqual(made, ["CH4 + 2O2 -> CO2 + 2H2O"]);
+});
+
+test("I-030 N1: without unaided (or with unaided: false) the DOM is exactly as before", () => {
+  const shape = (el: El): unknown => ({
+    tag: el.tagName,
+    attrs: [...el.attrs.entries()].sort(),
+    kids: el.children.map((c) => (typeof c === "string" ? c : shape(c))),
+  });
+  const cases: Array<[string, typeof WATER_CARD, Term[] | null]> = [
+    ["sprout", WATER_CARD, WATER],
+    ["seedling", WATER_CARD, WATER],
+    ["seedling", FIRE_CARD, FIRE],
+    ["seedling", WATER_CARD, null],
+    ["apprentice", WATER_CARD, null],
+  ];
+  for (const [band, spell, recipe] of cases) {
+    const doc = new Doc();
+    const a = doc.createElement("div");
+    const b = doc.createElement("div");
+    mountBuilder(a as unknown as HTMLElement, { band, spell, recipe, prompt: "p", onMake: () => {} });
+    mountBuilder(b as unknown as HTMLElement, { band, spell, recipe, prompt: "p", unaided: false, onMake: () => {} });
+    assert.deepEqual(shape(b), shape(a), `${band} ${spell.id}`);
+  }
+  // The 11b expectations still hold with the option absent.
+  const doc = new Doc();
+  const s = doc.createElement("div");
+  mountBuilder(s as unknown as HTMLElement, { band: "sprout", spell: WATER_CARD, recipe: WATER, prompt: "p", onMake: () => {} });
+  assert.equal(s.querySelectorAll('.bench-recipe .bench-ball[data-el="H"]').length, 2);
+  const f = doc.createElement("div");
+  mountBuilder(f as unknown as HTMLElement, { band: "seedling", spell: FIRE_CARD, recipe: FIRE, prompt: "p", onMake: () => {} });
+  assert.ok(f.querySelector(".bench-scale"));
+  const w = doc.createElement("div");
+  mountBuilder(w as unknown as HTMLElement, { band: "seedling", spell: WATER_CARD, recipe: WATER, prompt: "p", onMake: () => {} });
+  assert.ok(w.querySelector(".bench-formula"));
+  assert.equal(w.querySelectorAll("[data-match]").length, 4);
+});
+
+test("I-030: bench.js exports speak and rise for the trial", async () => {
+  const m = await import("../crates/bevy-client/web/bench.js");
+  assert.equal(typeof (m as Record<string, unknown>).speak, "function");
+  assert.equal(typeof (m as Record<string, unknown>).rise, "function");
+});

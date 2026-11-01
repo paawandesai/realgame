@@ -18,6 +18,10 @@
 //! `window.__workState`, also written only when it changes; their commands
 //! (`work …`, `castmode …`) ride on `cmds`.
 //!
+//! The Mastery trial (I-030, `src/trial.rs`, `web/trial.js`) publishes
+//! `window.__trialState`, written only when it changes; its commands ride on
+//! the bench queue.
+//!
 //! On native builds these are no-ops (the game reads Bevy's own mouse input).
 
 use bevy::prelude::*;
@@ -121,6 +125,12 @@ mod imp {
             let _ = Reflect::set(&win, &"__workState".into(), &JsValue::from_str(json));
         }
     }
+
+    pub fn publish_trial(json: &str) {
+        if let Some(win) = web_sys::window() {
+            let _ = Reflect::set(&win, &"__trialState".into(), &JsValue::from_str(json));
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -135,6 +145,7 @@ mod imp {
     pub fn publish(_json: &str) {}
     pub fn publish_bench(_json: &str) {}
     pub fn publish_work(_json: &str) {}
+    pub fn publish_trial(_json: &str) {}
 }
 
-pub use imp::{poll, publish, publish_bench, publish_work};
+pub use imp::{poll, publish, publish_bench, publish_trial, publish_work};

@@ -25,6 +25,7 @@ mod motion;
 mod player;
 mod progress;
 mod spells;
+mod trial;
 mod worked;
 mod world;
 

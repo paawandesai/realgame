@@ -1,0 +1,80 @@
+# I-030 tests first: the new tests against the contract stubs (desk methods, Book::pass_trial/sharp/sharp_ready/day, bench trial words, trial.js exports return nothing; bench.js/worked.js/progress.js as on main apart from exporting speak and rise).
+
+## rustc --edition 2021 --test src/trial.rs
+test tests::esc_escapes_quotes_backslashes_and_controls ... ok
+test tests::r4_order_rotates ... ok
+test tests::r4_bank ... ok
+test tests::r6_desk_sharp ... FAILED
+test tests::r5_desk_master ... FAILED
+test tests::r5_every_question_serialises_and_hides_its_answer ... FAILED
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+## rustc --edition 2021 --test src/progress.rs
+test tests::t02_worked_casts ... ok
+test tests::t01_stages_in_order ... ok
+test tests::t03_two_day_rule ... ok
+test tests::t05_two_transitions ... ok
+test tests::t04_predict ... ok
+test tests::t08b_stage_kept_as_saved ... ok
+test tests::t08_decode_rejects_whole ... ok
+test tests::t09_commands ... ok
+test tests::t10_ids ... ok
+test tests::t20_pass_trial ... FAILED
+test tests::t21_sharp ... FAILED
+test tests::t22_trial_cmds_and_never_fades ... FAILED
+test tests::t06_never_fades ... ok
+test tests::t11_state_json ... ok
+test tests::t07_round_trip ... ok
+test result: FAILED. 12 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.39s
+
+## node --test (new I-030 cases)
+✖ I-030 N1: unaided Sprout has no recipe card, and HHO + Make still sends H2O (9.293918ms)
+✖ I-030 N1: unaided Seedling water has no formula card and no data-match ticks (9.058421ms)
+✖ I-030 N1: unaided Seedling Fire has coefficient tiles but no scale, and Make sends the equation (24.391716ms)
+✔ I-030 N1: without unaided (or with unaided: false) the DOM is exactly as before (2.095339ms)
+✔ I-030: bench.js exports speak and rise for the trial (0.285821ms)
+✖ I-030 N3: the poll re-sends prog day once when the local day changes (9.696648ms)
+✖ I-030 N4: a practised -> mastered change shows the Mastered toast; the Practised toast is unchanged (1.351998ms)
+✖ N2: PICTURES has an SVG with at least 2 shapes for every ICONS id in trial.rs (2.630437ms)
+✖ N2: lineFor gives each Contract line exactly (0.441447ms)
+✖ N2: pipStates (2.115799ms)
+✖ N2: a build state mounts an unaided builder with three pips; Make sends try (0.614418ms)
+✖ N2: Seedling Fire: coefficient tiles, no scale; a wrong build shows the reason, pips stay (0.263279ms)
+✖ N2: an ask state at Sprout renders 3 picture choices; a click sends answer; digit keys send nothing (0.263107ms)
+✖ N2: Seedling asks with 3 text buttons (0.332582ms)
+✖ N2: an answered-wrong state marks the right card and offers Ask me again (0.213633ms)
+✖ N2: a done state with mastered shows the star and the mastered line (0.488069ms)
+✖ N2: keep it sharp: title, no pips, the miss line and Still sharp (0.522443ms)
+✖ N5: build-web.sh copies web/trial.js and bench.js imports it (4.578775ms)
+ℹ tests 51
+ℹ pass 35
+ℹ fail 16
+✖ I-030 N1: unaided Sprout has no recipe card, and HHO + Make still sends H2O (9.293918ms)
+✖ I-030 N1: unaided Seedling water has no formula card and no data-match ticks (9.058421ms)
+✖ I-030 N1: unaided Seedling Fire has coefficient tiles but no scale, and Make sends the equation (24.391716ms)
+✖ I-030 N3: the poll re-sends prog day once when the local day changes (9.696648ms)
+✖ I-030 N4: a practised -> mastered change shows the Mastered toast; the Practised toast is unchanged (1.351998ms)
+✖ N2: PICTURES has an SVG with at least 2 shapes for every ICONS id in trial.rs (2.630437ms)
+✖ N2: lineFor gives each Contract line exactly (0.441447ms)
+✖ N2: pipStates (2.115799ms)
+✖ N2: a build state mounts an unaided builder with three pips; Make sends try (0.614418ms)
+✖ N2: Seedling Fire: coefficient tiles, no scale; a wrong build shows the reason, pips stay (0.263279ms)
+✖ N2: an ask state at Sprout renders 3 picture choices; a click sends answer; digit keys send nothing (0.263107ms)
+✖ N2: Seedling asks with 3 text buttons (0.332582ms)
+✖ N2: an answered-wrong state marks the right card and offers Ask me again (0.213633ms)
+✖ N2: a done state with mastered shows the star and the mastered line (0.488069ms)
+✖ N2: keep it sharp: title, no pips, the miss line and Still sharp (0.522443ms)
+✖ N5: build-web.sh copies web/trial.js and bench.js imports it (4.578775ms)
+
+## native cargo test --locked (crates/bevy-client, shared target dir, debuginfo off)
+    bench::tests::r7_a_full_trial_from_practised_masters_at_110_xp_and_never_learns
+    bench::tests::r7_a_wrong_answer_then_ask_again_still_masters
+    bench::tests::r7_keep_it_sharp_on_a_later_day
+    bench::tests::r7_refusals_and_leaving_midway
+    progress::tests::t20_pass_trial
+    progress::tests::t21_sharp
+    progress::tests::t22_trial_cmds_and_never_fades
+    trial::tests::r5_desk_master
+    trial::tests::r5_every_question_serialises_and_hides_its_answer
+    trial::tests::r6_desk_sharp
+test result: FAILED. 101 passed; 10 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.62s

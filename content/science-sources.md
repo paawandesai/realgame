@@ -108,6 +108,33 @@ The single register of every science claim the first-person 3D client shows the 
 | C-094 | `It rolled away! Find a low spot.` | crates/bevy-client/src/level3.rs | simplified | Level 3 Sprout, CO2 on a vent outside every hollow (not placed in the shipped level). Heavy CO₂ flows downhill to low places [S26]; "rolled" is a child's word for that flow. | [S26] |
 | C-095 | `You cleared the Marsh! CO₂ is heavier than air: it filled the hollows and smothered the flames.` | crates/bevy-client/src/main.rs | correct | Level 3 win caption [S26] [S19] [S5] [S8]. | [S5] [S8] [S19] [S26] |
 | C-096 | `CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back. Press R to play again.` | crates/bevy-client/web/hud.js | correct | Level 3 win banner subtitle; the second and third sentences are game instructions [S26] [S19]. | [S19] [S26] |
+| C-097 | `The fire goes out` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `water_sprout` correct answer: lots of water on a campfire puts it out by taking up its heat [S9] [S11]. | [S9] [S11] |
+| C-098 | `Water soaks up the fire's heat. The wood cools down and stops burning.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `water_sprout` why line [S9] [S11]. | [S9] [S11] |
+| C-099 | `It gets small` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_sprout` correct answer: a balloon of air shrinks in liquid nitrogen (gas volume falls with temperature [S12]; 77 K [S1]). | [S12] [S1] |
+| C-100 | `The air inside gets very cold. Cold air takes up less space.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_sprout` why line: at constant pressure a gas's volume falls with its temperature [S12] [S1]. | [S12] [S1] |
+| C-101 | `The flame goes out` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `co2_sprout` correct answer: CO₂ poured into a jar puts out the candle by lowering the oxygen concentration [S19] [S14]. | [S19] [S14] |
+| C-102 | `CO₂ is heavier than air. It fills the jar and keeps oxygen away from the flame.` | crates/bevy-client/src/trial.rs | simplified | I-030 trial, `co2_sprout` why line. Simplified as C-004: CO₂ (44.01) is denser than air (28.96) [S5] [S8]; it lowers the oxygen concentration [S19] and also absorbs heat [S14]; "keeps oxygen away" is the textbook picture. | [S5] [S8] [S19] [S14] |
+| C-103 | `Drops of water` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `fire_seedling` correct answer: burning methane makes water, which condenses on a cold lid [S7] [S10]. | [S7] [S10] |
+| C-104 | `Burning methane makes water: CH₄ + 2O₂ → CO₂ + 2H₂O. The water vapour cools on the lid and turns into drops.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `fire_seedling` why line [S7] [S10]. | [S7] [S10] |
+| C-105 | `Steam rises and the coals cool down` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `water_seedling` correct answer [S9] [S2] [S11]. | [S9] [S2] [S11] |
+| C-106 | `The coals heat the water until it boils into steam. That heat leaves the coals, so they cool.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `water_seedling` why line [S9] [S2] [S11]. | [S9] [S2] [S11] |
+| C-107 | `A balloon shrank in liquid nitrogen. It is taken out into a warm room. What will happen?` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_seedling` stem; its first sentence states a fact: a balloon of air shrinks when cooled in liquid nitrogen [S12] [S1]. | [S12] [S1] |
+| C-108 | `It grows back to its size` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_seedling` correct answer: warmed back to room temperature, the gas takes up its old volume again [S12]. | [S12] |
+| C-109 | `As the air inside warms up, it takes up more space again.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_seedling` why line [S12]. | [S12] |
+| C-110 | `The low candle` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `co2_seedling` correct answer: heavier CO₂ fills the box from the bottom [S5] [S8] and lowers the oxygen at the low flame first [S19]. | [S5] [S8] [S19] |
+| C-111 | `CO₂ is heavier than air. It fills the box from the bottom up and reaches the low flame first.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `co2_seedling` why line [S5] [S8] [S19]. | [S5] [S8] [S19] |
+| C-112 | `A cold, dry beaker is held upside down over a methane flame, and drops form inside it. Which explanation is best?` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `fire_apprentice` stem; it states that drops form, which they do (water from combustion condensing) [S7] [S10]. | [S7] [S10] |
+| C-113 | `Combustion makes water, CH₄ + 2O₂ → CO₂ + 2H₂O, and the H₂O(g) condenses on the cold glass.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `fire_apprentice` correct answer [S7] [S10]. | [S7] [S10] |
+| C-114 | `Every H atom in that water came from the methane. Water vapour turns to liquid when it cools.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `fire_apprentice` why line: atoms are conserved and O₂ has no H [S7]; condensation on cooling [S10]. | [S7] [S10] |
+| C-115 | `A paper cup full of water is held over a candle, and the paper does not burn while water is in it. Which explanation is best?` | crates/bevy-client/src/trial.rs | simplified | I-030 trial, `water_apprentice` stem. Simplified: paper above the water line can still char; the stem holds where the water touches the paper [S2] [S11] [S6]. | [S2] [S11] [S6] |
+| C-116 | `The water takes in the heat and stays at 100 °C or below, so the paper stays far below the temperature it needs to burn.` | crates/bevy-client/src/trial.rs | simplified | I-030 trial, `water_apprentice` correct answer. Water boils at 100 °C [S2] and takes in heat [S11]; paper ignites far above 100 °C (wood, its source, near 250 to 300 °C [S6]). Simplified as the stem: holds where the water touches. | [S2] [S11] [S6] |
+| C-117 | `Heat flows from the paper into the water. While the water boils at 100 °C, the paper beside it cannot get much hotter.` | crates/bevy-client/src/trial.rs | simplified | I-030 trial, `water_apprentice` why line. Simplified as the stem (paper above the water line can still char) [S2] [S11]. | [S2] [S11] |
+| C-118 | `Liquid nitrogen poured on a table makes a white fog. Which explanation is best?` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_apprentice` stem; it states the white fog, which forms [S22]. | [S22] [S1] |
+| C-119 | `The cold turns water vapour in the air into tiny drops.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_apprentice` correct answer: the cloud is condensed water vapour from the air, not nitrogen gas [S22] [S10]. | [S22] [S10] |
+| C-120 | `The fog is water from the air, cooled until it condenses into tiny drops.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `frost_apprentice` why line [S22] [S1] [S10]. | [S22] [S1] [S10] |
+| C-121 | `A CO₂ extinguisher puts out a small fire. Which explanation is best?` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `co2_apprentice` stem; CO₂ extinguishers put out fires [S14] [S19]. | [S14] [S19] |
+| C-122 | `It lowers the oxygen around the flame below what burning needs, and it also takes in heat.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `co2_apprentice` correct answer: CO₂ extinguishes by reducing the oxygen concentration [S19] and also by absorbing heat [S14]. | [S19] [S14] |
+| C-123 | `CO₂ puts fire out by lowering the oxygen concentration, and it also absorbs heat from the flame.` | crates/bevy-client/src/trial.rs | correct | I-030 trial, `co2_apprentice` why line [S19] [S14]. | [S19] [S14] |
 
 ## Parameters
 
@@ -135,6 +162,7 @@ The single register of every science claim the first-person 3D client shows the 
 | P-021 | `DIP_CO2_PER_CAST` | 0.5 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills half of level 3's shallow dip, so two casts fill it. | [S0] |
 | P-022 | `HOLLOW_CO2_PER_CAST` | 0.34 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills a third of level 3's deeper hollow (0.34, 0.68, then capped at 1), so a bigger hollow needs more gas. | [S0] |
 | P-023 | `FLICKER_S` | 1.5 | s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: how long Water or Frost knocks a level-3 gas flame down to 40 % before it grows back. | [S0] |
+| P-024 | `XP_SHARP` | 10 | XP | crates/bevy-client/src/progress.rs | correct | gameplay tuning, not a physical claim: the keep-it-sharp bonus (I-030), one correct build from memory on a later local day. | [S0] |
 
 ## Not claims
 
@@ -203,6 +231,49 @@ The single register of every science claim the first-person 3D client shows the 
 | `New spell: copy it. Learn it at the Formula Bench (B) to earn XP.` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast panel line for a spell the player has not learned yet (I-029). |
 | `${bench.pretty(names[i] \|\| NAMES[i] \|\| '')}: Practised!` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast toast when a spell reaches Practised, e.g. "Water: Practised!" (I-029). |
 | `Copy: ${bench.pretty(card ? card.formula : '')}` | crates/bevy-client/web/worked.js | UI instruction; states no science. The answer to copy in a worked cast; the formula comes from content/spells.json (I-026 rows). Not flagged by the lint; listed for the review. |
+| `Lots of water goes on a campfire. What happens?` | crates/bevy-client/src/trial.rs | Question stem (I-030 trial, `water_sprout`): it sets up a situation and asserts no science. |
+| `The fire gets bigger` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `water_sprout`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `The fire turns to ice` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `water_sprout`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `A balloon goes into liquid nitrogen. What happens?` | crates/bevy-client/src/trial.rs | Question stem (I-030 trial, `frost_sprout`): it sets up a situation and asserts no science. |
+| `It gets bigger` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `frost_sprout`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `It catches fire` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial questions `frost_sprout` and `frost_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `CO₂ is poured into a jar with a candle in it. What happens?` | crates/bevy-client/src/trial.rs | Question stem (I-030 trial, `co2_sprout`): it sets up a situation and asserts no science. |
+| `The flame gets bigger` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `co2_sprout`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `The candle turns to ice` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `co2_sprout`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `A cold, dry pot lid is held over a methane flame. What will you see on the lid?` | crates/bevy-client/src/trial.rs | Question stem (I-030 trial, `fire_seedling`): it sets up a situation and asserts no science. |
+| `Nothing: it stays dry` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `fire_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `Little bits of ice` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `fire_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `Water is poured on a pan of hot coals. What will you see?` | crates/bevy-client/src/trial.rs | Question stem (I-030 trial, `water_seedling`): it sets up a situation and asserts no science. |
+| `The coals get hotter` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `water_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `The water turns to ice` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `water_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `It stays small forever` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `frost_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `CO₂ is poured slowly into a box with three lit candles: low, middle and high. Which goes out first?` | crates/bevy-client/src/trial.rs | Question stem (I-030 trial, `co2_seedling`): it sets up a situation and asserts no science. |
+| `The high candle` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `co2_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `None of them` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `co2_seedling`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `The heat pulls water out of the glass.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `fire_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `The flame turns oxygen into water on its own.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `fire_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `Wet paper is not a fuel.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `water_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `Flames cannot touch anything that holds water.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `water_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `The nitrogen is burning.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `frost_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `The table is smoking because it is burning.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `frost_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `CO₂ reacts with the fuel and makes it fireproof.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `co2_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `CO₂ freezes the flame solid.` | crates/bevy-client/src/trial.rs | Distractor in the I-030 trial question `co2_apprentice`: offered as a wrong answer and marked wrong after answering; the game never states it as true. |
+| `Make ${name} from memory!` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Sprout build line, spoken. |
+| `Build ${name} from memory. No recipe this time.` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Seedling build line. |
+| `Balance ${name} without the scale.` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Seedling Fire build line: the trial hides the balance scale. |
+| `Write ${name} from memory.` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Apprentice build line. |
+| `Again!` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. After the first correct trial build. |
+| `Last one!` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. After the second correct trial build. |
+| `What happens?` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Sprout question header, spoken with the prompt. |
+| `Not quite. It is this one:` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Shown with the right card marked after a wrong answer. |
+| `Ask me again` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Re-asks the same question with the choices in a new order. |
+| `${name} mastered! One click casts it now.` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. The mastered line: a Mastered spell casts instantly (I-029's route). |
+| `Still sharp! +10 XP.` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Keep-it-sharp success; the XP is P-024. |
+| `Not this time. ${name} stays mastered.` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Keep-it-sharp miss: mastery never fades. |
+| `Try again` | crates/bevy-client/web/trial.js | UI instruction (I-030 Mastery trial); states no science. Keep-it-sharp retry. |
+| `Master it` | crates/bevy-client/web/bench.js | UI instruction (I-030 Mastery trial); states no science. The Formula Bench button under a Practised card. |
+| `Keep it sharp` | crates/bevy-client/web/bench.js | UI instruction (I-030 Mastery trial); states no science. The Formula Bench button under a Mastered card on a later day. |
+| `${bench.pretty(names[i] \|\| NAMES[i] \|\| '')}: Mastered!` | crates/bevy-client/web/worked.js | UI instruction; states no science. Toast when a Mastery trial masters a spell, e.g. "Water: Mastered!" (I-030). |
 
 ## Sources
 

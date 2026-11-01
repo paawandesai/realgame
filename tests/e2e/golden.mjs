@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
 // I-035 level-2 section and the console-error check; also marsh (I-037),
-// spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
+// spellProgress, formulaBench, workedCasts, mastery (I-030), comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -101,6 +101,7 @@ function check(name, ok, detail = '') {
     spellProgress: () => spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     formulaBench: () => formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     workedCasts: () => workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors }),
+    mastery: () => mastery({ page, st, cmd, until, frames, sleep, base, errors }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -379,6 +380,8 @@ function check(name, ok, detail = '') {
   await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
 
   await marsh({ page, st, cmd, until, frames, sleep, base, logs });
+
+  await mastery({ page, st, cmd, until, frames, sleep, base, errors });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -5317,4 +5320,332 @@ async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted',
     s.level === 2 && s.nextOpen === true && direct.gateWall === false && direct.streamFrozen === true,
     `level=${s.level} nextOpen=${s.nextOpen} outcome=${s.outcome} ${JSON.stringify(direct)} pos=${s.pos}`);
+}
+
+// ---------------------------------------------------------------------------
+// Mastery trial and keep-it-sharp (docs/loop/items/I-030/spec.md, wave 14
+// revision, golden G1-G7; ONLY=mastery). Pages load with ?debug&cast=worked
+// (and &band=...). The bench is driven by real clicks on #bench buttons; the
+// worked casts of G1 by real clicks on the #worked builder in point mode.
+// ---------------------------------------------------------------------------
+async function mastery({ page, st, cmd, until, frames, sleep, base, errors }) {
+  console.log('  -- mastery trial (I-030) --');
+  void errors;
+  const root = base.replace(/\?.*$/, '');
+  const query = (base.match(/\?(.*)$/) || ['', ''])[1].split('&').filter((p) => p && p !== 'debug');
+  const urlWith = (extra) => `${root}?${[...query, ...extra].join('&')}`;
+  const PROG = 'rg.progress.v1';
+  const run = async (name, fn) => { try { await fn(); } catch (e) { check(name, false, `error: ${e && e.message}`); } };
+  const brief = (x) => String(JSON.stringify(x)).slice(0, 360);
+  const parsed = (k) => page.evaluate((k) => { try { return JSON.parse(window[k]); } catch { return null; } }, k);
+  const tsOf = () => parsed('__trialState');
+  const trial = async () => { const t = await tsOf(); return t ? t.trial : null; };
+  const ws = () => parsed('__workState');
+  const prog = async (i) => { const x = await st(); return x.progress && x.progress[i] ? x.progress[i] : null; };
+  const withinMs = async (get, ms = 15000) => {
+    const t0 = Date.now();
+    let v = await get();
+    while (!v && Date.now() - t0 < ms) { await sleep(120); v = await get(); }
+    return v;
+  };
+  const trialWhen = (pred, ms = 15000) => withinMs(async () => { const t = await trial(); return t && pred(t) ? t : null; }, ms);
+  const center = (sel, i = 0) => page.evaluate(([sel, i]) => {
+    const el = document.querySelectorAll(sel)[i];
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  }, [sel, i]);
+  const clickAt = async (sel, i = 0) => {
+    const c = await withinMs(() => center(sel, i), 8000);
+    if (!c) throw new Error(`no ${sel}`);
+    await page.mouse.click(c.x, c.y);
+  };
+  const has = (sel) => page.evaluate((sel) => !!document.querySelector(sel), sel);
+  const count = (sel) => page.evaluate((sel) => document.querySelectorAll(sel).length, sel);
+  const text = (sel) => page.evaluate((sel) => { const el = document.querySelector(sel); return el ? el.textContent : null; }, sel);
+  const visible = (sel) => page.evaluate((sel) => { const el = document.querySelector(sel); if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }, sel);
+  const benchOpen = () => page.evaluate(() => { const b = document.getElementById('bench'); return !!b && !b.hidden; });
+  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
+  const load = async (extra, { keep = false } = {}) => {
+    await page.evaluate(([k, keep]) => { try { if (!keep) localStorage.removeItem(k); } catch { /* none */ } }, [PROG, keep]);
+    await page.goto(urlWith(['debug', 'cast=worked', ...extra]));
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__bench && typeof window.__workState === 'string'));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+    await withinMs(async () => { const w = await ws(); return w && w.ready ? w : null; }, 10000);
+  };
+  const openBench = async () => {
+    if (!(await benchOpen())) await clickAt('#benchbtn');
+    await withinMs(async () => (await benchOpen()) && (await has('#bench .bench-spell')), 10000);
+  };
+  // One Sprout build in the bench (H H O for water; `wrong` leaves out one H).
+  const sproutWater = async ({ wrong = false } = {}) => {
+    for (const el of wrong ? ['H', 'O'] : ['H', 'H', 'O']) await clickAt(`#bench .bench-atom[data-el="${el}"]`);
+    await clickAt('#bench .bench-make');
+  };
+  const clearTray = async () => {
+    for (let k = 0; k < 12 && (await count('#bench .bench-tray .bench-ball')) > 0; k++) await clickAt('#bench .bench-undo');
+  };
+  const keysNow = async () => Object.keys(await st());
+  // The key list main publishes (pins in clockAndBudget; I-030 adds none).
+  const MAIN_KEYS = [...BASE_KEYS, 'gameTime', 'dt', 'clicks', 'firesLeft', 'nearFire', 'fireBearing', 'fireElev', 'fireOff', 'streams', 'fxWater',
+    'fireInView', 'progress', 'progRev', 'progSave', 'level', 'exitOpen', 'capIcon', 'fxBeads', 'nextOpen', 'pools', 'ventsLit'];
+
+  // ==== G1. One session, no day change: learn, practise, then the ring and the button.
+  await run('mastery: G1', async () => {
+    await load(['band=sprout']);
+    await cmd('prog clear');
+    await cmd('prog day 20755');
+    await resume();
+    await until((x) => x.progress && x.progress[1].st === 'unknown', 10000);
+    // Learn water with a normal bench build.
+    await openBench();
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await withinMs(() => has('#bench .bench-recipe'), 10000);
+    await sproutWater();
+    await until((x) => x.progress[1].st === 'learning', 10000);
+    await page.keyboard.press('Escape');
+    await withinMs(async () => !(await benchOpen()), 5000);
+    // Two correct worked casts through the builder (point mode: page clicks).
+    await page.evaluate(() => { const b = document.getElementById('pointmode'); if (b) b.click(); });
+    await resume();
+    await cmd('select 2');
+    await until((x) => x.spell === 1, 10000);
+    for (let k = 0; k < 2; k++) {
+      await sleep(500);
+      const s0 = await st();
+      await cmd('cast');
+      const w = await withinMs(async () => { const w = await ws(); const dom = await has('#worked .worked-mount'); return w && w.work && w.work.view && dom ? w : null; }, 20000);
+      if (!w) throw new Error(`worked cast ${k + 1}: no builder`);
+      const recipe = w.work.view.recipe || [];
+      for (const t of recipe) for (const [el, n] of t.atoms) for (let j = 0; j < n; j++) await clickAt(`#worked .bench-atom[data-el="${el}"]`);
+      await clickAt('#worked .bench-make');
+      const x = await until((q) => q.casts > s0.casts, 20000);
+      await withinMs(async () => !(await has('#worked')), 10000);
+      await until((q) => q.gameTime >= x.gameTime + 0.5, 20000);
+    }
+    const p = await prog(1);
+    const ring = await page.evaluate(() => document.getElementById('benchbtn').classList.contains('master'));
+    check('mastery: G1 learn at the bench and 2 worked casts make water Practised; #benchbtn has .master',
+      p && p.st === 'practised' && p.xp === 30 && ring, `progress[1]=${brief(p)} ring=${ring}`);
+    await openBench();
+    await withinMs(() => has('#bench .trial-start[data-slot="2"]'), 5000);
+    const ringAfter = await page.evaluate(() => document.getElementById('benchbtn').classList.contains('master'));
+    const starts = await page.evaluate(() => [...document.querySelectorAll('#bench .trial-start')].map((b) => b.getAttribute('data-slot')));
+    const h = await page.evaluate(() => { const b = document.querySelector('#bench .trial-start'); return b ? b.getBoundingClientRect().height : 0; });
+    check('mastery: G1 opening the bench clears .master; only the Practised water card has "Master it" (>= 96 px at Sprout)',
+      !ringAfter && starts.join() === '2' && h >= 96, `ring=${ringAfter} trial-start slots=${starts} height=${h}`);
+  });
+
+  // ==== G2. The build phase.
+  await run('mastery: G2', async () => {
+    await clickAt('#bench .trial-start[data-slot="2"]');
+    let t = await trialWhen((x) => x.phase === 'build');
+    await withinMs(() => has('#bench .trial .bench-make'), 5000);
+    const recipeCard = await has('#bench .bench-recipe');
+    const title = await text('#bench .trial-title');
+    check('mastery: G2 "Master it" opens the build phase with no recipe card', !!t && t.kind === 'master' && !recipeCard && title === 'Master Water',
+      `trial=${brief(t)} recipe card=${recipeCard} title=${title}`);
+    await sproutWater();
+    t = await trialWhen((x) => x.built === 1);
+    await sleep(200);
+    const pips = await count('#bench .trial-pip[data-on="true"]');
+    check('mastery: G2 a correct build fills one pip', !!t && pips === 1, `trial=${brief(t)} pips=${pips}`);
+    await clearTray();
+    await sproutWater({ wrong: true });
+    t = await trialWhen((x) => x.misses === 1);
+    await withinMs(() => visible('#bench .trial-feedback .bench-reason'), 5000);
+    const reason = await text('#bench .trial-feedback .bench-reason');
+    check('mastery: G2 a wrong build: misses 1, built stays 1, a reason shows', !!t && t.built === 1 && !!reason,
+      `trial=${brief(t)} reason=${reason}`);
+    await clearTray();
+    await sproutWater();
+    await trialWhen((x) => x.built === 2);
+    await withinMs(() => has('#bench .trial .bench-make'), 5000);
+    await sleep(200);
+    await sproutWater();
+    t = await trialWhen((x) => x.phase === 'ask');
+    await withinMs(async () => (await count('#bench .trial-choice')) === 3, 5000);
+    const cards = await page.evaluate(() => [...document.querySelectorAll('#bench .trial-choice')].map((c) => {
+      const r = c.getBoundingClientRect();
+      return { w: r.width, h: r.height, svg: !!c.querySelector('svg'), id: c.getAttribute('data-choice') };
+    }));
+    check('mastery: G2 three builds lead to the question: 3 picture cards >= 160 px, no answer in the state',
+      !!t && t.q && t.q.answer === null && t.q.why === null && cards.length === 3 && cards.every((c) => c.w >= 160 && c.h >= 160 && c.svg),
+      `q=${brief(t && t.q)} cards=${brief(cards)}`);
+    await screenshot(page, 'i030-trial.png');
+  });
+
+  // ==== G3. A wrong answer, Ask me again, then the right one.
+  await run('mastery: G3', async () => {
+    const order0 = await page.evaluate(() => [...document.querySelectorAll('#bench .trial-choice')].map((c) => c.getAttribute('data-choice')));
+    await clickAt('#bench .trial-choice[data-choice="b"]');
+    let t = await trialWhen((x) => x.phase === 'answered');
+    await withinMs(() => visible('#bench .trial-why'), 5000);
+    const marked = await page.evaluate(() => [...document.querySelectorAll('#bench [data-correct="true"]')].map((c) => c.getAttribute('data-choice')));
+    check('mastery: G3 a wrong answer shows why and marks the right card', !!t && t.right === false && t.q.answer === 'a' && (await visible('#bench .trial-why')) && marked.join() === 'a',
+      `trial=${brief(t)} marked=${marked}`);
+    await clickAt('#bench .trial-again');
+    t = await trialWhen((x) => x.phase === 'ask' && x.asks === 1);
+    await withinMs(async () => (await count('#bench .trial-choice')) === 3 && !(await has('#bench [data-correct]')), 5000);
+    const order1 = await page.evaluate(() => [...document.querySelectorAll('#bench .trial-choice')].map((c) => c.getAttribute('data-choice')));
+    check('mastery: G3 Ask me again re-asks with the choices in a new order', !!t && order1.length === 3 && order1.join() !== order0.join(),
+      `before=${order0} after=${order1}`);
+    await clickAt('#bench .trial-choice[data-choice="a"]');
+    t = await trialWhen((x) => x.phase === 'done');
+    await withinMs(() => has('#bench .trial-done[data-mastered="true"]'), 5000);
+    const p = await prog(1);
+    const t0 = Date.now();
+    let saved = null;
+    while (Date.now() - t0 < 2000) {
+      saved = await page.evaluate((k) => { try { return localStorage.getItem(k); } catch { return null; } }, PROG);
+      if (saved && saved.includes('water:3:110:3:')) break;
+      await sleep(100);
+    }
+    check('mastery: G3 the right answer masters water: star view, xp 110, builds 3, predicted, saved within 2 s',
+      !!t && t.mastered === true && (await has('#bench .trial-done[data-mastered="true"]')) && p && p.st === 'mastered' && p.xp === 110 && p.builds === 3 && p.predicted === true
+        && !!saved && saved.includes('water:3:110:3:'),
+      `trial=${brief(t)} progress[1]=${brief(p)} save=${saved}`);
+    await sleep(700); // the star's one scale-up
+    await screenshot(page, 'i030-mastered.png');
+  });
+
+  // ==== G4. The payoff: star on the hotbar, the toast, instant casts, a reload.
+  await run('mastery: G4', async () => {
+    await clickAt('#bench .trial-leave');
+    await withinMs(async () => !(await benchOpen()), 5000);
+    const badge = await withinMs(() => page.evaluate(() => {
+      const b = document.querySelectorAll('.slot')[1]?.querySelector('span.stage');
+      return b && b.getAttribute('data-stage') === 'mastered' ? b.textContent : null;
+    }), 5000);
+    const toast = await page.evaluate(() => { const t = document.getElementById('worked-toast'); return t && !t.hidden ? `${t.textContent} ${t.getAttribute('aria-label') || ''}` : null; });
+    const w = await ws();
+    check('mastery: G4 the hotbar shows a star, the toast says Mastered!, the route is instant',
+      badge === '★' && !!toast && toast.includes('Mastered!') && toast.includes('★') && !!w && w.routes[1] === 'instant',
+      `badge=${badge} toast=${toast} routes=${w && w.routes}`);
+    await resume();
+    await cmd('select 2');
+    await until((x) => x.spell === 1, 10000);
+    await sleep(500);
+    const s0 = await st();
+    await cmd('cast');
+    const s1 = await until((x) => x.casts > s0.casts, 10000);
+    await frames(3);
+    const opened = await has('#worked');
+    const s2 = await st();
+    check('mastery: G4 select 2 + cast: one instant cast, no builder, +2 XP',
+      s1.casts === s0.casts + 1 && !opened && s2.progress[1].xp === s0.progress[1].xp + 2,
+      `casts ${s0.casts}->${s1.casts} builder=${opened} xp ${s0.progress[1].xp}->${s2.progress[1].xp}`);
+    await load(['band=sprout'], { keep: true });
+    const p = await until((x) => x.progress && x.progress[1].st === 'mastered', 10000);
+    check('mastery: G4 after a reload water is still Mastered', p.progress[1].st === 'mastered', brief(p.progress[1]));
+  });
+
+  // ==== G5. Keep it sharp on a later day.
+  await run('mastery: G5', async () => {
+    await cmd('prog day 20755');
+    await frames(3);
+    await openBench();
+    await sleep(300);
+    const none = !(await has('#bench .trial-sharp'));
+    await cmd('prog day 20756');
+    const ts1 = await withinMs(async () => { const t = await tsOf(); return t && t.sharp.includes(2) ? t : null; }, 5000);
+    const shown = await withinMs(() => has('#bench .trial-sharp[data-slot="2"]'), 5000);
+    check('mastery: G5 no "Keep it sharp" on the day of the trial; it shows on the next day', none && !!ts1 && shown,
+      `none on 20755=${none} sharp=${brief(ts1 && ts1.sharp)} button=${shown}`);
+    const xp0 = (await prog(1)).xp;
+    await clickAt('#bench .trial-sharp[data-slot="2"]');
+    await trialWhen((x) => x.kind === 'sharp' && x.phase === 'build');
+    await withinMs(() => has('#bench .trial .bench-make'), 5000);
+    await sproutWater({ wrong: true });
+    await trialWhen((x) => x.misses === 1);
+    await withinMs(async () => /stays mastered/.test((await text('#bench .trial-feedback')) || ''), 5000);
+    const missLine = await text('#bench .trial-feedback');
+    const p1 = await prog(1);
+    check('mastery: G5 a wrong keep-it-sharp build: still Mastered, the "stays mastered" line shows',
+      p1.st === 'mastered' && p1.xp === xp0 && /Not this time\. Water stays mastered\./.test(missLine || ''), `progress[1]=${brief(p1)} line=${missLine}`);
+    await clickAt('#bench .trial-retry');
+    await withinMs(async () => (await count('#bench .bench-tray .bench-ball')) === 0, 5000);
+    await sproutWater();
+    await trialWhen((x) => x.phase === 'done');
+    await withinMs(() => has('#bench .trial-done'), 5000);
+    const doneText = await text('#bench .trial-done');
+    const p2 = await prog(1);
+    check('mastery: G5 a correct keep-it-sharp build: +10 XP and Still sharp!', p2.xp === xp0 + 10 && /Still sharp! \+10 XP\./.test(doneText || ''),
+      `xp ${xp0}->${p2.xp} text=${doneText}`);
+    await clickAt('#bench .trial-back');
+    await withinMs(async () => (await has('#bench .bench-spell')) && !(await has('#bench .trial')), 5000);
+    const gone = !(await has('#bench .trial-sharp'));
+    await cmd('prog day 20999');
+    await frames(3);
+    const p3 = await prog(1);
+    check('mastery: G5 after it, no "Keep it sharp" today; on day 20999 water is still Mastered', gone && p3.st === 'mastered',
+      `gone=${gone} progress[1]=${brief(p3)}`);
+    await page.keyboard.press('Escape');
+    await withinMs(async () => !(await benchOpen()), 5000);
+  });
+
+  // ==== G6. The other bands.
+  await run('mastery: G6', async () => {
+    await load(['band=seedling']);
+    await cmd('prog load p1|fire:2:30:0:0:0:0');
+    await cmd('prog day 20755');
+    await until((x) => x.progress && x.progress[0].st === 'practised', 10000);
+    await openBench();
+    await clickAt('#bench .trial-start[data-slot="1"]');
+    await trialWhen((x) => x.phase === 'build');
+    await withinMs(async () => (await count('#bench .trial .bench-coef')) === 4, 5000);
+    const coefs = await count('#bench .trial .bench-coef');
+    const scale = await has('#bench .bench-scale');
+    for (let k = 0; k < 3; k++) {
+      await withinMs(async () => (await count('#bench .trial .bench-coef')) === 4, 5000);
+      await clickAt('#bench .bench-coef[data-term="1"]');
+      await clickAt('#bench .bench-coef[data-term="3"]');
+      await clickAt('#bench .bench-make');
+      await trialWhen((x) => x.built === k + 1 || x.phase === 'ask');
+      await sleep(250);
+    }
+    const t = await trialWhen((x) => x.phase === 'ask');
+    await withinMs(async () => (await count('#bench .trial-choice')) === 3, 5000);
+    const textButtons = await page.evaluate(() => [...document.querySelectorAll('#bench .trial-choice')].every((c) => !c.querySelector('svg') && c.textContent.trim().length > 0));
+    check('mastery: G6 Seedling Fire: coefficient tiles, no scale; the question has 3 text buttons',
+      coefs === 4 && !scale && !!t && t.q.id === 'fire_seedling' && textButtons, `coefs=${coefs} scale=${scale} q=${brief(t && t.q)} text=${textButtons}`);
+    await page.keyboard.press('Escape');
+    await withinMs(async () => !(await benchOpen()), 5000);
+
+    await load(['band=apprentice']);
+    await cmd('prog load p1|fire:2:30:0:0:0:0');
+    await cmd('prog day 20755');
+    await until((x) => x.progress && x.progress[0].st === 'practised', 10000);
+    await openBench();
+    await clickAt('#bench .trial-start[data-slot="1"]');
+    await trialWhen((x) => x.phase === 'build');
+    await withinMs(() => has('#bench #bench-input'), 5000);
+    const typed = await has('#bench #bench-input');
+    for (let k = 0; k < 3; k++) {
+      await withinMs(() => page.evaluate(() => document.activeElement && document.activeElement.id === 'bench-input'), 5000);
+      await clickAt('#bench #bench-input');
+      await page.keyboard.type('CH4 + 2O2 -> CO2 + 2H2O');
+      await page.keyboard.press('Enter');
+      await trialWhen((x) => x.built === k + 1 || x.phase === 'ask');
+      await sleep(250);
+    }
+    const ta = await trialWhen((x) => x.phase === 'ask');
+    await withinMs(async () => (await count('#bench .trial-choice')) === 3, 5000);
+    const prompt = await text('#bench .trial-prompt');
+    check('mastery: G6 Apprentice Fire: the typed builder, then the fire_apprentice question',
+      typed && !!ta && ta.q.id === 'fire_apprentice' && prompt === 'A cold, dry beaker is held upside down over a methane flame, and drops form inside it. Which explanation is best?',
+      `typed=${typed} q=${brief(ta && ta.q)} prompt=${prompt}`);
+    await page.keyboard.press('Escape');
+    await withinMs(async () => !(await benchOpen()), 5000);
+  });
+
+  // ==== G7. No new state keys (no golden pins move).
+  await run('mastery: G7', async () => {
+    const keys = await keysNow();
+    check('mastery: G7 the __gameState key list is unchanged from main', keys.join() === MAIN_KEYS.join(),
+      `got ${keys.length} keys; first difference at ${keys.findIndex((k, i) => k !== MAIN_KEYS[i])}`);
+  });
 }

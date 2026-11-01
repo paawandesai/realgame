@@ -166,3 +166,36 @@ test("15: startProgress saves from the published state (a JSON string) on poll a
   f.listeners.pagehide![0]!();
   assert.equal((f.win.localStorage as Store).data.get(STORE_KEY), "p1|fire:1:20:0:0:0:0");
 });
+
+// I-030 N3: the day is sent again after local midnight (the I-027 should-fix).
+test("I-030 N3: the poll re-sends prog day once when the local day changes", () => {
+  const cmds: string[] = [];
+  const timers: Array<() => void> = [];
+  let now = Date.parse("2026-10-30T23:59:58Z");
+  const Clock = class extends Date {
+    constructor() { super(now); }
+    getTimezoneOffset() { return 0; }
+  };
+  const win: Record<string, unknown> = {
+    __game: { cmd: (c: string) => void cmds.push(c) },
+    localStorage: memoryStorage({ [STORE_KEY]: "p1|water:1:10:0:0:0:0" }),
+    setInterval: (f: () => void) => { timers.push(f); return timers.length; },
+    addEventListener: () => {},
+    document: { visibilityState: "visible", addEventListener: () => {} },
+    Date: Clock,
+  };
+  startProgress(win);
+  assert.deepEqual(cmds, ["prog day 20756", "prog load p1|water:1:10:0:0:0:0"], "boot order unchanged");
+  assert.equal(timers.length, 1);
+  timers[0]!();
+  timers[0]!();
+  assert.equal(cmds.length, 2, "same day: nothing more");
+  now += 5000; // past local midnight
+  timers[0]!();
+  timers[0]!();
+  timers[0]!();
+  assert.deepEqual(cmds.slice(2), ["prog day 20757"], "exactly one new day");
+  now += 86_400_000;
+  timers[0]!();
+  assert.deepEqual(cmds.slice(2), ["prog day 20757", "prog day 20758"]);
+});

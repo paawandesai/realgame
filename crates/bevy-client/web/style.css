@@ -382,3 +382,51 @@ canvas.hover-fire { cursor: pointer; }
 #worked .worked-bench::after { content: ''; position: absolute; left: 0; top: 28px; width: 64px; height: 20px; box-sizing: border-box;
   border-top: 6px solid #c98b4a; border-left: 6px solid #8a5a2b; border-right: 6px solid #8a5a2b; }
 @media (prefers-reduced-motion: reduce) { #worked .bench-beam { transition: none; } }
+/* ---------------------------------------------------------------------------
+   Mastery trial and keep-it-sharp (I-030, web/trial.js). Buttons at least
+   64 px ("Master it" 96 px at Sprout), picture cards 160 px, a gold ring on
+   the bench button after a spell turns Practised (static, GS-6). One pop on
+   a filled pip and one scale-up on the star, none under reduced motion. */
+#benchbtn.master { box-shadow: 0 0 0 5px #ffc83a; border-color: #ffc83a; }
+#bench .bench-cardwrap { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+#bench .trial-start, #bench .trial-sharp { min-height: 64px; font-weight: 800; background: #ffc83a; color: #222; border-color: #ffc83a;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#bench .band-sprout .trial-start, #bench .band-sprout .trial-sharp { min-height: 96px; font-size: calc(24px * var(--ui)); }
+#bench .trial-start-star { font-size: 1.3em; line-height: 1; }
+#bench .trial-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+#bench .trial-title { margin: 0; flex: 1; }
+#bench .trial-icon { width: calc(44px * var(--ui)); height: calc(44px * var(--ui)); }
+#bench .trial-pips { display: inline-flex; gap: 6px; }
+#bench .trial-pip { font-size: calc(40px * var(--ui)); line-height: 1; color: rgba(255, 255, 255, 0.28); -webkit-text-stroke: 2px #fff; }
+#bench .trial-pip[data-on="true"] { color: #ffc83a; -webkit-text-stroke: 2px #ffc83a; animation: benchpop 300ms ease-out 1; }
+#bench .trial-line { font-size: calc(22px * var(--ui)); font-weight: 700; }
+#bench .band-sprout .trial-line { font-size: calc(26px * var(--ui)); }
+#bench .trial-lead { margin: 6px 0; font-size: calc(26px * var(--ui)); color: var(--on); }
+#bench .trial-scene .icon { width: 64px; height: 64px; }
+#bench .trial-prompt-row { display: flex; align-items: center; gap: 12px; }
+#bench .trial-prompt { flex: 1; font-size: calc(22px * var(--ui)); font-weight: 600; }
+#bench .trial-choices { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+#bench .trial-choices.pictures { flex-direction: row; flex-wrap: wrap; gap: 14px; }
+#bench .trial-choice { text-align: left; }
+#bench .trial-choice.text { width: 100%; min-height: 48px; }
+#bench .trial-choices.pictures .trial-choice { min-width: 160px; min-height: 160px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 6px; background: #fff8e7; color: #1d2733; border-color: #fff; border-width: 3px; text-align: center; }
+#bench .trial-pic svg { width: 96px; height: 96px; display: block; }
+#bench .trial-choice[disabled] { opacity: 0.55; cursor: default; }
+#bench .trial-choice[data-correct="true"] { opacity: 1; border-color: #6ee07a; border-width: 5px; box-shadow: 0 0 0 4px #6ee07a; }
+#bench .trial-choice[data-correct="true"]::after { content: ""; display: inline-block; width: 28px; height: 28px; background: #6ee07a;
+  clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 86% 8%, 40% 70%); }
+#bench .trial-wrong { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+#bench .trial-why { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; background: #0f1830; border-radius: 14px; }
+#bench .trial-again, #bench .trial-retry { min-height: 64px; font-weight: 800; background: var(--on); color: #222; border-color: var(--on); }
+#bench .trial-done { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+#bench .trial-art { position: relative; width: 180px; height: 180px; }
+#bench .trial-done-icon { width: 160px; height: 160px; position: absolute; left: 10px; top: 10px; }
+#bench .trial-star { position: absolute; right: -20px; top: -20px; font-size: 120px; line-height: 1; color: #ffc83a; -webkit-text-stroke: 3px #fff;
+  animation: trialstar 500ms ease-out 1; }
+#bench .trial-mastered, #bench .trial-sharp-line { font-size: calc(26px * var(--ui)); font-weight: 800; }
+#bench .trial-stays { flex-basis: 100%; margin: 0; font-weight: 700; }
+@keyframes trialstar { from { scale: 0.3; } to { scale: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #bench .trial-pip[data-on="true"], #bench .trial-star { animation: none; }
+}

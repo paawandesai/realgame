@@ -255,7 +255,7 @@ function soundOn() {
  * also works from its pictures and on-screen text.
  * @param {string} text
  */
-function speak(text) {
+export function speak(text) {
   try {
     if (typeof window === 'undefined' || !text) return;
     const syn = /** @type {any} */ (window).speechSynthesis;
@@ -281,7 +281,7 @@ function wakeAudio() {
   }
 }
 /** A short rising tone for a correct build (peak gain at most PEAK, sound on only). */
-function rise() {
+export function rise() {
   if (!audio || !soundOn()) return;
   try {
     const t0 = audio.currentTime + 0.01;

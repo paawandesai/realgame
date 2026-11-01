@@ -24,6 +24,8 @@ pub const XP_INSTANT: u32 = 2;
 pub const XP_UNAIDED_BUILD: u32 = 20;
 /// XP for a correct "predict what happens" answer.
 pub const XP_PREDICT: u32 = 20;
+/// XP for a correct keep-it-sharp build (I-030): once per later local day.
+pub const XP_SHARP: u32 = 10;
 /// Learning becomes Practised at this much XP.
 pub const PRACTISED_XP: u32 = 30;
 /// XP saturates here.
@@ -172,6 +174,29 @@ impl Book {
                 add_xp(p, XP_PREDICT);
             }
         })
+    }
+
+    /// The Mastery trial (I-030): Practised with a correct prediction becomes
+    /// Mastered today, with `builds` at `BUILDS_NEEDED`. The trial's 3 unaided
+    /// builds and its answer were already counted by `unaided_build` and
+    /// `predict`. A second path beside `settle`'s 2-day rule, not a weaker
+    /// `settle`: it never touches `build_days`, `last_build_day` or `xp`, and
+    /// does nothing on any other stage or state. (The strict rule would add
+    /// `p.build_days >= DAYS_NEEDED` here.)
+    pub fn pass_trial(&mut self, _i: usize) -> Vec<Transition> {
+        Vec::new() // CONTRACT STUB (I-030)
+    }
+
+    pub fn sharp_ready(&self, _i: usize) -> bool {
+        false // CONTRACT STUB (I-030)
+    }
+
+    pub fn sharp(&mut self, _i: usize) -> Vec<Transition> {
+        Vec::new() // CONTRACT STUB (I-030)
+    }
+
+    pub fn day(&self) -> u32 {
+        0 // CONTRACT STUB (I-030)
     }
 
     /// Every spell back to the default. The only way down; only an explicit
@@ -356,7 +381,9 @@ pub fn apply_cmd(
             b.set_day(d);
             Ok(Vec::new())
         }
-        "learn" | "worked" | "instant" | "build" | "predict" | "clear" if !debug => {
+        "learn" | "worked" | "instant" | "build" | "predict" | "clear" | "trial" | "sharp"
+            if !debug =>
+        {
             Err("needs ?debug")
         }
         "learn" => Ok(b.learn(idx(1)?)),
@@ -374,6 +401,8 @@ pub fn apply_cmd(
             b.clear();
             Ok(Vec::new())
         }
+        "trial" => Ok(b.pass_trial(idx(1)?)),
+        "sharp" => Ok(b.sharp(idx(1)?)),
         _ => Err("unknown prog command"),
     }
 }
@@ -860,5 +889,169 @@ mod tests {
                 assert!(parses(&j), "{j}");
             }
         });
+    }
+
+    fn mastered_water(last: u32) -> Book {
+        let mut b = Book::default();
+        let save = format!("p1|water:3:110:3:1:{last}:1");
+        apply_cmd(&mut b, &["load", &save], false).unwrap();
+        b
+    }
+
+    // R1 (I-030). The Mastery trial path.
+    #[test]
+    fn t20_pass_trial() {
+        let mut b = practised_water();
+        b.set_day(20755);
+        b.unaided_build(1);
+        b.predict(1, true);
+        let before = *b.get(1).unwrap();
+        assert_eq!(before.stage, Stage::Practised);
+        assert_eq!(before.builds, 1);
+        let rev = b.rev();
+        assert_eq!(b.pass_trial(1), vec![t(1, Stage::Mastered)]);
+        let p = *b.get(1).unwrap();
+        assert_eq!(p.stage, Stage::Mastered);
+        assert_eq!(p.builds, BUILDS_NEEDED);
+        assert_eq!(b.rev(), rev + 1);
+        assert_eq!(
+            (p.xp, p.build_days, p.last_build_day),
+            (before.xp, before.build_days, before.last_build_day)
+        );
+        assert!(p.predicted);
+        // A save round-trips after it.
+        assert_eq!(decode(&b.encode()), Ok(b.spells));
+        // Nothing on any other stage or state.
+        let refuse = |b: &mut Book, i: usize| {
+            let before = b.spells;
+            let rev = b.rev();
+            assert_eq!(b.pass_trial(i), vec![]);
+            assert_eq!(b.spells, before);
+            assert_eq!(b.rev(), rev);
+        };
+        let mut c = practised_water();
+        assert!(!c.get(1).unwrap().predicted);
+        refuse(&mut c, 1); // Practised, no prediction
+        let mut d = Book::default();
+        apply_cmd(&mut d, &["load", "p1|water:1:20:0:0:0:1"], false).unwrap();
+        refuse(&mut d, 1); // Learning with a prediction
+        refuse(&mut d, 2); // Unknown
+        refuse(&mut b, 1); // Mastered already
+        refuse(&mut b, 9); // out of range: no panic
+    }
+
+    // R2 (I-030). Keep it sharp.
+    #[test]
+    fn t21_sharp() {
+        let mut b = mastered_water(20755);
+        assert!(!b.sharp_ready(1), "day unknown");
+        b.set_day(20755);
+        assert!(!b.sharp_ready(1), "same day as the last build");
+        b.set_day(20756);
+        assert!(b.sharp_ready(1));
+        assert!(!b.sharp_ready(9));
+        let xp = b.get(1).unwrap().xp;
+        let rev = b.rev();
+        assert_eq!(b.sharp(1), vec![]);
+        let p = *b.get(1).unwrap();
+        assert_eq!(p.xp, xp + XP_SHARP);
+        assert_eq!(XP_SHARP, 10);
+        assert_eq!(p.last_build_day, 20756);
+        assert_eq!(p.stage, Stage::Mastered);
+        assert_eq!(b.rev(), rev + 1);
+        assert!(!b.sharp_ready(1));
+        let rev = b.rev();
+        assert_eq!(b.sharp(1), vec![]);
+        assert_eq!(*b.get(1).unwrap(), p);
+        assert_eq!(b.rev(), rev);
+        assert_eq!(b.day(), 20756);
+        // Not on Practised.
+        let mut c = practised_water();
+        c.set_day(20756);
+        let before = c.spells;
+        let rev = c.rev();
+        assert!(!c.sharp_ready(1));
+        assert_eq!(c.sharp(1), vec![]);
+        assert_eq!(c.spells, before);
+        assert_eq!(c.rev(), rev);
+    }
+
+    // R3 (I-030). The debug words, and mastery never fades.
+    #[test]
+    fn t22_trial_cmds_and_never_fades() {
+        let mut b = practised_water();
+        b.predict(1, true);
+        assert_eq!(
+            apply_cmd(&mut b, &["trial", "1"], false),
+            Err("needs ?debug")
+        );
+        assert_eq!(b.get(1).unwrap().stage, Stage::Practised);
+        assert_eq!(
+            apply_cmd(&mut b, &["trial", "1"], true),
+            Ok(vec![t(1, Stage::Mastered)])
+        );
+        b.set_day(20756);
+        assert_eq!(
+            apply_cmd(&mut b, &["sharp", "1"], false),
+            Err("needs ?debug")
+        );
+        let xp = b.get(1).unwrap().xp;
+        assert_eq!(apply_cmd(&mut b, &["sharp", "1"], true), Ok(vec![]));
+        assert_eq!(b.get(1).unwrap().xp, xp + XP_SHARP);
+        assert!(apply_cmd(&mut b, &["trial"], true).is_err());
+        assert!(apply_cmd(&mut b, &["sharp", "x"], true).is_err());
+
+        // A seeded walk over all 9 ops: no stage or XP ever goes down, and a
+        // Mastered spell stays Mastered.
+        let mut mastered_seen = 0u32;
+        for seed in 0..40u64 {
+            let mut r = Lcg(seed * 104_729 + 3);
+            let mut b = Book::default();
+            let mut day = 20_000u32;
+            b.set_day(day);
+            let mut ever = [false; 4];
+            for _ in 0..5_000 {
+                let before = b.spells;
+                let i = r.below(5) as usize; // 4 = out of range
+                match r.below(9) {
+                    0 => drop(b.learn(i)),
+                    1 => drop(b.worked_cast(i, r.below(4) != 0)),
+                    2 => drop(b.instant_cast(i)),
+                    3 => drop(b.unaided_build(i)),
+                    4 => drop(b.predict(i, r.below(2) == 0)),
+                    5 => drop(b.pass_trial(i)),
+                    6 => drop(b.sharp(i)),
+                    7 => {
+                        day += r.below(3);
+                        b.set_day(day);
+                    }
+                    _ => {
+                        let _ = b.sharp_ready(i);
+                        let _ = b.day();
+                    }
+                }
+                for k in 0..4 {
+                    assert!(b.spells[k].stage >= before[k].stage, "stage lowered");
+                    assert!(b.spells[k].xp >= before[k].xp, "xp lowered");
+                    if ever[k] {
+                        assert_eq!(b.spells[k].stage, Stage::Mastered, "mastery faded");
+                    }
+                    if b.spells[k].stage == Stage::Mastered {
+                        ever[k] = true;
+                    }
+                }
+            }
+            mastered_seen += ever.iter().filter(|m| **m).count() as u32;
+            // 200 days with no play change nothing.
+            let before = b.spells;
+            for d in 0..200 {
+                b.set_day(day + d);
+                for k in 0..4 {
+                    let _ = b.sharp_ready(k);
+                }
+            }
+            assert_eq!(b.spells, before);
+        }
+        assert!(mastered_seen > 0, "the walk never mastered anything");
     }
 }

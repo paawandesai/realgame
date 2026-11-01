@@ -8,6 +8,12 @@
 //! the page (`B` or the button), which pushes `open`. This module never reads
 //! or writes `Game`, `Chem`, `Settings` or the cast queue, never casts and
 //! never unpauses.
+//!
+//! I-030 adds the Mastery trial and keep-it-sharp (`trial.rs` is the pure
+//! desk): the words `trial|sharp|answer|again|endtrial` on the same queue,
+//! and `window.__trialState`, written only when it changes. A trial build is
+//! judged here like any bench build but never learns; it calls only
+//! `unaided_build`, `predict`, `pass_trial` and `sharp`.
 
 use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
@@ -18,6 +24,7 @@ use realgame_sim::tier::Tier;
 use crate::bridge::{self, WebIn};
 use crate::player::Player;
 use crate::progress::{Book, Stage};
+use crate::trial::{self, Built, Kind, Phase};
 use crate::Progress;
 
 /// The pad's centre on the ground (x, z), about 41° left of the start view.
@@ -41,6 +48,10 @@ pub struct BenchState {
     pub n: u32,
     /// The last JSON published, so `__benchState` is written only on change.
     pub last_json: String,
+    /// I-030: the open Mastery trial or keep-it-sharp check, if any.
+    pub trial: trial::Desk,
+    /// The last `__trialState` published.
+    pub last_trial_json: String,
 }
 
 /// One command from `window.__gameIn.bench`.
@@ -52,6 +63,16 @@ pub enum Cmd {
     /// The slot and the rest of the line, words joined by one space.
     Try(u8, String),
     Close,
+    /// I-030: start a Mastery trial for a slot.
+    Trial(u8),
+    /// I-030: start keep-it-sharp for a slot.
+    Sharp(u8),
+    /// I-030: answer the trial's question (`a`, `b` or `c`).
+    Answer(String),
+    /// I-030: "Ask me again" after a wrong answer.
+    Again,
+    /// I-030: leave the trial ("All spells").
+    EndTrial,
 }
 
 /// Parses one command line; `None` for an unknown word or a malformed
@@ -75,6 +96,23 @@ pub fn parse(line: &str) -> Option<Cmd> {
             let text = words.collect::<Vec<_>>().join(" ");
             Some(Cmd::Try(slot, text))
         }
+        "trial" | "sharp" => {
+            let slot = words.next()?.parse::<u8>().ok()?;
+            if words.next().is_some() {
+                return None;
+            }
+            Some(if word == "trial" {
+                Cmd::Trial(slot)
+            } else {
+                Cmd::Sharp(slot)
+            })
+        }
+        "answer" => {
+            let id = words.next()?;
+            words.next().is_none().then(|| Cmd::Answer(id.to_string()))
+        }
+        "again" => words.next().is_none().then_some(Cmd::Again),
+        "endtrial" => words.next().is_none().then_some(Cmd::EndTrial),
         _ => None,
     }
 }
@@ -139,11 +177,13 @@ pub fn apply(
                 st.pick = 0;
                 st.result = None;
             }
+            st.trial.close();
         }
         Cmd::Open => {
             st.open = true;
             st.pick = 0;
             st.result = None;
+            st.trial.close();
         }
         Cmd::Close => {
             if !st.open {
@@ -152,11 +192,15 @@ pub fn apply(
             st.open = false;
             st.pick = 0;
             st.result = None;
+            st.trial.close();
         }
         Cmd::Pick(slot) => {
             if !st.open {
                 return Err("pick while closed");
             }
+            // Leaving a trial for the list (Back) or another spell ends it,
+            // whether or not the pick itself is valid.
+            st.trial.close();
             let Some(band) = st.band else {
                 return Err("pick before a band");
             };
@@ -175,11 +219,64 @@ pub fn apply(
             let Some(band) = st.band else {
                 return Err("try before a band");
             };
+            if let Some(open) = st.trial.open_spell() {
+                // I-030: while a trial is open, only its own build phase
+                // takes a try, and a trial build never learns.
+                if st.trial.phase() != Some(Phase::Build) || Some(open) != index_of(spells, slot) {
+                    return Err("try outside the open trial's build");
+                }
+                let v = sim::judge(spells, slot, band, &text);
+                let ok = v.ok;
+                st.n += 1;
+                match st.trial.on_build(open, ok) {
+                    Built::Counted(_) | Built::Ask => {
+                        book.unaided_build(open);
+                    }
+                    Built::SharpDone => {
+                        book.sharp(open);
+                    }
+                    Built::Miss | Built::Ignored => {}
+                }
+                st.result = Some(ResultView {
+                    n: st.n,
+                    slot,
+                    verdict: v,
+                    learned: false,
+                    stage: stage_of(book, Some(open)).as_str().to_string(),
+                });
+                return Ok(());
+            }
             let v = sim::judge(spells, slot, band, &text);
             record(st, book, spells, slot, v);
         }
+        // CONTRACT STUB (I-030): the trial words are parsed but do nothing.
+        Cmd::Trial(_) | Cmd::Sharp(_) | Cmd::Answer(_) | Cmd::Again | Cmd::EndTrial => {
+            return Err("CONTRACT STUB");
+        }
     }
     Ok(())
+}
+
+/// `window.__trialState`: the slots offering keep-it-sharp (Mastered,
+/// learnable at the band, `sharp_ready`) and the open trial.
+pub fn trial_json(st: &BenchState, book: &Book, spells: &[SpellDef]) -> String {
+    let sharp: Vec<String> = match st.band {
+        Some(band) => spells
+            .iter()
+            .filter(|d| sim::learnable(d, band))
+            .filter(|d| {
+                let i = usize::from(d.slot) - 1;
+                stage_of(book, Some(i)) == Stage::Mastered && book.sharp_ready(i)
+            })
+            .map(|d| d.slot.to_string())
+            .collect(),
+        None => Vec::new(),
+    };
+    format!(
+        "{{\"v\":1,\"sharp\":[{}],\"trial\":{}}}",
+        sharp.join(","),
+        st.trial.state_json()
+    )
 }
 
 /// The view `__benchState` carries: closed, or the full open view.
@@ -293,6 +390,11 @@ pub fn run(
     if json != bench.last_json {
         bridge::publish_bench(&json);
         bench.last_json = json;
+    }
+    let tj = trial_json(&bench, &progress.0, spells);
+    if tj != bench.last_trial_json {
+        bridge::publish_trial(&tj);
+        bench.last_trial_json = tj;
     }
 }
 
@@ -469,5 +571,227 @@ mod tests {
             assert_eq!(c.stage, "unknown");
         }
         assert!(v.pick.is_none() && v.recipe.is_none() && v.result.is_none());
+    }
+
+    // ---- I-030: the Mastery trial glue (R7) ----
+
+    fn sprout_bench(save: &str) -> (BenchState, Book) {
+        let mut st = BenchState::default();
+        let mut book = Book::default();
+        crate::progress::apply_cmd(&mut book, &["load", save], false).unwrap();
+        book.set_day(20755);
+        let s = spells();
+        apply(&mut st, &mut book, s, Cmd::Band(Tier::Sprout)).unwrap();
+        apply(&mut st, &mut book, s, Cmd::Open).unwrap();
+        (st, book)
+    }
+
+    fn correct_answer(spell: usize, band: &str) -> String {
+        trial::question(spell, band)
+            .unwrap()
+            .choices
+            .iter()
+            .find(|c| c.correct)
+            .unwrap()
+            .id
+            .to_string()
+    }
+
+    const PRACTISED_WATER: &str = "p1|water:2:30:0:0:0:0";
+
+    #[test]
+    fn parses_the_trial_words() {
+        assert_eq!(parse("trial 2"), Some(Cmd::Trial(2)));
+        assert_eq!(parse("sharp 3"), Some(Cmd::Sharp(3)));
+        assert_eq!(parse("answer b"), Some(Cmd::Answer("b".into())));
+        assert_eq!(parse("again"), Some(Cmd::Again));
+        assert_eq!(parse("endtrial"), Some(Cmd::EndTrial));
+        for bad in [
+            "trial",
+            "trial x",
+            "trial 2 3",
+            "sharp",
+            "answer",
+            "answer a b",
+            "again now",
+            "endtrial 1",
+        ] {
+            assert_eq!(parse(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn r7_a_full_trial_from_practised_masters_at_110_xp_and_never_learns() {
+        for wrong_in_between in [false, true] {
+            let (mut st, mut book) = sprout_bench(PRACTISED_WATER);
+            let s = spells();
+            apply(&mut st, &mut book, s, Cmd::Trial(2)).unwrap();
+            assert_eq!(st.pick, 2);
+            assert!(trial_json(&st, &book, s).contains("\"phase\":\"build\""));
+            for k in 0..3 {
+                apply(&mut st, &mut book, s, Cmd::Try(2, "H2O".into())).unwrap();
+                let r = st.result.clone().unwrap();
+                assert!(r.verdict.ok, "build {k} is judged correct");
+                assert!(!r.learned, "a trial build never learns");
+                if wrong_in_between && k == 1 {
+                    apply(&mut st, &mut book, s, Cmd::Try(2, "HO".into())).unwrap();
+                    let r = st.result.clone().unwrap();
+                    assert!(!r.verdict.ok && !r.learned);
+                }
+            }
+            let j = trial_json(&st, &book, s);
+            assert!(
+                j.contains("\"phase\":\"ask\"") && j.contains("\"answer\":null"),
+                "{j}"
+            );
+            assert_eq!(book.get(1).unwrap().builds, 3);
+            assert_eq!(book.get(1).unwrap().stage, Stage::Practised);
+            // A try during the question changes nothing.
+            let before = *book.get(1).unwrap();
+            assert!(apply(&mut st, &mut book, s, Cmd::Try(2, "H2O".into())).is_err());
+            assert_eq!(*book.get(1).unwrap(), before);
+            let ok = correct_answer(1, "sprout");
+            apply(&mut st, &mut book, s, Cmd::Answer(ok)).unwrap();
+            let p = *book.get(1).unwrap();
+            assert_eq!(p.stage, Stage::Mastered);
+            assert!(p.predicted);
+            assert_eq!(p.builds, 3);
+            assert_eq!(p.xp, 110);
+            let j = trial_json(&st, &book, s);
+            assert!(
+                j.contains("\"phase\":\"done\"") && j.contains("\"mastered\":true"),
+                "{j}"
+            );
+            assert!(
+                j.contains(&format!("\"misses\":{}", u8::from(wrong_in_between))),
+                "{j}"
+            );
+            assert!(
+                j.starts_with("{\"v\":1,\"sharp\":[]"),
+                "same day: no keep-it-sharp yet: {j}"
+            );
+            // Closing the bench ends the trial.
+            apply(&mut st, &mut book, s, Cmd::Close).unwrap();
+            assert_eq!(st.trial.open_spell(), None);
+        }
+    }
+
+    #[test]
+    fn r7_a_wrong_answer_then_ask_again_still_masters() {
+        let (mut st, mut book) = sprout_bench(PRACTISED_WATER);
+        let s = spells();
+        apply(&mut st, &mut book, s, Cmd::Trial(2)).unwrap();
+        for _ in 0..3 {
+            apply(&mut st, &mut book, s, Cmd::Try(2, "H2O".into())).unwrap();
+        }
+        assert!(apply(&mut st, &mut book, s, Cmd::Again).is_err());
+        let wrong = trial::question(1, "sprout")
+            .unwrap()
+            .choices
+            .iter()
+            .find(|c| !c.correct)
+            .unwrap()
+            .id;
+        let xp = book.get(1).unwrap().xp;
+        apply(&mut st, &mut book, s, Cmd::Answer(wrong.into())).unwrap();
+        assert_eq!(book.get(1).unwrap().xp, xp, "a wrong answer costs nothing");
+        assert!(!book.get(1).unwrap().predicted);
+        assert!(apply(&mut st, &mut book, s, Cmd::Answer("z".into())).is_err());
+        apply(&mut st, &mut book, s, Cmd::Again).unwrap();
+        apply(
+            &mut st,
+            &mut book,
+            s,
+            Cmd::Answer(correct_answer(1, "sprout")),
+        )
+        .unwrap();
+        assert_eq!(book.get(1).unwrap().stage, Stage::Mastered);
+        assert_eq!(book.get(1).unwrap().xp, 110);
+    }
+
+    #[test]
+    fn r7_refusals_and_leaving_midway() {
+        let s = spells();
+        // Fire at Sprout: not learnable, no question.
+        let (mut st, mut book) = sprout_bench("p1|fire:2:30:0:0:0:0");
+        assert!(apply(&mut st, &mut book, s, Cmd::Trial(1)).is_err());
+        assert_eq!(st.trial.open_spell(), None);
+        // Learning water.
+        let (mut st, mut book) = sprout_bench("p1|water:1:10:0:0:0:0");
+        assert!(apply(&mut st, &mut book, s, Cmd::Trial(2)).is_err());
+        assert_eq!(st.trial.open_spell(), None);
+        // Closed bench, or no band: every trial word is ignored.
+        let mut closed = BenchState::default();
+        let mut b = Book::default();
+        for c in [
+            Cmd::Trial(2),
+            Cmd::Sharp(2),
+            Cmd::Answer("a".into()),
+            Cmd::Again,
+            Cmd::EndTrial,
+        ] {
+            assert!(apply(&mut closed, &mut b, s, c).is_err());
+        }
+        // Leaving midway (pick 0, close): Practised stays, earned XP stays.
+        for leave in [Cmd::Pick(0), Cmd::Close, Cmd::EndTrial, Cmd::Open] {
+            let (mut st, mut book) = sprout_bench(PRACTISED_WATER);
+            apply(&mut st, &mut book, s, Cmd::Trial(2)).unwrap();
+            apply(&mut st, &mut book, s, Cmd::Try(2, "H2O".into())).unwrap();
+            apply(&mut st, &mut book, s, Cmd::Try(2, "H2O".into())).unwrap();
+            let _ = apply(&mut st, &mut book, s, leave.clone());
+            assert_eq!(st.trial.open_spell(), None, "{leave:?}");
+            let p = *book.get(1).unwrap();
+            assert_eq!(p.stage, Stage::Practised, "{leave:?}");
+            assert_eq!(p.xp, 70, "{leave:?}");
+            assert!(trial_json(&st, &book, s).ends_with("\"trial\":null}"));
+        }
+        // A try for another slot during a trial is ignored; without a trial
+        // the try is I-028's path again.
+        let (mut st, mut book) = sprout_bench("p1|water:2:30:0:0:0:0");
+        apply(&mut st, &mut book, s, Cmd::Trial(2)).unwrap();
+        assert!(apply(&mut st, &mut book, s, Cmd::Try(3, "N2".into())).is_err());
+        assert_eq!(book.get(2).unwrap().stage, Stage::Unknown);
+        apply(&mut st, &mut book, s, Cmd::EndTrial).unwrap();
+        apply(&mut st, &mut book, s, Cmd::Try(3, "N2".into())).unwrap();
+        assert_eq!(book.get(2).unwrap().stage, Stage::Learning);
+    }
+
+    #[test]
+    fn r7_keep_it_sharp_on_a_later_day() {
+        let s = spells();
+        let (mut st, mut book) = sprout_bench("p1|water:3:110:3:1:20755:1");
+        assert!(trial_json(&st, &book, s).starts_with("{\"v\":1,\"sharp\":[],"));
+        assert!(
+            apply(&mut st, &mut book, s, Cmd::Sharp(2)).is_err(),
+            "not on the same day"
+        );
+        book.set_day(20756);
+        assert!(trial_json(&st, &book, s).starts_with("{\"v\":1,\"sharp\":[2],"));
+        assert!(
+            apply(&mut st, &mut book, s, Cmd::Trial(2)).is_err(),
+            "no Mastery trial on Mastered"
+        );
+        apply(&mut st, &mut book, s, Cmd::Sharp(2)).unwrap();
+        apply(&mut st, &mut book, s, Cmd::Try(2, "HO".into())).unwrap();
+        assert_eq!(book.get(1).unwrap().xp, 110);
+        assert_eq!(st.trial.phase(), Some(Phase::Build));
+        apply(&mut st, &mut book, s, Cmd::Try(2, "H2O".into())).unwrap();
+        assert!(!st.result.clone().unwrap().learned);
+        let p = *book.get(1).unwrap();
+        assert_eq!(
+            (p.stage, p.xp, p.last_build_day),
+            (Stage::Mastered, 120, 20756)
+        );
+        let j = trial_json(&st, &book, s);
+        assert!(
+            j.starts_with("{\"v\":1,\"sharp\":[],") && j.contains("\"phase\":\"done\""),
+            "{j}"
+        );
+        // No band: no sharp list.
+        let st2 = BenchState::default();
+        assert_eq!(
+            trial_json(&st2, &book, s),
+            "{\"v\":1,\"sharp\":[],\"trial\":null}"
+        );
     }
 }
