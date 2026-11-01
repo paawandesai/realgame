@@ -3875,7 +3875,13 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     const r = el.getBoundingClientRect();
     return [r.left + r.width / 2, r.top + r.height / 2];
   }, [sel, i]);
-  const mmove = async (dx, dy) => { mouse.x += dx; mouse.y += dy; await page.mouse.move(mouse.x, mouse.y); };
+  // A locked mouse move. Under pointer lock, headless Chromium's real mouse
+  // moves carry no usable movement (pointermove movementX is 0; mousemove
+  // reports the absolute position and then its negative), so the move is a
+  // synthetic pointermove with movementX/Y, which hud.js reads like any other.
+  const mmove = (dx, dy) => page.evaluate(([dx, dy]) => {
+    document.getElementById('game').dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerType: 'mouse', movementX: dx, movementY: dy }));
+  }, [dx, dy]);
   const vclick = async (sel, i = 0) => {
     const c = await centreOf(sel, i);
     if (!c) throw new Error(`no ${sel}`);
@@ -3884,15 +3890,7 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
       if (!v) throw new Error('no .vcursor');
       const dx = c[0] - v[0], dy = c[1] - v[1];
       if (Math.abs(dx) < 4 && Math.abs(dy) < 4) break;
-      const sx = Math.max(-150, Math.min(150, dx)), sy = Math.max(-150, Math.min(150, dy));
-      if (mouse.x + sx < 5 || mouse.x + sx > vw - 5 || mouse.y + sy < 5 || mouse.y + sy > vh - 5) {
-        // Bring the real mouse back to the middle in one jump of 200 px or
-        // more, which the virtual cursor ignores (hud.js clamps it to 200).
-        mouse.x = vw / 2; mouse.y = vh / 2;
-        await page.mouse.move(mouse.x, mouse.y);
-        continue;
-      }
-      await mmove(sx, sy);
+      await mmove(Math.round(Math.max(-150, Math.min(150, dx))), Math.round(Math.max(-150, Math.min(150, dy))));
     }
     await lclick();
   };
@@ -3914,6 +3912,9 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     const t0 = Date.now();
     const step = async (fn) => {
       if (pace) { const due = t0 + inputs * pace; const wait = due - Date.now(); if (wait > 0) await sleep(wait); }
+      // The frame just before each input (the last one is the build's end):
+      // keys are stopped before the recorder's listener sees them.
+      lastInput = await nowOf(page);
       await fn();
       inputs += 1;
     };
@@ -3947,6 +3948,7 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     if (make) await step(() => press('#worked .bench-make'));
     return inputs;
   };
+  let lastInput = null;
   // A full worked cast: click, build, and wait for the cast.
   const workedCast = async () => {
     const c0 = (await st()).casts;
@@ -4097,9 +4099,6 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await frames(2);
     const c = await st();
     check('worked: W4 holding W for 500 ms does not move the player', c.pos.every((v, i) => v === b.pos[i]), `pos ${b.pos} -> ${c.pos}`);
-    // The real mouse back to the middle first (a jump the cursor may ignore).
-    mouse.x = vw / 2; mouse.y = vh / 2;
-    await page.mouse.move(mouse.x, mouse.y);
     const v0 = await vpos();
     for (let k = 0; k < 10; k++) await mmove(40, 0);
     const v1 = await vpos();
@@ -4273,7 +4272,8 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await cmd('select 3');
     await frames(6);
     const x = await st();
-    check('worked: W14 keys 1-4, the wheel and select do not change the spell while open', !!w && x.spell === 1, `spell=${x.spell}`);
+    const wx = await ws();
+    check('worked: W14 keys 1-4, the wheel and select do not change the spell while open', !!w && x.spell === 1 && !!wx.work, `opened=${!!w} open now=${!!wx.work} spell=${x.spell}`);
     await rclick();
     await waitClosed();
     await cmd('select 3');
@@ -4328,7 +4328,7 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await fresh('prog learn 1');
     await page.keyboard.press('Escape');
     await withinMs(async () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden')), 5000);
-    await page.click('#pointmode');
+    await page.evaluate(() => document.getElementById('pointmode').click());
     await until((q) => !q.paused && !q.locked, 8000);
     await cmd('tp 0 5.5');
     await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
@@ -4462,7 +4462,7 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
         const presses = await pressesOf(page, t);
         const recs = await recsOf(page, t);
         const press = presses.find((r) => r.kind === 'down');
-        const last = presses[presses.length - 1];
+        const last = lastInput;
         const shownI = recs.findIndex((r) => r.open);
         const shownR = recs[shownI];
         const prevR = recs[shownI - 1] || { t: shownR ? shownR.t - 1000 : 0 };
@@ -4575,7 +4575,7 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
       await cmd('prog learn 1');
       await page.keyboard.press('Escape');
       await sleep(300);
-      if (await page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'))) await page.click('#pointmode');
+      if (await page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'))) await page.evaluate(() => document.getElementById('pointmode').click());
       await cmd('tp 0 5.5');
       await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
       const target = (await burningTarget())[0];
