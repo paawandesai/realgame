@@ -1089,8 +1089,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   const I035_KEYS = ['level', 'exitOpen', 'capIcon', 'fxBeads'];
   // I-037 appends its level-3 keys after them (its acceptance test 18).
   const I037_KEYS = ['nextOpen', 'pools', 'ventsLit'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length + I035_KEYS.length + I037_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS, ...I035_KEYS, ...I037_KEYS].every((k, i) => keys[i] === k);
+  // I-049 appends its revisit key after them (spec: new state key, listed).
+  const I049_KEYS = ['revisit'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length + I035_KEYS.length + I037_KEYS.length + I049_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS, ...I035_KEYS, ...I037_KEYS, ...I049_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The
@@ -1361,11 +1363,12 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     check('streams: fireInView is a boolean, the last state key',
       // I-027 appends exactly its three progress keys after fireInView (its
       // Contract), I-035 its four level keys after those (its test 14), and
-      // I-037 its three level-3 keys after those (its test 18); fireInView is
-      // still the last key before them, after fxWater.
-      typeof s0.fireInView === 'boolean' && keys[keys.length - 11] === 'fireInView' && keys[keys.length - 12] === 'fxWater'
-        && keys.slice(-10).join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit',
-      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-12).join(',')}`);
+      // I-037 its three level-3 keys after those (its test 18), and I-049 its
+      // revisit key last (spec: new state key, listed); fireInView is still
+      // the last key before them, after fxWater.
+      typeof s0.fireInView === 'boolean' && keys[keys.length - 12] === 'fireInView' && keys[keys.length - 13] === 'fxWater'
+        && keys.slice(-11).join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit,revisit',
+      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-13).join(',')}`);
   }
 
   // 6. The arrow stays away while a fire is aimed at or on screen.
@@ -2706,8 +2709,9 @@ async function spellProgress({ page, st, cmd, until, frames, sleep, base, browse
         && x.progress.every((e, i) => e.id === IDS[i] && e.st === 'unknown' && e.xp === 0
           && Object.keys(e).join() === 'id,st,xp,builds,days,predicted');
       // I-035 appends its four level keys after these (its test 14), and
-      // I-037 its three level-3 keys after those (its test 18).
-      ok = fresh && x.progRev === 0 && x.progSave === 'p1' && tail.join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit';
+      // I-037 its three level-3 keys after those (its test 18), and I-049
+      // its revisit key last (spec: new state key, listed).
+      ok = fresh && x.progRev === 0 && x.progSave === 'p1' && tail.join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit,revisit';
       note = `${brief(x)} tail=${tail.join()}`;
     } catch (e) { note = `error: ${e && e.message}`; }
     check('progress: fresh state has 4 unknown spells, progRev 0, progSave p1, keys in order', ok, note);
