@@ -14,6 +14,10 @@
 //! queue, `window.__gameIn.bench` (one command string each), and its own
 //! output, `window.__benchState`, written only when it changes.
 //!
+//! Worked casts (I-029, `src/worked.rs`, `web/worked.js`) publish
+//! `window.__workState`, also written only when it changes; their commands
+//! (`work …`, `castmode …`) ride on `cmds`.
+//!
 //! On native builds these are no-ops (the game reads Bevy's own mouse input).
 
 use bevy::prelude::*;
@@ -111,6 +115,12 @@ mod imp {
             let _ = Reflect::set(&win, &"__benchState".into(), &JsValue::from_str(json));
         }
     }
+
+    pub fn publish_work(json: &str) {
+        if let Some(win) = web_sys::window() {
+            let _ = Reflect::set(&win, &"__workState".into(), &JsValue::from_str(json));
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -124,6 +134,7 @@ mod imp {
     }
     pub fn publish(_json: &str) {}
     pub fn publish_bench(_json: &str) {}
+    pub fn publish_work(_json: &str) {}
 }
 
-pub use imp::{poll, publish, publish_bench};
+pub use imp::{poll, publish, publish_bench, publish_work};
