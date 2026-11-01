@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formula sound preview</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f6f4ef; --fg: #1d2330; --card: #fff; --line: #d9d4c8; --accent: #2f6fda; --ok: #1f8a4c; --bad: #b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15181f; --fg: #e8e6e1; --card: #1e232c; --line: #343a46; --accent: #7aa7ff; --ok: #6fd39b; --bad: #ff8a80; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; opacity: .8; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  button { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; text-align: left; }
+  button:hover { border-color: var(--accent); }
+  button .db { display: block; font-size: 12px; opacity: .75; font-variant-numeric: tabular-nums; }
+  button.over .db { color: var(--bad); opacity: 1; }
+  button.ok .db { color: var(--ok); opacity: 1; }
+  #meter { height: 10px; width: 220px; background: var(--card); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  #bar { height: 100%; width: 0; background: var(--accent); }
+  #summary { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<h1>Formula sound preview</h1>
+<p>Every sound is synthesised in code (I-053). Click a sound to hear it; the meter shows the output peak. "Measure all" plays each in turn and records its peak (limit: -6 dBFS).</p>
+<div class="row">
+  <button id="all">Measure all</button>
+  <label>Volume <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8"></label>
+  <div id="meter"><div id="bar"></div></div>
+  <span id="summary"></span>
+</div>
+<div class="grid" id="grid"></div>
+<script type="module">
+import { createSfx } from '../../../../crates/bevy-client/web/sfx.js';
+
+let ctx = null, an = null;
+const sfx = createSfx({ makeContext: () => (ctx = new AudioContext()) });
+const buf = new Float32Array(2048);
+let peak = 0;
+const ensure = () => {
+  if (!sfx.unlock()) return false;
+  if (!an) {
+    an = ctx.createAnalyser();
+    an.fftSize = 2048;
+    sfx.output().connect(an);
+    const tick = () => {
+      an.getFloatTimeDomainData(buf);
+      let p = 0;
+      for (const x of buf) p = Math.max(p, Math.abs(x));
+      peak = Math.max(peak, p);
+      document.getElementById('bar').style.width = `${Math.min(100, p * 200)}%`;
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+  return true;
+};
+const db = (x) => (x > 0 ? 20 * Math.log10(x) : -Infinity);
+const LEN = { water_charge: 1.6, fire_crackle: 2.2, gate_open: 2.2, fanfare: 2.4, steam: 1.4 };
+const measure = async (name, btn) => {
+  peak = 0;
+  const h = sfx.play(name, name === 'fire_crackle' ? { duration: 2 } : {});
+  await new Promise((r) => setTimeout(r, (LEN[name] || 1.0) * 1000));
+  if (h) h.stop();
+  await new Promise((r) => setTimeout(r, 150));
+  const d = db(peak);
+  btn.querySelector('.db').textContent = `${d.toFixed(1)} dBFS`;
+  btn.className = d <= -6 ? 'ok' : 'over';
+  return d;
+};
+const grid = document.getElementById('grid');
+const buttons = {};
+for (const n of sfx.names.filter((n) => n !== 'dig' && n !== 'step')) {
+  const b = document.createElement('button');
+  b.innerHTML = `${n.replace(/_/g, ' ')}<span class="db">&nbsp;</span>`;
+  b.addEventListener('click', () => { if (ensure()) measure(n, b); });
+  grid.appendChild(b);
+  buttons[n] = b;
+}
+document.getElementById('vol').addEventListener('input', (e) => sfx.setVolume(+e.target.value));
+document.getElementById('all').addEventListener('click', async () => {
+  if (!ensure()) return;
+  const out = {};
+  for (const [n, b] of Object.entries(buttons)) out[n] = await measure(n, b);
+  const worst = Math.max(...Object.values(out));
+  document.getElementById('summary').textContent = `loudest peak ${worst.toFixed(1)} dBFS (${Object.values(out).filter((d) => d > -6).length} over -6)`;
+  window.__levels = out;
+});
+</script>
+</body>
+</html>
