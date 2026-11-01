@@ -124,7 +124,7 @@ canvas.hover-fire { cursor: pointer; }
 #pause td:first-child { color: var(--on); font-weight: 600; }
 #pause p { font-size: calc(18px * var(--ui)); }
 #pause h2 { margin: 12px 0 4px; font-size: calc(20px * var(--ui)); }
-#history { margin: 0; padding-left: 20px; font-size: calc(18px * var(--ui)); line-height: 1.35; }
+#history { margin: 0; padding-left: 20px; max-height: 24vh; overflow-y: auto; font-size: calc(18px * var(--ui)); line-height: 1.35; }
 #history li { margin: 2px 0; }
 #pause button { font: inherit; font-size: calc(18px * var(--ui)); min-height: 44px; padding: 10px 18px; margin: 8px 8px 0 0; border-radius: 10px; border: 0; background: var(--on); color: #222; font-weight: 700; cursor: pointer; }
 #pause button.ghost { background: transparent; color: var(--ink); border: 2px solid rgba(255,255,255,0.4); }
@@ -339,6 +339,9 @@ canvas.hover-fire { cursor: pointer; }
   clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 86% 8%, 40% 70%); }
 #worked .bench-tile[data-match="true"] .bench-tick { display: block; }
 #worked .bench-actions { display: flex; gap: 8px; margin-left: auto; }
+/* Make never leaves the panel's view (break 1, should-fix 1): the actions row
+   sticks to the panel's bottom edge when the content is taller than the box. */
+#worked .bench-actions { position: sticky; bottom: -10px; z-index: 1; padding: 4px 0 6px 8px; background: #1d2a52; border-radius: 10px; }
 #worked .bench-make { min-width: 96px; min-height: 56px; background: var(--on); color: #222; border-color: var(--on); font-weight: 800; }
 #worked .band-sprout .bench-make { min-width: 96px; min-height: 64px; font-size: calc(22px * var(--ui)); }
 #worked .band-sprout .bench-undo { min-width: 64px; min-height: 64px; }
@@ -369,4 +372,12 @@ canvas.hover-fire { cursor: pointer; }
   display: flex; align-items: center; gap: 10px; pointer-events: none; }
 #worked-toast[hidden] { display: none; }
 #worked-toast .worked-toast-shape { font-size: calc(28px * var(--ui)); }
+#worked-toast .worked-icon { width: 34px; height: 34px; display: inline-block; }
+/* Sprout's New panel: a picture of the Formula Bench (a table with a flask)
+   instead of the text line, so a child who cannot read sees where XP is. */
+#worked .worked-bench { display: block; flex: none; position: relative; width: 64px; height: 48px; }
+#worked .worked-bench::before { content: ''; position: absolute; left: 22px; top: 0; width: 20px; height: 28px; background: #8fe3ff;
+  clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 100%, 0 100%, 35% 35%); }
+#worked .worked-bench::after { content: ''; position: absolute; left: 0; top: 28px; width: 64px; height: 20px; box-sizing: border-box;
+  border-top: 6px solid #c98b4a; border-left: 6px solid #8a5a2b; border-right: 6px solid #8a5a2b; }
 @media (prefers-reduced-motion: reduce) { #worked .bench-beam { transition: none; } }

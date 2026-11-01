@@ -301,6 +301,8 @@ struct Game {
     work: worked::Desk,
     /// Where the click that opened it aimed: the accepted cast lands there.
     work_aim: Aim,
+    /// The pause after an accepted worked cast (clicks ignored).
+    work_grace: worked::Grace,
     /// The Sprout picture for the current caption (I-035): "", "freeze",
     /// "melt" or "wrong". Cleared by every new caption.
     cap_icon: &'static str,
@@ -1478,6 +1480,25 @@ fn aim_and_cast(
     game.clicks += fires_in;
     // I-025: a new click restarts the hold timer.
     let clicked = fires_in > 0;
+    #[cfg(target_arch = "wasm32")]
+    let firing = {
+        let _ = &mouse;
+        web.fire
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    let firing = mouse.pressed(MouseButton::Left);
+    // I-029: just after an accepted worked cast, clicks and taps neither cast
+    // nor open the next builder, so the spell is seen to land.
+    if accepted.is_some() {
+        game.work_grace.start();
+        game.cast_queue.clear();
+    }
+    let tapped = incoming.iter().any(|c| c.starts_with("tap "));
+    let down = firing && game.locked;
+    let grace = game.work_grace.tick(dt, clicked || tapped, down);
+    if grace {
+        incoming.retain(|c| c != "fire" && !c.starts_with("tap "));
+    }
     if game.paused {
         game.cast_queue.clear();
     } else {
@@ -1507,13 +1528,6 @@ fn aim_and_cast(
             }
         }
     }
-    #[cfg(target_arch = "wasm32")]
-    let firing = {
-        let _ = &mouse;
-        web.fire
-    };
-    #[cfg(not(target_arch = "wasm32"))]
-    let firing = mouse.pressed(MouseButton::Left);
     // I-025: one click is one cast; a press repeats only once it has been
     // held `cues::HOLD_DELAY` game seconds (the click's own cast comes from
     // the queue above).
@@ -1528,6 +1542,7 @@ fn aim_and_cast(
         && !game.paused
         && firing
         && game.cooldown <= 0.0
+        && !grace
         && cues::hold_repeats(game.held)
     {
         casts.push(game.aim);

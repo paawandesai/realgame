@@ -412,6 +412,69 @@ test("12: hotbar stage badges and the Practised toast", () => {
   assert.ok(toast.textContent.includes("Water"));
 });
 
+// Arbiter r2 (W18): a press on Make, and Enter in the Apprentice box, send
+// `work submit` before the call returns, with no timer, microtask or frame.
+test("14: Make and Enter send work submit synchronously", () => {
+  const g = globalThis as unknown as Record<string, unknown>;
+  const names = ["setTimeout", "setInterval", "queueMicrotask", "requestAnimationFrame"];
+  const saved = names.map((n) => g[n]);
+  const deferred: string[] = [];
+  const t = setup();
+  t.w.update(ws(work(3, view())));
+  t.w.move(115, -60);
+  t.w.move(115, -60); // onto Make at (910, 450)
+  try {
+    for (const n of names) g[n] = () => { deferred.push(n); return 0; };
+    t.w.press(0);
+    assert.equal(t.sent.at(-1), "work submit 3 H2O(l)", "sent before press returns");
+  } finally { names.forEach((n, i) => { g[n] = saved[i]; }); }
+  const a = setup();
+  a.w.update(ws(work(7, view("apprentice", "learning")), { band: "apprentice" }));
+  const input = a.pieces().input as El;
+  input._benchMake = () => (a.mounts[0] as MountOpts).onMake("H2O(l)");
+  try {
+    for (const n of names) g[n] = () => { deferred.push(n); return 0; };
+    a.w.key(ev("keydown", { code: "Enter", key: "Enter" }, input) as unknown as KeyboardEvent);
+    assert.equal(a.sent.at(-1), "work submit 7 H2O(l)", "sent before key returns");
+  } finally { names.forEach((n, i) => { g[n] = saved[i]; }); }
+  assert.deepEqual(deferred, [], "nothing was deferred");
+});
+
+// Break 1 should-fixes 5 and 6: Sprout sees pictures only.
+test("15: Sprout: a bench picture on a New panel, and a picture-only Practised toast", () => {
+  const k = setup();
+  k.w.update(ws(work(5, view("sprout", "unknown")), { band: "sprout" }));
+  const cue = k.doc.querySelector("#worked .worked-bench");
+  assert.ok(cue, "the bench picture");
+  assert.equal(cue?.getAttribute("role"), "img");
+  assert.equal(k.doc.querySelector("#worked .worked-new"), null, "no New line at Sprout");
+  k.w.update(ws(null, { band: "sprout", stages: ["unknown", "learning", "unknown", "unknown"] }));
+  k.w.update(ws(null, { band: "sprout", stages: ["unknown", "practised", "unknown", "unknown"] }));
+  const toast = k.doc.getElementById("worked-toast") as El;
+  assert.ok(toast && !toast.hidden, "the toast shows");
+  assert.doesNotMatch(toast.textContent, /[A-Za-z]/, "no words at Sprout");
+  assert.ok(toast.querySelector(".icon.water"), "the spell's picture");
+  assert.match(toast.getAttribute("aria-label") ?? "", /Practised/);
+  const s = setup();
+  s.w.update(ws(work(6, view("seedling", "unknown"))));
+  assert.equal(s.doc.querySelector("#worked .worked-bench"), null, "no picture cue above Sprout");
+  assert.ok(s.doc.querySelector("#worked .worked-new"), "the New line above Sprout");
+});
+
+// Break 1 should-fix 1: pushing the virtual cursor past an edge scrolls.
+test("16: the virtual cursor scrolls a tall panel at its top and bottom edges", () => {
+  const t = setup();
+  t.w.update(ws(work(3, view())));
+  const panel = t.doc.getElementById("worked") as El & { scrollTop?: number };
+  panel.scrollTop = 0;
+  t.w.move(0, 140);
+  assert.equal(panel.scrollTop, 0, "inside the panel: no scroll");
+  t.w.move(0, 30);
+  assert.equal(panel.scrollTop, 20, "20 px past the bottom edge scrolls 20 px");
+  for (let i = 0; i < 3; i++) t.w.move(0, -150);
+  assert.ok((panel.scrollTop ?? 0) < 0, "past the top scrolls back (the browser clamps at 0)");
+});
+
 // 13. Packaging.
 test("13: boot.js imports worked.js, and every imported module is on build-web.sh's cp line", () => {
   const dir = new URL("../crates/bevy-client/web/", import.meta.url);

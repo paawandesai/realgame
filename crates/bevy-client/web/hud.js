@@ -242,6 +242,11 @@ export function startHud() {
         return li;
       }));
       $('history-box').classList.toggle('hidden', history.length === 0);
+      // The card scrolls on short screens (max-height 92vh): keep the play
+      // button in view, so one click (or a test's click) always resumes.
+      const card = $('pause').querySelector('.card');
+      if (card) card.scrollTop = 0;
+      try { $('resume').scrollIntoView({ block: 'nearest' }); } catch { /* old browser */ }
     }
   };
   // The worked-cast overlay (web/worked.js, I-029), once it registers.

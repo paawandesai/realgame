@@ -3792,6 +3792,18 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
   // The recorder: one row per animation frame, every pointerdown and keydown
   // (capture phase, with the frame it arrived in), each CPU slice and every
   // pointer-lock request or release.
+  // Keys: worked.js stops keydowns in its own window capture listener, which
+  // registers at boot, before record() runs; so on pages loaded after this
+  // section starts, an init script registers a keydown recorder first
+  // (round 2, so W18 can anchor on the Apprentice Enter).
+  await page.addInitScript(() => {
+    window.__wcEarlyKeys = true;
+    window.addEventListener('keydown', (e) => {
+      let frame = -1;
+      try { frame = JSON.parse(window.__gameState).frame; } catch { /* not started */ }
+      (window.__wcPress = window.__wcPress || []).push({ t: performance.now(), frame, kind: 'key', key: e.key });
+    }, true);
+  });
   const record = (p) => p.evaluate(() => {
     if (window.__wcOn) return;
     window.__wcOn = true;
@@ -3811,14 +3823,14 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     const epl = document.exitPointerLock.bind(document);
     document.exitPointerLock = (...a) => { window.__wcLock.exit += 1; return epl(...a); };
     window.addEventListener('pointerdown', (e) => { window.__wcPress.push({ t: performance.now(), frame: frameNow(), kind: 'down', button: e.button }); }, true);
-    window.addEventListener('keydown', (e) => { window.__wcPress.push({ t: performance.now(), frame: frameNow(), kind: 'key', key: e.key }); }, true);
+    if (!window.__wcEarlyKeys) window.addEventListener('keydown', (e) => { window.__wcPress.push({ t: performance.now(), frame: frameNow(), kind: 'key', key: e.key }); }, true);
     const tick = () => {
       try {
         const s = JSON.parse(window.__gameState);
         let w = null;
         try { w = JSON.parse(window.__workState); } catch { w = null; }
         window.__wc.push({
-          t: performance.now(), frame: s.frame, casts: s.casts, paused: s.paused, gameTime: s.gameTime, yaw: s.yaw, pitch: s.pitch,
+          t: performance.now(), frame: s.frame, casts: s.casts, paused: s.paused, gameTime: s.gameTime, yaw: s.yaw, pitch: s.pitch, aimObj: s.aimObj,
           workId: w && w.work ? w.work.id : null, open: !!document.querySelector('#worked'),
           lock: document.pointerLockElement === canvas,
         });
@@ -3848,6 +3860,9 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     const resume = await page.evaluate(() => {
       const card = document.getElementById('pause');
       if (!card || card.classList.contains('hidden')) return null;
+      // The card scrolls on short screens: bring the button into view first
+      // (round 2; break 1 found it at y = 922 in a 720 px viewport).
+      document.getElementById('resume').scrollIntoView({ block: 'nearest' });
       const r = document.getElementById('resume').getBoundingClientRect();
       return [r.left + r.width / 2, r.top + r.height / 2];
     });
@@ -3941,9 +3956,6 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     const t0 = Date.now();
     const step = async (fn) => {
       if (pace) { const due = t0 + inputs * pace; const wait = due - Date.now(); if (wait > 0) await sleep(wait); }
-      // The frame just before each input (the last one is the build's end):
-      // keys are stopped before the recorder's listener sees them.
-      lastInput = await nowOf(page);
       await fn();
       inputs += 1;
     };
@@ -3977,7 +3989,6 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     if (make) await step(() => press('#worked .bench-make'));
     return inputs;
   };
-  let lastInput = null;
   // A full worked cast: click, build, and wait for the cast.
   const workedCast = async () => {
     const c0 = (await st()).casts;
@@ -3986,9 +3997,16 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await build();
     const x = await until((q) => q.casts > c0, 20000);
     await waitClosed();
-    await sleep(400);
+    await afterGrace(x);
     return { ok: x.casts === c0 + 1, x };
   };
+  // Round 2 (should-fix 3): clicks are ignored for 0.4 game seconds after an
+  // accepted worked cast (worked::GRACE_SECS), so the next deliberate click
+  // waits for 0.5 game seconds after the cast (and 400 ms, the cooldown).
+  async function afterGrace(x) {
+    await until((q) => q.gameTime >= x.gameTime + 0.5, 20000);
+    await sleep(400);
+  }
   const burningTarget = async () => {
     const x = await st();
     return x.objs.filter((o) => o.burning).map((o) => o.i);
@@ -4188,6 +4206,12 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
   });
 
   // W7. A correct build fires at the click's target and earns XP.
+  // (arbiter r2) Opened with `cmd('cast')`: a real locked press in headless
+  // Chromium turns the view about 11 degrees before the click is read (break
+  // 1), which tests the browser, not the game. The row where #worked first
+  // shows must aim at the target (the world holds, so that is the opening
+  // aim); the Make press stays a real virtual-cursor press. Real-press opens:
+  // W3, W5, W12 and W18; real-click aim: 'cast: a real click casts exactly once'.
   await run('worked: W7 a correct build fires at the target and earns XP', async () => {
     await fresh('prog learn 1');
     await cmd('tp 0 5.5');
@@ -4196,7 +4220,11 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await cmd(`face ${target}`);
     const a = await until((q) => q.aimObj === target, 10000);
     const ws0 = await ws();
-    const w = await openBuilder();
+    const t0 = (await cmdAt(page, 'cast')).t;
+    const w = await waitOpen();
+    const shownR = (await recsOf(page, t0)).find((r) => r.open);
+    check('worked: W7 (arbiter r2) the builder opened by cast shows on a frame aimed at the target',
+      !!w && !!shownR && shownR.aimObj === target, `target ${target} shown row ${brief(shownR)}`);
     await build({ make: false });
     const t = (await nowOf(page)).t;
     await vclick('#worked .bench-make');
@@ -4234,6 +4262,30 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     check('worked: W8 two worked casts from Learning make Water practised, with the toast, still worked',
       r1.ok && r2.ok && !!w && xp(x, 1) === 30 && !!toast && /Practised/.test(toast) && w.routes[1] === 'worked',
       `casts ok ${r1.ok}/${r2.ok} stage=${w && w.stages[1]} xp=${xp(x, 1)} toast=${toast} route=${w && w.routes[1]}`);
+  });
+
+  // R2a (round 2, break 1 should-fix 3). A click just after Make opens
+  // nothing (worked::GRACE_SECS); a click after the pause opens the builder.
+  await run('worked: R2a a click just after Make opens nothing', async () => {
+    await fresh('prog learn 1');
+    const w = await openBuilder();
+    await build({ make: false });
+    const c0 = (await st()).casts;
+    const t = (await nowOf(page)).t;
+    await vclick('#worked .bench-make');
+    await lclick();
+    const x = await until((q) => q.casts > c0, 20000);
+    await frames(10);
+    const recs = (await recsOf(page, t)).filter((r) => r.casts > c0);
+    const w1 = await ws();
+    check('worked: R2a a click right after an accepted Make casts nothing more and opens no builder for 10 frames',
+      !!w && x.casts === c0 + 1 && recs.length > 0 && recs.every((r) => r.casts === c0 + 1 && r.workId === null) && w1.work === null,
+      `casts ${c0}->${x.casts} ids after the cast ${[...new Set(recs.map((r) => r.workId))]}`);
+    await afterGrace(x);
+    const w2 = await openBuilder();
+    check('worked: R2a after the pause a click opens the next builder', !!w2, brief(w2 && w2.work && { id: w2.work.id }));
+    await rclick();
+    await waitClosed();
   });
 
   // W9. Mastered is instant.
@@ -4363,6 +4415,9 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
     const lit = await burningTarget();
     // Aim the crosshair at one fire, then find another one under the cursor.
+    // (Round 2: each probe waits 2 game frames for the hover, not 450 ms:
+    // at 1.5-3 fps headless a wall-time wait can end before the frame that
+    // reads the new cursor; break 1 found no fire this way.)
     let found = null;
     for (const aimAt of lit) {
       await cmd(`face ${aimAt}`);
@@ -4370,7 +4425,8 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
       for (const fy of [0.5, 0.42, 0.58, 0.35, 0.65]) {
         for (const fx of [0.3, 0.7, 0.2, 0.8, 0.4, 0.6, 0.12, 0.88]) {
           await page.mouse.move(fx * vw, fy * vh);
-          const x = await until((q) => q.hover !== null && q.hover !== -1 && lit.includes(q.hover) && q.hover !== aimAt, 450);
+          await frames(2);
+          const x = await st();
           if (lit.includes(x.hover) && x.hover !== aimAt) { found = { target: x.hover, aimAt, fx, fy }; break; }
         }
         if (found) break;
@@ -4449,7 +4505,7 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
       !!wo && wo.work.view.band === 'sprout' && !copy && inputs === 4 && s2.casts === c0 + 1 && xp(s2, 1) === 0,
       `band=${wo && wo.work.view.band} copy=${copy} inputs=${inputs} casts ${c0}->${s2.casts} xp=${xp(s2, 1)}`);
     await waitClosed();
-    await sleep(400);
+    await afterGrace(s2);
     await cmd('select 3');
     await until((q) => q.spell === 2, 10000);
     const wf = await openBuilder();
@@ -4459,6 +4515,13 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
   });
 
   // W18. Time to cast, per band (the lag check), at 1366 x 768.
+  // (arbiter r2) castFrames counts game frames from the Make press (the last
+  // capture-phase left pointerdown, or Enter at Apprentice, at or before the
+  // first row with casts +1) to that row: <= 2. The first casts +1 row must
+  // also be the first row with work null after the press (accept and cast in
+  // one update). The wall-time bar is gone (it measured the harness's round
+  // trips); ttcMs is printed for information. The node test '14: Make and
+  // Enter send work submit synchronously' covers a sub-frame JS delay.
   await run('worked: W18 time to cast', async () => {
     const PACE = 150;
     const perInput = { sprout: 1.5, seedling: 0.9, apprentice: 0.35 };
@@ -4491,17 +4554,19 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
         const presses = await pressesOf(page, t);
         const recs = await recsOf(page, t);
         const press = presses.find((r) => r.kind === 'down');
-        const last = lastInput;
         const shownI = recs.findIndex((r) => r.open);
         const shownR = recs[shownI];
         const prevR = recs[shownI - 1] || { t: shownR ? shownR.t - 1000 : 0 };
         const castR = recs.find((r) => r.casts > s0.casts);
+        const makeP = castR ? presses.filter((r) => r.t <= castR.t && ((r.kind === 'down' && r.button === 0) || (r.kind === 'key' && r.key === 'Enter'))).pop() : null;
+        const nullR = makeP ? recs.find((r) => r.t >= makeP.t && r.workId === null) : null;
         const cpu = await page.evaluate(([a, b]) => window.__wcCpu.filter((c) => c.t > a && c.t <= b).reduce((s, c) => s + c.d, 0), [prevR.t, shownR ? shownR.t : 0]);
         const min = band === 'sprout' ? 64 : 44;
         const row = {
           band, spell: slot === 2 ? 'water' : 'fire', inputs,
           openFrames: press && shownR ? shownR.frame - press.frame : null,
-          castFrames: last && castR ? castR.frame - last.frame : null,
+          castFrames: makeP && castR ? castR.frame - makeP.frame : null,
+          sameFrame: !!castR && !!nullR && castR.frame === nullR.frame,
           ttcMs: press && castR ? Math.round(castR.t - press.t) : null,
           openCpuMs: +cpu.toFixed(1),
           estS: +(1.0 + inputs * perInput[band]).toFixed(2),
@@ -4510,9 +4575,9 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
         console.log(`WORKEDTTC ${JSON.stringify(row)}`);
         rows.push(row);
         const ok = !!w && row.openFrames !== null && row.openFrames <= 2 && row.castFrames !== null && row.castFrames <= 2
-          && row.ttcMs - inputs * PACE <= 400 && row.openCpuMs <= 50
+          && row.sameFrame && row.openCpuMs <= 50
           && row.layout.gap >= 24 && row.layout.bottomIn && row.layout.minPiece >= min;
-        check(`worked: W18 ${band} ${row.spell}: open and cast within 2 frames, ttc - inputs x pace <= 400 ms, open frame <= 50 ms CPU, layout at 1366x768`, ok, JSON.stringify(row));
+        check(`worked: W18 ${band} ${row.spell}: open within 2 frames, cast within 2 game frames of Make and on the accept frame, open frame <= 50 ms CPU, layout at 1366x768`, ok, JSON.stringify(row));
         await waitClosed();
       }
     }
@@ -4522,6 +4587,58 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     const es = water('sprout') && water('sprout').estS, ed = water('seedling') && water('seedling').estS;
     check('worked: W18 level-1 chore tripwire: N1 x estS(Water) <= 60 s at Sprout and Seedling',
       n1 !== null && !!es && !!ed && n1 * es <= 60 && n1 * ed <= 60, `N1=${n1} sprout ${n1}x${es}=${n1 && es ? (n1 * es).toFixed(1) : '?'} seedling ${n1}x${ed}=${n1 && ed ? (n1 * ed).toFixed(1) : '?'}`);
+    vw = VW; vh = VH;
+    await page.setViewportSize({ width: VW, height: VH });
+  });
+
+  // R2b (round 2, break 1 should-fix 1). Make is always in the panel's view
+  // and the virtual cursor can press it: text size 2 at Sprout, a short
+  // 1024x600 screen at Apprentice (New spells), Seedling Fire New at 1280x720.
+  await run('worked: R2b Make stays in view', async () => {
+    const cases = [
+      { band: 'sprout', slot: 2, w: 1280, h: 720, ui: 2 },
+      { band: 'sprout', slot: 2, w: 1024, h: 600, ui: 2 },
+      { band: 'apprentice', slot: 2, w: 1024, h: 600, ui: 1 },
+      { band: 'apprentice', slot: 1, w: 1024, h: 600, ui: 1 },
+      { band: 'seedling', slot: 1, w: 1280, h: 720, ui: 1 },
+      { band: 'seedling', slot: 1, w: 1280, h: 720, ui: 2 },
+    ];
+    const out = [];
+    let allOk = true;
+    for (const c of cases) {
+      vw = c.w; vh = c.h;
+      await page.setViewportSize({ width: vw, height: vh });
+      await load(['debug', `band=${c.band}`]);
+      await worked();
+      await page.evaluate((ui) => document.documentElement.style.setProperty('--ui', String(ui)), c.ui);
+      await freshAt(c.slot);
+      const ws0 = await ws();
+      const c0 = (await st()).casts;
+      const w = await openBuilder();
+      await frames(2);
+      const m = await page.evaluate(() => {
+        const p = document.getElementById('worked');
+        const b = document.querySelector('#worked .bench-make');
+        if (!p || !b) return null;
+        const pr = p.getBoundingClientRect(), br = b.getBoundingClientRect();
+        const hit = document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2);
+        return {
+          inPanel: br.top >= pr.top - 0.5 && br.bottom <= pr.bottom + 0.5, inView: br.bottom <= innerHeight,
+          onTop: !!hit && !!hit.closest && hit.closest('.bench-make') === b, scroll: p.scrollHeight > p.clientHeight,
+        };
+      });
+      let pressed = false;
+      if (w && m) {
+        await vclick('#worked .bench-make');
+        const x = await withinMs(async () => { const q = await ws(); return q && (q.wrong > ws0.wrong || q.done > ws0.done) ? q : null; }, 10000);
+        pressed = !!x || (await st()).casts > c0;
+      }
+      const ok = !!w && !!m && m.inPanel && m.inView && m.onTop && pressed;
+      allOk = allOk && ok;
+      out.push(`${c.band} slot ${c.slot} ${c.w}x${c.h} ui ${c.ui}: ${ok ? 'ok' : 'FAIL'} ${JSON.stringify(m)} pressed=${pressed}`);
+      if ((await ws()).work) { await rclick(); await waitClosed(); }
+    }
+    check('worked: R2b Make is in view and pressable by the virtual cursor (text size 2 Sprout, 1024x600 Apprentice New, Seedling Fire New)', allOk, out.join(' | '));
     vw = VW; vh = VH;
     await page.setViewportSize({ width: VW, height: VH });
   });
@@ -4630,6 +4747,39 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     if (id) await cmd(`work cancel ${id}`);
     await waitClosed();
   }
+
+  // I-035 handoff (spec "Overlap and merge order"; this item merged second).
+  // Level 2 at Sprout with worked casts on: Fire routes instant (the Sprout
+  // rule), three instant Fire casts melt the gate, and the lantern wins it.
+  await run('worked: handoff level 2 at Sprout', async () => {
+    await load(['debug', 'band=sprout', 'level=2']);
+    const w = await worked();
+    let x = await until((q) => q.level === 2, 20000);
+    const gate = x.objs.findIndex((o) => o.n === 'ice gate');
+    await cmd('tp 0 1.5');
+    await until((q) => Math.abs(q.pos[2] - 1.5) < 0.5, 10000);
+    await cmd('select 1');
+    const fast = [];
+    for (let k = 0; k < 3; k++) {
+      await cmd(`face ${gate}`);
+      const a = await until((q) => q.spell === 0 && q.aimObj === gate && q.cooldown <= 0, 15000);
+      const at = await cmdAt(page, 'cast');
+      x = await until((q) => q.impacts > a.impacts, 20000);
+      const recs = await recsOf(page, at.t);
+      const castR = recs.find((r) => r.casts > a.casts);
+      fast.push(!!castR && castR.frame - at.frame <= 2 && recs.every((r) => r.workId === null));
+      await sleep(400);
+    }
+    const gone = (await st()).objs[gate].wall === false;
+    await cmd('tp 0 -11');
+    await cmd('look 0 -4');
+    await cmd('move 0 1 4');
+    x = await until((q) => q.outcome === 'won', 30000);
+    await cmd('move 0 0 0');
+    check('worked: handoff: level 2 at Sprout (castmode worked): Fire routes instant, three instant Fire casts melt the gate, and the level is won',
+      !!w && w.band === 'sprout' && w.routes[0] === 'instant' && fast.every(Boolean) && gone && x.outcome === 'won',
+      `routes=${w && w.routes} instant casts ${fast} gate gone=${gone} outcome=${x.outcome}`);
+  });
 
   // W21. Teardown.
   await run('worked: W21 teardown', async () => {

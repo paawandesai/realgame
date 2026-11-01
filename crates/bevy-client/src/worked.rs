@@ -181,9 +181,70 @@ impl Desk {
     }
 }
 
+/// Game seconds after an accepted worked cast during which clicks neither
+/// cast nor open the next builder (break 1, should-fix 3): a spam-clicking
+/// child sees the spell land before anything new opens.
+pub const GRACE_SECS: f32 = 0.4;
+
+/// The pause after an accepted worked cast. A click that arrives during it
+/// is ignored, and so is that press while it stays held, even past the end.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Grace {
+    left: f32,
+    wait_up: bool,
+}
+
+impl Grace {
+    /// Starts the pause (a correct build was just accepted).
+    pub fn start(&mut self) {
+        self.left = GRACE_SECS;
+    }
+
+    /// Advances one frame of `dt` game seconds. `clicked`: a click arrived
+    /// this frame; `down`: the button is held now. True while clicks and
+    /// held fire are ignored.
+    pub fn tick(&mut self, dt: f32, clicked: bool, down: bool) -> bool {
+        // (A small margin: 0.4 - 4 x 0.1 is not exactly 0 in f32.)
+        let during = self.left > 1e-4;
+        self.left = (self.left - dt.max(0.0)).max(0.0);
+        if during && clicked {
+            self.wait_up = true;
+        } else if !down {
+            self.wait_up = false;
+        }
+        during || self.wait_up
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Should-fix 3: the pause after an accepted cast.
+    #[test]
+    fn grace_after_accept() {
+        let mut g = Grace::default();
+        assert!(!g.tick(0.016, true, true), "no pause before an accept");
+        g.start();
+        assert!(g.tick(0.1, true, false), "a click in the pause is ignored");
+        assert!(g.tick(0.1, false, false));
+        assert!(g.tick(0.1, false, false));
+        assert!(
+            g.tick(0.1, false, false),
+            "the frame that ends the pause still ignores"
+        );
+        assert!(!g.tick(0.1, true, false), "a click after the pause counts");
+        // A press that starts in the pause stays ignored while held.
+        g.start();
+        assert!(g.tick(0.25, true, true));
+        assert!(
+            g.tick(0.25, false, true),
+            "held past the pause: still ignored"
+        );
+        assert!(g.tick(0.25, false, true));
+        assert!(!g.tick(0.25, false, false), "released: clicks count again");
+        assert!(!g.tick(0.25, true, true));
+    }
 
     // 1. Route table: 4 stages x 3 learnable x 3 (mode, ready) = 36 cases.
     #[test]
