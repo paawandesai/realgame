@@ -553,9 +553,28 @@ fn difflog_round_trips() {
 /// V10: every row has a `source` that exists as a heading key in
 /// `content/science-sources.md`, and `melt_c < boil_c` where both are set.
 #[test]
-#[ignore = "Lane B (Tue): un-ignored when the material values are sourced"]
 fn materials_table_is_sourced() {
-    todo!("V10")
+    let todo = materials::todos(materials::MATERIALS_JSON).unwrap();
+    assert!(todo.is_empty(), "values still \"todo\": {todo:?}");
+    let register = include_str!("../../../content/science-sources.md");
+    let headings: Vec<&str> = register
+        .lines()
+        .filter_map(|l| l.strip_prefix("### "))
+        .map(str::trim)
+        .collect();
+    let rows = materials::load(materials::MATERIALS_JSON).unwrap();
+    assert_eq!(rows.len(), mat::COUNT);
+    for r in &rows {
+        let src = r.source.as_deref().unwrap_or("");
+        assert!(
+            !src.is_empty() && headings.contains(&src),
+            "{}: source {src:?} is not a heading in content/science-sources.md",
+            r.name
+        );
+        if let (Some(m), Some(b)) = (r.melt_c.get(), r.boil_c.get()) {
+            assert!(m < b, "{}: melt_c {m} is not below boil_c {b}", r.name);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
