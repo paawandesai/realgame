@@ -27,9 +27,10 @@ pub const CH4: usize = 2;
 pub const O2: usize = 3;
 /// Air's oxygen share.
 pub const AIR_O2: f32 = 0.21;
-/// Every this many steps, pooled CO2 loses 1/60 of itself: about a 60 s
-/// leak back to air (section 5.5).
-pub const LEAK_EVERY: u64 = 10;
+/// Every this many steps (5 s), pooled CO2 loses 1/60 of itself (at least
+/// one unit): a 3-cast pool in the methane hollow lets its vents relight about
+/// half a minute later (section 5.5's slow leak back to air).
+pub const LEAK_EVERY: u64 = 50;
 pub const LEAK_DIV: u32 = 60;
 /// Gas cells per chunk edge (a chunk is 32 blocks = 16 gas cells).
 const GC: i32 = CHUNK / 2;

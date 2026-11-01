@@ -88,8 +88,9 @@ pub fn build_hollow(vox: &mut voxel::World, gap_water: bool) {
         vox.set(p, vent);
     }
     vox.set(GAP, if gap_water { water(3) } else { Cell::AIR });
-    fill(vox, [197, 28, 100], [204, 30, 102], Cell::AIR);
-    fill(vox, [204, 28, 96], [216, 32, 106], Cell::AIR);
+    // East of the one-block wall at x 196: a sunken marsh pool, floor block
+    // at y 21, open to the sky, that the gap's CO2 pours down into.
+    fill(vox, [197, 22, 96], [216, 32, 106], Cell::AIR);
 }
 
 /// The six vent cells of the fixture hollow.
@@ -464,8 +465,11 @@ pub fn check_hollow_gap_spills_until_closed(
         lit_n >= 1,
         "with the gap open at least one vent still burns"
     );
+    // Outside the gap: the cells east of it, at the gap's height and below
+    // (spilled CO2 keeps sinking).
     let outside = (GAP[0] + 2..GAP[0] + 12)
-        .map(|x| m.gas_at([x, GAP[1], GAP[2]])[0])
+        .flat_map(|x| (GAP[1] - 8..=GAP[1]).map(move |y| [x, y, GAP[2]]))
+        .map(|p| m.gas_at(p)[0])
         .fold(0.0f32, f32::max);
     assert!(
         outside > 0.02,
