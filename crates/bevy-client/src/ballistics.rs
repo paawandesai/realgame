@@ -39,53 +39,105 @@ pub enum Motion {
 /// The motion of spell `spell` (0 Fire, 1 Water, 2 Frost, 3 CO2) when the
 /// button has been held `held` seconds.
 pub fn motion(spell: u8, held: f32) -> Motion {
-    let _ = (spell, held);
-    Motion::Cone {
-        range: 100.0,
-        half: 0.0,
+    match spell {
+        1 => Motion::Arc {
+            reach: reach_for_hold(WATER_REACH.0, WATER_REACH.1, held),
+        },
+        3 => Motion::Arc {
+            reach: reach_for_hold(CO2_REACH.0, CO2_REACH.1, held),
+        },
+        2 => Motion::Cone {
+            range: FROST_CONE.0,
+            half: FROST_CONE.1.to_radians(),
+        },
+        _ => Motion::Cone {
+            range: FIRE_CONE.0,
+            half: FIRE_CONE.1.to_radians(),
+        },
     }
 }
 
 /// Reach between `min` (a tap) and `max` (held [`FULL_HOLD_S`] or longer),
 /// linear in between; a negative or non-finite hold is a tap.
 pub fn reach_for_hold(min: f32, max: f32, held: f32) -> f32 {
-    let _ = (max, held);
-    min
+    let f = if held.is_finite() {
+        (held / FULL_HOLD_S).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    min + (max - min) * f
 }
 
 /// Launch speed for a flat-ground reach at 45°: R = v²/g.
 pub fn launch_speed(reach: f32) -> f32 {
-    reach
+    (G * reach.max(0.0)).sqrt()
 }
 
 /// Position at time `t` after leaving `p0` with velocity `v0`.
 pub fn at(p0: Vec3, v0: Vec3, t: f32) -> Vec3 {
-    p0 + v0 * t
+    p0 + v0 * t - Vec3::Y * (0.5 * G * t * t)
 }
 
-/// The top of the path: when, and where.
+/// The top of the path: when, and where (at the start if it goes down).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn apex(p0: Vec3, v0: Vec3) -> (f32, Vec3) {
-    (0.0, p0 + v0 * 0.0)
+    let t = (v0.y / G).max(0.0);
+    (t, at(p0, v0, t))
 }
 
 /// When the path comes down to height `y` (after leaving `p0`), if it does.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn landing_time(p0: Vec3, v0: Vec3, y: f32) -> Option<f32> {
-    let _ = (p0, v0, y);
-    None
+    // p0.y + v0.y t - g t²/2 = y  ->  (g/2) t² - v0.y t + (y - p0.y) = 0
+    let (a, b, c) = (0.5 * G, -v0.y, y - p0.y);
+    let disc = b * b - 4.0 * a * c;
+    if disc < 0.0 {
+        return None;
+    }
+    let t = (-b + disc.sqrt()) / (2.0 * a);
+    (t >= 0.0).then_some(t)
 }
 
 /// The launch velocity of speed `speed` from `p0` whose path passes through
 /// `target`: the lower of the two arcs, or `None` if `speed` cannot reach it.
 pub fn aim_velocity(p0: Vec3, target: Vec3, speed: f32) -> Option<Vec3> {
-    let _ = (p0, target, speed);
-    None
+    let dv = target - p0;
+    let d = dv.xz().length();
+    let h = dv.y;
+    let v2 = speed * speed;
+    if d < 1e-4 {
+        // Straight up or down.
+        return if h <= 0.0 {
+            Some(Vec3::NEG_Y * speed)
+        } else if v2 >= 2.0 * G * h {
+            Some(Vec3::Y * speed)
+        } else {
+            None
+        };
+    }
+    let disc = v2 * v2 - G * (G * d * d + 2.0 * h * v2);
+    if disc < 0.0 {
+        return None;
+    }
+    let tan = (v2 - disc.sqrt()) / (G * d);
+    let up = tan.atan();
+    let flat = Vec3::new(dv.x, 0.0, dv.z) / d;
+    Some(flat * (speed * up.cos()) + Vec3::Y * (speed * up.sin()))
 }
 
 /// Whether `p` lies inside the cone from `apex` along unit `dir`, out to
 /// `range`, within `half` radians of the axis.
 pub fn in_cone(apex: Vec3, dir: Vec3, range: f32, half: f32, p: Vec3) -> bool {
-    let _ = (apex, dir, range, half, p);
-    false
+    let v = p - apex;
+    let d = v.length();
+    if d < 1e-6 {
+        return true;
+    }
+    if d > range {
+        return false;
+    }
+    let c = (v.dot(dir) / d).clamp(-1.0, 1.0);
+    c.acos() <= half
 }
 
 /// Traces the path from `p0` with `v0` in steps of `dt` until `hit(a, b)`
@@ -99,8 +151,33 @@ pub fn path_hits(
     max_t: f32,
     mut hit: impl FnMut(Vec3, Vec3) -> Option<f32>,
 ) -> (Vec<Vec3>, f32) {
-    let _ = (v0, dt, max_t, &mut hit);
-    (vec![p0], 0.0)
+    let mut pts = vec![p0];
+    let mut t = 0.0f32;
+    while t < max_t {
+        let step = dt.min(max_t - t);
+        let (a, b) = (at(p0, v0, t), at(p0, v0, t + step));
+        if let Some(f) = hit(a, b) {
+            let f = f.clamp(0.0, 1.0);
+            pts.push(a.lerp(b, f));
+            return (pts, t + f * step);
+        }
+        pts.push(b);
+        t += step;
+    }
+    (pts, max_t)
+}
+
+/// The point at fraction `a` (0..1) of a path traced in equal time steps.
+pub fn along(path: &[Vec3], a: f32) -> Vec3 {
+    match path.len() {
+        0 => Vec3::ZERO,
+        1 => path[0],
+        n => {
+            let x = a.clamp(0.0, 1.0) * (n - 1) as f32;
+            let i = (x.floor() as usize).min(n - 2);
+            path[i].lerp(path[i + 1], x - i as f32)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -136,7 +213,11 @@ mod tests {
             let t = landing_time(Vec3::ZERO, v0, 0.0).expect("lands");
             let land = at(Vec3::ZERO, v0, t);
             let want = v * v * (2.0 * deg.to_radians()).sin() / G;
-            assert!((land.xz().length() - want).abs() < 1e-3, "{deg}°: {} vs {want}", land.xz().length());
+            assert!(
+                (land.xz().length() - want).abs() < 1e-3,
+                "{deg}°: {} vs {want}",
+                land.xz().length()
+            );
             assert!(land.y.abs() < 1e-3);
         }
         // From a raised hand the jet lands later and farther.
@@ -198,7 +279,11 @@ mod tests {
             // Its path passes through the target.
             let d = (target - hand).xz().length();
             let t = d / v.xz().length();
-            assert!((at(hand, v, t) - target).length() < 1e-2, "{target}: {}", at(hand, v, t));
+            assert!(
+                (at(hand, v, t) - target).length() < 1e-2,
+                "{target}: {}",
+                at(hand, v, t)
+            );
             // The low arc: less than 45° up whenever the 45° shot overshoots.
             let up = v.y.atan2(v.xz().length()).to_degrees();
             assert!(up < 45.0 + 1e-3, "{target}: {up}°");
@@ -213,9 +298,18 @@ mod tests {
         let half = 18f32.to_radians();
         assert!(in_cone(o, d, 2.5, half, Vec3::new(0.0, 0.0, -2.0)));
         assert!(in_cone(o, d, 2.5, half, Vec3::new(0.5, 0.0, -2.0)));
-        assert!(!in_cone(o, d, 2.5, half, Vec3::new(0.0, 0.0, -2.6)), "beyond range");
-        assert!(!in_cone(o, d, 2.5, half, Vec3::new(0.0, 0.0, 1.0)), "behind");
-        assert!(!in_cone(o, d, 2.5, half, Vec3::new(1.5, 0.0, -1.5)), "outside the angle");
+        assert!(
+            !in_cone(o, d, 2.5, half, Vec3::new(0.0, 0.0, -2.6)),
+            "beyond range"
+        );
+        assert!(
+            !in_cone(o, d, 2.5, half, Vec3::new(0.0, 0.0, 1.0)),
+            "behind"
+        );
+        assert!(
+            !in_cone(o, d, 2.5, half, Vec3::new(1.5, 0.0, -1.5)),
+            "outside the angle"
+        );
         assert!(in_cone(o, d, 2.5, half, o), "at the hand");
     }
 

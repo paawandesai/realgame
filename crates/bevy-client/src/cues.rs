@@ -39,14 +39,20 @@ pub fn off_screen(bearing: f32, elev: f32, hfov: f32, vfov: f32) -> bool {
 }
 
 /// Spell flight speeds (m/s) in `Spell::ALL` order: Fire, Water, Frost, CO2.
+/// I-051: casts now fly real arcs and cones (`ballistics`); these straight
+/// flight times are kept for their I-025 tests only.
+#[cfg_attr(not(test), allow(dead_code))]
 const SPEEDS: [f32; 4] = [32.0, 30.0, 120.0, 20.0];
 /// Shortest and longest flight, game seconds.
+#[cfg_attr(not(test), allow(dead_code))]
 pub const MIN_FLIGHT: f32 = 0.03;
+#[cfg_attr(not(test), allow(dead_code))]
 pub const MAX_FLIGHT: f32 = 0.25;
 
 /// Game seconds a spell takes to fly `dist` metres. `spell` is the index in
 /// `Spell::ALL` (0..4); an unknown index, or a distance that is not positive
 /// and finite, gives the shortest flight.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn flight_secs(spell: u8, dist: f32) -> f32 {
     match SPEEDS.get(spell as usize) {
         Some(&speed) if dist.is_finite() && dist > 0.0 => {

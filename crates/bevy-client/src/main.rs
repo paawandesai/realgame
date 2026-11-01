@@ -312,6 +312,8 @@ struct Game {
     /// repeats only after `cues::HOLD_DELAY`.
     held: f32,
     was_down: bool,
+    /// I-051: the debug `cast <hold>` command's hold time for the next cast.
+    cast_hold: Option<f32>,
     /// The open worked cast, if any (I-029); a reset closes it.
     work: worked::Desk,
     /// Where the click that opened it aimed: the accepted cast lands there.
@@ -344,8 +346,10 @@ struct FireLight;
 #[derive(Component)]
 struct Projectile {
     spell: Spell,
-    from: Vec3,
     to: Vec3,
+    /// I-051: the path it flies, in equal time steps (an arc under gravity
+    /// for Water and CO2, a short straight cone axis for Fire and Frost).
+    path: Vec<Vec3>,
     t: f32,
     dur: f32,
     obj: Option<usize>,
@@ -359,7 +363,10 @@ struct Projectile {
 #[derive(Component)]
 struct Stream {
     from: Vec3,
-    to: Vec3,
+    /// I-051: the path the spell flies (see `Projectile::path`); an arc
+    /// draws a short slug riding it plus droplets along the way.
+    path: Vec<Vec3>,
+    arc: bool,
     t: f32,
     dur: f32,
     frames: u32,
@@ -370,10 +377,118 @@ struct Stream {
     mist_out: u32,
 }
 
-/// Where a spell is on its way from `from` to `to` (fraction `a`): a straight
-/// line with a slight arc.
-fn spell_path(from: Vec3, to: Vec3, a: f32) -> Vec3 {
-    from.lerp(to, a) + Vec3::Y * (a * (1.0 - a) * 0.6 * from.distance(to) * 0.05)
+/// I-051: where a cast goes and what it hits. Water and CO2 fly under
+/// gravity from the hand (launch speed from how long the button was held,
+/// bent onto the assisted target when assist is on and it can be reached)
+/// and are resolved where the arc meets the world; Fire and Frost are short
+/// cones and hit only what is inside them.
+struct Flight {
+    path: Vec<Vec3>,
+    dur: f32,
+    to: Vec3,
+    obj: Option<usize>,
+    arc: bool,
+}
+
+/// The point of target `i`'s box nearest `p`.
+fn nearest_on(chem: &Chem, i: usize, p: Vec3) -> Vec3 {
+    let b = chem.bounds(i);
+    p.clamp(b.min, b.max)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn plan_flight(
+    chem: &Chem,
+    colliders: &Colliders,
+    hand: Vec3,
+    forward: Vec3,
+    aim: &Aim,
+    spell: Spell,
+    held: f32,
+    assist: f32,
+) -> Flight {
+    match ballistics::motion(spell as u8, held) {
+        ballistics::Motion::Arc { reach } => {
+            let speed = ballistics::launch_speed(reach);
+            let v0 = (assist > 0.0)
+                .then_some(aim.obj)
+                .flatten()
+                .and_then(|_| ballistics::aim_velocity(hand, aim.point, speed))
+                .unwrap_or(forward * speed);
+            let mut obj = None;
+            let (path, t) = ballistics::path_hits(hand, v0, 1.0 / 60.0, 4.0, |a, b| {
+                let d = b - a;
+                let len = d.length();
+                if len < 1e-6 {
+                    return None;
+                }
+                let (t, hit) = world::raycast(chem, colliders, a, d / len, len);
+                (t < len).then(|| {
+                    obj = hit;
+                    t / len
+                })
+            });
+            let to = path.last().copied().unwrap_or(hand);
+            // A splash (Water) or the settled cloud (CO2, denser than air,
+            // spreading along the ground) still reaches a target close by.
+            let reach = if spell == Spell::Foam {
+                ballistics::CO2_SPREAD
+            } else {
+                ballistics::SPLASH_R
+            };
+            if obj.is_none() {
+                obj = (0..chem.targets.len())
+                    .map(|i| (i, nearest_on(chem, i, to).distance(to)))
+                    .filter(|&(_, d)| d <= reach)
+                    .min_by(|a, b| a.1.total_cmp(&b.1))
+                    .map(|(i, _)| i);
+            }
+            Flight {
+                path,
+                dur: t.max(0.05),
+                to,
+                obj,
+                arc: true,
+            }
+        }
+        ballistics::Motion::Cone { range, half } => {
+            // Assist turns the cone toward the target when it is in range and
+            // nearly in front.
+            let mut dir = forward;
+            if assist > 0.0 {
+                if let Some(i) = aim.obj {
+                    let c = nearest_on(chem, i, hand) - hand;
+                    if c.length() > 1e-3
+                        && c.length() <= range
+                        && forward.angle_between(c) <= half + assist
+                    {
+                        dir = c.normalize();
+                    }
+                }
+            }
+            let inside = |i: usize| {
+                let c = nearest_on(chem, i, hand);
+                ballistics::in_cone(hand, dir, range, half, c).then(|| c.distance(hand))
+            };
+            let obj = aim.obj.filter(|&i| inside(i).is_some()).or_else(|| {
+                (0..chem.targets.len())
+                    .filter_map(|i| inside(i).map(|d| (i, d)))
+                    .min_by(|a, b| a.1.total_cmp(&b.1))
+                    .map(|(i, _)| i)
+            });
+            let to = match obj {
+                Some(i) => nearest_on(chem, i, hand),
+                None => hand + dir * range,
+            };
+            Flight {
+                path: vec![hand, to],
+                dur: (to.distance(hand) / 12.0).clamp(0.08, 0.25),
+                to,
+                obj,
+                arc: false,
+            }
+        }
+    }
 }
 
 /// The stream's rod from the hand to the head (the cylinder mesh's axis is
@@ -398,11 +513,12 @@ fn spawn_stream(
     kit: &Kit,
     mats: &SpellMats,
     spell: usize,
-    from: Vec3,
-    to: Vec3,
+    path: &[Vec3],
+    arc: bool,
     dur: f32,
     epoch: u32,
 ) {
+    let from = path.first().copied().unwrap_or(Vec3::ZERO);
     let style = cues::stream_style(spell as u8);
     let mut e = commands.spawn((
         Mesh3d(kit.cyl.clone()),
@@ -412,7 +528,8 @@ fn spawn_stream(
         NotShadowReceiver,
         Stream {
             from,
-            to,
+            path: path.to_vec(),
+            arc,
             t: 0.0,
             dur,
             frames: 0,
@@ -538,6 +655,7 @@ fn main() {
                 control,
                 levels,
                 aim_and_cast,
+                arc_preview,
                 projectiles,
                 react,
                 sync_visuals,
@@ -1079,6 +1197,8 @@ fn control(
         .filter(|c| {
             c.starts_with("tap")
                 || c == "cast"
+                // I-051: `cast <hold seconds>` (a held cast's reach).
+                || c.starts_with("cast ")
                 || c == "fire"
                 || c.starts_with("work ")
                 || c.starts_with("castmode ")
@@ -1516,7 +1636,7 @@ fn aim_and_cast(
     window: Single<&Window, With<PrimaryWindow>>,
     cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
     mut wk: WorkCtx,
-    level: Res<Level>,
+    (level, mut fx): (Res<Level>, ResMut<Fx>),
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     game.cooldown -= dt;
@@ -1696,6 +1816,10 @@ fn aim_and_cast(
         // `fire` (a click) is a queued cast: it waits at most 0.3 s for the
         // cooldown, so a click between two frames is never lost.
         if matches!(a.first(), Some(&"cast") | Some(&"fire")) {
+            // I-051: `cast 0.8` casts as if the button had been held 0.8 s.
+            if let Some(h) = a.get(1).and_then(|v| v.parse::<f32>().ok()) {
+                game.cast_hold = Some(h);
+            }
             casts.push(game.aim);
         } else if a.first() == Some(&"tap") && a.len() == 3 {
             let p = Vec2::new(a[1].parse().unwrap_or(0.0), a[2].parse().unwrap_or(0.0));
@@ -1783,25 +1907,59 @@ fn aim_and_cast(
         game.casts += 1;
         game.say(spell.cast_caption());
         let hand = eye + player.rotation() * Vec3::new(0.2, -0.15, -0.5);
-        let dist = hand.distance(aim.point);
+        let held = game.cast_hold.take().unwrap_or(game.held);
+        let fl = plan_flight(
+            &chem,
+            &colliders,
+            hand,
+            player.forward(),
+            &aim,
+            spell,
+            held,
+            settings.assist,
+        );
+        info!(
+            "LAND x={:.2} y={:.2} z={:.2} obj={} from={:.2},{:.2},{:.2}",
+            fl.to.x,
+            fl.to.y,
+            fl.to.z,
+            fl.obj.map_or(-1, |i| i as i64),
+            hand.x,
+            hand.y,
+            hand.z
+        );
         let size = match spell {
             Spell::Fire => 0.32,
             Spell::Water => 0.26,
             Spell::Frost => 0.12,
             Spell::Foam => 0.4,
         };
-        // Every spell lands within 0.25 s of game time (speeds in `cues`).
-        let dur = cues::flight_secs(game.spell as u8, dist);
+        // I-051: a jet or a lob flies its arc in real time; a cone is quick.
+        let dur = fl.dur;
         spawn_stream(
             &mut commands,
             &kit,
             &mats,
             game.spell,
-            hand,
-            aim.point,
+            &fl.path,
+            fl.arc,
             dur,
             game.epoch,
         );
+        if !fl.arc {
+            // The cone itself: Fire's flames with hot air rising, Frost's
+            // spray with cold mist sinking.
+            let axis = fl.to - hand;
+            for k in 0..14 {
+                let f = (k as f32 + 0.5) / 14.0;
+                let p = hand + axis * f + fx.rand3() * (0.25 * f * axis.length());
+                if spell == Spell::Fire {
+                    fx.emit(P::Fire, p, Vec3::new(0.0, 1.2, 0.0), 0.12 + 0.18 * f, 0.35);
+                } else {
+                    fx.emit(P::Frost, p, Vec3::new(0.0, -0.6, 0.0), 0.12 + 0.2 * f, 0.7);
+                }
+            }
+        }
         commands.spawn((
             Mesh3d(kit.ball.clone()),
             MeshMaterial3d(mats.glow[game.spell].clone()),
@@ -1809,17 +1967,95 @@ fn aim_and_cast(
             NotShadowCaster,
             Projectile {
                 spell,
-                from: hand,
-                to: aim.point,
+                to: fl.to,
+                path: fl.path,
                 t: 0.0,
                 dur,
-                obj: aim.obj,
+                obj: fl.obj,
                 epoch: game.epoch,
             },
         ));
     }
 
     publish_work(&mut wk, &game);
+}
+
+/// I-051: one dot of the arc preview.
+#[derive(Component)]
+struct ArcDot;
+
+/// Dots in the arc preview.
+const ARC_DOTS: usize = 24;
+
+/// I-051: while the button is held (pointer locked) with Water or CO2, a
+/// faint dotted arc shows the path the next cast will fly, ending where it
+/// would land, so aiming an arc can be learnt. Hidden otherwise.
+#[allow(clippy::too_many_arguments)]
+fn arc_preview(
+    mut commands: Commands,
+    game: Res<Game>,
+    player: Res<Player>,
+    chem: Res<Chem>,
+    colliders: Res<Colliders>,
+    settings: Res<Settings>,
+    kit: Res<Kit>,
+    mats: Res<SpellMats>,
+    mut dots: Query<
+        (
+            &mut Transform,
+            &mut Visibility,
+            &mut MeshMaterial3d<StandardMaterial>,
+        ),
+        With<ArcDot>,
+    >,
+) {
+    if dots.is_empty() {
+        for _ in 0..ARC_DOTS {
+            commands.spawn((
+                Mesh3d(kit.ball.clone()),
+                MeshMaterial3d(mats.glow[1].clone()),
+                Transform::from_scale(Vec3::splat(0.05)),
+                Visibility::Hidden,
+                NotShadowCaster,
+                NotShadowReceiver,
+                ArcDot,
+            ));
+        }
+        return;
+    }
+    let spell = Spell::ALL[game.spell];
+    let show =
+        game.was_down && game.locked && !game.paused && matches!(spell, Spell::Water | Spell::Foam);
+    if !show {
+        for (_, mut v, _) in &mut dots {
+            if *v != Visibility::Hidden {
+                *v = Visibility::Hidden;
+            }
+        }
+        return;
+    }
+    let eye = player.eye();
+    let hand = eye + player.rotation() * Vec3::new(0.2, -0.15, -0.5);
+    let fl = plan_flight(
+        &chem,
+        &colliders,
+        hand,
+        player.forward(),
+        &game.aim,
+        spell,
+        game.held,
+        settings.assist,
+    );
+    for (k, (mut t, mut v, mut m)) in dots.iter_mut().enumerate() {
+        let a = (k as f32 + 1.0) / ARC_DOTS as f32;
+        t.translation = ballistics::along(&fl.path, a);
+        if *v != Visibility::Visible {
+            *v = Visibility::Visible;
+        }
+        if m.0 != mats.glow[game.spell] {
+            m.0 = mats.glow[game.spell].clone();
+        }
+    }
 }
 
 /// One `work …` or `castmode …` command (I-029 section 4, step 1). A correct
@@ -1971,8 +2207,24 @@ fn projectiles(
             commands.entity(e).despawn();
             continue;
         }
-        let head = spell_path(st.from, st.to, (st.t / st.dur).min(1.0));
-        *t = stream_transform(st.from, head, &st.style);
+        let a = (st.t / st.dur).min(1.0);
+        let head = ballistics::along(&st.path, a);
+        // An arc: a short slug riding the parabola, with droplets (Water)
+        // or a heavy trail (CO2) left along the way; a cone: hand to head.
+        let tail = if st.arc {
+            ballistics::along(&st.path, (a - 0.12).max(0.0))
+        } else {
+            st.from
+        };
+        *t = stream_transform(tail, head, &st.style);
+        if st.arc && a < 1.0 {
+            let k = if st.style.mist > 0 { P::Foam } else { P::Water };
+            for _ in 0..2 {
+                let p = ballistics::along(&st.path, a * fx.rand());
+                let v = fx.rand3() * 0.2;
+                fx.emit(k, p, v, 0.07, 0.4);
+            }
+        }
         // Cold mist (Frost, CO2): on the far 70 % of the stream and at least
         // 2 m from the eye, 48 per game second, at most `style.mist` a cast.
         if st.mist_out < st.style.mist {
@@ -2010,7 +2262,7 @@ fn projectiles(
         }
         p.t += dt;
         let a = (p.t / p.dur).min(1.0);
-        let pos = spell_path(p.from, p.to, a);
+        let pos = ballistics::along(&p.path, a);
         t.translation = pos;
         // A short trail.
         let trail = match p.spell {
