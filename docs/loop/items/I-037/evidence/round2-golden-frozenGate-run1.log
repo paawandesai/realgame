@@ -1,0 +1,140 @@
+  console: INFO src/main.rs:2243 FIRST_FRAME t=2889ms
+  console: INFO src/main.rs:2266 STATS fps=0.9 fps_p50=0.5 fps_p5=0.5 avg_ms=1107.30 p50_ms=1925.10 p95_ms=1925.10 worst_ms=1925.1 update_ms_p50=4.00 update_ms_p95=42.30 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=24.9 heap_pea
+  -- frozen gate (I-035) --
+  console: INFO src/main.rs:2243 FIRST_FRAME t=2485ms
+  console: INFO src/main.rs:2266 STATS fps=1.3 fps_p50=2.5 fps_p5=0.5 avg_ms=785.77 p50_ms=394.90 p95_ms=1840.00 worst_ms=1840.0 update_ms_p50=2.80 update_ms_p95=6.60 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.0 heap_peak_m
+  console: CPUFRAME n=11 p50_ms=9.60 p95_ms=178.70 max_ms=178.70
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.5 fps_p5=2.2 avg_ms=388.00 p50_ms=399.10 p95_ms=454.70 worst_ms=454.7 update_ms_p50=1.50 update_ms_p95=1.60 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.7 fps_p50=2.7 fps_p5=2.5 avg_ms=369.17 p50_ms=366.40 p95_ms=399.40 worst_ms=399.4 update_ms_p50=1.30 update_ms_p95=1.40 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=7.30 p95_ms=8.80 max_ms=12.80
+PASS frozen gate: the exit stays shut before the win (level 1, exitOpen false) level=1 exitOpen=false burning=3 pos=0,0,21.8
+  console: INFO src/main.rs:2266 STATS fps=2.9 fps_p50=2.9 fps_p5=2.8 avg_ms=340.05 p50_ms=344.90 p95_ms=358.30 worst_ms=358.3 update_ms_p50=1.60 update_ms_p95=2.30 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=0 Water -> Extinguished(Water)
+  console: INFO src/main.rs:2266 STATS fps=2.3 fps_p50=2.7 fps_p5=1.7 avg_ms=431.26 p50_ms=370.10 p95_ms=601.20 worst_ms=601.2 update_ms_p50=1.40 update_ms_p95=3.90 entities=635 burning=2 extinguished=1 wasm_mem_mb=33.6 heap_live_mb=25.0 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=7.20 p95_ms=10.30 max_ms=10.90
+  console: INFO src/main.rs:2266 STATS fps=2.5 fps_p50=2.4 fps_p5=2.3 avg_ms=400.08 p50_ms=425.30 p95_ms=436.60 worst_ms=436.6 update_ms_p50=2.00 update_ms_p95=2.20 entities=633 burning=2 extinguished=1 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=3 Water -> Extinguished(Water)
+  console: INFO src/main.rs:2266 STATS fps=2.2 fps_p50=2.3 fps_p5=1.8 avg_ms=445.72 p50_ms=439.70 p95_ms=556.20 worst_ms=556.2 update_ms_p50=1.90 update_ms_p95=2.40 entities=633 burning=1 extinguished=2 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=6.60 p95_ms=14.70 max_ms=14.70
+  console: INFO src/main.rs:1815 IMPACT obj=6 Water -> Extinguished(Water)
+  console: INFO src/main.rs:2266 STATS fps=1.9 fps_p50=1.8 fps_p5=1.8 avg_ms=528.35 p50_ms=542.50 p95_ms=564.20 worst_ms=564.2 update_ms_p50=1.70 update_ms_p95=4.00 entities=635 burning=0 extinguished=3 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+PASS frozen gate: the level-1 win opens the arch and the banner points to it outcome=won exitOpen=true banner={"shown":true,"big":"You saved the greenhouse!","small":"Walk to the glowing arch behind you to visit the Frozen Gate. Press R to play again."}
+PASS frozen gate: walking into the open arch loads level 2 within 5 s level=2 after 338 ms objs=stream,ice gate,lantern burning=0 outcome=playing caption=The Frozen Gate. Cross the stream, melt the gate, reach the lantern.
+  console: INFO src/main.rs:2266 STATS fps=2.4 fps_p50=2.5 fps_p5=1.9 avg_ms=416.84 p50_ms=402.90 p95_ms=517.80 worst_ms=517.8 update_ms_p50=1.70 update_ms_p95=4.10 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=7.30 p95_ms=10.40 max_ms=10.40
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.6 fps_p5=2.5 avg_ms=377.70 p50_ms=379.80 p95_ms=401.80 worst_ms=401.8 update_ms_p50=1.40 update_ms_p95=2.00 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.0 fps_p50=1.9 fps_p5=1.8 avg_ms=511.32 p50_ms=534.70 p95_ms=547.00 worst_ms=547.0 update_ms_p50=1.70 update_ms_p95=1.80 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=7.20 p95_ms=8.40 max_ms=8.40
+  console: INFO src/main.rs:2266 STATS fps=2.1 fps_p50=2.1 fps_p5=1.8 avg_ms=484.66 p50_ms=470.70 p95_ms=552.90 worst_ms=552.9 update_ms_p50=1.30 update_ms_p95=1.70 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=501.73 p50_ms=509.60 p95_ms=521.50 worst_ms=521.5 update_ms_p50=1.50 update_ms_p95=2.10 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+PASS frozen gate: the liquid stream blocks the walk (stopped on the south bank, z > 8.2) pos=0,0,8.35 ice=0
+  console: CPUFRAME n=13 p50_ms=7.30 p95_ms=8.60 max_ms=11.40
+  console: INFO src/main.rs:2266 STATS fps=1.9 fps_p50=1.9 fps_p5=1.5 avg_ms=530.00 p50_ms=515.50 p95_ms=658.60 worst_ms=658.6 update_ms_p50=1.50 update_ms_p95=1.70 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=0 Fire -> Steam
+  console: INFO src/main.rs:2266 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=691.47 p50_ms=714.80 p95_ms=740.90 worst_ms=740.9 update_ms_p50=2.20 update_ms_p95=2.30 entities=464 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=1.4 fps_p50=1.4 fps_p5=1.2 avg_ms=711.27 p50_ms=734.50 p95_ms=802.50 worst_ms=802.5 update_ms_p50=1.60 update_ms_p95=2.10 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=0 Water -> Soaked
+  console: CPUFRAME n=11 p50_ms=6.00 p95_ms=11.10 max_ms=11.10
+  console: INFO src/main.rs:2266 STATS fps=1.5 fps_p50=1.4 fps_p5=1.4 avg_ms=677.98 p50_ms=720.70 p95_ms=733.10 worst_ms=733.1 update_ms_p50=1.50 update_ms_p95=4.10 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=0 Foam -> NoChange
+  console: INFO src/main.rs:2266 STATS fps=1.5 fps_p50=1.5 fps_p5=1.4 avg_ms=645.83 p50_ms=653.80 p95_ms=712.00 worst_ms=712.0 update_ms_p50=1.60 update_ms_p95=2.50 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=1.3 fps_p50=1.3 fps_p5=1.3 avg_ms=754.70 p50_ms=742.30 p95_ms=784.40 worst_ms=784.4 update_ms_p50=1.20 update_ms_p95=1.40 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.80 p95_ms=7.60 max_ms=8.00
+  console: INFO src/main.rs:1815 IMPACT obj=1 Frost -> Chilled
+  console: INFO src/main.rs:2266 STATS fps=2.2 fps_p50=2.3 fps_p5=1.7 avg_ms=460.84 p50_ms=437.70 p95_ms=593.70 worst_ms=593.7 update_ms_p50=1.30 update_ms_p95=4.30 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=1 Water -> Soaked
+  console: INFO src/main.rs:2266 STATS fps=2.5 fps_p50=2.4 fps_p5=2.2 avg_ms=398.45 p50_ms=421.30 p95_ms=463.70 worst_ms=463.7 update_ms_p50=1.80 update_ms_p95=5.40 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=19 p50_ms=6.40 p95_ms=11.90 max_ms=12.20
+  console: INFO src/main.rs:1815 IMPACT obj=1 Foam -> NoChange
+  console: INFO src/main.rs:2266 STATS fps=2.5 fps_p50=2.5 fps_p5=2.3 avg_ms=399.90 p50_ms=403.50 p95_ms=437.50 worst_ms=437.5 update_ms_p50=1.60 update_ms_p95=2.70 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+PASS frozen gate: Fire, Water and CO2 leave the stream liquid; Frost, Water and CO2 leave the gate standing stream 1: ice=0 "Heat cannot freeze water. To make a solid, take heat away." | stream 2: ice=0 "Adding water does not change its state. Heat melts ice, cold freezes water." | stream 4: ice=0 "CO₂ keeps oxygen away. That does not melt ice or freeze water here." | gate 3: wall=true "Cold cannot melt ice. Ice needs heat to turn into water." | gate 2: wall=true "Adding water does not change its state. Heat melts ice, cold freezes water." | gate 4: wall=true "CO₂ keeps oxygen away. That does not melt ice or freeze water here."
+  console: INFO src/main.rs:2266 STATS fps=1.9 fps_p50=2.3 fps_p5=1.5 avg_ms=520.28 p50_ms=430.50 p95_ms=674.00 worst_ms=674.0 update_ms_p50=1.20 update_ms_p95=3.10 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=0 Frost -> Freezing
+  console: INFO src/main.rs:2266 STATS fps=1.1 fps_p50=1.1 fps_p5=1.0 avg_ms=895.03 p50_ms=889.40 p95_ms=1052.40 worst_ms=1052.4 update_ms_p50=1.30 update_ms_p95=2.90 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_m
+  console: CPUFRAME n=14 p50_ms=7.20 p95_ms=9.40 max_ms=9.60
+FAIL frozen gate: Leidenfrost beads after a Frost hit on the liquid stream (>= 4, then 0 within 2 s) beads=4 then 0 after 2219 ms
+PASS frozen gate: with no band the Apprentice Freezing line shows caption="Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts." capIcon=""
+  console: INFO src/main.rs:2266 STATS fps=1.5 fps_p50=1.4 fps_p5=1.3 avg_ms=659.28 p50_ms=708.50 p95_ms=754.00 worst_ms=754.0 update_ms_p50=1.60 update_ms_p95=2.90 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=0 Frost -> Freezing
+  console: INFO src/main.rs:2266 STATS fps=1.5 fps_p50=1.4 fps_p5=1.4 avg_ms=676.43 p50_ms=691.30 p95_ms=692.40 worst_ms=692.4 update_ms_p50=1.40 update_ms_p95=2.70 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=1.2 fps_p50=1.3 fps_p5=1.1 avg_ms=806.77 p50_ms=757.40 p95_ms=919.40 worst_ms=919.4 update_ms_p50=1.30 update_ms_p95=1.60 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.40 p95_ms=7.40 max_ms=14.00
+  console: INFO src/main.rs:1815 IMPACT obj=0 Frost -> Froze
+  console: INFO src/main.rs:2266 STATS fps=1.3 fps_p50=1.4 fps_p5=1.3 avg_ms=744.20 p50_ms=740.40 p95_ms=780.00 worst_ms=780.0 update_ms_p50=1.80 update_ms_p95=1.90 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+PASS frozen gate: three Frost casts freeze the stream 0.34 / 0.68 / 1.00 ice 0.34 / 0.68 / 1 frozen=true "Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s)."
+  console: INFO src/main.rs:2266 STATS fps=1.0 fps_p50=1.0 fps_p5=1.0 avg_ms=1031.10 p50_ms=1051.80 p95_ms=1051.80 worst_ms=1051.8 update_ms_p50=1.50 update_ms_p95=1.50 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=8.50 max_ms=8.50
+  console: INFO src/main.rs:2266 STATS fps=1.3 fps_p50=1.3 fps_p5=1.2 avg_ms=787.07 p50_ms=756.80 p95_ms=868.10 worst_ms=868.1 update_ms_p50=1.30 update_ms_p95=1.40 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=723.67 p50_ms=711.20 p95_ms=761.80 worst_ms=761.8 update_ms_p50=1.20 update_ms_p95=2.60 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.5 fps_p50=2.4 fps_p5=2.3 avg_ms=403.02 p50_ms=409.50 p95_ms=441.30 worst_ms=441.3 update_ms_p50=0.90 update_ms_p95=1.30 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.40 p95_ms=7.20 max_ms=10.60
+  console: INFO src/main.rs:2266 STATS fps=3.2 fps_p50=3.2 fps_p5=3.0 avg_ms=313.67 p50_ms=311.60 p95_ms=335.90 worst_ms=335.9 update_ms_p50=1.00 update_ms_p95=1.40 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.9 fps_p50=2.9 fps_p5=2.6 avg_ms=344.23 p50_ms=350.40 p95_ms=381.00 worst_ms=381.0 update_ms_p50=1.10 update_ms_p95=1.20 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.40 p95_ms=7.50 max_ms=7.60
+  console: INFO src/main.rs:2266 STATS fps=2.3 fps_p50=2.4 fps_p5=2.1 avg_ms=432.40 p50_ms=421.70 p95_ms=485.30 worst_ms=485.3 update_ms_p50=1.30 update_ms_p95=1.60 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+PASS frozen gate: the player crosses the frozen stream (z < 3), on ice while on it pos=0,0,-3.65 onIce seen=true
+  console: INFO src/main.rs:2266 STATS fps=2.0 fps_p50=2.1 fps_p5=1.7 avg_ms=494.52 p50_ms=482.50 p95_ms=576.10 worst_ms=576.1 update_ms_p50=1.10 update_ms_p95=4.40 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=506.17 p50_ms=509.20 p95_ms=530.90 worst_ms=530.9 update_ms_p50=1.20 update_ms_p95=1.30 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=1 Fire -> Melting
+  console: CPUFRAME n=14 p50_ms=5.60 p95_ms=7.20 max_ms=9.70
+  console: INFO src/main.rs:2266 STATS fps=2.0 fps_p50=2.0 fps_p5=1.9 avg_ms=490.08 p50_ms=491.20 p95_ms=515.20 worst_ms=515.2 update_ms_p50=1.80 update_ms_p95=2.30 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=1 Fire -> Melting
+  console: CPUFRAME n=12 p50_ms=5.80 p95_ms=6.50 max_ms=10.50
+  console: INFO src/main.rs:2266 STATS fps=2.1 fps_p50=2.1 fps_p5=2.0 avg_ms=472.74 p50_ms=476.20 p95_ms=502.20 worst_ms=502.2 update_ms_p50=1.20 update_ms_p95=2.90 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=1 Fire -> Melted
+  console: INFO src/main.rs:2266 STATS fps=2.3 fps_p50=2.3 fps_p5=2.2 avg_ms=438.92 p50_ms=441.20 p95_ms=462.40 worst_ms=462.4 update_ms_p50=1.30 update_ms_p95=2.30 entities=464 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.2 fps_p5=2.0 avg_ms=383.92 p50_ms=455.00 p95_ms=506.40 worst_ms=506.4 update_ms_p50=1.20 update_ms_p95=1.30 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=18 p50_ms=5.30 p95_ms=6.20 max_ms=6.70
+  console: INFO src/main.rs:2266 STATS fps=3.2 fps_p50=3.2 fps_p5=3.0 avg_ms=315.96 p50_ms=314.10 p95_ms=338.50 worst_ms=338.5 update_ms_p50=1.20 update_ms_p95=1.30 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+PASS frozen gate: Fire melts the gate in 3 hits and walking to the lantern wins gate 0.66/true 0.32/true 0/false outcome=won pos=0,0,-15.833 banner={"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again."}
+  console: INFO src/main.rs:2266 STATS fps=2.2 fps_p50=2.1 fps_p5=2.0 avg_ms=460.48 p50_ms=476.90 p95_ms=509.80 worst_ms=509.8 update_ms_p50=1.10 update_ms_p95=4.90 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.60 p95_ms=10.00 max_ms=14.50
+PASS frozen gate: the back arch returns to a fresh courtyard with the exit open level=1 burning=3 exitOpen=true outcome=playing
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.7 fps_p5=2.1 avg_ms=384.97 p50_ms=377.30 p95_ms=484.90 worst_ms=484.9 update_ms_p50=1.70 update_ms_p95=3.80 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.6 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.5 fps_p50=2.5 fps_p5=2.3 avg_ms=405.68 p50_ms=403.00 p95_ms=443.00 worst_ms=443.0 update_ms_p50=1.40 update_ms_p95=6.10 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.30 p95_ms=6.50 max_ms=12.00
+  console: INFO src/main.rs:1815 IMPACT obj=0 Frost -> Freezing
+  console: INFO src/main.rs:2266 STATS fps=2.0 fps_p50=1.9 fps_p5=1.8 avg_ms=511.70 p50_ms=532.00 p95_ms=550.90 worst_ms=550.9 update_ms_p50=1.40 update_ms_p95=2.70 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=1.3 fps_p50=1.3 fps_p5=1.3 avg_ms=753.97 p50_ms=754.00 p95_ms=765.70 worst_ms=765.7 update_ms_p50=1.20 update_ms_p95=2.30 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.2 fps_p50=2.3 fps_p5=1.7 avg_ms=452.12 p50_ms=428.50 p95_ms=580.20 worst_ms=580.2 update_ms_p50=1.10 update_ms_p95=3.20 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.40 p95_ms=9.90 max_ms=10.50
+  console: INFO src/main.rs:1815 IMPACT obj=0 Frost -> Freezing
+  console: INFO src/main.rs:2266 STATS fps=2.0 fps_p50=2.0 fps_p5=1.5 avg_ms=507.44 p50_ms=490.60 p95_ms=665.60 worst_ms=665.6 update_ms_p50=1.10 update_ms_p95=1.90 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=4.90 p95_ms=7.40 max_ms=7.40
+  console: INFO src/main.rs:2266 STATS fps=1.7 fps_p50=1.6 fps_p5=1.5 avg_ms=600.68 p50_ms=645.00 p95_ms=669.50 worst_ms=669.5 update_ms_p50=1.40 update_ms_p95=2.90 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.5 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.4 fps_p50=2.3 fps_p5=2.0 avg_ms=424.66 p50_ms=428.10 p95_ms=490.10 worst_ms=490.1 update_ms_p50=1.30 update_ms_p95=1.80 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1815 IMPACT obj=0 Frost -> Freezing
+  console: CPUFRAME n=12 p50_ms=6.50 p95_ms=10.10 max_ms=10.80
+  console: INFO src/main.rs:2266 STATS fps=1.7 fps_p50=1.6 fps_p5=1.5 avg_ms=577.70 p50_ms=640.70 p95_ms=664.40 worst_ms=664.4 update_ms_p50=2.00 update_ms_p95=3.60 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=1.9 fps_p50=1.6 fps_p5=1.6 avg_ms=539.70 p50_ms=606.70 p95_ms=634.20 worst_ms=634.2 update_ms_p50=1.10 update_ms_p95=3.30 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.1 fps_p50=2.2 fps_p5=1.8 avg_ms=479.44 p50_ms=455.50 p95_ms=549.50 worst_ms=549.5 update_ms_p50=1.20 update_ms_p95=1.50 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=5.60 p95_ms=8.00 max_ms=8.50
+  console: INFO src/main.rs:1815 IMPACT obj=0 Frost -> Freezing
+PASS frozen gate: each band sees its own Freezing line; Sprout shows the freeze picture sprout: ok | seedling: ok | apprentice: ok | adept: ok
+  console: INFO src/main.rs:2266 STATS fps=1.6 fps_p50=1.4 fps_p5=1.3 avg_ms=623.85 p50_ms=704.70 p95_ms=755.20 worst_ms=755.2 update_ms_p50=2.40 update_ms_p95=7.50 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=7.40 p95_ms=18.40 max_ms=18.40
+  console: INFO src/main.rs:2266 STATS fps=2.7 fps_p50=2.7 fps_p5=2.4 avg_ms=371.63 p50_ms=376.30 p95_ms=411.90 worst_ms=411.9 update_ms_p50=1.30 update_ms_p95=4.10 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.8 fps_p50=2.8 fps_p5=2.7 avg_ms=352.83 p50_ms=358.70 p95_ms=372.40 worst_ms=372.4 update_ms_p50=1.10 update_ms_p95=2.50 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.10 p95_ms=7.10 max_ms=12.30
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.4 fps_p5=2.3 avg_ms=387.73 p50_ms=417.30 p95_ms=427.10 worst_ms=427.1 update_ms_p50=2.50 update_ms_p95=4.50 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.6 fps_p5=2.5 avg_ms=385.78 p50_ms=388.60 p95_ms=398.10 worst_ms=398.1 update_ms_p50=1.80 update_ms_p95=2.40 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.7 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=8.00 p95_ms=11.00 max_ms=11.20
+  console: INFO src/main.rs:2266 STATS fps=2.7 fps_p50=2.6 fps_p5=2.5 avg_ms=367.18 p50_ms=377.50 p95_ms=401.80 worst_ms=401.8 update_ms_p50=3.00 update_ms_p95=3.00 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.7 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.7 fps_p50=2.7 fps_p5=2.6 avg_ms=368.97 p50_ms=377.20 p95_ms=383.40 worst_ms=383.4 update_ms_p50=2.20 update_ms_p95=8.70 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.9 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=9.70 p95_ms=14.40 max_ms=18.80
+  console: INFO src/main.rs:2266 STATS fps=2.9 fps_p50=2.9 fps_p5=2.7 avg_ms=345.98 p50_ms=348.60 p95_ms=368.60 worst_ms=368.6 update_ms_p50=2.60 update_ms_p95=3.60 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=6.70 p95_ms=12.50 max_ms=14.00
+  console: INFO src/main.rs:2266 STATS fps=2.7 fps_p50=2.7 fps_p5=2.5 avg_ms=374.53 p50_ms=372.60 p95_ms=402.80 worst_ms=402.8 update_ms_p50=2.30 update_ms_p95=5.90 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.9 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.6 fps_p5=2.4 avg_ms=383.63 p50_ms=378.10 p95_ms=413.10 worst_ms=413.1 update_ms_p50=2.70 update_ms_p95=3.70 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=7.00 p95_ms=10.80 max_ms=12.30
+  console: INFO src/main.rs:2266 STATS fps=2.7 fps_p50=2.7 fps_p5=2.5 avg_ms=368.57 p50_ms=371.20 p95_ms=396.30 worst_ms=396.3 update_ms_p50=1.50 update_ms_p95=3.10 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: INFO src/main.rs:2266 STATS fps=2.6 fps_p50=2.5 fps_p5=2.4 avg_ms=382.42 p50_ms=394.70 p95_ms=419.60 worst_ms=419.6 update_ms_p50=1.30 update_ms_p95=2.00 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+PASS frozen gate: level 2 has no more entities than level 1 level 1 633, level 2 463
+PASS frozen gate: 10 level switches leave entities exact and WASM memory flat (± 2 %) entities 633 -> 633; wasm MB after switch 2 33.6, after 10 33.6
+  console: INFO src/main.rs:2243 FIRST_FRAME t=2671ms
+  console: INFO src/main.rs:2266 STATS fps=1.0 fps_p50=0.5 fps_p5=0.5 avg_ms=1037.70 p50_ms=1943.60 p95_ms=1943.60 worst_ms=1943.6 update_ms_p50=3.00 update_ms_p95=8.50 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=24.7 heap_peak
+PASS frozen gate: ?level=2 opens the Frozen Gate directly level=2 caption=The Frozen Gate. Cross the stream, melt the gate, reach the lantern.
+PASS no console errors 
+
+15/16 passed
+EXIT 1

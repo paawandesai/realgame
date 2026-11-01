@@ -41,6 +41,15 @@ const FIRE_HEAT: f32 = 300.0;
 pub const STREAM_FREEZE: f32 = 0.34;
 /// Ice one Fire hit removes from an ice wall or a frozen stream.
 const ICE_MELT: f32 = 0.34;
+/// Level 3 (I-037): how much of the shallow dip one CO2 cast fills
+/// (gameplay tuning, P-021): two casts fill it.
+pub const DIP_CO2_PER_CAST: f32 = 0.5;
+/// How much of the deeper hollow one CO2 cast fills (gameplay tuning,
+/// P-022): three casts fill it (0.34, 0.68, then capped at 1).
+pub const HOLLOW_CO2_PER_CAST: f32 = 0.34;
+/// How long Water or Frost knocks a gas flame down before it grows back,
+/// seconds (gameplay tuning, P-023).
+pub const FLICKER_S: f32 = 1.5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -63,6 +72,13 @@ pub enum Kind {
     Stream,
     /// Level 2: the lantern on its plinth, the goal. Inert.
     Lantern,
+    /// Level 3: marsh gas (methane) bubbling up through the water and
+    /// burning. Never runs out of fuel and never chars; Water and Frost only
+    /// knock the flame down. Only a full CO2 pool in its hollow puts it out.
+    GasVent,
+    /// Level 3: a low place in the boardwalk (the dip or the hollow). Inert
+    /// floor; CO2 cast at it or at a vent in it fills it (`co2`).
+    Hollow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -127,6 +143,15 @@ pub enum EventKind {
     Fizzle(Fizzle),
     /// The lab bench: explains the coming water-splitting station.
     Station,
+    /// Level 3: Water or Frost knocked a gas flame down for [`FLICKER_S`];
+    /// it keeps burning.
+    Flicker(Spell),
+    /// Level 3: CO2 sank into a hollow, but the pool is not full yet.
+    Filling,
+    /// Level 3: the hollow's CO2 pool is full and every flame in it is out.
+    Pooled,
+    /// Level 3: CO2 on a vent in no hollow: it spills away.
+    Spilled,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,7 +203,7 @@ impl HitKind {
 pub fn hit_kind(events: &[Event]) -> HitKind {
     if events
         .iter()
-        .any(|e| matches!(e.kind, EventKind::Extinguished(_)))
+        .any(|e| matches!(e.kind, EventKind::Extinguished(_) | EventKind::Pooled))
     {
         HitKind::Out
     } else if events
@@ -246,6 +271,19 @@ impl EventKind {
             EventKind::Station => {
                 "Water-splitting station (coming soon): 2H₂O → 2H₂ + O₂ with electricity."
             }
+            EventKind::Flicker(Spell::Frost) => {
+                "Liquid nitrogen boils into N₂ gas. Once it warms up, N₂ is about as heavy as air, so it mixes away and the methane keeps burning."
+            }
+            EventKind::Flicker(_) => {
+                "Marsh gas is methane (CH₄). It keeps bubbling up through the water, so a splash only knocks the flame down for a moment."
+            }
+            EventKind::Filling => {
+                "CO₂ (44 g/mol) is denser than air (29 g/mol), so it pools low, like an invisible pond."
+            }
+            EventKind::Pooled => {
+                "The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen."
+            }
+            EventKind::Spilled => "No hollow here: the CO₂ spills away downhill.",
         }
     }
 }
@@ -274,6 +312,12 @@ pub struct Obj {
     /// A spell put a fire out here at some point: the reseed never relights
     /// it (the player saved it).
     pub put_out: bool,
+    /// Level 3 hollows: how full of CO2, 0 (none) to 1 (over the flames).
+    pub co2: f32,
+    /// Level 3 hollows: how much one CO2 cast adds (0 for everything else).
+    pub co2_step: f32,
+    /// Level 3 vents: seconds left of a flame knocked down by Water or Frost.
+    pub flicker: f32,
 }
 
 impl Obj {
@@ -288,13 +332,16 @@ impl Obj {
             Kind::LabBench => (0.0, 0.0, false, AMBIENT_C),
             Kind::Stream => (0.0, 0.0, false, AMBIENT_C),
             Kind::Lantern => (0.0, 0.0, false, AMBIENT_C),
+            Kind::GasVent => (0.0, 0.0, false, FLAME_C),
+            Kind::Hollow => (0.0, 0.0, false, AMBIENT_C),
         };
         Obj {
             kind,
             pos,
             half,
             temp,
-            burning: false,
+            // Marsh gas keeps coming up: a vent is alight from the start.
+            burning: kind == Kind::GasVent,
             fuel,
             wet: 0.0,
             ice,
@@ -302,7 +349,24 @@ impl Obj {
             smothered: 0.0,
             counts: false,
             put_out: false,
+            co2: 0.0,
+            co2_step: 0.0,
+            flicker: 0.0,
         }
+    }
+
+    /// A level-3 hollow (footprint centre and half extents) that `per_cast`
+    /// of CO2 fills each cast.
+    pub fn hollow(pos: [f32; 2], half: [f32; 2], per_cast: f32) -> Self {
+        Obj {
+            co2_step: per_cast,
+            ..Obj::new(Kind::Hollow, pos, half)
+        }
+    }
+
+    /// Whether the point (x, z) lies on this object's footprint.
+    pub fn covers(&self, p: [f32; 2]) -> bool {
+        (p[0] - self.pos[0]).abs() <= self.half[0] && (p[1] - self.pos[1]).abs() <= self.half[1]
     }
 
     pub fn flammable(&self) -> bool {
@@ -351,6 +415,19 @@ pub struct World {
     pub ended: Option<Outcome>,
     /// How this level is won.
     pub goal: Goal,
+    /// Level 3: the hollow each gas vent stands in (`None` for anything
+    /// else, or a vent outside every hollow).
+    pub hollow_of: Vec<Option<usize>>,
+}
+
+/// The hollow whose footprint holds gas vent `i`'s centre (the first, if
+/// footprints overlap). `None` for anything but a vent.
+pub fn hollow_of(objs: &[Obj], i: usize) -> Option<usize> {
+    if objs[i].kind != Kind::GasVent {
+        return None;
+    }
+    objs.iter()
+        .position(|h| h.kind == Kind::Hollow && h.covers(objs[i].pos))
 }
 
 /// How a level is won.
@@ -387,7 +464,9 @@ impl World {
                     .collect()
             })
             .collect();
+        let hollow_of = (0..objs.len()).map(|i| hollow_of(&objs, i)).collect();
         World {
+            hollow_of,
             objs,
             neighbours,
             extinguished: 0,
@@ -466,6 +545,10 @@ impl World {
     }
 
     fn apply_inner(&mut self, i: usize, spell: Spell, events: &mut Vec<Event>) {
+        if matches!(self.objs[i].kind, Kind::GasVent | Kind::Hollow) {
+            self.apply_marsh(i, spell, events);
+            return;
+        }
         let mut ev = |kind| events.push(Event { obj: i, kind });
         let o = &mut self.objs[i];
         if o.kind == Kind::LabBench {
@@ -617,6 +700,97 @@ impl World {
         }
     }
 
+    /// Level 3: a spell lands on a gas vent or a hollow's floor. CO2 fills
+    /// the hollow it lands in (the same rise from a vent or the floor) and
+    /// at 1 smothers every vent in it at once; Water and Frost only knock
+    /// burning flames down; Fire relights nothing under a full pool.
+    fn apply_marsh(&mut self, i: usize, spell: Spell, events: &mut Vec<Event>) {
+        let hollow = if self.objs[i].kind == Kind::Hollow {
+            Some(i)
+        } else {
+            self.hollow_of[i]
+        };
+        // The vents this spell reaches: the one hit, or all in the hollow.
+        let vents: Vec<usize> = if self.objs[i].kind == Kind::GasVent {
+            vec![i]
+        } else {
+            (0..self.objs.len())
+                .filter(|&j| self.hollow_of[j] == Some(i))
+                .collect()
+        };
+        let lit: Vec<usize> = vents
+            .iter()
+            .copied()
+            .filter(|&j| self.objs[j].burning)
+            .collect();
+        let mut ev = |obj, kind| events.push(Event { obj, kind });
+        match spell {
+            Spell::Foam => {
+                let Some(h) = hollow else {
+                    // No low place to hold it: the gas spills away.
+                    ev(i, EventKind::Spilled);
+                    return;
+                };
+                let o = &mut self.objs[h];
+                if o.co2 < 1.0 {
+                    o.co2 = (o.co2 + o.co2_step).min(1.0);
+                    if o.co2 > 1.0 - 1e-4 {
+                        o.co2 = 1.0;
+                    }
+                }
+                if o.co2 < 1.0 {
+                    ev(h, EventKind::Filling);
+                    return;
+                }
+                // Full: the pool covers every flame in the hollow.
+                for j in 0..self.objs.len() {
+                    if self.hollow_of[j] == Some(h) {
+                        let v = &mut self.objs[j];
+                        v.burning = false;
+                        v.smothered = f32::MAX;
+                        v.flicker = 0.0;
+                    }
+                }
+                ev(h, EventKind::Pooled);
+            }
+            Spell::Water | Spell::Frost => {
+                if lit.is_empty() {
+                    ev(
+                        i,
+                        if spell == Spell::Water {
+                            EventKind::Soaked
+                        } else {
+                            EventKind::Chilled
+                        },
+                    );
+                    return;
+                }
+                for j in lit {
+                    self.objs[j].flicker = FLICKER_S;
+                }
+                ev(i, EventKind::Flicker(spell));
+            }
+            Spell::Fire => {
+                if !lit.is_empty() {
+                    ev(i, EventKind::NoChange);
+                } else if vents.is_empty() {
+                    ev(i, EventKind::Fizzle(Fizzle::NotFlammable));
+                } else if vents.iter().any(|&j| self.objs[j].smothered > 0.0) {
+                    ev(i, EventKind::Fizzle(Fizzle::NoOxygen));
+                } else {
+                    // Out but not smothered (only a test makes one): relight.
+                    for j in vents {
+                        let v = &mut self.objs[j];
+                        v.burning = true;
+                        v.temp = FLAME_C;
+                        v.counts = false;
+                    }
+                    ev(i, EventKind::Ignited);
+                }
+            }
+        }
+    }
+
     /// One fixed step of [`DT`] seconds: burning, spreading heat, drying,
     /// cooling and the CO2 blanket wearing off.
     pub fn step(&mut self, events: &mut Vec<Event>) {
@@ -642,6 +816,21 @@ impl World {
         }
         for (i, o) in self.objs.iter_mut().enumerate() {
             let mut ev = |kind| events.push(Event { obj: i, kind });
+            // Level 3: gas vents burn on their own fuel, which never runs
+            // out; a full CO2 pool keeps them out for good. Hollows are inert.
+            if o.kind == Kind::GasVent {
+                o.flicker = (o.flicker - DT).max(0.0);
+                if o.smothered > 0.0 {
+                    o.burning = false;
+                }
+                if o.burning {
+                    o.temp = FLAME_C;
+                }
+                continue;
+            }
+            if o.kind == Kind::Hollow {
+                continue;
+            }
             // The CO2 blanket stays until the object has cooled below its
             // ignition temperature, so a smothered fire cannot come back
             // the moment the blanket lifts.
@@ -1391,6 +1580,185 @@ mod tests {
         // Level 1's rule is unchanged: with no bush to reseed, it is won.
         let mut w = World::new(vec![Obj::new(Kind::Puddle, [0.0, 0.0], [1.0, 1.0])]);
         w.step(&mut Vec::new());
+        assert_eq!(w.outcome(), Outcome::Won);
+    }
+    // ---- I-037 (level 3, the Marsh): acceptance tests 1, 2 and 3 ----
+
+    /// A dip (0.5 a cast) holding 3 vents, a hollow (0.34 a cast) holding 4
+    /// vents, and 1 vent outside both. Indices: 0 dip, 1..=3 dip vents,
+    /// 4 hollow, 5..=8 hollow vents, 9 the outside vent, 10 the lantern.
+    fn marsh_world() -> World {
+        let mut objs = vec![Obj::hollow([0.0, 10.0], [1.6, 2.5], DIP_CO2_PER_CAST)];
+        for x in [-1.0, 0.0, 1.0] {
+            objs.push(Obj::new(Kind::GasVent, [x, 10.0], [0.5, 0.4]));
+        }
+        objs.push(Obj::hollow([0.0, -8.0], [2.0, 3.0], HOLLOW_CO2_PER_CAST));
+        for (x, z) in [(-1.5, -7.0), (1.5, -7.0), (-1.5, -9.0), (1.5, -9.0)] {
+            objs.push(Obj::new(Kind::GasVent, [x, z], [1.55, 0.4]));
+        }
+        objs.push(Obj::new(Kind::GasVent, [8.0, 0.0], [0.5, 0.5]));
+        objs.push(Obj::new(Kind::Lantern, [0.0, -17.0], [0.4, 0.4]));
+        World::with_goal(objs, Goal::Reach)
+    }
+    const DIP: usize = 0;
+    const DIP_VENTS: [usize; 3] = [1, 2, 3];
+    const HOLLOW: usize = 4;
+    const HOLLOW_VENTS: [usize; 4] = [5, 6, 7, 8];
+    const OUTSIDE: usize = 9;
+
+    fn lit(w: &World, vents: &[usize]) -> usize {
+        vents.iter().filter(|&&i| w.objs[i].burning).count()
+    }
+
+    #[test]
+    fn i037_gas_vents_burn_forever_and_shrug_off_water_frost_and_fire() {
+        let mut w = marsh_world();
+        assert_eq!(w.hollow_of[1], Some(DIP));
+        assert_eq!(w.hollow_of[5], Some(HOLLOW));
+        assert_eq!(w.hollow_of[OUTSIDE], None);
+        let all: Vec<usize> = DIP_VENTS
+            .into_iter()
+            .chain(HOLLOW_VENTS)
+            .chain([OUTSIDE])
+            .collect();
+        assert_eq!(lit(&w, &all), 8, "every vent starts burning");
+        for &i in &all {
+            assert!(!w.objs[i].flammable(), "a vent is not a flammable solid");
+        }
+        let mut ev = Vec::new();
+        for _ in 0..20_000 {
+            w.step(&mut ev);
+        }
+        assert!(
+            !ev.iter().any(|e| e.kind == EventKind::BurntOut),
+            "gas vents never burn out"
+        );
+        assert_eq!(lit(&w, &all), 8);
+        for &i in &all {
+            assert!(!w.objs[i].charred());
+        }
+        // Water and Frost knock a flame down; it keeps burning.
+        for spell in [Spell::Water, Spell::Frost] {
+            let before = w.extinguished;
+            let mut ev = Vec::new();
+            w.apply(2, spell, &mut ev);
+            assert_eq!(kinds(&ev), vec![EventKind::Flicker(spell)], "{spell:?}");
+            assert!(w.objs[2].burning, "{spell:?} leaves the vent burning");
+            assert_eq!(w.extinguished, before);
+            assert!(w.objs[2].flicker > 0.0 && w.objs[2].flicker <= FLICKER_S);
+            // The flicker wears off.
+            for _ in 0..((FLICKER_S / DT) as usize + 2) {
+                w.step(&mut Vec::new());
+            }
+            assert_eq!(w.objs[2].flicker, 0.0);
+            assert!(w.objs[2].burning);
+        }
+        // Fire on a burning vent changes nothing.
+        let before = w.objs.clone();
+        let mut ev = Vec::new();
+        w.apply(2, Spell::Fire, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::NoChange]);
+        assert_eq!(w.objs, before);
+    }
+
+    #[test]
+    fn i037_co2_pools_low_and_smothers_a_whole_hollow_at_once() {
+        let mut w = marsh_world();
+        // The dip: 0.5, then 1.0 (Filling, Pooled).
+        let mut ev = Vec::new();
+        w.apply(2, Spell::Foam, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Filling]);
+        assert_eq!(ev[0].obj, DIP, "the event is on the hollow");
+        assert_eq!(w.objs[DIP].co2, 0.5);
+        assert_eq!(lit(&w, &DIP_VENTS), 3, "half a pool is below the flames");
+        let mut ev = Vec::new();
+        w.apply(DIP, Spell::Foam, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Pooled]);
+        assert_eq!(ev[0].obj, DIP);
+        assert_eq!(w.objs[DIP].co2, 1.0);
+        assert_eq!(lit(&w, &DIP_VENTS), 0, "every dip flame is out");
+        assert_eq!(lit(&w, &HOLLOW_VENTS), 4, "the other hollow still burns");
+        assert!(w.objs[OUTSIDE].burning);
+        // At 1 already: Pooled again, nothing changes.
+        let before = w.objs.clone();
+        let mut ev = Vec::new();
+        w.apply(1, Spell::Foam, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Pooled]);
+        assert_eq!(w.objs, before);
+        // The hollow: 0.34, 0.68, 1.0 (Filling, Filling, Pooled), alternating
+        // vent and floor hits: the same rise either way.
+        for (k, (at, pool, want)) in [
+            (5, 0.34, EventKind::Filling),
+            (HOLLOW, 0.68, EventKind::Filling),
+            (8, 1.0, EventKind::Pooled),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut ev = Vec::new();
+            w.apply(at, Spell::Foam, &mut ev);
+            assert_eq!(kinds(&ev), vec![want], "cast {k}");
+            assert_eq!(ev[0].obj, HOLLOW);
+            assert!(
+                (w.objs[HOLLOW].co2 - pool).abs() < 1e-5,
+                "pool {} want {pool}",
+                w.objs[HOLLOW].co2
+            );
+            assert_eq!(
+                lit(&w, &HOLLOW_VENTS),
+                if pool < 1.0 { 4 } else { 0 },
+                "no vent goes out before the pool is full (cast {k})"
+            );
+        }
+        assert_eq!(w.objs[HOLLOW].co2, 1.0);
+        assert!(w.objs[OUTSIDE].burning);
+        // Smothered vents stay out, and Fire cannot relight them.
+        let mut ev = Vec::new();
+        for _ in 0..20_000 {
+            w.step(&mut ev);
+        }
+        assert_eq!(lit(&w, &DIP_VENTS) + lit(&w, &HOLLOW_VENTS), 0);
+        assert!(!ev.iter().any(|e| e.kind == EventKind::Ignited));
+        for i in DIP_VENTS.into_iter().chain(HOLLOW_VENTS) {
+            let mut ev = Vec::new();
+            w.apply(i, Spell::Fire, &mut ev);
+            assert_eq!(
+                kinds(&ev),
+                vec![EventKind::Fizzle(Fizzle::NoOxygen)],
+                "Fire on smothered vent {i}"
+            );
+            assert!(!w.objs[i].burning);
+        }
+        // CO2 on the vent outside every hollow spills away.
+        let before = w.objs.clone();
+        let mut ev = Vec::new();
+        w.apply(OUTSIDE, Spell::Foam, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Spilled]);
+        assert_eq!(w.objs, before);
+    }
+
+    #[test]
+    fn i037_a_cast_at_the_floor_fills_like_a_cast_at_a_vent() {
+        let mut a = marsh_world();
+        let mut b = marsh_world();
+        a.apply(5, Spell::Foam, &mut Vec::new());
+        b.apply(HOLLOW, Spell::Foam, &mut Vec::new());
+        assert_eq!(a.objs, b.objs);
+        assert!((a.objs[HOLLOW].co2 - HOLLOW_CO2_PER_CAST).abs() < 1e-6);
+    }
+
+    #[test]
+    fn i037_a_marsh_never_wins_loses_or_reseeds_by_itself() {
+        let mut w = marsh_world();
+        let mut ev = Vec::new();
+        for _ in 0..20_000 {
+            w.step(&mut ev);
+            assert_eq!(w.outcome(), Outcome::Playing);
+        }
+        assert_eq!(w.ended, None);
+        assert!(!ev.iter().any(|e| e.kind == EventKind::Reseeded));
+        assert_eq!(w.burning(), 8);
+        w.reach();
         assert_eq!(w.outcome(), Outcome::Won);
     }
 }

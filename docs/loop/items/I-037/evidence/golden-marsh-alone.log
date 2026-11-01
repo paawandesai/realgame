@@ -1,0 +1,180 @@
+  console: INFO src/main.rs:2236 FIRST_FRAME t=2719ms
+  console: INFO src/main.rs:2259 STATS fps=1.0 fps_p50=0.6 fps_p5=0.6 avg_ms=1032.90 p50_ms=1789.90 p95_ms=1789.90 worst_ms=1789.9 update_ms_p50=6.10 update_ms_p95=56.50 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=24.9 heap_pea
+  -- marsh (I-037) --
+  console: INFO src/main.rs:2236 FIRST_FRAME t=2219ms
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=2.7 fps_p5=0.6 avg_ms=719.87 p50_ms=372.20 p95_ms=1655.80 worst_ms=1655.8 update_ms_p50=4.10 update_ms_p95=7.30 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.0 heap_peak_m
+  console: CPUFRAME n=14 p50_ms=6.80 p95_ms=85.20 max_ms=144.40
+  console: INFO src/main.rs:2259 STATS fps=2.9 fps_p50=2.9 fps_p5=2.7 avg_ms=346.38 p50_ms=345.60 p95_ms=375.50 worst_ms=375.5 update_ms_p50=1.30 update_ms_p95=1.90 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.9 fps_p50=2.8 fps_p5=2.7 avg_ms=347.08 p50_ms=354.70 p95_ms=369.80 worst_ms=369.8 update_ms_p50=1.20 update_ms_p95=1.60 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.80 p95_ms=11.20 max_ms=12.10
+  console: INFO src/main.rs:2259 STATS fps=2.4 fps_p50=2.9 fps_p5=1.8 avg_ms=419.64 p50_ms=339.90 p95_ms=553.40 worst_ms=553.4 update_ms_p50=3.20 update_ms_p95=6.70 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.0 heap_peak_mb=
+PASS marsh: level 2 forward arch is shut before the lantern (level 2, nextOpen false) level=2 nextOpen=false pos=0,0,-21.8
+  console: INFO src/main.rs:2259 STATS fps=2.0 fps_p50=1.9 fps_p5=1.7 avg_ms=501.08 p50_ms=532.10 p95_ms=575.40 worst_ms=575.4 update_ms_p50=1.50 update_ms_p95=2.60 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.1 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Frost -> Freezing
+  console: INFO src/main.rs:2259 STATS fps=2.0 fps_p50=2.2 fps_p5=1.5 avg_ms=496.50 p50_ms=461.20 p95_ms=659.00 worst_ms=659.0 update_ms_p50=1.60 update_ms_p95=2.60 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.90 p95_ms=7.70 max_ms=12.80
+  console: INFO src/main.rs:2259 STATS fps=1.8 fps_p50=1.7 fps_p5=1.6 avg_ms=558.22 p50_ms=583.30 p95_ms=612.30 worst_ms=612.3 update_ms_p50=1.40 update_ms_p95=1.70 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Frost -> Freezing
+  console: INFO src/main.rs:2259 STATS fps=1.6 fps_p50=1.5 fps_p5=1.5 avg_ms=617.38 p50_ms=674.60 p95_ms=688.10 worst_ms=688.1 update_ms_p50=1.30 update_ms_p95=2.00 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Frost -> Froze
+  console: INFO src/main.rs:2259 STATS fps=1.7 fps_p50=1.8 fps_p5=1.4 avg_ms=588.22 p50_ms=551.60 p95_ms=716.30 worst_ms=716.3 update_ms_p50=2.70 update_ms_p95=2.90 entities=465 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=7.00 p95_ms=8.40 max_ms=8.80
+  console: INFO src/main.rs:2259 STATS fps=2.2 fps_p50=2.5 fps_p5=1.4 avg_ms=462.44 p50_ms=396.60 p95_ms=705.80 worst_ms=705.8 update_ms_p50=1.30 update_ms_p95=5.40 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=1 Fire -> Melting
+  console: CPUFRAME n=11 p50_ms=5.30 p95_ms=20.20 max_ms=20.20
+  console: INFO src/main.rs:2259 STATS fps=2.3 fps_p50=2.6 fps_p5=1.8 avg_ms=431.02 p50_ms=387.90 p95_ms=543.10 worst_ms=543.1 update_ms_p50=1.60 update_ms_p95=4.40 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=1 Fire -> Melting
+  console: INFO src/main.rs:2259 STATS fps=2.6 fps_p50=2.6 fps_p5=2.3 avg_ms=387.48 p50_ms=389.30 p95_ms=431.10 worst_ms=431.1 update_ms_p50=1.40 update_ms_p95=2.00 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=1 Fire -> Melted
+  console: CPUFRAME n=14 p50_ms=5.30 p95_ms=7.00 max_ms=9.10
+  console: INFO src/main.rs:2259 STATS fps=2.9 fps_p50=2.7 fps_p5=2.4 avg_ms=347.83 p50_ms=376.50 p95_ms=410.50 worst_ms=410.5 update_ms_p50=1.30 update_ms_p95=2.00 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+PASS marsh: the level-2 win opens the forward arch and the banner points to the Marsh outcome=won nextOpen=true banner={"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again."}
+  console: INFO src/main.rs:2259 STATS fps=2.9 fps_p50=2.8 fps_p5=2.7 avg_ms=342.85 p50_ms=362.10 p95_ms=376.80 worst_ms=376.8 update_ms_p50=1.10 update_ms_p95=1.50 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.2 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.00 p95_ms=5.90 max_ms=7.10
+PASS marsh: walking into the open forward arch loads the Marsh within 5 s level=3 after 273 ms objs=dip,dip vent,dip vent,dip vent,hollow,hollow vent,hollow vent,hollow vent,hollow vent,lantern ventsLit=7 pools=[0,0] outcome=playing caption=The Marsh. Put out the gas flames, cross the boardwalk, reach the lantern.
+  console: INFO src/main.rs:2259 STATS fps=2.8 fps_p50=2.6 fps_p5=2.5 avg_ms=360.78 p50_ms=379.20 p95_ms=396.20 worst_ms=396.2 update_ms_p50=1.30 update_ms_p95=3.50 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.4 fps_p50=2.4 fps_p5=2.3 avg_ms=421.88 p50_ms=422.30 p95_ms=438.20 worst_ms=438.2 update_ms_p50=1.10 update_ms_p95=1.20 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=6.60 p95_ms=10.20 max_ms=10.20
+  console: INFO src/main.rs:2259 STATS fps=2.4 fps_p50=2.5 fps_p5=2.4 avg_ms=408.98 p50_ms=407.80 p95_ms=417.10 worst_ms=417.1 update_ms_p50=1.00 update_ms_p95=1.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.5 fps_p50=2.7 fps_p5=2.1 avg_ms=402.92 p50_ms=373.80 p95_ms=470.60 worst_ms=470.6 update_ms_p50=1.30 update_ms_p95=1.50 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.60 p95_ms=6.60 max_ms=6.60
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.6 fps_p5=2.3 avg_ms=375.32 p50_ms=380.60 p95_ms=438.70 worst_ms=438.7 update_ms_p50=1.20 update_ms_p95=5.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.8 fps_p50=2.8 fps_p5=2.7 avg_ms=356.92 p50_ms=361.90 p95_ms=371.20 worst_ms=371.2 update_ms_p50=1.00 update_ms_p95=4.40 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=6.10 p95_ms=15.50 max_ms=15.50
+PASS marsh: burning gas blocks the walk (stopped south of the dip flames, z > 10) pos=0,0,10.75 ventsLit=7
+  console: INFO src/main.rs:2259 STATS fps=2.0 fps_p50=2.5 fps_p5=1.4 avg_ms=502.66 p50_ms=402.50 p95_ms=708.00 worst_ms=708.0 update_ms_p50=1.20 update_ms_p95=3.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=2 Water -> Flicker(Water)
+PASS marsh: Water on a gas vent only knocks it down (7 lit, pool 0, Flicker(Water) line) {"lit":7,"pool":0,"cap":"Marsh gas is methane (CH₄). It keeps bubbling up through the water, so a splash only knocks the flame down for a moment."}
+  console: INFO src/main.rs:2259 STATS fps=1.1 fps_p50=1.4 fps_p5=0.7 avg_ms=944.13 p50_ms=720.10 p95_ms=1410.10 worst_ms=1410.1 update_ms_p50=1.10 update_ms_p95=3.00 entities=524 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_m
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.3 fps_p5=1.2 avg_ms=776.03 p50_ms=761.50 p95_ms=843.80 worst_ms=843.8 update_ms_p50=1.20 update_ms_p95=4.50 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=5.70 p95_ms=8.50 max_ms=8.90
+  console: INFO src/main.rs:1808 IMPACT obj=2 Frost -> Flicker(Frost)
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.4 fps_p5=1.1 avg_ms=743.83 p50_ms=692.00 p95_ms=891.60 worst_ms=891.6 update_ms_p50=1.10 update_ms_p95=2.80 entities=524 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.3 fps_p5=1.2 avg_ms=777.87 p50_ms=776.00 p95_ms=807.80 worst_ms=807.8 update_ms_p50=1.70 update_ms_p95=2.00 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=2 Fire -> NoChange
+PASS marsh: Frost knocks it down too and Fire changes nothing (7 lit, Frost and Fire lines) frost={"lit":7,"pool":0,"cap":"Liquid nitrogen boils into N₂ gas. Once it warms up, N₂ is about as heavy as air, so it mixes away and the methane keeps burning."} fire={"lit":7,"cap":"That gas is already burning. Fire cannot put out fire."}
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.4 fps_p5=1.2 avg_ms=742.33 p50_ms=733.90 p95_ms=824.50 worst_ms=824.5 update_ms_p50=1.20 update_ms_p95=3.20 entities=523 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=6.50 p95_ms=7.70 max_ms=7.70
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.3 fps_p5=1.3 avg_ms=732.00 p50_ms=747.00 p95_ms=765.80 worst_ms=765.8 update_ms_p50=1.30 update_ms_p95=2.00 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Foam -> Filling
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.5 fps_p5=1.1 avg_ms=757.33 p50_ms=682.80 p95_ms=938.60 worst_ms=938.6 update_ms_p50=1.60 update_ms_p95=2.10 entities=524 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=6.40 p95_ms=8.90 max_ms=8.90
+  console: INFO src/main.rs:2259 STATS fps=1.1 fps_p50=1.1 fps_p5=1.0 avg_ms=911.73 p50_ms=904.80 p95_ms=969.00 worst_ms=969.0 update_ms_p50=1.50 update_ms_p95=1.70 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Foam -> Pooled
+  console: INFO src/main.rs:2259 STATS fps=1.2 fps_p50=1.2 fps_p5=1.2 avg_ms=817.73 p50_ms=828.00 p95_ms=835.40 worst_ms=835.4 update_ms_p50=1.10 update_ms_p95=3.20 entities=524 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.1 fps_p50=1.1 fps_p5=1.1 avg_ms=938.23 p50_ms=936.60 p95_ms=949.20 worst_ms=949.2 update_ms_p50=1.20 update_ms_p95=1.50 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.40 p95_ms=9.10 max_ms=9.10
+  console: INFO src/main.rs:2259 STATS fps=1.2 fps_p50=1.1 fps_p5=1.1 avg_ms=860.77 p50_ms=874.30 p95_ms=882.80 worst_ms=882.8 update_ms_p50=1.20 update_ms_p95=1.40 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.4 avg_ms=723.30 p50_ms=729.10 p95_ms=733.90 worst_ms=733.9 update_ms_p50=1.00 update_ms_p95=1.20 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=715.37 p50_ms=709.40 p95_ms=747.50 worst_ms=747.5 update_ms_p50=1.30 update_ms_p95=1.50 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.4 avg_ms=734.70 p50_ms=739.50 p95_ms=740.60 worst_ms=740.6 update_ms_p50=1.40 update_ms_p95=1.40 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.90 p95_ms=8.40 max_ms=8.60
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.3 fps_p5=1.3 avg_ms=735.20 p50_ms=745.40 p95_ms=749.00 worst_ms=749.0 update_ms_p50=1.00 update_ms_p95=1.10 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.5 fps_p5=1.3 avg_ms=693.43 p50_ms=666.80 p95_ms=754.30 worst_ms=754.3 update_ms_p50=1.00 update_ms_p95=1.40 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.4 avg_ms=717.30 p50_ms=712.90 p95_ms=729.00 worst_ms=729.0 update_ms_p50=1.10 update_ms_p95=1.60 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=4.90 p95_ms=8.50 max_ms=8.50
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.3 fps_p5=1.3 avg_ms=731.03 p50_ms=761.50 p95_ms=766.70 worst_ms=766.7 update_ms_p50=1.00 update_ms_p95=1.20 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.4 avg_ms=692.40 p50_ms=694.00 p95_ms=704.20 worst_ms=704.2 update_ms_p50=1.00 update_ms_p95=1.00 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.5 fps_p50=1.5 fps_p5=1.4 avg_ms=679.73 p50_ms=684.70 p95_ms=692.30 worst_ms=692.3 update_ms_p50=1.20 update_ms_p95=1.70 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.60 p95_ms=6.30 max_ms=7.70
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.4 avg_ms=721.87 p50_ms=724.40 p95_ms=729.20 worst_ms=729.2 update_ms_p50=1.20 update_ms_p95=1.40 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+PASS marsh: CO2 fills the dip (0.5 at a vent, Filling; 1 at the floor, Pooled; 4 lit, still 4 after 5 s) half={"lit":7,"pool":0.5,"cap":"CO₂ (44 g/mol) is denser than air (29 g/mol), so it pools low, like an invisible pond."} full={"lit":4,"pool":1,"cap":"The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.","icon":""} after 5 s ventsLit=4
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=737.47 p50_ms=735.10 p95_ms=755.80 worst_ms=755.8 update_ms_p50=1.30 update_ms_p95=1.80 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=2 Fire -> Fizzle(NoOxygen)
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.3 fps_p5=1.3 avg_ms=745.70 p50_ms=741.90 p95_ms=762.70 worst_ms=762.7 update_ms_p50=1.30 update_ms_p95=2.00 entities=523 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+PASS marsh: Fire on a smothered vent fizzles (no oxygen), 4 lit ventsLit=4 caption=Fire needs oxygen, and the CO₂ keeps it away.
+  console: CPUFRAME n=13 p50_ms=6.00 p95_ms=6.50 max_ms=6.90
+  console: INFO src/main.rs:2259 STATS fps=1.7 fps_p50=1.3 fps_p5=1.3 avg_ms=585.67 p50_ms=746.80 p95_ms=757.70 worst_ms=757.7 update_ms_p50=1.20 update_ms_p95=1.40 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.8 fps_p5=2.4 avg_ms=364.00 p50_ms=355.00 p95_ms=410.10 worst_ms=410.1 update_ms_p50=1.40 update_ms_p95=1.60 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.20 p95_ms=7.50 max_ms=8.60
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.7 fps_p5=2.6 avg_ms=364.38 p50_ms=372.60 p95_ms=380.40 worst_ms=380.4 update_ms_p50=1.40 update_ms_p95=3.40 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.7 fps_p5=2.7 avg_ms=369.72 p50_ms=368.70 p95_ms=375.50 worst_ms=375.5 update_ms_p50=1.00 update_ms_p95=1.40 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.20 p95_ms=11.10 max_ms=11.10
+  console: INFO src/main.rs:2259 STATS fps=1.9 fps_p50=1.4 fps_p5=1.4 avg_ms=526.47 p50_ms=691.10 p95_ms=705.70 worst_ms=705.7 update_ms_p50=1.30 update_ms_p95=1.30 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=4 Foam -> Filling
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.4 fps_p5=1.1 avg_ms=777.97 p50_ms=710.50 p95_ms=922.10 worst_ms=922.1 update_ms_p50=1.30 update_ms_p95=1.80 entities=524 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=5.30 p95_ms=7.00 max_ms=7.00
+  console: INFO src/main.rs:2259 STATS fps=1.1 fps_p50=1.1 fps_p5=1.1 avg_ms=906.67 p50_ms=888.70 p95_ms=945.80 worst_ms=945.8 update_ms_p50=1.10 update_ms_p95=1.50 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=4 Foam -> Filling
+  console: INFO src/main.rs:2259 STATS fps=1.1 fps_p50=1.1 fps_p5=1.0 avg_ms=937.57 p50_ms=927.00 p95_ms=1005.60 worst_ms=1005.6 update_ms_p50=1.10 update_ms_p95=1.80 entities=524 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_m
+  console: INFO src/main.rs:2259 STATS fps=1.1 fps_p50=1.2 fps_p5=1.1 avg_ms=879.00 p50_ms=866.90 p95_ms=912.10 worst_ms=912.1 update_ms_p50=1.40 update_ms_p95=1.80 entities=522 burning=4 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=4 Foam -> Pooled
+  console: CPUFRAME n=12 p50_ms=5.50 p95_ms=6.90 max_ms=7.40
+  console: INFO src/main.rs:2259 STATS fps=1.1 fps_p50=1.2 fps_p5=1.0 avg_ms=877.53 p50_ms=827.10 p95_ms=981.90 worst_ms=981.9 update_ms_p50=1.30 update_ms_p95=2.00 entities=524 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.9 fps_p50=2.5 fps_p5=1.0 avg_ms=532.53 p50_ms=403.60 p95_ms=1006.70 worst_ms=1006.7 update_ms_p50=1.30 update_ms_p95=5.30 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_m
+PASS marsh: the hollow fills in three casts (0.34 / 0.68 / 1.00; 4 lit after two, 0 after three) and both cross stopped at z=-6.25 pools 0.34 / 0.68 / 1 lit 4 / 4 / 0 then pos=0,0,-12.5 outcome=playing
+  console: INFO src/main.rs:2259 STATS fps=3.4 fps_p50=3.4 fps_p5=3.1 avg_ms=291.36 p50_ms=292.50 p95_ms=320.70 worst_ms=320.7 update_ms_p50=1.00 update_ms_p95=3.50 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=15 p50_ms=6.00 p95_ms=7.50 max_ms=10.00
+  console: INFO src/main.rs:2259 STATS fps=3.2 fps_p50=3.2 fps_p5=3.0 avg_ms=311.24 p50_ms=314.90 p95_ms=334.90 worst_ms=334.9 update_ms_p50=1.20 update_ms_p95=2.70 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.3 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=4.80 p95_ms=6.30 max_ms=7.10
+  console: INFO src/main.rs:2259 STATS fps=3.0 fps_p50=3.0 fps_p5=2.7 avg_ms=327.87 p50_ms=330.50 p95_ms=367.60 worst_ms=367.6 update_ms_p50=1.20 update_ms_p95=3.10 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.3 heap_peak_mb=
+PASS marsh: walking to the lantern wins ("You cleared the Marsh!") and the walk stops outcome=won banner={"shown":true,"big":"You cleared the Marsh!","small":"CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back."} pos 0,0,-16.083 -> 0,0,-16.083
+  console: INFO src/main.rs:2259 STATS fps=3.0 fps_p50=3.0 fps_p5=2.8 avg_ms=335.52 p50_ms=331.10 p95_ms=362.40 worst_ms=362.4 update_ms_p50=1.30 update_ms_p95=5.40 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.3 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.2 fps_p50=2.1 fps_p5=2.0 avg_ms=444.60 p50_ms=474.30 p95_ms=493.60 worst_ms=493.6 update_ms_p50=1.40 update_ms_p95=1.90 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=7.00 p95_ms=9.40 max_ms=21.10
+  console: INFO src/main.rs:2259 STATS fps=2.2 fps_p50=2.2 fps_p5=2.1 avg_ms=451.26 p50_ms=459.20 p95_ms=484.50 worst_ms=484.5 update_ms_p50=1.10 update_ms_p95=1.50 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.2 fps_p50=2.2 fps_p5=1.9 avg_ms=456.80 p50_ms=449.80 p95_ms=514.30 worst_ms=514.3 update_ms_p50=1.20 update_ms_p95=1.50 entities=522 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+PASS marsh: the back arch returns to the Frozen Gate with its forward arch open level=2 nextOpen=true pos=0,0,-20.4
+  console: CPUFRAME n=15 p50_ms=5.90 p95_ms=8.40 max_ms=10.90
+  console: INFO src/main.rs:2259 STATS fps=2.4 fps_p50=2.7 fps_p5=1.7 avg_ms=415.86 p50_ms=369.00 p95_ms=575.50 worst_ms=575.5 update_ms_p50=1.70 update_ms_p95=4.50 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.2 fps_p50=2.1 fps_p5=1.6 avg_ms=465.00 p50_ms=475.40 p95_ms=615.10 worst_ms=615.1 update_ms_p50=1.20 update_ms_p95=1.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.50 p95_ms=8.20 max_ms=8.70
+  console: INFO src/main.rs:1808 IMPACT obj=0 Foam -> Filling
+  console: INFO src/main.rs:2259 STATS fps=1.5 fps_p50=1.5 fps_p5=1.2 avg_ms=668.15 p50_ms=668.50 p95_ms=815.90 worst_ms=815.9 update_ms_p50=1.20 update_ms_p95=1.90 entities=524 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.5 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.3 fps_p50=1.4 fps_p5=1.1 avg_ms=765.00 p50_ms=734.80 p95_ms=877.50 worst_ms=877.5 update_ms_p50=1.20 update_ms_p95=2.60 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=6.10 p95_ms=7.40 max_ms=7.90
+  console: INFO src/main.rs:2259 STATS fps=2.0 fps_p50=2.2 fps_p5=1.7 avg_ms=498.84 p50_ms=445.00 p95_ms=604.10 worst_ms=604.1 update_ms_p50=1.30 update_ms_p95=1.60 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Foam -> Filling
+  console: INFO src/main.rs:2259 STATS fps=1.6 fps_p50=1.7 fps_p5=1.4 avg_ms=613.22 p50_ms=574.10 p95_ms=739.30 worst_ms=739.3 update_ms_p50=2.80 update_ms_p95=2.80 entities=524 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.5 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=708.93 p50_ms=732.80 p95_ms=754.10 worst_ms=754.1 update_ms_p50=2.10 update_ms_p95=3.70 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=6.80 p95_ms=12.00 max_ms=12.00
+  console: INFO src/main.rs:2259 STATS fps=2.0 fps_p50=2.2 fps_p5=1.5 avg_ms=512.36 p50_ms=454.60 p95_ms=663.60 worst_ms=663.6 update_ms_p50=1.20 update_ms_p95=2.80 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Foam -> Filling
+  console: INFO src/main.rs:2259 STATS fps=1.6 fps_p50=1.7 fps_p5=1.3 avg_ms=643.60 p50_ms=605.70 p95_ms=774.20 worst_ms=774.2 update_ms_p50=1.80 update_ms_p95=2.00 entities=524 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.5 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.70 p95_ms=7.40 max_ms=7.40
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=1.4 fps_p5=1.3 avg_ms=714.97 p50_ms=723.00 p95_ms=751.80 worst_ms=751.8 update_ms_p50=1.50 update_ms_p95=3.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.1 fps_p50=2.3 fps_p5=1.7 avg_ms=470.56 p50_ms=429.70 p95_ms=591.80 worst_ms=591.8 update_ms_p50=1.10 update_ms_p95=1.50 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=5.00 p95_ms=7.80 max_ms=9.60
+  console: INFO src/main.rs:1808 IMPACT obj=0 Foam -> Filling
+PASS marsh: each band sees its own Filling line; Sprout shows the gas picture sprout: ok | seedling: ok | apprentice: ok | adept: ok
+  console: INFO src/main.rs:2259 STATS fps=1.6 fps_p50=1.6 fps_p5=1.4 avg_ms=626.53 p50_ms=612.40 p95_ms=735.20 worst_ms=735.2 update_ms_p50=1.10 update_ms_p95=2.20 entities=524 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.4 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.3 fps_p50=2.9 fps_p5=1.4 avg_ms=430.60 p50_ms=339.50 p95_ms=705.80 worst_ms=705.8 update_ms_p50=2.70 update_ms_p95=4.00 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.5 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=6.10 p95_ms=10.00 max_ms=10.50
+  console: INFO src/main.rs:2259 STATS fps=2.6 fps_p50=2.6 fps_p5=2.5 avg_ms=378.28 p50_ms=383.50 p95_ms=395.40 worst_ms=395.4 update_ms_p50=1.00 update_ms_p95=1.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.5 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=5.90 p95_ms=7.80 max_ms=7.80
+  console: INFO src/main.rs:2259 STATS fps=2.6 fps_p50=2.6 fps_p5=2.5 avg_ms=384.60 p50_ms=382.90 p95_ms=405.00 worst_ms=405.0 update_ms_p50=1.00 update_ms_p95=1.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.5 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.8 fps_p5=2.1 avg_ms=373.77 p50_ms=355.30 p95_ms=474.80 worst_ms=474.8 update_ms_p50=3.00 update_ms_p95=3.50 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=8.50 p95_ms=10.70 max_ms=10.70
+  console: INFO src/main.rs:2259 STATS fps=2.6 fps_p50=2.4 fps_p5=2.1 avg_ms=386.62 p50_ms=417.50 p95_ms=474.50 worst_ms=474.5 update_ms_p50=2.60 update_ms_p95=3.30 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=26.0 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.9 fps_p50=2.9 fps_p5=2.8 avg_ms=339.87 p50_ms=346.40 p95_ms=356.00 worst_ms=356.0 update_ms_p50=1.10 update_ms_p95=1.50 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: CPUFRAME n=14 p50_ms=6.40 p95_ms=11.40 max_ms=12.60
+  console: INFO src/main.rs:2259 STATS fps=2.8 fps_p50=2.8 fps_p5=2.5 avg_ms=361.00 p50_ms=351.60 p95_ms=399.00 worst_ms=399.0 update_ms_p50=2.50 update_ms_p95=5.90 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.7 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.9 fps_p5=2.0 avg_ms=364.65 p50_ms=342.10 p95_ms=507.40 worst_ms=507.4 update_ms_p50=2.50 update_ms_p95=3.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.6 heap_peak_mb=
+  console: CPUFRAME n=11 p50_ms=7.50 p95_ms=9.50 max_ms=9.50
+  console: INFO src/main.rs:2259 STATS fps=2.6 fps_p50=2.5 fps_p5=2.3 avg_ms=381.73 p50_ms=392.30 p95_ms=441.80 worst_ms=441.8 update_ms_p50=2.20 update_ms_p95=3.10 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.5 fps_p5=2.4 avg_ms=376.98 p50_ms=405.30 p95_ms=417.80 worst_ms=417.8 update_ms_p50=2.30 update_ms_p95=3.70 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.6 heap_peak_mb=
+  console: CPUFRAME n=16 p50_ms=6.80 p95_ms=9.40 max_ms=12.60
+  console: INFO src/main.rs:2259 STATS fps=2.5 fps_p50=2.6 fps_p5=1.9 avg_ms=396.13 p50_ms=384.80 p95_ms=528.00 worst_ms=528.0 update_ms_p50=2.30 update_ms_p95=3.00 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.7 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.8 fps_p50=3.0 fps_p5=2.2 avg_ms=354.08 p50_ms=336.10 p95_ms=464.00 worst_ms=464.0 update_ms_p50=2.70 update_ms_p95=5.30 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.6 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=8.80 p95_ms=12.20 max_ms=13.50
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.7 fps_p5=2.2 avg_ms=374.45 p50_ms=377.10 p95_ms=459.50 worst_ms=459.5 update_ms_p50=2.70 update_ms_p95=6.50 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.9 heap_peak_mb=
+  console: CPUFRAME n=12 p50_ms=7.90 p95_ms=11.30 max_ms=15.50
+  console: INFO src/main.rs:2259 STATS fps=2.9 fps_p50=2.9 fps_p5=2.6 avg_ms=343.70 p50_ms=340.20 p95_ms=384.50 worst_ms=384.5 update_ms_p50=2.20 update_ms_p95=3.50 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.7 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.6 fps_p5=2.1 avg_ms=376.65 p50_ms=380.70 p95_ms=465.20 worst_ms=465.2 update_ms_p50=2.60 update_ms_p95=3.70 entities=463 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.7 heap_peak_mb=
+  console: CPUFRAME n=10 p50_ms=8.20 p95_ms=12.20 max_ms=12.20
+  console: INFO src/main.rs:2259 STATS fps=2.7 fps_p50=2.8 fps_p5=2.1 avg_ms=370.50 p50_ms=358.10 p95_ms=473.20 worst_ms=473.2 update_ms_p50=2.50 update_ms_p95=2.90 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.6 heap_peak_mb=
+  console: INFO src/main.rs:2259 STATS fps=2.8 fps_p50=2.8 fps_p5=2.2 avg_ms=357.48 p50_ms=352.10 p95_ms=451.40 worst_ms=451.4 update_ms_p50=1.40 update_ms_p95=3.40 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+  console: CPUFRAME n=13 p50_ms=5.60 p95_ms=8.30 max_ms=9.80
+  console: INFO src/main.rs:2259 STATS fps=3.0 fps_p50=3.0 fps_p5=2.7 avg_ms=335.70 p50_ms=329.90 p95_ms=363.90 worst_ms=363.9 update_ms_p50=1.00 update_ms_p95=1.10 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.8 heap_peak_mb=
+PASS marsh: level 3 has no more entities than level 1 level 1 633, level 3 522
+PASS marsh: 10 switches 1-2-3-2-1 leave entities exact and WASM memory flat (± 2 %) entities 633 -> 633; wasm MB after switch 2 33.6, after 10 33.6
+  console: INFO src/main.rs:2236 FIRST_FRAME t=2205ms
+  console: INFO src/main.rs:2259 STATS fps=1.4 fps_p50=2.4 fps_p5=0.6 avg_ms=718.87 p50_ms=422.00 p95_ms=1594.40 worst_ms=1594.4 update_ms_p50=2.10 update_ms_p95=9.00 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.7 heap_live_mb=25.0 heap_peak_m
+  console: CPUFRAME n=12 p50_ms=8.90 p95_ms=84.00 max_ms=126.90
+  console: INFO src/main.rs:2259 STATS fps=2.6 fps_p50=2.6 fps_p5=2.4 avg_ms=380.72 p50_ms=379.20 p95_ms=415.00 worst_ms=415.0 update_ms_p50=1.60 update_ms_p95=2.40 entities=522 burning=7 extinguished=0 wasm_mem_mb=33.7 heap_live_mb=25.0 heap_peak_mb=
+  console: INFO src/main.rs:1808 IMPACT obj=0 Foam -> Filling
+PASS marsh: ?level=3 (no debug) opens the Marsh and CO2 can be selected and cast level=3 caption=The Marsh. Put out the gas flames, cross the boardwalk, reach the lantern. spell=3 casts 0 -> 1 url=http://127.0.0.1:38607/?low&level=3
+PASS no console errors 
+
+16/16 passed
+exit=0

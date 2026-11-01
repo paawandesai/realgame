@@ -36,7 +36,8 @@
 // passed, so a slow software GPU no longer drops a cast the game would fire
 // on its next frame; a step with no new frames gives up at 10x its timeout.
 // Flags: --query k=v[&k=v] adds parameters to the page URL (I-035: `--query
-// level=2` measures level 2 with a stream-and-gate workload). --bars k=v,... overrides thresholds (b3_brotli_mb, b3_tti_ms,
+// level=2` measures level 2 with a stream-and-gate workload; I-037: `--query
+// level=3` measures level 3 with a gas-vent workload). --bars k=v,... overrides thresholds (b3_brotli_mb, b3_tti_ms,
 // b2_cpu_p50_ms, b2_mac_p5_fps). --self-test runs the unit tests of the pure
 // helpers (no browser, no build) and lints docs/loop/mac-perf.md.
 //
@@ -111,6 +112,10 @@ function pageUrl(base, tier, query = '') {
 // there, so the workload casts at the stream and the gate instead of fires
 // and does not require a burning object.
 function isLevel2(query) { return /(^|&)level=2(&|$)/.test(String(query || '').replace(/^[?&]+/, '')); }
+// `--query level=3` (I-037) measures level 3, the Marsh: the workload casts
+// every spell at the middle dip vent (burning gas) from the boardwalk.
+function isLevel3(query) { return /(^|&)level=3(&|$)/.test(String(query || '').replace(/^[?&]+/, '')); }
+function levelOf(query) { return isLevel3(query) ? 3 : isLevel2(query) ? 2 : 1; }
 
 function contextOptions(isMac, { vw, vh, dpr }) {
   return isMac
@@ -547,7 +552,8 @@ function pageHook(makeTti, glCount, parseStartup) {
 // (outside requestAnimationFrame, so it is not counted as frame CPU except
 // for what the game itself does with the commands). Deterministic: the same
 // command list in the same order every run.
-function pageWorkload(noCast, timedOut, level2 = false) {
+function pageWorkload(noCast, timedOut, level = 1) {
+  const level2 = level === 2 || level === true, level3 = level === 3;
   const W = (window.__work = { sampling: false, casts: { 1: 0, 2: 0, 3: 0, 4: 0 }, castsTotal: 0, burningMax: 0, yaw: 0, steps: 0, resets: 0,
     vis: { samples: 0, hidden: 0, unfocused: 0, hidden_events: 0 } });
   // A hidden or background window throttles rAF: count it during sampling.
@@ -561,8 +567,8 @@ function pageWorkload(noCast, timedOut, level2 = false) {
   const st = () => { try { return JSON.parse(window.__gameState); } catch { return null; } };
   const cmd = (c) => window.__game.cmd(c);
   let s0 = st();
-  const idx = (name) => (s0.objs.find((o) => o.n === name) || {}).i;
-  const burningAny = (s) => (level2 ? idx('ice gate') : (s.objs.find((o) => o.burning && o.n === 'bush') || s.objs.find((o) => o.burning) || {}).i);
+  const idx = (name) => (level3 && name === 'dip vent' ? (s0.objs.filter((o) => o.n === name)[1] || {}).i : (s0.objs.find((o) => o.n === name) || {}).i);
+  const burningAny = (s) => (level3 ? idx('dip vent') : level2 ? idx('ice gate') : (s.objs.find((o) => o.burning && o.n === 'bush') || s.objs.find((o) => o.burning) || {}).i);
   // Step list: each step issues commands, then waits until pred(state) or
   // its timeout (in ms of wall time).
   // Each spell step teleports to the same spot, faces the target, selects
@@ -573,8 +579,8 @@ function pageWorkload(noCast, timedOut, level2 = false) {
   const spellAt = (spell, target) => steps.push({
     go: (s) => {
       W.c0 = s.casts; W.f0 = s.frame;
-      const t = target(s) ?? idx(level2 ? 'stream' : 'dry hedge');
-      cmd(level2 ? 'tp 0 10' : 'tp 0 5.5'); cmd(`face ${t}`); cmd(`select ${spell}`);
+      const t = level3 ? idx('dip vent') : target(s) ?? idx(level2 ? 'stream' : 'dry hedge');
+      cmd(level3 ? 'tp 0 13' : level2 ? 'tp 0 10' : 'tp 0 5.5'); cmd(`face ${t}`); cmd(`select ${spell}`);
       if (!noCast) cmd('cast');
     },
     until: (s) => (noCast ? s.frame > W.f0 + 1 : s.casts > W.c0),
@@ -882,7 +888,7 @@ async function runOne(browser, base, cfg, collect) {
       log(`${cfg}: interactive at ${out.tti_ms} ms (bound ${out.tti_bound_ms} ms, FIRST_FRAME t=${out.first_frame_log_ms})`);
       if (BLANK_CANVAS) await page.evaluate(() => document.querySelectorAll('canvas').forEach((c) => { c.style.filter = 'brightness(0)'; }));
       if (isMac) await page.bringToFront();
-      await page.evaluate(`(${pageWorkload})(${JSON.stringify(NO_CAST)}, ${stepTimedOut}, ${JSON.stringify(isLevel2(QUERY))})`);
+      await page.evaluate(`(${pageWorkload})(${JSON.stringify(NO_CAST)}, ${stepTimedOut}, ${JSON.stringify(levelOf(QUERY))})`);
       const warm = isMac ? 5 : WARMUP_S, sample = isMac ? MAC_SAMPLE_S : SAMPLE_S;
       await sleep(warm * 1000);
       const a = await page.evaluate(() => {
@@ -1037,6 +1043,8 @@ async function runSelfTest() {
     eq([pageUrl('http://h/', 'default'), pageUrl('http://h/', 'low')], ['http://h/?debug', 'http://h/?low&debug']);
     eq([pageUrl('http://h/', 'low', 'level=2'), pageUrl('http://h/', 'default', '?level=2'), pageUrl('http://h/', 'low', '')], ['http://h/?low&debug&level=2', 'http://h/?debug&level=2', 'http://h/?low&debug']);
     eq([isLevel2('level=2'), isLevel2('a=1&level=2'), isLevel2('level=20'), isLevel2('')], [true, true, false, false]);
+    eq([isLevel3('level=3'), isLevel3('low&level=3'), isLevel3('level=30'), isLevel3('level=2')], [true, true, false, false]);
+    eq([levelOf('level=3'), levelOf('level=2'), levelOf('')], [3, 2, 1]);
   });
 
   // 3. Invalid reasons.
