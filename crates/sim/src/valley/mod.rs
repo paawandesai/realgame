@@ -1,5 +1,202 @@
-//! I-052 block valley game layer (pack, crafting, quest, invention).
-//! Tests first: the types land in the next commit.
+//! I-052 block valley game layer (spec sections 6-7): the pack, crafting,
+//! the quest state machine and the Invention Bench. Pure, no Bevy: the quest
+//! never reads cells; it hears events from the client's `blockchem`,
+//! `voxel_view` and benches (spec section 10, contract rules).
+//!
+//! Contract step: the types and signatures are fixed here; the bodies marked
+//! "stub" are filled by Lane C (spec section 12), which owns this module and
+//! may add variants and helpers.
+
+use crate::spellbook::SpellDef;
+use crate::tier::Tier;
+
+/// Something the pack can hold. `Block` carries a material id (the row in
+/// `content/materials.json`, `realgame_voxel::mat`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Item {
+    Block(u8),
+    Pick,
+    Torch,
+    O2Flask,
+    H2Balloon,
+    KilnSpark,
+}
+
+/// Up to 64 of a block, 1 of a tool or key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Stack {
+    pub item: Item,
+    pub n: u16,
+}
+
+/// Most of one block in a slot.
+pub const STACK_MAX: u16 = 64;
+/// Pack slots.
+pub const SLOTS: usize = 20;
+
+/// The player's pack: 20 slots, and keys 6-9 bound to slots.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Pack {
+    pub slots: [Option<Stack>; SLOTS],
+    /// Keys 6-9 -> slot index.
+    pub hot: [Option<u8>; 4],
+}
+
+impl Pack {
+    /// Adds `n` of `item`; returns how many did not fit. Stub: adds nothing.
+    pub fn add(&mut self, item: Item, n: u16) -> u16 {
+        let _ = item;
+        n
+    }
+
+    /// Takes `n` of `item`, all or nothing. Stub: never takes.
+    pub fn take(&mut self, item: Item, n: u16) -> bool {
+        let _ = (item, n);
+        false
+    }
+
+    /// How many of `item` the pack holds. Stub: 0.
+    pub fn count(&self, item: Item) -> u32 {
+        let _ = item;
+        0
+    }
+
+    /// The `pack` state key: a JSON array of `{item, n}`. Stub: empty.
+    pub fn to_json(&self) -> String {
+        "[]".to_string()
+    }
+}
+
+/// A Formula Bench "Make things" recipe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Recipe {
+    pub id: &'static str,
+    pub needs: &'static [(Item, u16)],
+    pub gives: (Item, u16),
+    /// Key into `content/science-sources.md`.
+    pub source: &'static str,
+}
+
+/// Must recipes: torch (1 wood + 1 coal -> 4 torches) and furnace (8 stone).
+/// Stub: empty until Lane C fills it.
+pub const RECIPES: &[Recipe] = &[];
+
+/// Why `craft` refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CraftError {
+    NotEnough { item: Item, have: u32, need: u16 },
+    UnknownRecipe,
+}
+
+/// Crafts recipe `id` from the pack, all or nothing. Stub: unknown recipe.
+pub fn craft(pack: &mut Pack, id: &str) -> Result<(), CraftError> {
+    let _ = (pack, id);
+    Err(CraftError::UnknownRecipe)
+}
+
+/// A quest step: 0 the intro, 1-7 the steps in section 7, 8 the ending.
+pub type Step = u8;
+/// Steps after the intro.
+pub const STEPS: Step = 7;
+
+/// What the client tells the quest (from `MatterEvent`s, `PlayerEvent`s and
+/// the benches; built in the client's `story`). Lane C may add variants.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QuestEvent {
+    IntroDone,
+    /// No burning cell left in the workshop stamp; `by_water` if at least one
+    /// was put out by water.
+    WorkshopOut {
+        by_water: bool,
+    },
+    /// The player stands at z < 150 inside the ford box.
+    CrossedFord,
+    /// The gate stamp's ice is all gone.
+    GateMelted,
+    /// The pack now holds `total` of `item`.
+    Holding {
+        item: Item,
+        total: u32,
+    },
+    /// Every hollow vent was out at once and the player crossed.
+    CrossedHollow,
+    /// The Invention Bench accepted a reaction hot enough for the Kiln.
+    Invented {
+        relights: bool,
+    },
+}
+
+/// The quest state machine (section 7). Pure: it never polls the world.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Quest {
+    step: Step,
+}
+
+impl Quest {
+    pub fn new() -> Quest {
+        Quest { step: 0 }
+    }
+
+    /// Feeds one event; returns the step just completed, if any.
+    /// Stub: never advances.
+    pub fn on(&mut self, event: QuestEvent) -> Option<Step> {
+        let _ = event;
+        None
+    }
+
+    /// The current step (0-8).
+    pub fn step(&self) -> Step {
+        self.step
+    }
+
+    /// The objective line for the current step and band (`None`: no band
+    /// chosen, Seedling text). Stub: empty.
+    pub fn line(&self, band: Option<Tier>) -> &'static str {
+        let _ = band;
+        ""
+    }
+}
+
+/// The Invention Bench (section 6): builds a reaction from 1-3 pack items and
+/// asks `crate::reactions` whether it is real, exothermic and hot enough.
+pub mod invent {
+    use super::Item;
+    use crate::bench::Code;
+    use crate::tier::Tier;
+
+    /// The bench's verdict.
+    #[derive(Clone, Debug, Default, PartialEq)]
+    pub struct Invention {
+        /// A balanced, exothermic reaction from `content/reactions.json`
+        /// uses only these reactants.
+        pub ok: bool,
+        /// Its flame in pure O2 reaches 1700 °C: it relights the Kiln.
+        pub relights: bool,
+        /// The reaction id (`carbon_combustion`, `water_synthesis`, ...).
+        pub reaction: Option<String>,
+        /// For typed text: the Formula Bench code (`atoms_off`, ...).
+        pub code: Code,
+        /// A kind reason for a fizzle or a refusal.
+        pub reason: String,
+        pub flame_c: f32,
+    }
+
+    /// Judges the items on the bench, or `text` when Apprentice or Adept
+    /// typed an equation. Stub: refuses everything.
+    pub fn judge(items: &[Item], band: Tier, text: &str) -> Invention {
+        let _ = (items, band, text);
+        Invention::default()
+    }
+}
+
+/// HUD hint only (section 7): a spell is usable at stage >= Learning when the
+/// band can learn it, and always when it cannot (Fire at Sprout), matching
+/// the client's `worked::route`. `stage` uses the client's numbering (0
+/// Unknown, 1 Learning, 2 Practised, 3 Mastered). Stub: false.
+pub fn usable(def: &SpellDef, band: Tier, stage: u8) -> bool {
+    let _ = (def, band, stage);
+    false
+}
 
 #[cfg(test)]
 mod tests {

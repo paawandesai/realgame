@@ -115,6 +115,7 @@ fn materials_json_has_every_must_row_in_mat_id_order() {
 }
 
 #[test]
+#[allow(clippy::needless_range_loop)] // three axes, indexed in step
 fn stamp_ids_are_fixed_by_the_contract() {
     let ids: Vec<&str> = stamp::ALL.iter().map(|s| s.id).collect();
     assert_eq!(
