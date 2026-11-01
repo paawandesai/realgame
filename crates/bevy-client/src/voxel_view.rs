@@ -63,8 +63,8 @@ const DIG_REST: f32 = 0.25;
 /// Walking speeds (the same as `player.rs`).
 const WALK: f32 = 5.0;
 const SPRINT: f32 = 8.5;
-/// The highest step the player walks up without jumping.
-const STEP: f32 = 1.01;
+/// The most the body steps up without a jump (`tuning::STEP_UP`).
+const STEP: f32 = crate::tuning::STEP_UP;
 /// The caption for a protected block (spec section 4).
 pub const PROTECTED_LINE: &str = "This old runestone will not budge. Try chemistry.";
 
@@ -240,8 +240,22 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     let mut solids: Vec<Box3> = vox::solid_boxes(world, aabb).iter().map(box3).collect();
     solids.extend_from_slice(&ice);
     const BOUND: f32 = 1.0e5;
+    // Space jumps (`tuning::JUMP_HEIGHT`, enough to get onto one block);
+    // moving never does.
     let mut a = body;
-    motion::advance(&mut a, [target.x, target.z], jump, dt, &solids, &ice, BOUND);
+    if jump && a.grounded {
+        a.vel[1] = crate::tuning::jump_speed();
+        a.grounded = false;
+    }
+    motion::advance(
+        &mut a,
+        [target.x, target.z],
+        false,
+        dt,
+        &solids,
+        &ice,
+        BOUND,
+    );
     let moved =
         |b: &Body| ((b.pos[0] - body.pos[0]).powi(2) + (b.pos[2] - body.pos[2]).powi(2)).sqrt();
     let want = target.length() * dt;
@@ -830,28 +844,66 @@ fn to_mesh(d: &vox::MeshData) -> Mesh {
 mod tests {
     use super::*;
 
+    fn press(
+        p: &mut Player,
+        w: &mut Walk,
+        world: &World,
+        wish: Vec2,
+        jump: bool,
+        frames: usize,
+    ) -> f32 {
+        let mut top = p.pos.y;
+        for _ in 0..frames {
+            let input = crate::player::MoveInput {
+                wish,
+                sprint: false,
+                jump,
+            };
+            walk(p, w, world, input, 1.0 / 60.0);
+            top = top.max(p.pos.y);
+        }
+        top
+    }
+
     #[test]
-    fn a_player_stopped_at_a_step_walks_up_it() {
-        // The Kiln terrace's first brick step is at z 180 (top y 36); start
-        // pressed against it, at rest.
+    fn holding_w_into_a_one_block_step_never_hops() {
+        // The Kiln terrace's first brick step is at z 180 (top y 36).
         let world = vox::generate(vox::DEFAULT_SEED);
-        for x0 in [128.5f32, 127.5] {
+        for z0 in [181.36f32, 184.0] {
             let mut p = Player {
-                pos: Vec3::new(x0, 35.0, 181.36),
+                pos: Vec3::new(128.5, 35.0, z0),
                 grounded: true,
                 ..Player::default()
             };
             let mut w = Walk::default();
-            let input = crate::player::MoveInput {
-                wish: Vec2::new(0.0, 1.0),
-                sprint: false,
-                jump: false,
-            };
-            for _ in 0..120 {
-                walk(&mut p, &mut w, &world, input, 1.0 / 60.0);
-            }
-            assert!(p.pos.y >= 36.9 && p.pos.z < 179.5, "x {x0}: {:?}", p.pos);
+            let top = press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 240);
+            assert!(top <= 35.0 + 0.5, "from z {z0}: rose to {top}");
+            assert!(p.pos.z > 180.9, "stopped at the step: {:?}", p.pos);
         }
+    }
+
+    #[test]
+    fn space_jumps_onto_one_block() {
+        let world = vox::generate(vox::DEFAULT_SEED);
+        let mut p = Player {
+            pos: Vec3::new(128.5, 35.0, 181.36),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        // Standing still, Space alone: up about 1.25 blocks and back down.
+        let top = press(&mut p, &mut w, &world, Vec2::ZERO, true, 1);
+        let top = top.max(press(&mut p, &mut w, &world, Vec2::ZERO, false, 90));
+        assert!(
+            (1.15..=1.35).contains(&(top - 35.0)),
+            "jump height {}",
+            top - 35.0
+        );
+        assert!((p.pos.y - 35.0).abs() < 0.01);
+        // W with a jump gets onto the step.
+        press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), true, 1);
+        press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 40);
+        assert!(p.pos.y >= 35.99 && p.pos.z < 181.0, "{:?}", p.pos);
     }
 
     #[test]

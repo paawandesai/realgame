@@ -4887,7 +4887,7 @@ async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser,
     check('voxel: ?classic and ?level=1 boot the courtyard unchanged', ok, rows.join('; '));
   }
 
-  // E3: WASD walks up the Kiln terrace steps; the feet follow the ground and
+  // E3: WASD (with Space for each step) walks up the Kiln terrace steps; the feet follow the ground and
   // are never more than 0.1 m inside a solid cell.
   await load(base);
   await skipIntro();
@@ -4899,11 +4899,15 @@ async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser,
     await page.evaluate(() => document.getElementById('game').focus());
     const p0 = s.pos;
     const path = [p0];
+    // W only walks (2026-11-01: no hop onto a one-block step); Space jumps
+    // up each step of the terrace.
     await page.keyboard.down('w');
+    let k = 0;
     for (const t0 = Date.now(); Date.now() - t0 < 25000; await sleep(120)) {
       const x = await st();
       path.push(x.pos);
       if (Math.hypot(x.pos[0] - p0[0], x.pos[2] - p0[2]) >= 10) break;
+      if (++k % 5 === 0) { await page.keyboard.down('Space'); await sleep(90); await page.keyboard.up('Space'); }
     }
     await page.keyboard.up('w');
     const p1 = path[path.length - 1];

@@ -1469,7 +1469,8 @@ fn control(
                 player::MoveInput {
                     wish,
                     sprint: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
-                    jump: keys.pressed(KeyCode::Space),
+                    // A tap shorter than a frame still jumps.
+                    jump: keys.pressed(KeyCode::Space) || keys.just_pressed(KeyCode::Space),
                 },
                 dt,
             );

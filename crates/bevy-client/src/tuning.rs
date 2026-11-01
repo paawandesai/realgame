@@ -9,6 +9,17 @@
 /// up-down look is unchanged, and `?sens` still scales both.
 pub const YAW_SCALE: f32 = 1.6;
 
+/// Walking in the block world: W/A/S/D only move along the ground. The
+/// body steps up at most this much without jumping (slabs, liquid tops,
+/// terrain seams), so walking into a one-block wall never hops onto it.
+pub const STEP_UP: f32 = 0.5;
+/// Space jumps this high (blocks): enough to get onto one block.
+pub const JUMP_HEIGHT: f32 = 1.25;
+/// The take-off speed for `JUMP_HEIGHT` under `motion::GRAVITY`.
+pub fn jump_speed() -> f32 {
+    (2.0 * crate::motion::GRAVITY * JUMP_HEIGHT).sqrt()
+}
+
 /// Water's reach on flat ground (m) for a tap and for a full charge. The
 /// launch speed is the one that reaches that far at 45 degrees
 /// (`ballistics::launch_speed`, v = sqrt(g R)), so a longer reach is also a
