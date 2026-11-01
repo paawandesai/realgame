@@ -4804,7 +4804,191 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
 // Lane A: voxel engine and view (E1-E8).
 async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
   console.log('  -- voxel engine (I-052, lane A) --');
-  void page; void st; void cmd; void until; void frames; void sleep; void base; void browser; void errors; void logs;
+  void browser; void logs;
+  // Today's 59 state keys, in order (classic mode publishes exactly these).
+  const CLASSIC_KEYS = ['frame', 'tick', 'locked', 'paused', 'spell', 'spellName', 'formula', 'aimObj', 'assisted',
+    'hover', 'extinguished', 'goal', 'burning', 'ghTemp', 'ghDanger', 'outcome', 'caption', 'captionId', 'casts',
+    'impacts', 'pos', 'yaw', 'pitch', 'onIce', 'low', 'sens', 'assist', 'fov', 'sway', 'cam', 'vm', 'cooldown',
+    'cooldownMax', 'hitKind', 'hitX', 'hitY', 'hitFrame', 'objs', 'gameTime', 'dt', 'clicks', 'firesLeft', 'nearFire',
+    'fireBearing', 'fireElev', 'fireOff', 'streams', 'fxWater', 'fireInView', 'progress', 'progRev', 'progSave',
+    'level', 'exitOpen', 'capIcon', 'fxBeads', 'nextOpen', 'pools', 'ventsLit'];
+  // Loads a URL and returns the wall time (ms) at which the first state appeared.
+  const load = async (url) => {
+    await page.goto(url);
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+      if (Date.now() - t0 > 120000) throw new Error(`${url} did not start within 120 s`);
+      await sleep(100);
+    }
+    return Date.now();
+  };
+  // `probe x y z` writes the cell into the next state (spec section 8).
+  // Each probe has a sequence number `n`, so a repeated probe of the same
+  // cell is never answered by the last one.
+  const probe = async (x, y, z) => {
+    const n0 = ((await st()).probe || { n: 0 }).n;
+    await cmd(`probe ${x} ${y} ${z}`);
+    const s = await until((v) => v.probe && v.probe.n > n0, 15000);
+    return s.probe && s.probe.n > n0 && s.probe.at.join() === [x, y, z].join() ? s.probe : null;
+  };
+  const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
+  const lockNow = async () => {
+    if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    }
+    return false;
+  };
+  const key = async (k) => { await page.keyboard.down(k); await sleep(120); await page.keyboard.up(k); };
+
+  // E1: the default page is the block world, and the spawn ring is meshed
+  // within 8 s of the first state.
+  const errs0 = errors.length;
+  const tFirst = await load(base);
+  let s = await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 8000);
+  const tMeshed = Date.now() - tFirst;
+  check('voxel: the default page boots the block world',
+    s.mode === 'voxel' && s.chunksMeshed >= 18 && tMeshed <= 8500 && errors.length === errs0,
+    `mode=${s.mode} chunksMeshed=${s.chunksMeshed} meshQ=${s.meshQ} after ${tMeshed} ms, biome=${s.biome}, ` +
+    `objs=${(s.objs || []).length}, errors=${errors.slice(errs0, errs0 + 2).join(' | ')}`);
+  const voxelKeys = Object.keys(s);
+  console.log(`  voxel keys: ${voxelKeys.length} (${voxelKeys.slice(CLASSIC_KEYS.length).join(',')})`);
+
+  // E2: ?classic and ?level=1 boot the courtyard unchanged.
+  {
+    const rows = [];
+    let ok = true;
+    for (const extra of ['classic', 'level=1']) {
+      await load(`${base}&${extra}`);
+      await frames(3);
+      const c = await st();
+      const keys = Object.keys(c);
+      const same = keys.length === CLASSIC_KEYS.length && keys.every((k, i) => k === CLASSIC_KEYS[i]);
+      ok = ok && c.objs.length > 10 && c.burning === 3 && same && c.mode === undefined;
+      rows.push(`${extra}: objs=${c.objs.length} burning=${c.burning} keys=${keys.length} same=${same}`);
+    }
+    check('voxel: ?classic and ?level=1 boot the courtyard unchanged', ok, rows.join('; '));
+  }
+
+  // E3: WASD walks up the Kiln terrace steps; the feet follow the ground and
+  // are never more than 0.1 m inside a solid cell.
+  await load(base);
+  await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 30000);
+  await cmd('tp 128.5 35 187.5');
+  await cmd('look 0 -10');
+  s = await until((x) => Math.abs(x.pos[2] - 187.5) < 0.2 && Math.abs(x.yaw) < 1, 15000);
+  {
+    await page.evaluate(() => document.getElementById('game').focus());
+    const p0 = s.pos;
+    const path = [p0];
+    await page.keyboard.down('w');
+    for (const t0 = Date.now(); Date.now() - t0 < 25000; await sleep(120)) {
+      const x = await st();
+      path.push(x.pos);
+      if (Math.hypot(x.pos[0] - p0[0], x.pos[2] - p0[2]) >= 10) break;
+    }
+    await page.keyboard.up('w');
+    const p1 = path[path.length - 1];
+    const walked = Math.hypot(p1[0] - p0[0], p1[2] - p0[2]);
+    const ys = path.map((p) => p[1]);
+    // The cell 0.1 m above each sampled foot position must not be solid
+    // (feet sunk more than 0.1 m into a block would put that point inside it).
+    let inside = 0;
+    const sampled = path.filter((_, i) => i % Math.max(1, Math.floor(path.length / 12)) === 0).concat([p1]);
+    for (const p of sampled) {
+      const c = await probe(Math.floor(p[0]), Math.floor(p[1] + 0.1), Math.floor(p[2]));
+      if (!c || c.solid) inside += 1;
+    }
+    check('voxel: WASD walks on the terrain and the feet follow the ground',
+      walked >= 10 && Math.max(...ys) - Math.min(...ys) >= 2 && inside === 0,
+      `walked ${walked.toFixed(1)} m, y ${Math.min(...ys).toFixed(2)}..${Math.max(...ys).toFixed(2)}, ` +
+      `${inside}/${sampled.length} samples inside a solid cell`);
+  }
+
+  // E4: the Pick digs a dirt block into the pack, and placing puts it back.
+  {
+    await cmd('tp 128.5 35 205.5');
+    await cmd('setcell 128 35 203 dirt');
+    await cmd('face 128.5 35.5 203.5');
+    s = await until((x) => x.lookCell && x.lookCell.join() === '128,35,203,1', 15000);
+    const looked = !!(s.lookCell && s.lookCell.join() === '128,35,203,1');
+    const dirt0 = packN(s, 'dirt');
+    await page.evaluate(() => document.getElementById('game').focus());
+    await key('5');
+    s = await until((x) => x.hot === 5, 10000);
+    const locked = await lockNow();
+    await cmd('face 128.5 35.5 203.5');
+    await frames(2);
+    let maxDig = 0;
+    if (locked) await page.mouse.down();
+    else await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 20000; await sleep(80)) {
+      const x = await st();
+      maxDig = Math.max(maxDig, x.digT);
+      if (packN(x, 'dirt') > dirt0) { s = x; break; }
+    }
+    if (locked) await page.mouse.up();
+    s = await until((x) => packN(x, 'dirt') > dirt0, 5000);
+    const dug = await probe(128, 35, 203);
+    const gained = packN(s, 'dirt') - dirt0;
+    // Key 6 is bound to the dirt, and a click puts it back on the ground.
+    await key('6');
+    s = await until((x) => x.hot === 6, 10000);
+    const hot6 = s.hot === 6;
+    // Aim at the top of the ground block under the hole: the new block goes on that face.
+    await cmd('face 128.5 34.9 203.4');
+    await frames(2);
+    const before = packN(await st(), 'dirt');
+    // A locked left press reaches the game as one `fire` (web/hud.js). It is
+    // sent directly here: under pointer lock, headless Chromium gives a
+    // synthetic press a movement delta that turns the view about 11 degrees
+    // before the click lands, which would aim the block at the wrong face.
+    // Without the lock, a click is a `cast` at the crosshair.
+    await cmd(locked ? 'fire' : 'cast');
+    s = await until((x) => packN(x, 'dirt') < before, 10000);
+    const back = await probe(128, 35, 203);
+    check('voxel: the Pick digs a dirt block into the pack and placing puts it back',
+      looked && maxDig >= 1 && gained === 1 && dug && dug.mat === 'air' && hot6 && back && back.mat === 'dirt' &&
+      packN(s, 'dirt') === before - 1,
+      `looked=${looked} locked=${locked} digT max ${maxDig.toFixed(2)}, pack dirt +${gained}, ` +
+      `cell after dig ${dug && dug.mat}, hot 6=${hot6}, after place ${back && back.mat}, pack ${before} -> ${packN(s, 'dirt')}`);
+    if (await page.evaluate(() => !!document.pointerLockElement)) {
+      await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+    }
+  }
+
+  // E5: a protected cell (the ford's canyon wall) cannot be dug.
+  {
+    await load(base);
+    await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 30000);
+    await cmd('tp 110.5 35 161.5');
+    await cmd('face 110.5 34.5 159.5');
+    s = await until((x) => x.lookCell && x.lookCell.join() === '110,34,159,5', 15000);
+    const looked = !!(s.lookCell && s.lookCell.join() === '110,34,159,5');
+    await page.evaluate(() => document.getElementById('game').focus());
+    await key('5');
+    await until((x) => x.hot === 5, 10000);
+    const locked = await lockNow();
+    await cmd('face 110.5 34.5 159.5');
+    await frames(2);
+    let maxDig = 0;
+    let caption = '';
+    if (locked) await page.mouse.down();
+    else await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 3000; await sleep(100)) {
+      const x = await st();
+      maxDig = Math.max(maxDig, x.digT);
+      if (/runestone/.test(x.caption)) caption = x.caption;
+    }
+    if (locked) await page.mouse.up();
+    const cell = await probe(110, 34, 159);
+    check('voxel: a protected cell cannot be dug',
+      looked && maxDig === 0 && /runestone/.test(caption) && cell && cell.mat === 'cliffstone',
+      `looked=${looked} locked=${locked} digT max ${maxDig}, caption "${caption}", cell ${cell && cell.mat}`);
+    if (await page.evaluate(() => !!document.pointerLockElement)) {
+      await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+    }
+  }
 }
 
 // Lane B: block matter (E9-E14, E22, E24).

@@ -190,3 +190,90 @@ pub fn todos(json: &str) -> Result<Vec<(String, String)>, String> {
     }
     Ok(out)
 }
+
+/// The table parsed once (`MATERIALS_JSON`). Panics if the compiled-in JSON
+/// is malformed, which the contract test `materials_json_has_every_must_row_in_mat_id_order`
+/// rules out.
+pub fn table() -> &'static [Material] {
+    use std::sync::OnceLock;
+    static T: OnceLock<Vec<Material>> = OnceLock::new();
+    T.get_or_init(|| load(MATERIALS_JSON).expect("content/materials.json parses"))
+}
+
+/// What the mesher, the raycast and collision need per material id, read
+/// once from the table. Ids past the table read as solid, opaque stone-like
+/// blocks, so a newer save never makes holes in an older client.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Flags {
+    /// Blocks the player (`solid` in the table).
+    pub solid: bool,
+    /// Faces behind it are drawn (`transparent` in the table).
+    pub transparent: bool,
+    /// Physical phase at ambient conditions.
+    pub phase: Phase,
+}
+
+impl Flags {
+    /// Hides the faces of its neighbours and darkens their corners (AO).
+    pub fn occludes(self) -> bool {
+        self.solid && !self.transparent
+    }
+}
+
+/// The flags of material `id`.
+pub fn flags(id: u8) -> Flags {
+    use std::sync::OnceLock;
+    static F: OnceLock<[Flags; 256]> = OnceLock::new();
+    F.get_or_init(|| {
+        let mut f = [Flags {
+            solid: true,
+            transparent: false,
+            phase: Phase::Solid,
+        }; 256];
+        for m in table() {
+            f[m.id as usize] = Flags {
+                solid: m.solid,
+                transparent: m.transparent,
+                phase: m.phase,
+            };
+        }
+        f
+    })[id as usize]
+}
+
+/// The id of the material called `name` (`"dirt"`), if any.
+pub fn by_name(name: &str) -> Option<u8> {
+    table().iter().find(|m| m.name == name).map(|m| m.id)
+}
+
+/// The name of material `id` (`"?"` past the table).
+pub fn name(id: u8) -> &'static str {
+    table().get(id as usize).map_or("?", |m| m.name.as_str())
+}
+
+/// Seconds the Pick takes to dig material `id`: the table's `hardness_s`
+/// once Lane B fills it, otherwise a gameplay default by kind. `None` for
+/// things that cannot be dug at all (air, water, steam).
+pub fn dig_secs(id: u8) -> Option<f32> {
+    use crate::mat;
+    let f = flags(id);
+    if f.phase != Phase::Solid {
+        return None;
+    }
+    if let Some(Num::Set(s)) = table().get(id as usize).map(|m| m.hardness_s) {
+        return Some(s.max(0.05));
+    }
+    Some(match id {
+        mat::LEAVES | mat::TORCH | mat::SNOW | mat::ASH => 0.25,
+        mat::DIRT | mat::GRASS | mat::SAND | mat::MUD => 0.5,
+        mat::WOOD | mat::PLANKS | mat::ICE | mat::GLASS => 0.9,
+        mat::COAL_ORE | mat::CRYSTAL | mat::BRICK => 1.4,
+        mat::IRON_ORE | mat::IRON => 2.0,
+        _ => 1.2,
+    })
+}
+
+/// The item name digging material `id` gives (`drops` in the table).
+pub fn drops(id: u8) -> Option<&'static str> {
+    table().get(id as usize).and_then(|m| m.drops.as_deref())
+}
