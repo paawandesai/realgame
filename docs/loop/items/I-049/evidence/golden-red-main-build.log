@@ -1,0 +1,108 @@
+  -- frozen gate (I-035) --
+PASS frozen gate: the exit stays shut before the win (level 1, exitOpen false) level=1 exitOpen=false burning=3 pos=0,0,21.8
+PASS frozen gate: the level-1 win opens the arch and the banner points to it outcome=won exitOpen=true banner={"shown":true,"big":"You saved the greenhouse!","small":"Walk to the glowing arch behind you to visit the Frozen Gate. Press R to play again."}
+PASS frozen gate: walking into the open arch loads level 2 within 5 s level=2 after 734 ms objs=stream,ice gate,lantern burning=0 outcome=playing caption=The Frozen Gate. Cross the stream, melt the gate, reach the lantern.
+PASS frozen gate: the liquid stream blocks the walk (stopped on the south bank, z > 8.2) pos=0,0,8.35 ice=0
+PASS frozen gate: Fire, Water and CO2 leave the stream liquid; Frost, Water and CO2 leave the gate standing stream 1: ice=0 "Heat cannot freeze water. To make a solid, take heat away." | stream 2: ice=0 "Adding water does not change its state. Heat melts ice, cold freezes water." | stream 4: ice=0 "CO₂ keeps oxygen away. That does not melt ice or freeze water here." | gate 3: wall=true "Cold cannot melt ice. Ice needs heat to turn into water." | gate 2: wall=true "Adding water does not change its state. Heat melts ice, cold freezes water." | gate 4: wall=true "CO₂ keeps oxygen away. That does not melt ice or freeze water here."
+PASS frozen gate: Leidenfrost beads after a Frost hit on the liquid stream (>= 4, then 0 within 2 s) beads=4 then 0 after 0.750 s game time (4302 ms wall)
+PASS frozen gate: with no band the Apprentice Freezing line shows caption="Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts." capIcon=""
+PASS frozen gate: three Frost casts freeze the stream 0.34 / 0.68 / 1.00 ice 0.34 / 0.68 / 1 frozen=true "Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s)."
+PASS frozen gate: the player crosses the frozen stream (z < 3), on ice while on it pos=0,0,-3.65 onIce seen=true
+PASS frozen gate: Fire melts the gate in 3 hits and walking to the lantern wins gate 0.66/true 0.32/true 0/false outcome=won pos=0,0,-15.833 banner={"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again."}
+FAIL frozen gate: reaching the lantern stops the walk (camera stays >= 1.0 m from the lantern) won at 0,0,-15.833, 1 s later pos=0,0,-16.25 cam=0,1.6,-16.25 distance 0.75 m
+PASS frozen gate: the back arch returns to a fresh courtyard with the exit open level=1 burning=3 exitOpen=true outcome=playing
+PASS frozen gate: each band sees its own Freezing line; Sprout shows the freeze picture sprout: ok | seedling: ok | apprentice: ok | adept: ok
+PASS frozen gate: aiming at the lantern through the standing gate targets the gate, and the cast lands on it landing pos=0,0,-3.65 aimObj=1 | start pos=0,0,18 aimObj=1 | cast: gate ice 1 -> 0.66
+FAIL frozen gate: Sprout's melt line says "ice" before any bridge and "bridge" only after one part-frozen: ice=0 "The bridge melted! Make it cold again." | after a bridge: frozen=true ice=0.66 "The bridge melted! Make it cold again."
+FAIL frozen gate: Water on the lantern says "That is the lantern. Walk up to it!", not that it can burn sprout: "Soaked: it must dry out (boil off at 100 °C) before it can burn." outcome=playing | seedling: "Soaked: it must dry out (boil off at 100 °C) before it can burn." outcome=playing
+PASS frozen gate: level 2 has no more entities than level 1 level 1 634, level 2 464
+PASS frozen gate: 10 level switches leave entities exact and WASM memory flat (± 2 %) entities 634 -> 634; wasm MB after switch 2 33.7, after 10 33.7
+PASS frozen gate: ?level=2 opens the Frozen Gate directly level=2 caption=The Frozen Gate. Cross the stream, melt the gate, reach the lantern.
+  -- worked casts (I-029) --
+PASS worked: W1 without debug the mode is worked and worked.js is ready within 5 s {"v":1,"mode":"worked","ready":true,"band":null,"routes":["instant","instant","instant","instant"],"stages":["unknown","unknown","unknown","unknown"],"work":null,"done":0,"wrong":0} after 4488 ms
+PASS worked: W1 castmode instant without debug is ignored with a warning, not an error mode=worked warned=true errors=
+PASS worked: W1 debug&cast=worked is worked mode {"v":1,"mode":"worked","ready":true,"band":null,"routes":["instant","instant","instant","instant"],"stages":["unknown","unknown","unknown","unknown"],"work":null,"done":0,"wrong":0}
+PASS worked: W1 the debug page is instant mode {"v":1,"mode":"instant","ready":true,"band":null,"routes":["instant","instant","instant","instant"],"stages":["unknown","unknown","unknown","unknown"],"work":null,"done":0,"wrong":0}
+PASS worked: W2 instant mode: routes all instant, cast lands within 2 frames, work null on every frame routes=instant,instant,instant,instant cast frame +1 work ids=
+  N1 (Water-only level-1 completion): null casts, outcome playing
+PASS worked: W3 a locked click on a Learning spell casts nothing for 30 frames locked=true casts 0 -> 0
+PASS worked: W3 the builder opens within 2 frames (state and #worked), paused while open, clicks +1 press f22 open f23 shown f23 route=worked clicks 0->1
+PASS worked: W3 while open, cast, fire and a held button cast nothing and keep the same builder casts 0 -> 0, id 1 -> 1
+PASS worked: W4 gameTime and every object stay unchanged over 1 s gameTime 1.5 -> 1.5, objs same=true
+PASS worked: W4 holding W for 500 ms does not move the player pos 0,0,18 -> 0,0,18
+PASS worked: W4 locked mouse moves turn nothing and move the virtual cursor yaw 10.89->10.89 pitch 8.02->8.02 vcursor 640,493 -> 920,493
+PASS worked: W4 the pointer stays locked on every frame while the builder is open locked=true frames=17 unlocked=0
+PASS worked: W5 W released while the builder is open is released in the game opened=true moved 0.0000 m
+PASS worked: W6 a wrong Seedling build: no cast, wrong +1, ok false, the count reason with a cross, no XP casts 0->0 result={"n":1,"slot":2,"ok":false,"code":"atoms_off","diffs":[["H",1,2]],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"learning"} reason={"text":"Count again: H should be 2. You have 1.","cross":true} xp 10->10
+PASS worked: W6 a second wrong build turns on help and shows the Copy line help=true copy=Copy: H₂O(l)
+PASS worked: W6 a correct build after help casts and earns no XP casts 0->1 xp 10->10
+PASS worked: W7 (arbiter r2) the builder opened by cast shows on a frame aimed at the target target 0 shown row {"t":155910.70000001788,"frame":191,"casts":0,"paused":true,"gameTime":3,"yaw":57.8,"pitch":-2.87,"aimObj":0,"workId":5,"open":true,"lock":true}
+PASS worked: W7 within 2 frames of Make: casts +1, work null, unpaused, #worked gone press f209: cast f210 null f210 unpaused f210 gone f210
+PASS worked: W7 one Make casts once and nothing reopens for 30 frames casts seen 1 work ids 
+PASS worked: W7 the impact puts out the clicked target, Water +10 XP, done +1 target 0 impacts 0->1 hitKind=out burning=false xp 10->20 done 1->2
+PASS worked: W8 two worked casts from Learning make Water practised, with the toast, still worked casts ok true/true stage=practised xp=30 toast=◑Water: Practised! route=worked
+PASS worked: R2a a click right after an accepted Make casts nothing more and opens no builder for 10 frames casts 0->1 ids after the cast 
+PASS worked: R2a after the pause a click opens the next builder {"id":9}
+PASS worked: W9 a Mastered spell casts on one click within 2 frames, no builder, +2 XP route=instant press f369 cast f370 ids= xp 90->92
+PASS worked: W9 the hotbar shows a star for Mastered Water {"text":"★","label":"Mastered"}
+PASS worked: W12 Escape shows the pause card and closes the builder within 2 frames, no cast, no XP card=true press f416 null f417 casts 0->0
+PASS worked: W12 resume does not reopen the builder, and gameTime held while it was open work=null open frames=5 gameTimes=1.5
+PASS worked: W12 the overlay never requests or releases the pointer lock cast ok=true requestPointerLock=0 exitPointerLock=0
+PASS worked: W14 keys 1-4, the wheel and select do not change the spell while open opened=true open now=true spell=1
+PASS worked: W14 after cancel, select 3 works spell=2
+PASS worked: W15 reset while open: work null, #worked gone, unpaused within 2 frames null +1 gone +1 unpaused +2
+PASS worked: W17 B opens the bench and closes the builder within 2 frames, no cast bench=true press f590 null f591
+PASS worked: W17 with the bench open, cast and a click cast nothing and open nothing casts 0 ids 
+PASS worked: W13 a tap opens the builder and its cast lands on the tapped object {"target":6,"aimAt":0,"fx":0.82,"fy":0.5,"z":18} crosshair=0 casts 0->1 hitKind=out tapped burning=false crosshair target burning=true
+PASS worked: W16 at Apprentice the formula box has focus and the Copy line reads H₂O(l) {"focus":"bench-input","copy":"Copy: H₂O(l)","card":false}
+PASS worked: W16 typing wasd12rpc fills the box and moves, selects, captions and pauses nothing {"value":"wasd12rpc","card":false} pos 0,0,18->0,0,18 spell 1->1 caption 1->1 paused true->true
+PASS worked: W16 then H2O(l) and Enter casts casts 0->1
+PASS worked: W10 at Sprout, Fire (not learnable) routes instant {"v":1,"mode":"worked","ready":true,"band":"sprout","routes":["instant","worked","worked","worked"],"stages":["unknown","unknown","unknown","unknown"],"work":null,"done":0,"wrong":0}
+PASS worked: W10 Fire at Sprout casts on one click within 2 frames, no builder, no XP press f23 cast f24 ids= fire xp=0
+PASS worked: W10 Water at Sprout is a 4-input picture build with no Copy line, and casts with no XP (Unknown) band=sprout copy=false inputs=4 casts 1->2 xp=0
+PASS worked: W10 Frost at Sprout opens a builder (learnable) {"id":2,"spell":2}
+WORKEDTTC {"band":"sprout","spell":"water","inputs":4,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":13591,"openCpuMs":12.2,"estS":7,"layout":{"gap":29,"bottomIn":true,"minPiece":64}}
+PASS worked: W18 sprout water: open within 2 frames, cast within 2 game frames of Make and on the accept frame, open frame <= 50 ms CPU, layout at 1366x768 {"band":"sprout","spell":"water","inputs":4,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":13591,"openCpuMs":12.2,"estS":7,"layout":{"gap":29,"bottomIn":true,"minPiece":64}}
+WORKEDTTC {"band":"seedling","spell":"water","inputs":4,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":12414,"openCpuMs":9.7,"estS":4.6,"layout":{"gap":29,"bottomIn":true,"minPiece":56}}
+PASS worked: W18 seedling water: open within 2 frames, cast within 2 game frames of Make and on the accept frame, open frame <= 50 ms CPU, layout at 1366x768 {"band":"seedling","spell":"water","inputs":4,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":12414,"openCpuMs":9.7,"estS":4.6,"layout":{"gap":29,"bottomIn":true,"minPiece":56}}
+WORKEDTTC {"band":"seedling","spell":"fire","inputs":3,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":8891,"openCpuMs":12.8,"estS":3.7,"layout":{"gap":29,"bottomIn":true,"minPiece":48}}
+PASS worked: W18 seedling fire: open within 2 frames, cast within 2 game frames of Make and on the accept frame, open frame <= 50 ms CPU, layout at 1366x768 {"band":"seedling","spell":"fire","inputs":3,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":8891,"openCpuMs":12.8,"estS":3.7,"layout":{"gap":29,"bottomIn":true,"minPiece":48}}
+WORKEDTTC {"band":"apprentice","spell":"water","inputs":7,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":15405,"openCpuMs":9.5,"estS":3.45,"layout":{"gap":29,"bottomIn":true,"minPiece":48}}
+PASS worked: W18 apprentice water: open within 2 frames, cast within 2 game frames of Make and on the accept frame, open frame <= 50 ms CPU, layout at 1366x768 {"band":"apprentice","spell":"water","inputs":7,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":15405,"openCpuMs":9.5,"estS":3.45,"layout":{"gap":29,"bottomIn":true,"minPiece":48}}
+WORKEDTTC {"band":"apprentice","spell":"fire","inputs":24,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":44239,"openCpuMs":14.6,"estS":9.4,"layout":{"gap":29,"bottomIn":true,"minPiece":48}}
+PASS worked: W18 apprentice fire: open within 2 frames, cast within 2 game frames of Make and on the accept frame, open frame <= 50 ms CPU, layout at 1366x768 {"band":"apprentice","spell":"fire","inputs":24,"openFrames":1,"castFrames":1,"sameFrame":true,"ttcMs":44239,"openCpuMs":14.6,"estS":9.4,"layout":{"gap":29,"bottomIn":true,"minPiece":48}}
+PASS worked: W18 input-count tripwire: Water at Sprout is 4 inputs and every estS <= 10 sprout/water: 4 inputs, estS 7; seedling/water: 4 inputs, estS 4.6; seedling/fire: 3 inputs, estS 3.7; apprentice/water: 7 inputs, estS 3.45; apprentice/fire: 24 inputs, estS 9.4
+FAIL worked: W18 level-1 chore tripwire: N1 x estS(Water) <= 60 s at Sprout and Seedling N1=null sprout nullx7=? seedling nullx4.6=?
+PASS worked: R2b Make is in view and pressable by the virtual cursor (text size 2 Sprout, 1024x600 Apprentice New, Seedling Fire New) sprout slot 2 1280x720 ui 2: ok {"inPanel":true,"inView":true,"onTop":true,"scroll":true} pressed=true | sprout slot 2 1024x600 ui 2: ok {"inPanel":true,"inView":true,"onTop":true,"scroll":true} pressed=true | apprentice slot 2 1024x600 ui 1: ok {"inPanel":true,"inView":true,"onTop":true,"scroll":true} pressed=true | apprentice slot 1 1024x600 ui 1: ok {"inPanel":true,"inView":true,"onTop":true,"scroll":true} pressed=true | seedling slot 1 1280x720 ui 1: ok {"inPanel":true,"inView":true,"onTop":true,"scroll":true} pressed=true | seedling slot 1 1280x720 ui 2: ok {"inPanel":true,"inView":true,"onTop":true,"scroll":true} pressed=true
+FAIL worked: I-049 at text size 2 a New spell opens with its name, close button and Copy line in view seedling slot 1 1280x720: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | seedling slot 2 1024x600: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | apprentice slot 2 1280x720: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | apprentice slot 1 1024x600: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | sprout slot 2 1024x600: FAIL {"head":{"name":false,"close":false,"copy":null},"make":{"top":true,"mid":true,"bottom":true},"tall":true}
+FAIL worked: I-049 at text size 2 Make stays in view and on top with the panel scrolled to the top, middle or bottom seedling slot 1 1280x720: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | seedling slot 2 1024x600: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | apprentice slot 2 1280x720: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | apprentice slot 1 1024x600: FAIL {"head":{"name":false,"close":false,"copy":false},"make":{"top":false,"mid":true,"bottom":true},"tall":true} | sprout slot 2 1024x600: FAIL {"head":{"name":false,"close":false,"copy":null},"make":{"top":true,"mid":true,"bottom":true},"tall":true}
+PASS worked: W11 with no band known every route is instant and a locked click casts within 2 frames band=null routes=instant,instant,instant,instant locked=true press f15 cast f16
+PASS worked: W19 with worked.js missing the game boots, ready stays false and every route is instant {"v":1,"mode":"worked","ready":false,"band":"seedling","routes":["instant","instant","instant","instant"],"stages":["unknown","unknown","unknown","unknown"],"work":null,"done":0,"wrong":0}
+PASS worked: W19 and a locked click casts within 2 frames, never paused, no other console error locked=true press f15 cast f16 paused frames=0 errors=1 other=
+PASS worked: W20 pkg-out serves worked.js status 200
+PASS worked: handoff: level 2 at Sprout (castmode worked): Fire routes instant, three instant Fire casts melt the gate, and the level is won routes=instant,worked,worked,worked instant casts true,true,true gate gone=true outcome=won
+PASS worked: W21 after the section: instant mode, every stage unknown, select 2 and cast lands within 2 frames {"v":1,"mode":"instant","ready":true,"band":null,"routes":["instant","instant","instant","instant"],"stages":["unknown","unknown","unknown","unknown"],"work":null,"done":0,"wrong":0} cast f+1
+  -- marsh (I-037) --
+PASS marsh: level 2 forward arch is shut before the lantern (level 2, nextOpen false) level=2 nextOpen=false pos=0,0,-21.8
+PASS marsh: the level-2 win opens the forward arch and the banner points to the Marsh outcome=won nextOpen=true banner={"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again."}
+PASS marsh: walking into the open forward arch loads the Marsh within 5 s level=3 after 267 ms objs=dip,dip vent,dip vent,dip vent,hollow,hollow vent,hollow vent,hollow vent,hollow vent,lantern ventsLit=7 pools=[0,0] outcome=playing caption=The Marsh. Put out the gas flames, cross the boardwalk, reach the lantern.
+PASS marsh: burning gas blocks the walk (stopped south of the dip flames, z > 10) pos=0,0,10.75 ventsLit=7
+PASS marsh: Water on a gas vent only knocks it down (7 lit, pool 0, Flicker(Water) line) {"lit":7,"pool":0,"cap":"Marsh gas is methane (CH₄). It keeps bubbling up through the water, so a splash only knocks the flame down for a moment."}
+PASS marsh: Frost knocks it down too and Fire changes nothing (7 lit, Frost and Fire lines) frost={"lit":7,"pool":0,"cap":"Liquid nitrogen boils into N₂ gas. Once it warms up, N₂ is about as heavy as air, so it mixes away and the methane keeps burning."} fire={"lit":7,"cap":"That gas is already burning. Fire cannot put out fire."}
+PASS marsh: CO2 fills the dip (0.5 at a vent, Filling; 1 at the floor, Pooled; 4 lit, still 4 after 5 s) half={"lit":7,"pool":0.5,"cap":"CO₂ (44 g/mol) is denser than air (29 g/mol), so it pools low, like an invisible pond."} full={"lit":4,"pool":1,"cap":"The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.","icon":""} after 5 s ventsLit=4
+PASS marsh: Fire on a smothered vent fizzles (no oxygen), 4 lit ventsLit=4 caption=Fire needs oxygen, and the CO₂ keeps it away.
+PASS marsh: the hollow fills in three casts (0.34 / 0.68 / 1.00; 4 lit after two, 0 after three) and both cross stopped at z=-6.25 pools 0.34 / 0.68 / 1 lit 4 / 4 / 0 then pos=0,0,-12.5 outcome=playing
+PASS marsh: walking to the lantern wins ("You cleared the Marsh!") and the walk stops outcome=won banner={"shown":true,"big":"You cleared the Marsh!","small":"CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back. Press R to play again."} pos 0,0,-16.083 -> 0,0,-16.083
+PASS marsh: the back arch returns to the Frozen Gate with its forward arch open level=2 nextOpen=true pos=0,0,-20.4
+PASS marsh: back from the Marsh, level 2 stays solved (stream frozen, gate melted) and the lantern gives no unsolved win level=2 outcome=won {"gateWall":false,"gateIce":0,"streamIce":1,"streamFrozen":true} pos=0,0,-17.75 banner={"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again."}
+PASS marsh: each band sees its own Filling line; Sprout shows the gas picture sprout: ok | seedling: ok | apprentice: ok | adept: ok
+PASS marsh: level 3 has no more entities than level 1 level 1 634, level 3 523
+PASS marsh: 10 switches 1-2-3-2-1 leave entities exact and WASM memory flat (± 2 %) entities 634 -> 634; wasm MB after switch 2 33.7, after 10 33.7
+PASS marsh: ?level=3 (no debug) opens the Marsh and CO2 can be selected and cast level=3 caption=The Marsh. Put out the gas flames, cross the boardwalk, reach the lantern. spell=3 casts 0 -> 1 url=http://127.0.0.1:8931/?low&level=3
+PASS marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted level=2 nextOpen=true outcome=won {"gateWall":false,"gateIce":0,"streamIce":1,"streamFrozen":true} pos=0,0,-20.4
+FAIL marsh: after a direct ?level=3 load, the walk back to level 2 shows no "You opened the Frozen Gate!" (banner or caption) revisit=undefined banner at arrival {"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again."}, +4 s {"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again."} caption "Back at the Frozen Gate. The stream is frozen and the gate is open." then "Back at the Frozen Gate. The stream is frozen and the gate is open."
+FAIL marsh: after that arrival the exit arrow does not point back at the Marsh arch (4 s of game time, arch behind) arrow={"shown":true,"exit":true} fireOff=true fireBearing=180 pos=0,0,-20.4 yaw=180
+PASS no console errors 
+
+88/96 passed
+EXIT 1
