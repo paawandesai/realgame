@@ -646,6 +646,9 @@ export function startHud() {
 
   let prev = null;
   let capId = -1;
+  // I-035: game time of the level-1 win (null while not won), for the exit arrow.
+  let wonAt = null;
+  const EXIT_ARROW_DELAY_S = 3;
   const frame = () => {
     syncLock();
     const raw = window.__gameState;
@@ -696,8 +699,13 @@ export function startHud() {
       setHint(pickHint({ playing, idle: idleOn, note, locked: state.locked, extinguished: state.extinguished, casts: state.casts }));
       // The arrow to the nearest fire, while it is off screen and no fire is
       // in view or aimed at (I-025).
-      // I-035: after the courtyard is saved, the same arrow points at the open exit arch.
-      const findExit = state.level === 1 && state.exitOpen && state.outcome === 'won' && state.fireOff && !state.paused && !input.paused;
+      // I-035: after the courtyard is saved, the same arrow points at the open
+      // exit arch, once the win banner has had 3 s of game time on its own
+      // (nothing shows under a banner as it appears, I-025 test 18).
+      if (state.outcome !== 'won' || state.level !== 1) wonAt = null;
+      else if (wonAt === null) wonAt = state.gameTime;
+      const findExit = state.level === 1 && state.exitOpen && state.outcome === 'won' && wonAt !== null && state.gameTime - wonAt >= EXIT_ARROW_DELAY_S
+        && state.fireOff && !state.paused && !input.paused;
       const findOn = (playing && state.fireOff && !state.fireInView && state.nearFire >= 0 && !state.paused && !input.paused) || findExit;
       finder.classList.toggle('hidden', !findOn);
       finder.classList.toggle('exit', findExit);
