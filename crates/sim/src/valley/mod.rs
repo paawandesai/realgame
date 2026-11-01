@@ -42,28 +42,128 @@ pub struct Pack {
     pub hot: [Option<u8>; 4],
 }
 
+impl Item {
+    /// How many fit in one slot: 64 of a block, 1 of a tool or key.
+    pub fn stack_max(self) -> u16 {
+        match self {
+            Item::Block(_) => STACK_MAX,
+            _ => 1,
+        }
+    }
+
+    /// The item's key in the `pack` state (a material name for a block).
+    pub fn key(self) -> &'static str {
+        match self {
+            Item::Block(id) => mat::NAMES.get(id as usize).copied().unwrap_or("block"),
+            Item::Pick => "pick",
+            Item::Torch => "torch",
+            Item::O2Flask => "o2_flask",
+            Item::H2Balloon => "h2_balloon",
+            Item::KilnSpark => "kiln_spark",
+        }
+    }
+
+    /// The item for a key (`pick`, `coal_ore`, ...), for debug `give` and
+    /// the page's commands.
+    pub fn from_key(key: &str) -> Option<Item> {
+        match key {
+            "pick" => Some(Item::Pick),
+            "torch" => Some(Item::Torch),
+            "o2_flask" => Some(Item::O2Flask),
+            "h2_balloon" => Some(Item::H2Balloon),
+            "kiln_spark" => Some(Item::KilnSpark),
+            "coal" => Some(Item::Block(mat::COAL_ORE)),
+            _ => mat::NAMES
+                .iter()
+                .position(|n| *n == key)
+                .filter(|&i| i > 0)
+                .map(|i| Item::Block(i as u8)),
+        }
+    }
+}
+
 impl Pack {
-    /// Adds `n` of `item`; returns how many did not fit. Stub: adds nothing.
+    /// Adds `n` of `item`; returns how many did not fit. Fills slots that
+    /// already hold it first, then empty slots, in slot order.
     pub fn add(&mut self, item: Item, n: u16) -> u16 {
-        let _ = item;
-        n
+        let max = item.stack_max();
+        let mut left = n;
+        for s in self.slots.iter_mut().flatten() {
+            if left == 0 {
+                break;
+            }
+            if s.item == item && s.n < max {
+                let k = left.min(max - s.n);
+                s.n += k;
+                left -= k;
+            }
+        }
+        for s in self.slots.iter_mut() {
+            if left == 0 {
+                break;
+            }
+            if s.is_none() {
+                let k = left.min(max);
+                *s = Some(Stack { item, n: k });
+                left -= k;
+            }
+        }
+        left
     }
 
-    /// Takes `n` of `item`, all or nothing. Stub: never takes.
+    /// Takes `n` of `item`, all or nothing (from the last slots first);
+    /// emptied slots are freed.
     pub fn take(&mut self, item: Item, n: u16) -> bool {
-        let _ = (item, n);
-        false
+        if self.count(item) < u32::from(n) {
+            return false;
+        }
+        let mut left = n;
+        for slot in self.slots.iter_mut().rev() {
+            if left == 0 {
+                break;
+            }
+            if let Some(s) = slot {
+                if s.item == item {
+                    let k = left.min(s.n);
+                    s.n -= k;
+                    left -= k;
+                    if s.n == 0 {
+                        *slot = None;
+                    }
+                }
+            }
+        }
+        true
     }
 
-    /// How many of `item` the pack holds. Stub: 0.
+    /// How many of `item` the pack holds.
     pub fn count(&self, item: Item) -> u32 {
-        let _ = item;
-        0
+        self.slots
+            .iter()
+            .flatten()
+            .filter(|s| s.item == item)
+            .map(|s| u32::from(s.n))
+            .sum()
     }
 
-    /// The `pack` state key: a JSON array of `{item, n}`. Stub: empty.
+    /// The `pack` state key: a JSON array of `{item, n}`, one per filled slot.
     pub fn to_json(&self) -> String {
-        "[]".to_string()
+        let parts: Vec<String> = self
+            .slots
+            .iter()
+            .flatten()
+            .map(|s| format!("{{\"item\":\"{}\",\"n\":{}}}", s.item.key(), s.n))
+            .collect();
+        format!("[{}]", parts.join(","))
+    }
+
+    /// `(key, n)` per filled slot, for the client's state keys.
+    pub fn entries(&self) -> Vec<(&'static str, u16)> {
+        self.slots
+            .iter()
+            .flatten()
+            .map(|s| (s.item.key(), s.n))
+            .collect()
     }
 }
 
@@ -78,20 +178,64 @@ pub struct Recipe {
 }
 
 /// Must recipes: torch (1 wood + 1 coal -> 4 torches) and furnace (8 stone).
-/// Stub: empty until Lane C fills it.
-pub const RECIPES: &[Recipe] = &[];
+/// Both are game recipes, not chemistry claims ([S0], design choice).
+pub const RECIPES: &[Recipe] = &[
+    Recipe {
+        id: "torch",
+        needs: &[(Item::Block(mat::WOOD), 1), (Item::Block(mat::COAL_ORE), 1)],
+        gives: (Item::Torch, 4),
+        source: "S0",
+    },
+    Recipe {
+        id: "furnace",
+        needs: &[(Item::Block(mat::STONE), 8)],
+        gives: (Item::Block(mat::FURNACE), 1),
+        source: "S0",
+    },
+];
 
 /// Why `craft` refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CraftError {
-    NotEnough { item: Item, have: u32, need: u16 },
+    NotEnough {
+        item: Item,
+        have: u32,
+        need: u16,
+    },
     UnknownRecipe,
+    /// The result would not fit in the pack.
+    PackFull,
 }
 
-/// Crafts recipe `id` from the pack, all or nothing. Stub: unknown recipe.
+/// Crafts recipe `id` from the pack, all or nothing: every input must be
+/// there and the result must fit, or the pack is left unchanged.
 pub fn craft(pack: &mut Pack, id: &str) -> Result<(), CraftError> {
-    let _ = (pack, id);
-    Err(CraftError::UnknownRecipe)
+    let r = RECIPES
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or(CraftError::UnknownRecipe)?;
+    for &(item, need) in r.needs {
+        let have = pack.count(item);
+        if have < u32::from(need) {
+            return Err(CraftError::NotEnough { item, have, need });
+        }
+    }
+    let mut next = pack.clone();
+    for &(item, need) in r.needs {
+        next.take(item, need);
+    }
+    let (item, n) = r.gives;
+    if next.add(item, n) > 0 {
+        return Err(CraftError::PackFull);
+    }
+    *pack = next;
+    Ok(())
+}
+
+/// Whether recipe `id` can be made from the pack now (the Make tab greys
+/// out the others).
+pub fn can_craft(pack: &Pack, id: &str) -> bool {
+    craft(&mut pack.clone(), id).is_ok()
 }
 
 /// Material ids from `content/materials.json` (the same rows as
@@ -103,6 +247,37 @@ pub mod mat {
     pub const WOOD: u8 = 7;
     pub const COAL_ORE: u8 = 15;
     pub const FURNACE: u8 = 27;
+    /// Row names, in id order (`realgame_voxel::mat::NAMES` plus `furnace`).
+    pub const NAMES: [&str; 28] = [
+        "air",
+        "dirt",
+        "grass",
+        "sand",
+        "stone",
+        "cliffstone",
+        "runestone",
+        "wood",
+        "leaves",
+        "planks",
+        "snow",
+        "ice",
+        "water",
+        "steam",
+        "mud",
+        "coal_ore",
+        "iron_ore",
+        "crystal",
+        "glass",
+        "iron",
+        "brick",
+        "ash",
+        "torch",
+        "bench",
+        "invention_bench",
+        "kiln_hearth",
+        "gas_vent",
+        "furnace",
+    ];
 }
 
 /// A quest step: 0 the intro, 1-7 the steps in section 7, 8 the ending.
@@ -148,18 +323,36 @@ impl Quest {
         Quest { step: 0 }
     }
 
-    /// Feeds one event; returns the step just completed, if any.
-    /// Stub: never advances.
+    /// Feeds one event; returns the step just completed, if any. Only the
+    /// event that finishes the current step counts, so nothing is skipped and
+    /// nothing completes twice.
     pub fn on(&mut self, event: QuestEvent) -> Option<Step> {
-        let _ = event;
-        None
+        use QuestEvent as E;
+        let done = match (self.step, event) {
+            (0, E::IntroDone) => true,
+            (1, E::WorkshopOut { by_water: true }) => true,
+            (2, E::CrossedFord) => true,
+            (3, E::GateMelted) => true,
+            (4, E::Holding { item, total }) => item == Item::Block(mat::COAL_ORE) && total >= 1,
+            (5, E::CrossedHollow) => true,
+            (6, E::Holding { item, total }) => item == Item::KilnSpark && total >= 1,
+            (7, E::Invented { relights: true }) => true,
+            _ => false,
+        };
+        if !done {
+            return None;
+        }
+        let finished = self.step;
+        self.step += 1;
+        Some(finished)
     }
 
     /// A quest already at `step` (the `quest <n>` debug command and
-    /// `?biome=` seeding). Stub.
+    /// `?biome=` seeding); clamped to the ending.
     pub fn at(step: Step) -> Quest {
-        let _ = step;
-        Quest { step: 0 }
+        Quest {
+            step: step.min(STEPS + 1),
+        }
     }
 
     /// The current step (0-8).
@@ -168,12 +361,76 @@ impl Quest {
     }
 
     /// The objective line for the current step and band (`None`: no band
-    /// chosen, Seedling text). Stub: empty.
+    /// chosen, Seedling text).
     pub fn line(&self, band: Option<Tier>) -> &'static str {
-        let _ = band;
-        ""
+        let k = match band {
+            Some(Tier::Sprout) => 0,
+            Some(Tier::Seedling) | None => 1,
+            Some(Tier::Apprentice) => 2,
+            Some(Tier::Adept) => 3,
+        };
+        LINES.get(self.step as usize).map_or("", |l| l[k])
     }
 }
+
+/// The objective line per step (0 intro .. 8 ending) and band (Sprout,
+/// Seedling, Apprentice, Adept). At most 90 characters (C6).
+const LINES: [[&str; 4]; 9] = [
+    [
+        "Welcome to the valley!",
+        "Welcome to the valley. The Great Kiln has gone cold.",
+        "Welcome to the valley. The Great Kiln has gone cold.",
+        "Welcome to the valley. The Great Kiln has gone cold.",
+    ],
+    [
+        "Fire at the workshop! Learn Water at the Bench, then splash it.",
+        "The workshop is on fire! Learn Water at the Formula Bench, then put it out.",
+        "The workshop is burning. Learn Water at the Formula Bench and cool it out.",
+        "The workshop is burning. Build H₂O at the Formula Bench and cool the wood below ignition.",
+    ],
+    [
+        "The river is too deep. Learn Frost and make an ice path.",
+        "The river is too deep. Learn Frost and freeze a path across.",
+        "The river is too deep to wade. Learn Frost (N₂, −196 °C) and freeze a path.",
+        "Too deep to wade. Learn Frost: liquid N₂ at −196 °C freezes the top layer first.",
+    ],
+    [
+        "An ice gate! Melt it with Fire.",
+        "An ice gate blocks the cliff. Melt it with Fire.",
+        "An ice gate blocks the cliff. Melt it with Fire: H₂O(s) → H₂O(l).",
+        "An ice gate blocks the cliff. Melt it with Fire; ice takes a lot of heat to melt.",
+    ],
+    [
+        "Dig some coal with the Pick (key 5).",
+        "Dig some coal from the seam (hold the Pick, key 5).",
+        "Dig coal from the seam (Pick, key 5). Coal is mostly carbon, C.",
+        "Mine coal from the seam (Pick, key 5): carbon fuel for torches and the Kiln.",
+    ],
+    [
+        "Gas fire! Learn CO₂, block the gap, then fill the hollow.",
+        "Marsh gas burns on the boardwalk. Learn CO₂, close the gap in the rim, smother it.",
+        "Methane burns in the hollow. Learn CO₂, close the rim gap, let the CO₂ pool.",
+        "CH₄ burns in the hollow. Learn CO₂, seal the rim gap; dense CO₂ pools and smothers.",
+    ],
+    [
+        "It's dark! Make a torch, split water, lift the crate.",
+        "It's dark. Make a torch, split water at the rig, and lift the crate.",
+        "Make a torch, split water at the rig (2H₂O → 2H₂ + O₂), and lift the crate.",
+        "Light a torch, run the rig (2H₂O → 2H₂ + O₂), and choose the gas that lifts the crate.",
+    ],
+    [
+        "Take the Spark home and make the Kiln hot again!",
+        "Bring the Kiln Spark home and invent a reaction hot enough to relight the Great Kiln.",
+        "Bring the Spark home. Invent a reaction hot enough (1700 °C) for the Kiln.",
+        "Bring the Spark home. Invent a reaction whose flame in pure O₂ tops 1700 °C.",
+    ],
+    [
+        "You did it! The Kiln is warm again.",
+        "You relit the Great Kiln!",
+        "You relit the Great Kiln!",
+        "You relit the Great Kiln!",
+    ],
+];
 
 /// The Invention Bench (section 6): builds a reaction from 1-3 pack items and
 /// asks `crate::reactions` whether it is real, exothermic and hot enough.
@@ -210,10 +467,9 @@ pub mod invent {
 /// HUD hint only (section 7): a spell is usable at stage >= Learning when the
 /// band can learn it, and always when it cannot (Fire at Sprout), matching
 /// the client's `worked::route`. `stage` uses the client's numbering (0
-/// Unknown, 1 Learning, 2 Practised, 3 Mastered). Stub: false.
+/// Unknown, 1 Learning, 2 Practised, 3 Mastered).
 pub fn usable(def: &SpellDef, band: Tier, stage: u8) -> bool {
-    let _ = (def, band, stage);
-    false
+    !crate::bench::learnable(def, band) || stage >= 1
 }
 
 /// Paawan's partial mastery (2026-11-01): in one run, a spell becomes
@@ -234,38 +490,50 @@ pub mod practice {
 
     impl RunPractice {
         /// Counts one correct worked cast of `spell`; returns true the moment
-        /// it becomes Practised in this run. Stub.
+        /// it becomes Practised in this run.
         pub fn record(&mut self, spell: usize) -> bool {
-            let _ = spell;
-            false
+            let Some(c) = self.casts.get_mut(spell) else {
+                return false;
+            };
+            if *c >= PRACTISE_CASTS {
+                return false;
+            }
+            *c += 1;
+            *c == PRACTISE_CASTS
         }
 
-        /// Practised in this run. Stub.
+        /// Practised in this run.
         pub fn practised(&self, spell: usize) -> bool {
-            let _ = spell;
-            false
+            self.casts.get(spell).is_some_and(|&c| c >= PRACTISE_CASTS)
         }
 
         /// The stage the worked-cast route should use: the saved stage, raised
         /// to Practised (2) once practised in this run; never lowered, never
-        /// raised to Mastered (3). Stub.
+        /// raised to Mastered (3).
         pub fn stage(&self, spell: usize, saved: u8) -> u8 {
-            let _ = spell;
-            saved
+            if self.practised(spell) {
+                saved.max(2)
+            } else {
+                saved
+            }
         }
     }
 
     /// The spell a biome's gate needs Practised (the previous biome's spell),
-    /// or `None` for an ungated biome. Stub.
+    /// or `None` for an ungated biome: the Frozen Fields need Water (the
+    /// Village's), the Marsh needs Frost, the Crystal Cave needs CO2.
     pub fn gate_spell(biome: &str) -> Option<usize> {
-        let _ = biome;
-        None
+        match biome {
+            "frozen" => Some(1),
+            "marsh" => Some(2),
+            "cave" => Some(3),
+            _ => None,
+        }
     }
 
-    /// Whether the way into `biome` is open for this run. Stub.
+    /// Whether the way into `biome` is open for this run.
     pub fn biome_open(biome: &str, run: &RunPractice) -> bool {
-        let _ = (biome, run);
-        false
+        gate_spell(biome).is_none_or(|s| run.practised(s))
     }
 }
 
@@ -325,7 +593,14 @@ mod tests {
         assert_eq!(p.add(Item::Pick, 1), 0);
         assert_eq!(p.add(Item::Pick, 1), 0);
         assert_eq!(p.count(Item::Pick), 2);
-        assert_eq!(p.slots.iter().flatten().filter(|s| s.item == Item::Pick).count(), 2);
+        assert_eq!(
+            p.slots
+                .iter()
+                .flatten()
+                .filter(|s| s.item == Item::Pick)
+                .count(),
+            2
+        );
         // Fill every slot, then the leftover comes back.
         let stone = Item::Block(mat::STONE);
         let free = p.slots.iter().filter(|s| s.is_none()).count() as u16;
@@ -340,12 +615,18 @@ mod tests {
         assert_eq!(p.count(dirt), 30);
         assert!(p.take(dirt, 30));
         assert_eq!(p.count(dirt), 0);
-        assert!(p.slots.iter().all(|s| s.is_none_or(|s| s.item != dirt)), "emptied slots are freed");
+        assert!(
+            p.slots.iter().all(|s| s.is_none_or(|s| s.item != dirt)),
+            "emptied slots are freed"
+        );
         // JSON: one entry per filled slot.
         let mut q = Pack::default();
         q.add(Item::Block(mat::COAL_ORE), 2);
         q.add(Item::KilnSpark, 1);
-        assert_eq!(q.to_json(), r#"[{"item":"coal_ore","n":2},{"item":"kiln_spark","n":1}]"#);
+        assert_eq!(
+            q.to_json(),
+            r#"[{"item":"coal_ore","n":2},{"item":"kiln_spark","n":1}]"#
+        );
     }
 
     /// C2: `craft("torch")` fails with `NotEnough{coal}` and leaves the pack
@@ -358,7 +639,11 @@ mod tests {
         let before = p.clone();
         assert_eq!(
             craft(&mut p, "torch"),
-            Err(CraftError::NotEnough { item: coal, have: 0, need: 1 })
+            Err(CraftError::NotEnough {
+                item: coal,
+                have: 0,
+                need: 1
+            })
         );
         assert_eq!(p, before, "a refused craft leaves the pack unchanged");
         p.add(coal, 1);
@@ -367,7 +652,10 @@ mod tests {
         assert_eq!((p.count(wood), p.count(coal)), (0, 0));
         assert_eq!(craft(&mut p, "nonsense"), Err(CraftError::UnknownRecipe));
         // The furnace: 8 stone.
-        let r = RECIPES.iter().find(|r| r.id == "furnace").expect("furnace recipe");
+        let r = RECIPES
+            .iter()
+            .find(|r| r.id == "furnace")
+            .expect("furnace recipe");
         assert_eq!(r.needs, &[(Item::Block(mat::STONE), 8)]);
         assert_eq!(r.gives, (Item::Block(mat::FURNACE), 1));
         for r in RECIPES {
@@ -386,9 +674,15 @@ mod tests {
             E::WorkshopOut { by_water: true },
             E::CrossedFord,
             E::GateMelted,
-            E::Holding { item: coal, total: 1 },
+            E::Holding {
+                item: coal,
+                total: 1,
+            },
             E::CrossedHollow,
-            E::Holding { item: Item::KilnSpark, total: 1 },
+            E::Holding {
+                item: Item::KilnSpark,
+                total: 1,
+            },
             E::Invented { relights: true },
         ];
         let mut q = Quest::new();
@@ -414,7 +708,13 @@ mod tests {
         let mut q = Quest::new();
         q.on(E::IntroDone);
         assert_eq!(q.on(E::WorkshopOut { by_water: false }), None);
-        assert_eq!(q.on(E::Holding { item: coal, total: 0 }), None);
+        assert_eq!(
+            q.on(E::Holding {
+                item: coal,
+                total: 0
+            }),
+            None
+        );
         let mut q = Quest::new();
         for e in &chain[..7] {
             q.on(*e);
@@ -427,7 +727,13 @@ mod tests {
         for e in &chain[..4] {
             q.on(*e);
         }
-        assert_eq!(q.on(E::Holding { item: Item::Block(mat::DIRT), total: 5 }), None);
+        assert_eq!(
+            q.on(E::Holding {
+                item: Item::Block(mat::DIRT),
+                total: 5
+            }),
+            None
+        );
         assert_eq!(q.step(), 4);
     }
 
@@ -450,10 +756,19 @@ mod tests {
         let book = crate::spellbook::SpellBook::load(&crate::reactions::ReactionBook::load());
         let def = |id: &str| book.by_id(id).expect(id).clone();
         let (fire, frost) = (def("fire"), def("frost"));
-        assert!(usable(&fire, Tier::Sprout, 0), "Fire at Sprout: usable while unknown");
-        assert!(!usable(&frost, Tier::Seedling, 0), "Frost at Seedling: not while unknown");
+        assert!(
+            usable(&fire, Tier::Sprout, 0),
+            "Fire at Sprout: usable while unknown"
+        );
+        assert!(
+            !usable(&frost, Tier::Seedling, 0),
+            "Frost at Seedling: not while unknown"
+        );
         for stage in 1..=3 {
-            assert!(usable(&frost, Tier::Seedling, stage), "Frost at Seedling, stage {stage}");
+            assert!(
+                usable(&frost, Tier::Seedling, stage),
+                "Frost at Seedling, stage {stage}"
+            );
         }
     }
 
@@ -461,16 +776,35 @@ mod tests {
     /// 90 characters.
     #[test]
     fn quest_lines_exist_per_band() {
-        let bands = [None, Some(Tier::Sprout), Some(Tier::Seedling), Some(Tier::Apprentice), Some(Tier::Adept)];
+        let bands = [
+            None,
+            Some(Tier::Sprout),
+            Some(Tier::Seedling),
+            Some(Tier::Apprentice),
+            Some(Tier::Adept),
+        ];
         for step in 1..=STEPS {
             let q = Quest::at(step);
             for b in bands {
                 let line = q.line(b);
                 assert!(!line.is_empty(), "step {step} {b:?}");
-                assert!(line.chars().count() <= 90, "step {step} {b:?}: {} chars", line.chars().count());
-                assert!(!line.chars().any(|c| c == '"' || c == '\\' || c.is_control()), "{line:?}");
+                assert!(
+                    line.chars().count() <= 90,
+                    "step {step} {b:?}: {} chars",
+                    line.chars().count()
+                );
+                assert!(
+                    !line
+                        .chars()
+                        .any(|c| c == '"' || c == '\\' || c.is_control()),
+                    "{line:?}"
+                );
             }
-            assert_eq!(q.line(None), q.line(Some(Tier::Seedling)), "no band reads as Seedling");
+            assert_eq!(
+                q.line(None),
+                q.line(Some(Tier::Seedling)),
+                "no band reads as Seedling"
+            );
         }
     }
 
