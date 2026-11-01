@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
 // that section and the console-error check; also spellProgress, workedCasts,
-// voxelEngine, blockMatter, valleyStory, comma-separated), QUERY (for example `?low`,
+// voxelEngine, blockMatter, valleyStory, voxelCast, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -109,6 +109,7 @@ function check(name, ok, detail = '') {
     voxelEngine: () => voxelEngine({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
     blockMatter: () => blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
     valleyStory: () => valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
+    voxelCast: () => voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -389,6 +390,8 @@ function check(name, ok, detail = '') {
   await blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
 
   await valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
+
+  await voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -4817,4 +4820,93 @@ async function blockMatter({ page, st, cmd, until, frames, sleep, base, browser,
 async function valleyStory({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
   console.log('  -- valley story (I-052, lane C) --');
   void page; void st; void cmd; void until; void frames; void sleep; void base; void browser; void errors; void logs;
+}
+
+// I-051 in the block world (voxel_cast.rs): Water and CO2 charge while held
+// and arc on release; Fire and Frost are short sprays. Until Lane A inserts
+// the valley's blocks, spells land on the plane y = 0, so the distances
+// here are the flat-ground maths.
+async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- voxel cast (I-051 in the block world) --');
+  await page.goto(base);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
+  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
+  // The VLAND lines logged since `n0`: { spell, p: [x, y, z], from: [x, y, z] }.
+  const lands = (n0) => logs.slice(n0).map((l) => /VLAND spell=(\d) x=(-?[\d.]+) y=(-?[\d.]+) z=(-?[\d.]+) .* from=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)/.exec(l)).filter(Boolean)
+    .map((m) => ({ spell: +m[1], p: [+m[2], +m[3], +m[4]], from: [+m[5], +m[6], +m[7]] }));
+  // How far a cast's landing is from the hand, along the ground.
+  const flat = (r) => (r && r.land ? Math.hypot(r.land.p[0] - r.land.from[0], r.land.p[2] - r.land.from[2]) : NaN);
+  const castNow = async (spell, line = 'cast', wait = 15000) => {
+    await resume();
+    await cmd(`select ${spell}`);
+    const a = await until((x) => x.spell === spell - 1 && x.cooldown <= 0, 15000);
+    const n0 = logs.length;
+    await cmd(line);
+    const z = await until((x) => x.impacts > a.impacts, wait);
+    await gameSecs(0.3);
+    return { land: lands(n0).pop() || null, landed: z.impacts > a.impacts };
+  };
+  const mode = (await st()).mode;
+  check('voxelCast: the default page is the block world', mode === 'voxel', `mode=${mode}`);
+
+  // V1. A tapped Water jet and a 0.8 s hold, view 40 degrees up.
+  await cmd('tp 8 12');
+  await cmd('look 0 40');
+  await frames(2);
+  const tap = await castNow(2, 'cast');
+  const hold = await castNow(2, 'cast 0.8');
+  check('voxelCast: Water tapped lands 6-9.5 m away and held 0.8 s lands 11-16 m away, on the ground',
+    tap.landed && hold.landed && flat(tap) >= 6 && flat(tap) <= 9.5 && flat(hold) >= 11 && flat(hold) <= 16
+      && Math.abs(tap.land.p[1]) < 0.2 && Math.abs(hold.land.p[1]) < 0.2,
+    `tap ${flat(tap).toFixed(2)} m ${JSON.stringify(tap.land)}, hold ${flat(hold).toFixed(2)} m ${JSON.stringify(hold.land)}`);
+
+  // V2. CO2 is a heavier, shorter lob: 5-9 m for any hold.
+  const co2 = await castNow(4, 'cast 1.5');
+  check('voxelCast: CO2 held 1.5 s lobs 7-11 m', co2.landed && flat(co2) >= 7 && flat(co2) <= 11,
+    `${flat(co2).toFixed(2)} m ${JSON.stringify(co2.land)}`);
+
+  // V3. Fire is a short spray: aimed down it lands within 2.5 m; aimed up
+  // it reaches nothing.
+  await cmd('look 0 -50');
+  await frames(2);
+  const down = await castNow(1);
+  await cmd('look 0 30');
+  await frames(2);
+  const up = await castNow(1, 'cast', 3000);
+  check('voxelCast: Fire aimed down lands within 2.5 m; aimed up it lands nowhere',
+    down.landed && flat(down) <= 2.5 && Math.abs(down.land.p[1]) < 0.05 && !up.landed && !up.land,
+    `down ${down.landed} ${flat(down).toFixed(2)} m ${JSON.stringify(down.land)} up ${up.landed} ${JSON.stringify(up.land)}`);
+
+  // V4. A real held press charges: it reaches farther than a quick click,
+  // and one press is one cast.
+  await page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  await until((x) => x.locked, 5000);
+  const press = async (ms) => {
+    await resume();
+    await cmd('select 2');
+    const a = await until((x) => x.spell === 1 && x.cooldown <= 0, 10000);
+    const n0 = logs.length;
+    await page.mouse.move(640, 360);
+    await page.mouse.down();
+    await sleep(ms);
+    const mid = await st();
+    await page.mouse.up();
+    await until((x) => x.impacts > a.impacts, 15000);
+    await gameSecs(0.6);
+    const l = lands(n0);
+    return { land: l[l.length - 1] || null, n: l.length, castsDuring: mid.casts - a.casts, casts: (await st()).casts - a.casts };
+  };
+  await cmd('tp 8 12');
+  await cmd('look 0 40');
+  await frames(2);
+  const click = await press(60);
+  const held = await press(1300);
+  check('voxelCast: a 1.3 s press flies at least 4 m farther than a click, each press one cast, none while held',
+    flat(held) - flat(click) >= 4 && click.n === 1 && held.n === 1 && click.casts === 1 && held.casts === 1 && held.castsDuring === 0,
+    `click ${flat(click).toFixed(2)} m (${click.n}), held ${flat(held).toFixed(2)} m (${held.n}), during=${held.castsDuring}`);
 }
