@@ -12,6 +12,9 @@
 //! that make a cast legible (fires left, the nearest fire's bearing, flight
 //! time).
 
+// I-054: the generated block atlas; Lane A's voxel_tex.rs calls it.
+#[allow(dead_code)]
+mod atlas_gen;
 mod bench;
 mod blockchem;
 mod bridge;
