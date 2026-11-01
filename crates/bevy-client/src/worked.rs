@@ -309,25 +309,25 @@ mod tests {
     fn state_json() {
         let mut d = Desk::default();
         assert_eq!(d.state_json(), "null");
-        d.set_view(r#"{"v":1}"#);
+        d.set_view("{\"v\":1}");
         assert_eq!(d.state_json(), "null");
         assert!(d.request(1, 1, Route::Worked));
         assert_eq!(
             d.state_json(),
-            r#"{"id":1,"spell":1,"route":"worked","wrong":0,"help":false,"view":null}"#
+            "{\"id\":1,\"spell\":1,\"route\":\"worked\",\"wrong\":0,\"help\":false,\"view\":null}"
         );
-        d.set_view(r#"{"v":1,"open":true}"#);
+        d.set_view("{\"v\":1,\"open\":true}");
         assert_eq!(
             d.state_json(),
-            r#"{"id":1,"spell":1,"route":"worked","wrong":0,"help":false,"view":{"v":1,"open":true}}"#
+            "{\"id\":1,\"spell\":1,\"route\":\"worked\",\"wrong\":0,\"help\":false,\"view\":{\"v\":1,\"open\":true}}"
         );
         d.submit(1, false);
         d.submit(1, false);
-        assert!(d.state_json().contains(r#""wrong":2,"help":true"#));
+        assert!(d.state_json().contains("\"wrong\":2,\"help\":true"));
         assert!(d.cancel(1));
         assert_eq!(d.state_json(), "null");
         assert!(d.request(2, 1, Route::Worked));
-        assert!(d.state_json().ends_with(r#""view":null}"#));
+        assert!(d.state_json().ends_with("\"view\":null}"));
     }
 
     // 6. No panic: random operations keep is_open() in step with a model.
@@ -383,7 +383,7 @@ mod tests {
                             model = None;
                         }
                     }
-                    _ => d.set_view(r#"{"v":1}"#),
+                    _ => d.set_view("{\"v\":1}"),
                 }
                 assert_eq!(d.is_open(), model.is_some());
                 let _ = d.state_json();
