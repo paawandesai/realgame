@@ -5000,5 +5000,78 @@ async function blockMatter({ page, st, cmd, until, frames, sleep, base, browser,
 // Lane C: valley story (E15-E21, E23).
 async function valleyStory({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
   console.log('  -- valley story (I-052, lane C) --');
-  void page; void st; void cmd; void until; void frames; void sleep; void base; void browser; void errors; void logs;
+  void browser; void errors; void logs;
+  // The block world is the default page: drop `classic` from the base URL.
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const load = async (url) => {
+    await page.goto(url);
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+  };
+  // Polls an async page check until it holds (or `ms` runs out).
+  const poll = async (fn, ms) => {
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) if (await fn()) return true;
+    return false;
+  };
+  const intro = () => page.evaluate(() => {
+    const el = document.getElementById('intro');
+    return {
+      shown: !!el && !el.hidden,
+      cards: el ? el.querySelectorAll('.intro-card').length : 0,
+      card: el ? Number(el.dataset.card) : -1,
+      modal: el ? el.getAttribute('aria-modal') : null,
+      text: el ? (el.querySelector('.intro-card.on .intro-text')?.textContent || '') : '',
+    };
+  });
+
+  // E15. The intro shows three cards and any key skips it after 1 s.
+  await load(voxel);
+  let s = await until((x) => x.mode === 'voxel', 20000);
+  await poll(async () => (await intro()).shown, 10000);
+  const i0 = await intro();
+  const q0 = (await st()).quest;
+  await page.keyboard.press('KeyX'); // before 1 s: ignored
+  await frames(2);
+  const early = await intro();
+  await sleep(1200);
+  await page.keyboard.press('KeyX');
+  const t0 = Date.now();
+  s = await until((x) => x.quest === 1, 5000);
+  const i1 = await intro();
+  check('story: the intro shows three cards and any key skips it after 1 s',
+    s.mode === 'voxel' && i0.shown && i0.cards === 3 && i0.modal === 'true' && /Kiln/.test(i0.text) && q0 === 0
+      && early.shown && !i1.shown && s.quest === 1 && Date.now() - t0 < 5000,
+    `mode=${s.mode} first=${JSON.stringify(i0)} quest ${q0} -> ${s.quest} early=${JSON.stringify(early)} after=${JSON.stringify(i1)}`);
+
+  // E17. The pack opens with Tab, pauses, the rest is inert, and Escape closes it.
+  await page.keyboard.press('Tab');
+  await poll(() => page.evaluate(() => !!document.getElementById('pack') && !document.getElementById('pack').hidden), 5000);
+  // As the bench's own check: the published state follows within 10 frames.
+  const f0 = (await st()).frame;
+  await poll(async () => { const x = await st(); return x.paused || x.frame >= f0 + 10; }, 5000);
+  const open = await page.evaluate(() => ({
+    open: !!document.getElementById('pack') && !document.getElementById('pack').hidden,
+    modal: document.getElementById('pack')?.getAttribute('aria-modal') ?? null,
+    slots: document.querySelectorAll('#pack .pack-slot').length,
+    paused: window.__game.state().paused,
+    atCentre: !!document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('#pack'),
+    inert: ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id).inert),
+  }));
+  await page.keyboard.press('Escape');
+  const f1 = (await st()).frame;
+  await poll(async () => { const x = await st(); return !x.paused || x.frame >= f1 + 10; }, 5000);
+  const shut = await page.evaluate(() => ({
+    open: !!document.getElementById('pack') && !document.getElementById('pack').hidden,
+    paused: window.__game.state().paused,
+    inert: ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id).inert),
+    focus: document.activeElement && document.activeElement.id,
+  }));
+  check('story: the pack opens with Tab, pauses, and Escape closes it',
+    open.open && open.modal === 'true' && open.slots === 20 && open.paused === true && open.atCentre && open.inert.every(Boolean)
+      && !shut.open && shut.paused === false && shut.inert.every((x) => !x) && shut.focus === 'game',
+    `open=${JSON.stringify(open)} shut=${JSON.stringify(shut)}`);
+  void cmd;
 }

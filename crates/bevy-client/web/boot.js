@@ -24,12 +24,29 @@ setInterval(() => {
   cpu.length = 0;
 }, 2000);
 
+// I-052: the block world needs WebGL2 (or WebGPU). Without either, a plain
+// card says so instead of a blank page.
+try {
+  const gl = document.createElement('canvas').getContext('webgl2');
+  if (!gl && !navigator.gpu) {
+    const card = document.createElement('div');
+    card.id = 'nogl';
+    card.textContent = 'No 3D here: try Chrome on a recent laptop';
+    document.body.append(card);
+  }
+} catch { /* the check must never stop the boot */ }
+
 startHud();
 // Spell progress saved on this device (I-027). Dynamic, so a missing or
 // broken progress.js costs only saving, never the boot.
 try { import('./progress.js').then((m) => m.startProgress()).catch(() => {}); } catch {}
 try { import('./bench.js').then((m) => m.startBench()).catch(() => {}); } catch {}
 try { import('./worked.js').then((m) => m.startWorked()).catch(() => {}); } catch {}
+// I-052 Lane C: the block valley's intro, pack and music (each only acts in
+// the block world).
+try { import('./story.js').then((m) => m.startStory()).catch(() => {}); } catch {}
+try { import('./pack.js').then((m) => m.startPack()).catch(() => {}); } catch {}
+try { import('./music.js').then((m) => m.startMusic()).catch(() => {}); } catch {}
 // Anonymous analytics and the age picker (docs/ANALYTICS.md), only where the
 // page's rg-analytics switch is "on" (the built site, web/dist). Loaded on
 // demand, so web/pkg-out (switch "off") never fetches them, and wrapped so a
