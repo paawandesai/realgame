@@ -724,7 +724,9 @@ export function startHud() {
       // exit arch, once the win banner has had 3 s of game time on its own
       // (nothing shows under a banner as it appears, I-025 test 18).
       // I-037: the same after the Frozen Gate is opened, toward its forward arch.
-      const exitAhead = (state.level === 1 && state.exitOpen) || (state.level === 2 && state.nextOpen);
+      // I-049: not on the walk back from the Marsh (`revisit`), where the
+      // forward arch is the one just walked out of.
+      const exitAhead = (state.level === 1 && state.exitOpen) || (state.level === 2 && state.nextOpen && !state.revisit);
       if (state.outcome !== 'won' || state.level === 3) wonAt = null;
       else if (wonAt === null) wonAt = state.gameTime;
       const findExit = exitAhead && state.outcome === 'won' && wonAt !== null && state.gameTime - wonAt >= EXIT_ARROW_DELAY_S
@@ -765,7 +767,10 @@ export function startHud() {
         warn.querySelector('.fill').style.width = `${Math.min(100, Math.max(0, (state.ghTemp - 20) / 2.8)).toFixed(0)}%`;
       }
       const banner = $('banner');
-      banner.classList.toggle('hidden', state.outcome === 'playing');
+      // I-049: no win banner on the walk back from the Marsh: level 2 loads
+      // solved, and a child who came by `?level=3` never opened the gate.
+      // The caption says "Back at the Frozen Gate." instead.
+      banner.classList.toggle('hidden', state.outcome === 'playing' || (state.level === 2 && !!state.revisit));
       banner.classList.toggle('lost', state.outcome === 'lost');
       if (state.outcome === 'won' && state.level === 3) {
         banner.querySelector('.big').textContent = 'You cleared the Marsh!';

@@ -320,6 +320,13 @@ struct Game {
     /// The Sprout picture for the current caption (I-035): "", "freeze",
     /// "melt" or "wrong". Cleared by every new caption.
     cap_icon: &'static str,
+    /// I-049: level 2 was entered from the Marsh (it loads solved, I-037):
+    /// no win banner, no exit arrow back at the arch just walked out of,
+    /// and no stop-on-win. Cleared by every reset (R or a level change).
+    revisit: bool,
+    /// I-049: level 2's stream has been frozen solid since the last reset,
+    /// so the Sprout melt line can say "bridge" (break 1, should-fix 4).
+    bridge_seen: bool,
 }
 
 impl Game {
@@ -1108,8 +1115,12 @@ fn control(
     }
     // I-037: reaching the Marsh's lantern stops the walk, so held keys do
     // not carry the player into it. A fresh press of a movement key walks
-    // again (to the arch); a scripted `move` does not.
-    let won3 = level.n == 3 && chem.world.outcome() == Outcome::Won;
+    // again (to the arch); a scripted `move` does not. I-049: the same at
+    // the Frozen Gate's lantern (I-035 break 1, should-fix 3: the camera
+    // ended inside the lantern), except on the walk back from the Marsh,
+    // where level 2 loads already won.
+    let won3 = (level.n == 3 || (level.n == 2 && !game.revisit))
+        && chem.world.outcome() == Outcome::Won;
     if !won3 {
         *win_stop = None;
     } else if win_stop.is_none() {
@@ -1309,6 +1320,8 @@ fn levels(
         player.pos = level2::ARRIVE_NORTH;
         player.yaw = std::f32::consts::PI;
         game.say("Back at the Frozen Gate. The stream is frozen and the gate is open.");
+        game.revisit = true;
+        game.bridge_seen = true;
     }
     info!("LEVEL {n}");
 }
@@ -2066,13 +2079,16 @@ fn projectiles(
             // The kind before the spell (a melted gate becomes a puddle).
             let kind = chem.world.objs[i].kind;
             chem.world.apply(i, p.spell, &mut ev);
+            if level.n == 2 && kind == Kind::Stream && chem.world.objs[i].ice >= 1.0 {
+                game.bridge_seen = true;
+            }
             game.hit_kind = Some(chem::hit_kind(&ev));
             // Spell results always get a caption; level 2 has its own lines
             // per band (I-035), with the Sprout picture.
             if let Some(last) = ev.last() {
                 let band = bench.as_ref().and_then(|b| b.band);
                 let line = match level.n {
-                    2 => level2::caption(last.kind, kind, band),
+                    2 => level2::caption_at(last.kind, kind, band, game.bridge_seen),
                     3 => level3::caption(last.kind, kind, band),
                     _ => None,
                 };
@@ -2432,7 +2448,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\",\"level\":{},\"exitOpen\":{},\"capIcon\":\"{}\",\"fxBeads\":{},\"nextOpen\":{},\"pools\":[{}],\"ventsLit\":{}}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\",\"level\":{},\"exitOpen\":{},\"capIcon\":\"{}\",\"fxBeads\":{},\"nextOpen\":{},\"revisit\":{},\"pools\":[{}],\"ventsLit\":{}}}",
         *frame,
         w.ticks,
         game.locked,
@@ -2495,6 +2511,7 @@ fn publish(
         game.cap_icon,
         fx.bead_live,
         level.next_open(w),
+        game.revisit,
         level3::pools(w)
             .iter()
             .map(|p| format!("{p:.3}"))

@@ -64,6 +64,52 @@ const RIDGE_Z: f32 = -8.0;
 const GATE_HALF_X: f32 = 2.0;
 const GATE_H: f32 = 3.2;
 
+/// Boulders by the landings: (x, z, size). The ball is `size` x 1.3 wide,
+/// `size` tall and deep, centred 1.2 m up.
+pub const BOULDERS: [(f32, f32, f32); 4] = [
+    (-3.2, 9.0, 1.3),
+    (3.3, 8.9, 1.2),
+    (-3.1, 3.1, 1.2),
+    (3.2, 3.2, 1.3),
+];
+/// Snow mounds: (x, z, size). The half ball is `size` x 0.8 wide (x),
+/// `size` x 0.35 tall and `size` x 0.65 deep (z).
+pub const MOUNDS: [(f32, f32, f32); 6] = [
+    (-8.0, 19.0, 1.6),
+    (7.0, 12.0, 1.3),
+    (-12.0, -12.0, 1.8),
+    (9.0, -13.0, 1.4),
+    (-20.0, 10.0, 2.0),
+    (20.0, 9.0, 1.7),
+];
+
+/// I-049 (I-035 break 1, should-fix 7): the solid boxes of the snow mounds
+/// and boulders, inside each ball's footprint (so the walk stops at the snow
+/// or rock and the camera never ends up inside it).
+pub fn prop_boxes() -> Vec<Aabb> {
+    let mut v = Vec::new();
+    for (x, z, s) in BOULDERS {
+        // The rock: 0.65 s x 0.5 s x 0.5 s radii, 1.2 m up; the box reaches
+        // the ground so it cannot be walked under.
+        v.push(Aabb::new(
+            Vec3::new(x, (1.2 + 0.5 * s) / 2.0, z),
+            Vec3::new(0.65 * s * 0.8, (1.2 + 0.5 * s) / 2.0, 0.5 * s * 0.8),
+        ));
+    }
+    for (x, z, s) in MOUNDS {
+        v.push(Aabb::new(
+            Vec3::new(x, 0.35 * s / 2.0, z),
+            Vec3::new(0.8 * s * 0.85, 0.35 * s / 2.0, 0.65 * s * 0.85),
+        ));
+    }
+    v
+}
+
+/// I-049 (I-035 break 1, should-fix 6): any spell on the lantern. It is the
+/// goal, not a target, so the line says nothing about burning (the same
+/// words as the Marsh's lantern).
+pub const LANTERN_LINE: &str = "That is the lantern. Walk up to it!";
+
 /// Object indices in level 2's chemistry world.
 pub const STREAM: usize = 0;
 pub const GATE: usize = 1;
@@ -160,6 +206,10 @@ pub fn layout() -> Layout {
     // The lantern's plinth.
     let (lx, lz) = LANTERN;
     solid(&mut c, Vec3::new(lx, 0.5, lz), Vec3::new(0.4, 0.5, 0.4));
+    // Snow mounds and boulders (I-049).
+    for a in prop_boxes() {
+        c.push(Collider { aabb: a, obj: None });
+    }
     let objs = vec![
         Obj::new(Kind::Stream, [0.0, zc], [h, (z1 - z0) / 2.0]),
         Obj::new(Kind::IceWall, [0.0, RIDGE_Z], [GATE_HALF_X, 0.5]),
@@ -315,6 +365,29 @@ pub fn caption(
             "wrong",
         ),
         _ => None,
+    }
+}
+
+/// [`caption`] in play (I-049): `bridge` says whether the stream has been
+/// frozen solid since the last reset. Before that, Fire on a part-frozen
+/// stream gives Sprout "The ice melted!", not "The bridge melted!" (I-035
+/// break 1, should-fix 4); and any spell on the lantern gives
+/// [`LANTERN_LINE`] instead of the courtyard's lines (should-fix 6).
+pub fn caption_at(
+    kind: EventKind,
+    obj: Kind,
+    band: Option<Tier>,
+    bridge: bool,
+) -> Option<(&'static str, &'static str)> {
+    if obj == Kind::Lantern {
+        return caption(kind, obj, band).or(Some((LANTERN_LINE, "")));
+    }
+    let line = caption(kind, obj, band);
+    match line {
+        Some(("The bridge melted! Make it cold again.", icon)) if !bridge => {
+            Some(("The ice melted! Make it cold again.", icon))
+        }
+        _ => line,
     }
 }
 
@@ -511,13 +584,8 @@ pub fn build(
             )),
         );
     }
-    // Boulders by the landings (on the bank boxes, so no new colliders).
-    for (x, z, s) in [
-        (-3.2f32, 9.0f32, 1.3f32),
-        (3.3, 8.9, 1.2),
-        (-3.1, 3.1, 1.2),
-        (3.2, 3.2, 1.3),
-    ] {
+    // Boulders by the landings (their colliders are in `layout`).
+    for (x, z, s) in BOULDERS {
         b.piece(
             &ball,
             &rock_light,
@@ -559,15 +627,8 @@ pub fn build(
             obj: None,
         });
     }
-    // Snow mounds.
-    for (x, z, s) in [
-        (-8.0f32, 19.0f32, 1.6f32),
-        (7.0, 12.0, 1.3),
-        (-12.0, -12.0, 1.8),
-        (9.0, -13.0, 1.4),
-        (-20.0, 10.0, 2.0),
-        (20.0, 9.0, 1.7),
-    ] {
+    // Snow mounds (their colliders are in `layout`).
+    for (x, z, s) in MOUNDS {
         b.piece(
             &ball,
             &cap,
@@ -1022,5 +1083,126 @@ mod tests {
         // Clear of the stream: nothing to do.
         let w = lay.world.clone();
         assert_eq!(bank_push(START, &w), None);
+    }
+
+    // ---- I-049: polish ----
+
+    #[test]
+    fn i049_sprout_melt_line_says_bridge_only_after_a_bridge() {
+        for k in [EventKind::Melting, EventKind::Melted] {
+            assert_eq!(
+                caption_at(k, Kind::Stream, SPROUT, false),
+                Some(("The ice melted! Make it cold again.", "melt")),
+                "{k:?} before any bridge"
+            );
+            assert_eq!(
+                caption_at(k, Kind::Stream, SPROUT, true),
+                Some(("The bridge melted! Make it cold again.", "melt")),
+                "{k:?} after a bridge"
+            );
+            // Older bands' line never says bridge: unchanged either way.
+            for band in [SEEDLING, APPRENTICE, ADEPT, None] {
+                for bridge in [false, true] {
+                    assert_eq!(caption_at(k, Kind::Stream, band, bridge), caption(k, Kind::Stream, band));
+                }
+            }
+        }
+        // Every other row of the table is unchanged.
+        for (k, obj, _) in table() {
+            for band in [None, SPROUT, SEEDLING, APPRENTICE, ADEPT] {
+                assert_eq!(caption_at(k, obj, band, true), caption(k, obj, band), "{k:?} {obj:?} {band:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn i049_spells_on_the_lantern_never_talk_about_burning() {
+        for k in [
+            EventKind::Soaked,
+            EventKind::Chilled,
+            EventKind::Smothered,
+            EventKind::NoChange,
+            EventKind::Steam,
+        ] {
+            for band in [None, SPROUT, SEEDLING, APPRENTICE, ADEPT] {
+                let (line, icon) = caption_at(k, Kind::Lantern, band, false).expect("a lantern line");
+                assert_eq!((line, icon), (LANTERN_LINE, ""), "{k:?} at {band:?}");
+                assert!(!line.contains("burn") && !line.contains("dry"), "{line}");
+            }
+        }
+    }
+
+    /// Walks from `from` with yaw `yaw` (0 faces -z) for `secs`.
+    fn walk_yaw(cols: &[Collider], from: Vec3, yaw: f32, secs: f32) -> Player {
+        let w = layout().world;
+        let solids = crate::player::boxes(Colliders(cols.to_vec()).solid(&w));
+        let mut p = Player {
+            pos: from,
+            yaw,
+            ..Player::default()
+        };
+        let input = MoveInput {
+            wish: Vec2::new(0.0, 1.0),
+            ..MoveInput::default()
+        };
+        for _ in 0..(secs * 30.0) as usize {
+            p.step(input, 1.0 / 30.0, &solids, &[]);
+        }
+        p
+    }
+
+    #[test]
+    fn i049_snow_mounds_stop_the_walk_outside_the_snow() {
+        let lay = layout();
+        for (x, z, s) in MOUNDS {
+            // Walk at the mound from 4 m south (+z) and from 4 m east (+x).
+            for (from, yaw) in [
+                (Vec3::new(x, 0.0, z + 4.0), 0.0f32),
+                (Vec3::new(x + 4.0, 0.0, z), std::f32::consts::FRAC_PI_2),
+            ] {
+                let edge = world::HALF - crate::player::RADIUS;
+                if from.x.abs() > edge || from.z.abs() > edge {
+                    continue;
+                }
+                let p = walk_yaw(&lay.colliders, from, yaw, 3.0);
+                // The eye (straight above the feet) is outside the half
+                // ellipsoid's footprint at ground level.
+                let (rx, rz) = (0.8 * s, 0.65 * s);
+                let d = ((p.pos.x - x) / rx).powi(2) + ((p.pos.z - z) / rz).powi(2);
+                assert!(d > 1.0, "mound ({x}, {z}): walked to {:?}", p.pos);
+            }
+        }
+    }
+
+    #[test]
+    fn i049_prop_colliders_leave_every_path_open() {
+        let boxes = prop_boxes();
+        let r = crate::player::RADIUS;
+        let clear = |p: Vec3| {
+            boxes.iter().all(|a| {
+                p.x < a.min.x - r || p.x > a.max.x + r || p.z < a.min.z - r || p.z > a.max.z + r
+            })
+        };
+        // Arrival points, the landings (every x on them), the gate opening, the lantern.
+        for p in [START, ARRIVE_NORTH, Vec3::new(LANTERN.0, 0.0, LANTERN.1 + LANTERN_REACH)] {
+            assert!(clear(p), "{p:?}");
+        }
+        for k in 0..=8 {
+            let x = -LANDING_X + k as f32 * LANDING_X / 4.0;
+            for z in [LANDING_SOUTH, LANDING_NORTH, RIDGE_Z] {
+                assert!(clear(Vec3::new(x, 0.0, z)), "x {x} z {z}");
+            }
+        }
+        // The level-2 acceptance walk still reaches the lantern (melted gate,
+        // frozen stream) with the props in place.
+        let lay = layout();
+        let mut w = lay.world.clone();
+        let mut ev = Vec::new();
+        for _ in 0..3 {
+            w.apply(STREAM, Spell::Frost, &mut ev);
+            w.apply(GATE, Spell::Fire, &mut ev);
+        }
+        let p = walk(&w, &lay.colliders, START, 12.0);
+        assert!(near_lantern(&p), "reached the lantern, pos={:?}", p.pos);
     }
 }

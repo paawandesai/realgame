@@ -340,9 +340,14 @@ canvas.hover-fire { cursor: pointer; }
   clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 86% 8%, 40% 70%); }
 #worked .bench-tile[data-match="true"] .bench-tick { display: block; }
 #worked .bench-actions { display: flex; gap: 8px; margin-left: auto; }
-/* Make never leaves the panel's view (break 1, should-fix 1): the actions row
-   sticks to the panel's bottom edge when the content is taller than the box. */
-#worked .bench-actions { position: sticky; bottom: -10px; z-index: 1; padding: 4px 0 6px 8px; background: #1d2a52; border-radius: 10px; }
+/* Make never leaves the panel's view (I-029 break 1 and 2, I-049): worked.js
+   moves the actions row out of the builder into .worked-foot, the panel's last
+   child, which sticks to the panel's bottom edge at every scroll position.
+   scroll-padding keeps a focused piece from scrolling in under it. */
+#worked { scroll-padding-bottom: 84px; }
+#worked .worked-foot { position: sticky; bottom: -10px; z-index: 1; display: flex; justify-content: flex-end; margin: 0 -4px -10px;
+  padding: 6px 4px 10px; background: #1d2a52; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+#worked .worked-foot .bench-actions { margin-left: 0; }
 #worked .bench-make { min-width: 96px; min-height: 56px; background: var(--on); color: #222; border-color: var(--on); font-weight: 800; }
 #worked .band-sprout .bench-make { min-width: 96px; min-height: 64px; font-size: calc(22px * var(--ui)); }
 #worked .band-sprout .bench-undo { min-width: 64px; min-height: 64px; }

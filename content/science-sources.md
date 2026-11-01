@@ -108,6 +108,7 @@ The single register of every science claim the first-person 3D client shows the 
 | C-094 | `It rolled away! Find a low spot.` | crates/bevy-client/src/level3.rs | simplified | Level 3 Sprout, CO2 on a vent outside every hollow (not placed in the shipped level). Heavy CO₂ flows downhill to low places [S26]; "rolled" is a child's word for that flow. | [S26] |
 | C-095 | `You cleared the Marsh! CO₂ is heavier than air: it filled the hollows and smothered the flames.` | crates/bevy-client/src/main.rs | correct | Level 3 win caption [S26] [S19] [S5] [S8]. | [S5] [S8] [S19] [S26] |
 | C-096 | `CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back. Press R to play again.` | crates/bevy-client/web/hud.js | correct | Level 3 win banner subtitle; the second and third sentences are game instructions [S26] [S19]. | [S19] [S26] |
+| C-097 | `The ice melted! Make it cold again.` | crates/bevy-client/src/level2.rs | correct | Level 2 Melting or Melted on a part-frozen stream before any bridge formed (I-049), Sprout: heat turns ice back into liquid water. | [S10] |
 
 ## Parameters
 
@@ -190,7 +191,7 @@ The single register of every science claim the first-person 3D client shows the 
 | `How old are you?` | crates/bevy-client/web/bench.js | Formula Bench band chooser question. Flagged by sentence shape; it states no science. |
 | `more atoms` | crates/bevy-client/web/bench.js | Seedling balance scale label under the pan with the larger atom count. The scale compares **atom counts**, not mass: no bench text may say "heavier", "weight" or "mass" about it. Not flagged by the lint; listed for the review. |
 | `These flames are already out.` | crates/bevy-client/src/level3.rs | Level 3, Water or Frost on a vent or hollow whose flames a full CO2 pool already put out: reports the shown state. Flagged by sentence shape; it states no science. |
-| `That is the lantern. Walk up to it!` | crates/bevy-client/src/level3.rs | Level 3, any spell on the lantern (the goal): a game instruction. Flagged by sentence shape; it states no science. |
+| `That is the lantern. Walk up to it!` | crates/bevy-client/src/level3.rs, crates/bevy-client/src/level2.rs | Levels 3 and 2 (I-049), any spell on the lantern (the goal): a game instruction. Flagged by sentence shape; it states no science. |
 | `The Marsh. Put out the gas flames, cross the boardwalk, reach the lantern.` | crates/bevy-client/src/main.rs | Level 3 arrival caption: the objective. Flagged by sentence shape; it states no science. |
 | `Back at the Frozen Gate. The stream is frozen and the gate is open.` | crates/bevy-client/src/main.rs | Level 2 arrival caption on the walk back from the Marsh (I-037 round 2): it reports the state on screen (level 2 loads solved), not a science claim. |
 | `Put out the gas flames, cross the boardwalk, reach the lantern.` | crates/bevy-client/web/hud.js | Level 3 objective line. Flagged by sentence shape; it states no science. |

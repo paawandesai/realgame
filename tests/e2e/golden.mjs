@@ -4658,6 +4658,67 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await page.setViewportSize({ width: VW, height: VH });
   });
 
+  // I-049 (I-029 break 2, should-fix 1 and 2). At text size 2 a New spell's
+  // panel opens with its name, close button and Copy line in view, and Make
+  // stays in the panel's view and on top at every scroll position (top,
+  // middle, bottom), not only at the scroll the panel opens with.
+  await run('worked: I-049 text size 2 head and Make in view', async () => {
+    const cases = [
+      { band: 'seedling', slot: 1, w: 1280, h: 720 },
+      { band: 'seedling', slot: 2, w: 1024, h: 600 },
+      { band: 'apprentice', slot: 2, w: 1280, h: 720 },
+      { band: 'apprentice', slot: 1, w: 1024, h: 600 },
+      { band: 'sprout', slot: 2, w: 1024, h: 600 },
+    ];
+    const out = [];
+    let headOk = true, makeOk = true;
+    for (const c of cases) {
+      vw = c.w; vh = c.h;
+      await page.setViewportSize({ width: vw, height: vh });
+      await load(['debug', `band=${c.band}`]);
+      await worked();
+      await freshAt(c.slot);
+      // Text size after the lock (see R2b: at 200 % the hotbar covers the centre).
+      await page.evaluate(() => document.documentElement.style.setProperty('--ui', '2'));
+      await frames(2);
+      const w = await openBuilder();
+      await frames(2);
+      const m = await page.evaluate(() => {
+        const p = document.getElementById('worked');
+        if (!p) return null;
+        const pr = p.getBoundingClientRect();
+        const seen = (sel) => {
+          const e = document.querySelector(sel);
+          if (!e || !e.getClientRects().length) return null;
+          const r = e.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 12));
+          return r.top >= pr.top - 0.5 && r.bottom <= pr.bottom + 0.5 && r.bottom <= innerHeight && !!hit && e.contains(hit);
+        };
+        const head = { name: seen('#worked .worked-name'), close: seen('#worked .worked-close'), copy: seen('#worked .worked-copy') };
+        const make = {};
+        const max = p.scrollHeight - p.clientHeight;
+        for (const [k, top] of [['top', 0], ['mid', max / 2], ['bottom', max]]) {
+          p.scrollTop = top;
+          make[k] = seen('#worked .bench-make');
+        }
+        return { head, make, tall: max > 0 };
+      });
+      // Sprout has no Copy line (pictures only); everyone else's New spell does.
+      const wantCopy = c.band !== 'sprout';
+      const hOk = !!w && !!m && m.head.name && m.head.close && (wantCopy ? m.head.copy === true : m.head.copy === null);
+      const mOk = !!w && !!m && m.make.top && m.make.mid && m.make.bottom;
+      headOk = headOk && hOk;
+      makeOk = makeOk && mOk;
+      out.push(`${c.band} slot ${c.slot} ${c.w}x${c.h}: ${hOk && mOk ? 'ok' : 'FAIL'} ${JSON.stringify(m)}`);
+      if ((await ws()).work) { await rclick(); await waitClosed(); }
+      await page.evaluate(() => document.documentElement.style.removeProperty('--ui'));
+    }
+    check('worked: I-049 at text size 2 a New spell opens with its name, close button and Copy line in view', headOk, out.join(' | '));
+    check('worked: I-049 at text size 2 Make stays in view and on top with the panel scrolled to the top, middle or bottom', makeOk, out.join(' | '));
+    vw = VW; vh = VH;
+    await page.setViewportSize({ width: VW, height: VH });
+  });
+
   // W11. No band known (new context, no debug).
   await run('worked: W11 no band known', async () => {
     const ctx = await browser.newContext({ viewport: { width: VW, height: VH } });
@@ -4933,10 +4994,15 @@ async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
   const beads = z.fxBeads;
   const noBandLine = z.caption;
   const t13 = Date.now();
-  const gone = await until((x) => x.fxBeads === 0, 4000);
-  const goneMs = Date.now() - t13;
+  // I-049 (harness fix): the 2 s bar is game time (state.gameTime, from the
+  // first state that shows the beads), not wall time, which a loaded host
+  // stretched past 2 s (I-037 break 2: 2195 and 2158 ms). The wait is polled
+  // every 50 ms so it adds little game time of its own.
+  let gone = await st();
+  for (const t0 = Date.now(); gone.fxBeads !== 0 && Date.now() - t0 < 8000; gone = await st()) await sleep(50);
+  const goneS = gone.gameTime - z.gameTime;
   check('frozen gate: Leidenfrost beads after a Frost hit on the liquid stream (>= 4, then 0 within 2 s)',
-    beads >= 4 && gone.fxBeads === 0 && goneMs <= 2000, `beads=${beads} then ${gone.fxBeads} after ${goneMs} ms`);
+    beads >= 4 && gone.fxBeads === 0 && goneS <= 2.0, `beads=${beads} then ${gone.fxBeads} after ${goneS.toFixed(3)} s game time (${Date.now() - t13} ms wall)`);
   check('frozen gate: with no band the Apprentice Freezing line shows', noBandLine === FREEZING.apprentice && z.capIcon === '',
     `caption="${noBandLine}" capIcon="${z.capIcon}"`);
   for (let k = 0; k < 2; k++) { z = await castAt(stream, 3); ices.push(z.objs[stream].ice); }
@@ -4958,6 +5024,16 @@ async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
   }
   check('frozen gate: the player crosses the frozen stream (z < 3), on ice while on it', s.pos[2] < 3 && sawIce, `pos=${s.pos} onIce seen=${sawIce}`);
 
+  // I-049 (I-035 break 1, should-fix 5): aiming at the lantern through the
+  // standing gate targets the gate, from the north landing and from the start.
+  const lanternI = idx(s, 'lantern');
+  const aims = [];
+  await cmd(`face ${lanternI}`);
+  await frames(3);
+  let a5 = await st();
+  aims.push(`landing pos=${a5.pos} aimObj=${a5.aimObj}`);
+  let aimOk = a5.aimObj === gate && a5.objs[gate].wall === true;
+
   // 10. Melt the gate, reach the lantern.
   const walls = [];
   for (let k = 0; k < 3; k++) {
@@ -4978,6 +5054,15 @@ async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
     wallGone && s.outcome === 'won' && b2.shown && b2.big === 'You opened the Frozen Gate!',
     `gate ${walls.join(' ')} outcome=${s.outcome} pos=${s.pos} banner=${JSON.stringify(b2)}`);
   await screenshot(page, 'l2-05-won.png');
+  // I-049 (I-035 break 1, should-fix 3): the win stops the walk, so the
+  // scripted walk (still 1 s or more to run) does not carry the camera into
+  // the lantern: 1 s of game time later the camera is still >= 1.2 m away.
+  const wonPos = s.pos;
+  s = await gameSecs(1);
+  const camD = Math.hypot(s.cam[0] - 0, s.cam[2] - (-17));
+  check('frozen gate: reaching the lantern stops the walk (camera stays >= 1.2 m from the lantern)',
+    s.outcome === 'won' && camD >= 1.2 && Math.abs(s.pos[2] - wonPos[2]) < 0.3,
+    `won at ${wonPos}, 1 s later pos=${s.pos} cam=${s.cam} distance ${camD.toFixed(2)} m`);
 
   // 12. The way back: a fresh courtyard, exit still open. (First stop the
   // scripted walk from test 10, which would carry the player off the arch.)
@@ -5006,6 +5091,55 @@ async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
     per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
   }
   check('frozen gate: each band sees its own Freezing line; Sprout shows the freeze picture', bandsOk, per.join(' | '));
+
+  // I-049 (I-035 break 1, should-fix 5, 4 and 6) on a fresh level 2 at Sprout.
+  await pushBand('sprout');
+  await cmd('level 2');
+  await until((q) => q.level === 2 && q.objs[stream] && q.objs[stream].ice === 0 && q.casts === 0, 10000);
+  await cmd('look 0 0');
+  await frames(2);
+  await cmd(`face ${lanternI}`);
+  await frames(3);
+  a5 = await st();
+  aims.push(`start pos=${a5.pos} aimObj=${a5.aimObj}`);
+  aimOk = aimOk && a5.aimObj === gate;
+  // And a cast there lands on the gate (Fire starts melting it).
+  await cmd('select 1');
+  const a6 = await until((q) => q.spell === 0 && q.cooldown <= 0, 10000);
+  await cmd('cast');
+  const z6 = await until((q) => q.impacts > a6.impacts, 20000);
+  aims.push(`cast: gate ice ${a6.objs[gate].ice} -> ${z6.objs[gate].ice}`);
+  aimOk = aimOk && z6.objs[gate].ice < 1;
+  check('frozen gate: aiming at the lantern through the standing gate targets the gate, and the cast lands on it', aimOk, aims.join(' | '));
+  // Sprout melt line: "ice" on a part-frozen stream, "bridge" only after a bridge.
+  await cmd('reset');
+  await until((q) => q.level === 2 && q.objs[stream].ice === 0 && q.casts === 0, 10000);
+  await cmd('tp 0 10');
+  await until((q) => Math.abs(q.pos[2] - 10) < 0.5, 10000);
+  const melts = [];
+  z = await castAt(stream, 3);
+  z = await castAt(stream, 1);
+  melts.push(`part-frozen: ice=${z.objs[stream].ice} "${z.caption}"`);
+  const partOk = z.caption === 'The ice melted! Make it cold again.';
+  for (let k = 0; k < 3; k++) z = await castAt(stream, 3);
+  const frozeOk = z.objs[stream].frozen === true;
+  z = await castAt(stream, 1);
+  melts.push(`after a bridge: frozen=${frozeOk} ice=${z.objs[stream].ice} "${z.caption}"`);
+  check('frozen gate: Sprout\'s melt line says "ice" before any bridge and "bridge" only after one',
+    partOk && frozeOk && z.caption === 'The bridge melted! Make it cold again.', melts.join(' | '));
+  // Water on the lantern (from behind the gate, which still stands) says
+  // nothing about burning or drying out.
+  const lines = [];
+  let lanternOk = true;
+  await cmd('tp 0 -12');
+  await until((q) => Math.abs(q.pos[2] + 12) < 0.5, 10000);
+  for (const id of ['sprout', 'seedling']) {
+    await pushBand(id);
+    z = await castAt(lanternI, 2);
+    lines.push(`${id}: "${z.caption}" outcome=${z.outcome}`);
+    lanternOk = lanternOk && z.caption === 'That is the lantern. Walk up to it!' && !/burn|dry/i.test(z.caption) && z.outcome === 'playing';
+  }
+  check('frozen gate: Water on the lantern says "That is the lantern. Walk up to it!", not that it can burn', lanternOk, lines.join(' | '));
 
   // 18 and 16 (entities). Switching levels 10 times leaks nothing.
   await cmd('level 1');
@@ -5317,4 +5451,22 @@ async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted',
     s.level === 2 && s.nextOpen === true && direct.gateWall === false && direct.streamFrozen === true,
     `level=${s.level} nextOpen=${s.nextOpen} outcome=${s.outcome} ${JSON.stringify(direct)} pos=${s.pos}`);
+
+  // I-049 (I-037 break 2, N2 and N4): that arrival claims no win the child
+  // never had (no "You opened the Frozen Gate!" banner or caption; the
+  // caption says "Back at the Frozen Gate."), and 4 s of game time later
+  // (past the 3 s arrow delay) the exit arrow does not point back at the
+  // Marsh arch just walked out of, which is behind the player.
+  const arrival = await banner();
+  const cap0 = s.caption;
+  s = await gameSecs(4);
+  const later = await banner();
+  const arrow = await page.evaluate(() => { const f = document.getElementById('firefinder'); return f ? { shown: !f.classList.contains('hidden'), exit: f.classList.contains('exit') } : null; });
+  const noClaim = (b) => !b.shown || !/You opened/.test(b.big);
+  check('marsh: after a direct ?level=3 load, the walk back to level 2 shows no "You opened the Frozen Gate!" (banner or caption)',
+    s.level === 2 && s.revisit === true && noClaim(arrival) && noClaim(later) && /^Back at the Frozen Gate/.test(cap0) && /^Back at the Frozen Gate/.test(s.caption),
+    `revisit=${s.revisit} banner at arrival ${JSON.stringify(arrival)}, +4 s ${JSON.stringify(later)} caption "${cap0}" then "${s.caption}"`);
+  check('marsh: after that arrival the exit arrow does not point back at the Marsh arch (4 s of game time, arch behind)',
+    s.level === 2 && s.fireOff === true && !!arrow && !(arrow.shown && arrow.exit),
+    `arrow=${JSON.stringify(arrow)} fireOff=${s.fireOff} fireBearing=${s.fireBearing} pos=${s.pos} yaw=${s.yaw}`);
 }

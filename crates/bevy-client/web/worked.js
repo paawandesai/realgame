@@ -82,14 +82,17 @@ export function createWorked({ doc, win, cmd, bench }) {
     const isNew = stage === 'unknown';
     if (isNew && sprout()) head.append(el('span', 'worked-bench', '', { role: 'img', 'aria-label': 'Formula Bench' }));
     head.append(x);
-    if (isNew && !sprout()) p.append(el('p', 'worked-new', 'New spell: copy it. Learn it at the Formula Bench (B) to earn XP.'));
+    // The Copy line (a New spell's answer) sits right under the head, so it
+    // is in view when the panel opens at text size 2 (I-049).
     copyLine = el('p', 'worked-copy');
     copyLine.hidden = true;
+    p.append(copyLine);
+    if (isNew && !sprout()) p.append(el('p', 'worked-new', 'New spell: copy it. Learn it at the Formula Bench (B) to earn XP.'));
     const mount = el('div', 'worked-mount');
     reasonBox = el('div', 'worked-reason');
     vcursor = el('span', 'vcursor', '', H);
     vcursor.hidden = !doc.pointerLockElement;
-    p.append(copyLine, mount, reasonBox, vcursor);
+    p.append(mount, reasonBox, vcursor);
     doc.body.append(panel = p);
     try {
       builder = bench.mountBuilder(mount, {
@@ -100,12 +103,31 @@ export function createWorked({ doc, win, cmd, bench }) {
         onMake: (/** @type {string} */ t) => { if (openId === id) send(`work submit ${id} ${t}`); },
       });
     } catch { builder = null; }
+    // The actions row (Make) leaves the builder for a row of its own, the
+    // panel's last child: sticky to the panel's bottom edge whatever the
+    // scroll (I-029 break 2, should-fix 1). Inside the builder it could not
+    // rise above the builder's top.
+    const actions = mount.querySelector('.bench-actions');
+    if (actions) {
+      const foot = el('div', `worked-foot band-${band}`);
+      foot.append(actions);
+      p.append(foot);
+    }
     if ((isNew || work.help) && !sprout()) showCopy();
     const r = p.getBoundingClientRect();
     vx = r.left + r.width / 2;
     vy = r.top + r.height / 2;
     place();
-    try { (p.querySelector('#bench-input') || p.querySelector('[data-token]') || x)?.focus(); } catch { /* none */ }
+    // Focus the first piece without scrolling the head away; a New spell
+    // opens at the top (name, close button and Copy line in view), anything
+    // else scrolls just enough to show the first piece (I-029 break 2,
+    // should-fix 2).
+    const first = p.querySelector('#bench-input') || p.querySelector('[data-token]') || x;
+    try { first?.focus({ preventScroll: true }); } catch { /* none */ }
+    try {
+      p.scrollTop = 0;
+      if (!isNew && first !== x) first?.scrollIntoView?.({ block: 'nearest' });
+    } catch { /* no layout */ }
   };
 
   /** @param {Result | undefined} res */
