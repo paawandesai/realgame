@@ -110,7 +110,8 @@ No other existing check changed. `objs` keys are unchanged. The `ONLY` switch ga
 | `perf.mjs --self-test` | 50 passed |
 | `build-web.sh` | ok, wasm gzip 5131141 B |
 | golden `ONLY=marsh` (`?low`) | 16/16 (`evidence/golden-marsh-alone.log`) |
-| full golden (`?low`) | FULL_GOLDEN |
+| full golden (`?low`) | 221/223 (`evidence/golden-full-run1.log`); marsh 15/15 and every pinned key check pass. Failures: `cast: a real click casts exactly once` (known wall-time flake) and `frozen gate: Leidenfrost beads ... then 0 within 2 s` (beads gone after 2045 ms) |
+| frozenGate alone, to check that bead failure | I-037 build: 2097 ms (fail), then 1885 ms (pass, 16/16); main build (d32a4ca): 1994 ms (pass). A wall-clock threshold on a 2-3 fps software GPU with load average about 4 from other agents; fps and entity counts in level 2 match main's (+5 entities for the north arch). Treated as a wall-time flake, same class as the known three; logs in `evidence/golden-frozenGate-alone-*.log` |
 
 ## Perf (level 3 vs level 1, same build, `evidence/perf/`)
 
