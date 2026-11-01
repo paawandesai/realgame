@@ -174,3 +174,39 @@ Yes. The stub items (`worked.rs` signatures, `Working`, `WorkCtx`, the two `Game
 6. W18: level-1 chore tripwire (`N1 * estS <= 60` at Sprout and Seedling).
 7. Lanes (web): stub-passing W checks listed as guards; all others must be seen red.
 8. Out of scope: charged casts as the pre-agreed fallback, needing Paawan's yes.
+
+# Round 2 ruling (arbiter, wave 13, on fc9d295)
+
+The arbiter rules on two questions from break 1: W18 at headless frame rates, and W7 opening the builder by command.
+
+## W18: time to cast, per band
+
+**Finding.** The round-1 harness took `castFrames` from `lastInput`, a `nowOf` snapshot taken *before* the final input's virtual-cursor moves. Each `vclick` makes several `page.evaluate` round trips (vpos, then synthetic moves, then a 60 ms press), and each one costs a frame at 1.5-3 fps. So rows that used the virtual cursor read 3-5 frames, while the keyboard rows (Apprentice) read 1-2. In the product, `work submit` is handled in `aim_and_cast`, which sets `accepted` and casts in the same call (`game.casts += 1`). `publish` is chained after it, so the cast is visible one game frame after the press that sends the submit. The `ttcMs - inputs * PACE <= 400` bar adds the harness's wall-clock round trips once per input, so it cannot hold headless and does not measure the game.
+
+**Ruling.**
+1. `castFrames` is counted in game frames, from the Make press to the first recorder row with `casts` +1. The Make press is the last capture-phase `pointerdown` (or `keydown` Enter at Apprentice) in `__wcPress` at or before that row. This is the same anchor W7 already uses. The bar stays at **<= 2**, equal to the instant-click bar (W2, W9-W11, W19, W21, GS-12), so a worked cast after Make is never slower than an instant click. Game frames do not depend on wall time. Because dt is clamped to 0.25 s (`clock::MAX_FRAME_DT`), a game-time delay of 0.5 s or more also adds frames headless.
+2. **New fps-independent check:** the first row with `casts` +1 must be the first row with `work === null` after the press (same `frame`). Accept and cast share one update today. Any deferral fails at any frame rate, whether by timer, by a second command, or by a hop back through JS between accept and cast.
+3. **The wall-time bar `ttcMs - inputs * PACE <= 400` is removed.** `ttcMs` is still printed in `WORKEDTTC` and copied to `evidence/ttc.md` for information. The per-band build time is bounded by the computed tripwires, which are unchanged:
+   - `estS = 1.0 + inputs * perInput[band]` <= 10 on every row;
+   - Water at Sprout is exactly 4 inputs;
+   - critic r3's `N1 * estS(Water) <= 60` at Sprout and Seedling.
+4. **Sub-frame JS delay hole:** at 1.5-3 fps, a JS `setTimeout` shorter than about 300-600 ms between the press and `send` would not show up in frames. So `test/bevy-worked.test.ts` gains a node test with a fake `cmd`. It calls `press(0)` with the virtual cursor over Make (and `key` with Enter in the Apprentice input) and asserts that `work submit <id> ...` was sent before `press` returns, with no timers, microtasks or animation frames flushed first. This adds a test and weakens nothing.
+5. `openFrames <= 2`, the open-frame CPU <= 50 ms and the 1366 x 768 layout bars are unchanged.
+
+Why this is not a weakening: the removed bar measured the harness. Every way the game itself could add delay after `work submit` still fails: an extra frame (bar 2, with 1 seen today), a deferred cast (same-row check), a Rust timer of 0.5 s or more (frames, with dt clamped), and a JS delay (node test). A real extra frame on top of today's 1 would still pass at 2. The arbiter accepts this, because 2 frames is the project-wide instant-cast budget.
+
+## W7: opening the builder with `cmd('cast')`
+
+**Acceptable, with conditions.** W7 checks that an accepted build lands at the opening aim and earns XP. A real locked `mouse.down` in headless Chromium turns the view about 11 degrees before the click is read (break 1, X1; instant mode misses the same way), so a real press there tests the headless browser, not the game. The real-press path is covered elsewhere:
+- W3: a locked real click on a Learning spell opens the builder within 2 frames.
+- W5: a real click opens the builder.
+- W18: each row opens with a real `lclick` and checks `openFrames`.
+- Golden test 9, 'cast: a real click casts exactly once': real-click aim fidelity, with the mouse placed first.
+
+Conditions:
+- (a) The recorder row where `#worked` first shows must have `aimObj === target`. Since the world holds while the builder is open, this is `work_aim`. The recorder `tick` gains an `aimObj` field, which is a harness addition.
+- (b) The Make press stays a real virtual-cursor press, so the 2-frame and 30-frame checks stay anchored on a real input.
+- (c) W12's pointer-lock call count keeps a real opening press (`lclick`), because the lock risk is on the real-press path.
+- (d) The builder lists this harness change in the round-2 notes.
+
+Spec edits are marked "(arbiter r2)" in W7, W18 and GS-12.

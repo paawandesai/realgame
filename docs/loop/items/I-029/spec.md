@@ -386,6 +386,7 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
 
 **W7. A correct build fires at the click's target and earns XP.**
 - With Water Learning, `face` a burning target and note `aimObj`. Click, then build the answer.
+- (arbiter r2) The builder may be opened with `cmd('cast')` instead of a real locked press, because headless Chromium turns the view on a real locked `mouse.down` (break 1). Then the recorder row where `#worked` first shows must have `aimObj === target`, the Make press must stay a real (virtual-cursor) press, and W12's lock count must still open with a real press. The real-press open is covered by W3 and W18, and real-click aim by golden's 'cast: a real click casts exactly once'.
 - Within 2 frames of the Make press: `casts` +1, `work === null`, `paused === false` and `#worked` gone.
 - The impact lands on that object (`hitKind` `out`).
 - Water `xp` +10 and `done` +1.
@@ -428,10 +429,11 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
 
 **W18. Time to cast, per band (the lag check).**
 - For each band in `['sprout', 'seedling', 'apprentice']`, reload with `&band=<b>` and send `castmode worked`. For each spell in {Water, and Fire where it is learnable}: set the spell to Learning, face a target, click, and build the answer with one input every `PACE = 150 ms`.
-- Record `openFrames` (press to `#worked` shown), `inputs`, `castFrames` (last input to `casts` +1) and `ttcMs` (press to `casts` +1).
+- Record `openFrames` (press to `#worked` shown), `inputs`, `castFrames` and `ttcMs` (press to `casts` +1). (arbiter r2) `castFrames` = the game `frame` of the first recorder row with `casts` +1 minus the `frame` of the Make press: the last capture-phase `pointerdown` (or `keydown` Enter at Apprentice) recorded at or before that row. It is not measured from a harness timestamp taken before the virtual-cursor moves. `ttcMs` is printed for the evidence table only.
 - **Pass, per row:**
   - `openFrames <= 2` and `castFrames <= 2`;
-  - `ttcMs - inputs * PACE <= 400`;
+  - (arbiter r2) the first row with `casts` +1 is also the first row with `work === null` after the Make press (same `frame`): the accept and the cast happen in one update, so any deferred cast (a timer, a second command, an extra hop through JS) fails at any frame rate;
+  - (arbiter r2) the wall-time bar `ttcMs - inputs * PACE <= 400` is removed: at 1.5-3 fps headless it measures harness round trips, not the game. The per-band build time is bounded by the computed `estS` tripwires below, and a node test in `test/bevy-worked.test.ts` checks that Make sends `work submit` in the same call as the press (no timer, promise or animation frame first), which covers a JS delay shorter than one headless frame;
   - the CPU frame in which `#worked` first shows is at most 50 ms (`window.__cpuFrames`, GS-5);
   - at 1366 × 768, the panel's top is at least 24 px below the crosshair, its bottom is inside the viewport, and every piece and Make measure at least 64 × 64 px at Sprout and 44 × 44 px otherwise.
 - **Input-count tripwire.** Water at Sprout is exactly 4 inputs. `estS = 1.0 + inputs * perInput[band]` (Sprout 1.5 s, Seedling 0.9 s, Apprentice 0.35 s per character; fixed planning constants, not a sourced claim) must be at most 10 for every row.
@@ -479,7 +481,7 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
 - **GS-7:** Esc and P pause as before. An open builder cancels on pause (W12).
 - **GS-9, GS-13:** no holds and no chords. The builder is fully keyboard-driven with I-028's focus model, and typing is never eaten (W16).
 - **GS-11:** ages 4-8 have a mouse-only path: picture cards are clickable with the virtual cursor or the real cursor. A Sprout Water build is 4 clicks.
-- **GS-12:** the builder shows within 2 frames, and the cast lands within 2 frames of Make (W3, W7, W18).
+- **GS-12:** the builder shows within 2 frames, and the cast lands within 2 frames of Make, counted in game frames from the Make press (W3, W7, W18; arbiter r2).
 - **GS-15 to GS-17:** right and wrong use an icon, text and sound. Success is the cast itself.
 - **GS-18:** panel text is at least 18 px.
 - **GS-19:** stages are shapes (○ ◔ ◑ ★), and ✗ marks a wrong build.
