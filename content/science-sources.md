@@ -200,6 +200,9 @@ The single register of every science claim the first-person 3D client shows the 
 | `Blue gas flames (level 3)` | crates/bevy-client/src/level3.rs | Visual only (I-037): no caption states a flame colour. |
 | `Gas bubbles at smothered vents (level 3)` | crates/bevy-client/src/level3.rs | Visual only (I-037 round 2): bubbles keep rising from a vent after its flame goes out, because the marsh keeps making methane and only the flame needs oxygen [S27]. Simplified: real methane is lighter than air and rises out of a CO₂ pool and disperses [S31]; the game does not show the gas leaving or the flames relighting when the pool clears (pools never drain, C-076). |
 | `Putting out a gas fire with CO₂ (level 3)` | crates/bevy-client/src/level3.rs | Mechanic, simplified (I-037 round 2): the Marsh is put out by smothering, with the gas still flowing. Real fire-service guidance is not to extinguish burning gas without first cutting off the gas supply, because unburnt gas can build up and reignite [S31]. A marsh has no valve to shut, and no caption tells the player to put out a real gas fire; the lesson shown is only that CO₂ sinks and that a flame needs oxygen. |
+| `New spell: copy it. Learn it at the Formula Bench (B) to earn XP.` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast panel line for a spell the player has not learned yet (I-029). |
+| `${bench.pretty(names[i] \|\| NAMES[i] \|\| '')}: Practised!` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast toast when a spell reaches Practised, e.g. "Water: Practised!" (I-029). |
+| `Copy: ${bench.pretty(card ? card.formula : '')}` | crates/bevy-client/web/worked.js | UI instruction; states no science. The answer to copy in a worked cast; the formula comes from content/spells.json (I-026 rows). Not flagged by the lint; listed for the review. |
 
 ## Sources
 

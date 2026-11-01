@@ -29,6 +29,7 @@ startHud();
 // broken progress.js costs only saving, never the boot.
 try { import('./progress.js').then((m) => m.startProgress()).catch(() => {}); } catch {}
 try { import('./bench.js').then((m) => m.startBench()).catch(() => {}); } catch {}
+try { import('./worked.js').then((m) => m.startWorked()).catch(() => {}); } catch {}
 // Anonymous analytics and the age picker (docs/ANALYTICS.md), only where the
 // page's rg-analytics switch is "on" (the built site, web/dist). Loaded on
 // demand, so web/pkg-out (switch "off") never fetches them, and wrapped so a

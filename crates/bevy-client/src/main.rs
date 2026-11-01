@@ -25,6 +25,7 @@ mod motion;
 mod player;
 mod progress;
 mod spells;
+mod worked;
 mod world;
 
 use bevy::anti_alias::fxaa::Fxaa;
@@ -50,6 +51,7 @@ use bridge::WebIn;
 use chem::{EventKind, Kind, Outcome, Spell};
 use fx::{Fx, P};
 use player::Player;
+use realgame_sim::bench as simbench;
 use world::{ArchDoor, ArchMats, Chem, Colliders, Kit, LevelRoot};
 
 /// Which level is loaded (I-035): 1, the courtyard, 2, the Frozen Gate, or
@@ -192,6 +194,69 @@ struct Aim {
 #[derive(Resource, Default)]
 struct Progress(progress::Book);
 
+/// Worked casts (I-029): the mode, whether `web/worked.js` registered, the
+/// per-spell routes and counters. Outside `Game`, so `reset` keeps it.
+#[derive(Resource)]
+struct Working {
+    mode: worked::CastMode,
+    /// `work ready` arrived: the overlay can draw a builder.
+    ready: bool,
+    /// The id the next worked cast opens with.
+    next_id: u32,
+    /// Accepted worked casts since boot.
+    done: u32,
+    /// Wrong submits since boot.
+    wrong: u32,
+    routes: [worked::Route; 4],
+    /// The last `__workState` published, so it is written only on change.
+    last_json: String,
+}
+
+/// What `aim_and_cast` needs for worked casts (one parameter, so the system
+/// stays under Bevy's limit).
+#[derive(bevy::ecs::system::SystemParam)]
+struct WorkCtx<'w> {
+    working: ResMut<'w, Working>,
+    prog: ResMut<'w, Progress>,
+    bench: Res<'w, bench::BenchState>,
+}
+
+/// The definition of spell index `i` (`Spell::ALL` order): the one with
+/// `slot == i + 1`.
+fn def_of(
+    spells: &[realgame_sim::spellbook::SpellDef],
+    i: usize,
+) -> Option<&realgame_sim::spellbook::SpellDef> {
+    spells.iter().find(|d| usize::from(d.slot) == i + 1)
+}
+
+/// The `BenchView` JSON the overlay builds from (I-029 section 4).
+fn work_view(
+    def: &realgame_sim::spellbook::SpellDef,
+    band: realgame_sim::tier::Tier,
+    stage: progress::Stage,
+    result: Option<simbench::ResultView>,
+) -> String {
+    simbench::BenchView {
+        v: 1,
+        at_bench: false,
+        open: true,
+        band: Some(band),
+        spells: Some(vec![simbench::SpellCard {
+            slot: def.slot,
+            id: def.id.clone(),
+            name: def.name.clone(),
+            formula: def.formula.text.clone(),
+            stage: stage.as_str().to_string(),
+            prompt: simbench::prompt(def, band).unwrap_or_default().to_string(),
+        }]),
+        pick: Some(def.slot),
+        recipe: (band < realgame_sim::tier::Tier::Apprentice).then(|| simbench::recipe(def)),
+        result,
+    }
+    .to_json()
+}
+
 #[derive(Resource, Default)]
 struct Game {
     spell: usize,
@@ -246,6 +311,12 @@ struct Game {
     /// repeats only after `cues::HOLD_DELAY`.
     held: f32,
     was_down: bool,
+    /// The open worked cast, if any (I-029); a reset closes it.
+    work: worked::Desk,
+    /// Where the click that opened it aimed: the accepted cast lands there.
+    work_aim: Aim,
+    /// The pause after an accepted worked cast (clicks ignored).
+    work_grace: worked::Grace,
     /// The Sprout picture for the current caption (I-035): "", "freeze",
     /// "melt" or "wrong". Cleared by every new caption.
     cap_icon: &'static str,
@@ -381,6 +452,11 @@ struct Stats {
 
 fn main() {
     let settings = read_settings();
+    let mode = worked::mode_from(
+        settings.debug,
+        param("cast").as_deref(),
+        cfg!(target_arch = "wasm32"),
+    );
     let window = Window {
         title: "Alchemist's Trial: first-person prototype".into(),
         canvas: Some("#game".into()),
@@ -428,6 +504,15 @@ fn main() {
             t
         })
         .insert_resource(settings)
+        .insert_resource(Working {
+            mode,
+            ready: false,
+            next_id: 1,
+            done: 0,
+            wrong: 0,
+            routes: [worked::Route::Instant; 4],
+            last_json: String::new(),
+        })
         .init_resource::<Stats>()
         .init_resource::<Game>()
         .init_resource::<Progress>()
@@ -838,9 +923,12 @@ fn control(
     #[cfg(target_arch = "wasm32")]
     {
         game.locked = web.locked;
-        game.paused = web.paused;
+        // I-029: an open worked cast holds the world like a pause.
+        game.paused = web.paused || game.work.is_open();
         let _ = (&motion, &mouse);
-        player.look(web.dx, web.dy, settings.sens);
+        if !game.work.is_open() {
+            player.look(web.dx, web.dy, settings.sens);
+        }
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -874,12 +962,16 @@ fn control(
     .into_iter()
     .enumerate()
     {
-        if keys.just_pressed(key) {
+        if keys.just_pressed(key) && !game.work.is_open() {
             game.spell = k;
         }
     }
     // On the web the wheel arrives as a `select` command from hud.js.
-    if cfg!(not(target_arch = "wasm32")) && game.locked && scroll.delta.y != 0.0 {
+    if cfg!(not(target_arch = "wasm32"))
+        && game.locked
+        && scroll.delta.y != 0.0
+        && !game.work.is_open()
+    {
         let step = if scroll.delta.y < 0.0 { 1 } else { 3 };
         game.spell = (game.spell + step) % 4;
     }
@@ -909,7 +1001,11 @@ fn control(
             continue;
         }
         match name {
-            Some("select") => game.spell = (f(1) as usize).clamp(1, 4) - 1,
+            Some("select") => {
+                if !game.work.is_open() {
+                    game.spell = (f(1) as usize).clamp(1, 4) - 1;
+                }
+            }
             Some("prog") => {
                 if let Err(e) = progress::apply_cmd(&mut prog.0, &a[1..], settings.debug) {
                     warn!("{c:?}: {e}");
@@ -979,7 +1075,13 @@ fn control(
     }
     web.cmds = cmds
         .into_iter()
-        .filter(|c| c.starts_with("tap") || c == "cast" || c == "fire")
+        .filter(|c| {
+            c.starts_with("tap")
+                || c == "cast"
+                || c == "fire"
+                || c.starts_with("work ")
+                || c.starts_with("castmode ")
+        })
         .collect();
     if let Some(m) = cmd_move {
         game.scripted_move = Some(m);
@@ -1412,6 +1514,7 @@ fn aim_and_cast(
     mats: Res<SpellMats>,
     window: Single<&Window, With<PrimaryWindow>>,
     cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
+    mut wk: WorkCtx,
     level: Res<Level>,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
@@ -1526,13 +1629,51 @@ fn aim_and_cast(
     // paused they are dropped; during the cooldown they wait at most 0.3 s
     // (so a stale click never fires later), and one runs per cooldown (so
     // tap spam cannot fire an unlimited stream of spells).
-    let incoming = std::mem::take(&mut web.cmds);
+    let mut incoming = std::mem::take(&mut web.cmds);
+    // I-029: `work …` and `castmode …` lines are handled here, in order, and
+    // never reach the cast queue.
+    let spells = spells::book().all();
+    let mut accepted: Option<Aim> = None;
+    incoming.retain(|c| {
+        if !(c.starts_with("work ") || c.starts_with("castmode ")) {
+            return true;
+        }
+        work_cmd(
+            c,
+            &mut wk,
+            &mut game,
+            spells,
+            settings.debug,
+            web.paused,
+            &mut accepted,
+        );
+        false
+    });
     // A `fire` is one locked left click (hud.js): counted when it arrives,
     // before a pause drops it.
     let fires_in = incoming.iter().filter(|c| c.as_str() == "fire").count() as u32;
     game.clicks += fires_in;
     // I-025: a new click restarts the hold timer.
     let clicked = fires_in > 0;
+    #[cfg(target_arch = "wasm32")]
+    let firing = {
+        let _ = &mouse;
+        web.fire
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    let firing = mouse.pressed(MouseButton::Left);
+    // I-029: just after an accepted worked cast, clicks and taps neither cast
+    // nor open the next builder, so the spell is seen to land.
+    if accepted.is_some() {
+        game.work_grace.start();
+        game.cast_queue.clear();
+    }
+    let tapped = incoming.iter().any(|c| c.starts_with("tap "));
+    let down = firing && game.locked;
+    let grace = game.work_grace.tick(dt, clicked || tapped, down);
+    if grace {
+        incoming.retain(|c| c != "fire" && !c.starts_with("tap "));
+    }
     if game.paused {
         game.cast_queue.clear();
     } else {
@@ -1562,13 +1703,6 @@ fn aim_and_cast(
             }
         }
     }
-    #[cfg(target_arch = "wasm32")]
-    let firing = {
-        let _ = &mouse;
-        web.fire
-    };
-    #[cfg(not(target_arch = "wasm32"))]
-    let firing = mouse.pressed(MouseButton::Left);
     // I-025: one click is one cast; a press repeats only once it has been
     // held `cues::HOLD_DELAY` game seconds (the click's own cast comes from
     // the queue above).
@@ -1583,11 +1717,51 @@ fn aim_and_cast(
         && !game.paused
         && firing
         && game.cooldown <= 0.0
+        && !grace
         && cues::hold_repeats(game.held)
     {
         casts.push(game.aim);
     }
     let ended = chem.world.outcome() != Outcome::Playing;
+    // I-029: the routes, then the gate. A worked route opens the builder
+    // instead of casting (the world holds from this frame on); an accepted
+    // build casts at the click's aim, ahead of everything else.
+    for i in 0..4 {
+        let st = wk.prog.0.get(i).map(|p| p.stage).unwrap_or_default();
+        let learnable =
+            def_of(spells, i).and_then(|d| wk.bench.band.map(|b| simbench::learnable(d, b)));
+        wk.working.routes[i] =
+            worked::route(st as u8, learnable, wk.working.mode, wk.working.ready);
+    }
+    let mut gated: Vec<Aim> = accepted.into_iter().collect();
+    if !ended {
+        let sp = game.spell;
+        for aim in casts {
+            match wk.working.routes[sp] {
+                worked::Route::Instant => {
+                    let st = wk.prog.0.get(sp).map(|p| p.stage);
+                    if st == Some(progress::Stage::Mastered) {
+                        wk.prog.0.instant_cast(sp);
+                    }
+                    gated.push(aim);
+                }
+                worked::Route::Worked => {
+                    let id = wk.working.next_id;
+                    if game.work.request(id, sp, worked::Route::Worked) {
+                        wk.working.next_id = id.wrapping_add(1).max(1);
+                        game.work_aim = aim;
+                        game.cast_queue.clear();
+                        game.paused = true;
+                        if let (Some(band), Some(def)) = (wk.bench.band, def_of(spells, sp)) {
+                            let st = wk.prog.0.get(sp).map(|p| p.stage).unwrap_or_default();
+                            game.work.set_view(&work_view(def, band, st, None));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let casts = gated;
     for aim in casts {
         if ended {
             break;
@@ -1642,6 +1816,115 @@ fn aim_and_cast(
                 epoch: game.epoch,
             },
         ));
+    }
+
+    publish_work(&mut wk, &game);
+}
+
+/// One `work …` or `castmode …` command (I-029 section 4, step 1). A correct
+/// submit closes the builder and leaves its aim in `accepted`.
+#[allow(clippy::too_many_arguments)]
+fn work_cmd(
+    line: &str,
+    wk: &mut WorkCtx,
+    game: &mut Game,
+    spells: &[realgame_sim::spellbook::SpellDef],
+    debug: bool,
+    web_paused: bool,
+    accepted: &mut Option<Aim>,
+) {
+    let a: Vec<&str> = line.split_whitespace().collect();
+    let id = || a.get(2).and_then(|s| s.parse::<u32>().ok());
+    match (a.first().copied(), a.get(1).copied()) {
+        (Some("work"), Some("ready")) => wk.working.ready = true,
+        (Some("work"), Some("cancel")) => {
+            if id().is_some_and(|id| game.work.cancel(id)) {
+                game.paused = web_paused;
+            }
+        }
+        (Some("work"), Some("submit")) => {
+            let (Some(id), Some(band)) = (id(), wk.bench.band) else {
+                return;
+            };
+            let Some(spell) = game.work.open().filter(|w| w.id == id).map(|w| w.spell) else {
+                return;
+            };
+            let Some(def) = def_of(spells, spell) else {
+                return;
+            };
+            let text = a.get(3..).unwrap_or_default().join(" ");
+            let v = simbench::judge(spells, def.slot, band, &text);
+            match game.work.submit(id, v.ok) {
+                worked::Submit::Cast { spell, earns } => {
+                    wk.prog.0.worked_cast(spell, earns);
+                    wk.working.done += 1;
+                    game.paused = web_paused;
+                    *accepted = Some(game.work_aim);
+                }
+                worked::Submit::Wrong { .. } => {
+                    wk.prog.0.worked_cast(spell, false);
+                    wk.working.wrong += 1;
+                    let stage = wk.prog.0.get(spell).map(|p| p.stage).unwrap_or_default();
+                    let n = game.work.open().map_or(0, |w| u32::from(w.wrong));
+                    let result = simbench::ResultView {
+                        n,
+                        slot: def.slot,
+                        verdict: v,
+                        learned: false,
+                        stage: stage.as_str().to_string(),
+                    };
+                    game.work
+                        .set_view(&work_view(def, band, stage, Some(result)));
+                }
+                worked::Submit::Stale => {}
+            }
+        }
+        (Some("castmode"), Some(m @ ("worked" | "instant"))) if debug => {
+            wk.working.mode = if m == "worked" {
+                worked::CastMode::Worked
+            } else {
+                worked::CastMode::Instant
+            };
+        }
+        (Some("castmode"), _) => warn!("command {line:?} needs ?debug and worked|instant"),
+        _ => warn!("command {line:?} is not a known work command"),
+    }
+}
+
+/// Writes `window.__workState` (I-029 contract) when it changed.
+fn publish_work(wk: &mut WorkCtx, game: &Game) {
+    let band = wk
+        .bench
+        .band
+        .map_or("null".to_string(), |b| format!("\"{}\"", b.id()));
+    let routes: Vec<String> = wk
+        .working
+        .routes
+        .iter()
+        .map(|r| format!("\"{}\"", r.as_str()))
+        .collect();
+    let stages: Vec<String> = (0..4)
+        .map(|i| {
+            let st = wk.prog.0.get(i).map(|p| p.stage).unwrap_or_default();
+            format!("\"{}\"", st.as_str())
+        })
+        .collect();
+    let mode = match wk.working.mode {
+        worked::CastMode::Worked => "worked",
+        worked::CastMode::Instant => "instant",
+    };
+    let json = format!(
+        "{{\"v\":1,\"mode\":\"{mode}\",\"ready\":{},\"band\":{band},\"routes\":[{}],\"stages\":[{}],\"work\":{},\"done\":{},\"wrong\":{}}}",
+        wk.working.ready,
+        routes.join(","),
+        stages.join(","),
+        game.work.state_json(),
+        wk.working.done,
+        wk.working.wrong,
+    );
+    if json != wk.working.last_json {
+        bridge::publish_work(&json);
+        wk.working.last_json = json;
     }
 }
 

@@ -10,8 +10,8 @@
 //   node tests/e2e/golden.mjs                   # serves web/pkg-out itself
 //
 // Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
-// I-035 level-2 section and the console-error check), ONLY=marsh (just the
-// I-037 level-3 section and the console-error check), QUERY (for example `?low`,
+// I-035 level-2 section and the console-error check; also marsh (I-037),
+// spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -92,10 +92,21 @@ function check(name, ok, detail = '') {
   const tickNow = async () => (await st()).tick;
   const frames = async (n) => { const f0 = (await st()).frame; await until((x) => x.frame >= f0 + n, 60000); };
   await sleep(2500);
-  if (process.env.ONLY === 'frozenGate' || process.env.ONLY === 'marsh') {
-    // The I-035 (or I-037) section alone (it reloads the page itself), then the error check.
-    if (process.env.ONLY === 'marsh') await marsh({ page, st, cmd, until, frames, sleep, base, logs });
-    else await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
+  // ONLY=<section>[,<section>...]: those sections alone (each loads its own
+  // page), then the error check. frozenGate (I-035); marsh (I-037); spellProgress,
+  // formulaBench and workedCasts (I-029).
+  const onlyRuns = {
+    frozenGate: () => frozenGate({ page, st, cmd, until, frames, sleep, base, logs }),
+    marsh: () => marsh({ page, st, cmd, until, frames, sleep, base, logs }),
+    spellProgress: () => spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors }),
+    formulaBench: () => formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors }),
+    workedCasts: () => workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors }),
+  };
+  if (process.env.ONLY) {
+    for (const name of process.env.ONLY.split(',')) {
+      if (!onlyRuns[name]) throw new Error(`ONLY: unknown section ${name}`);
+      await onlyRuns[name]();
+    }
     check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
     const failed = results.filter((r) => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} passed`);
@@ -362,6 +373,8 @@ function check(name, ok, detail = '') {
   await spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
   await formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors });
+
+  await workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
   await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
 
@@ -3743,6 +3756,1064 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     const z = await typeAndMake('0H2O(l)');
     check('bench: round 2: 0H2O(l) is not judged right', z.x && z.x.result && z.x.result.ok === false && z.x.result.code === 'parse' && (await prog(1))?.st === 'unknown', `${brief(z.x && z.x.result)} reason=${z.reason}`);
     await page.keyboard.press('Escape');
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Worked casts, then instant casts (docs/loop/items/I-029/spec.md, W1-W21).
+// Before mastery a click opens a small builder and the world holds; a correct
+// build casts at the click's target; a Mastered spell, a spell the band cannot
+// learn (the Sprout rule) and every spell with no band known cast at once.
+// Golden's own page is `debug`, which is instant mode, so this section turns
+// worked casts on with `castmode worked` and turns them off at the end.
+// "Within N frames" counts `state.frame` from an in-page recorder; `until` is
+// only ever a wait. If the pointer cannot be locked, the lock checks fail.
+// ---------------------------------------------------------------------------
+async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors }) {
+  console.log('  -- worked casts (I-029) --');
+  const root = base.replace(/\?.*$/, '');
+  const query = (base.match(/\?(.*)$/) || ['', ''])[1].split('&').filter((p) => p && p !== 'debug');
+  const urlWith = (extra) => `${root}?${[...query, ...extra].join('&')}`;
+  const PROG = 'rg.progress.v1';
+  const VW = +(process.env.VW || 1280), VH = +(process.env.VH || 720);
+  const book = JSON.parse(await readFile(join(here, '../../content/spells.json'), 'utf8'));
+  const formulaOf = (slot) => book.spells.find((d) => d.slot === slot).formula;
+  const MASTERED_WATER = 'p1|water:3:90:3:2:20756:1';
+  const run = async (name, fn) => { try { await fn(); } catch (e) { check(name, false, `error: ${e && e.message}`); } };
+  const wsOf = (p) => p.evaluate(() => { try { return JSON.parse(window.__workState); } catch { return null; } });
+  const ws = () => wsOf(page);
+  const brief = (x) => String(JSON.stringify(x)).slice(0, 360);
+  const xp = (x, i) => (x && x.progress && x.progress[i] ? x.progress[i].xp : null);
+
+  // ---- page helpers (work on any page p) ----
+  const booted = async (p) => {
+    for (const t0 = Date.now(); !(await p.evaluate(() => !!window.__gameState && !!window.__game && typeof window.__workState === 'string'));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    const f0 = await p.evaluate(() => JSON.parse(window.__gameState).frame);
+    for (const t0 = Date.now(); Date.now() - t0 < 60000; await sleep(150)) {
+      if ((await p.evaluate(() => JSON.parse(window.__gameState).frame)) >= f0 + 3) break;
+    }
+  };
+  // The recorder: one row per animation frame, every pointerdown and keydown
+  // (capture phase, with the frame it arrived in), each CPU slice and every
+  // pointer-lock request or release.
+  // Keys: worked.js stops keydowns in its own window capture listener, which
+  // registers at boot, before record() runs; so on pages loaded after this
+  // section starts, an init script registers a keydown recorder first
+  // (round 2, so W18 can anchor on the Apprentice Enter).
+  await page.addInitScript(() => {
+    window.__wcEarlyKeys = true;
+    window.addEventListener('keydown', (e) => {
+      let frame = -1;
+      try { frame = JSON.parse(window.__gameState).frame; } catch { /* not started */ }
+      (window.__wcPress = window.__wcPress || []).push({ t: performance.now(), frame, kind: 'key', key: e.key });
+    }, true);
+  });
+  const record = (p) => p.evaluate(() => {
+    if (window.__wcOn) return;
+    window.__wcOn = true;
+    window.__wc = [];
+    window.__wcPress = [];
+    window.__wcCpu = [];
+    window.__wcLock = { req: 0, exit: 0 };
+    const frameNow = () => { try { return JSON.parse(window.__gameState).frame; } catch { return -1; } };
+    const cpu = window.__cpuFrames;
+    if (cpu) {
+      const push = cpu.push.bind(cpu);
+      cpu.push = (...a) => { for (const d of a) window.__wcCpu.push({ t: performance.now(), d }); if (window.__wcCpu.length > 6000) window.__wcCpu.splice(0, 2000); return push(...a); };
+    }
+    const canvas = document.getElementById('game');
+    const rpl = canvas.requestPointerLock.bind(canvas);
+    canvas.requestPointerLock = (...a) => { window.__wcLock.req += 1; return rpl(...a); };
+    const epl = document.exitPointerLock.bind(document);
+    document.exitPointerLock = (...a) => { window.__wcLock.exit += 1; return epl(...a); };
+    window.addEventListener('pointerdown', (e) => { window.__wcPress.push({ t: performance.now(), frame: frameNow(), kind: 'down', button: e.button }); }, true);
+    if (!window.__wcEarlyKeys) window.addEventListener('keydown', (e) => { window.__wcPress.push({ t: performance.now(), frame: frameNow(), kind: 'key', key: e.key }); }, true);
+    const tick = () => {
+      try {
+        const s = JSON.parse(window.__gameState);
+        let w = null;
+        try { w = JSON.parse(window.__workState); } catch { w = null; }
+        window.__wc.push({
+          t: performance.now(), frame: s.frame, casts: s.casts, paused: s.paused, gameTime: s.gameTime, yaw: s.yaw, pitch: s.pitch, aimObj: s.aimObj,
+          workId: w && w.work ? w.work.id : null, open: !!document.querySelector('#worked'),
+          lock: document.pointerLockElement === canvas,
+        });
+        if (window.__wc.length > 6000) window.__wc.splice(0, 2000);
+      } catch { /* not started */ }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  const nowOf = (p) => p.evaluate(() => ({ t: performance.now(), frame: JSON.parse(window.__gameState).frame }));
+  const recsOf = (p, t) => p.evaluate((t) => window.__wc.filter((r) => r.t >= t), t);
+  const pressesOf = (p, t) => p.evaluate((t) => window.__wcPress.filter((r) => r.t >= t), t);
+  const waitFramesOf = async (p, f0, n) => {
+    for (const t0 = Date.now(); Date.now() - t0 < 90000; await sleep(100)) {
+      if ((await p.evaluate(() => JSON.parse(window.__gameState).frame)) >= f0 + n) return;
+    }
+  };
+  // Sends a command in the page and returns the frame it was sent in.
+  const cmdAt = (p, c) => p.evaluate((c) => { const f = JSON.parse(window.__gameState).frame; window.__game.cmd(c); return { t: performance.now(), frame: f }; }, c);
+  const isLocked = (p) => p.evaluate(() => document.pointerLockElement === document.getElementById('game'));
+
+  // ---- the main page ----
+  const mouse = { x: VW / 2, y: VH / 2 };
+  let vw = VW, vh = VH;
+  const ensureLocked = async () => {
+    if (await isLocked(page)) return true;
+    const resume = await page.evaluate(() => {
+      const card = document.getElementById('pause');
+      if (!card || card.classList.contains('hidden')) return null;
+      // The card scrolls on short screens: bring the button into view first
+      // (round 2; break 1 found it at y = 922 in a 720 px viewport).
+      document.getElementById('resume').scrollIntoView({ block: 'nearest' });
+      const r = document.getElementById('resume').getBoundingClientRect();
+      return [r.left + r.width / 2, r.top + r.height / 2];
+    });
+    const at = resume || [vw / 2, vh / 2];
+    await page.mouse.click(at[0], at[1]);
+    mouse.x = at[0]; mouse.y = at[1];
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      if (await isLocked(page)) return true;
+    }
+    return false;
+  };
+  const load = async (extra, { keep = false } = {}) => {
+    await page.evaluate(([k, keep]) => { try { if (!keep) localStorage.removeItem(k); } catch { /* none */ } }, [PROG, keep]);
+    await page.goto(urlWith(extra));
+    await booted(page);
+    await record(page);
+    mouse.x = vw / 2; mouse.y = vh / 2;
+  };
+  const worked = async () => {
+    await cmd('castmode worked');
+    return withinMs(async () => { const w = await ws(); return w && w.mode === 'worked' && w.ready ? w : null; }, 10000);
+  };
+  const withinMs = async (get, ms) => {
+    const t0 = Date.now();
+    let v = await get();
+    while (!v && Date.now() - t0 < ms) { await sleep(120); v = await get(); }
+    return v;
+  };
+  // A clean courtyard with Water (or slot `spell`) selected, optional
+  // progress commands, locked.
+  const freshAt = async (slot, ...pre) => {
+    await cmd('prog clear');
+    await cmd('reset');
+    await cmd(`select ${slot}`);
+    for (const c of pre) await cmd(c);
+    await until((x) => x.outcome === 'playing' && x.spell === slot - 1 && x.casts === 0, 20000);
+    await withinMs(async () => { const w = await ws(); return w && w.work === null ? w : null; }, 5000);
+    const locked = await ensureLocked();
+    await sleep(400); // clear of the 0.3 s cooldown
+    return locked;
+  };
+  const fresh = (...pre) => freshAt(2, ...pre);
+  const lclick = async () => { await page.mouse.down(); await sleep(60); await page.mouse.up(); };
+  const rclick = async () => { await page.mouse.down({ button: 'right' }); await sleep(60); await page.mouse.up({ button: 'right' }); };
+  const waitOpen = () => withinMs(async () => { const w = await ws(); const dom = await page.evaluate(() => !!document.querySelector('#worked .worked-mount')); return w && w.work && w.work.view && dom ? w : null; }, 20000);
+  const waitClosed = () => withinMs(async () => { const w = await ws(); const dom = await page.evaluate(() => !document.querySelector('#worked')); return w && w.work === null && dom ? w : null; }, 20000);
+  const openBuilder = async () => { await lclick(); return waitOpen(); };
+  // Moves the real (locked) mouse so the virtual cursor reaches the element's
+  // centre, in steps under 200 px, then presses left.
+  const vpos = () => page.evaluate(() => { const v = document.querySelector('#worked .vcursor'); return v ? [parseFloat(v.style.left), parseFloat(v.style.top)] : null; });
+  const centreOf = (sel, i = 0) => page.evaluate(([sel, i]) => {
+    const el = document.querySelectorAll(sel)[i];
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return [r.left + r.width / 2, r.top + r.height / 2];
+  }, [sel, i]);
+  // A locked mouse move. Under pointer lock, headless Chromium's real mouse
+  // moves carry no usable movement (pointermove movementX is 0; mousemove
+  // reports the absolute position and then its negative), so the move is a
+  // synthetic pointermove with movementX/Y, which hud.js reads like any other.
+  const mmove = (dx, dy) => page.evaluate(([dx, dy]) => {
+    document.getElementById('game').dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerType: 'mouse', movementX: dx, movementY: dy }));
+  }, [dx, dy]);
+  const vclick = async (sel, i = 0) => {
+    const c = await centreOf(sel, i);
+    if (!c) throw new Error(`no ${sel}`);
+    for (let k = 0; k < 8; k++) {
+      const v = await vpos();
+      if (!v) throw new Error('no .vcursor');
+      const dx = c[0] - v[0], dy = c[1] - v[1];
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) break;
+      await mmove(Math.round(Math.max(-150, Math.min(150, dx))), Math.round(Math.max(-150, Math.min(150, dy))));
+    }
+    await lclick();
+  };
+  const pclick = async (sel, i = 0) => {
+    const c = await centreOf(sel, i);
+    if (!c) throw new Error(`no ${sel}`);
+    await page.mouse.click(c[0], c[1]);
+  };
+  // Builds the open worked cast through the UI from work.view.recipe (or the
+  // spell's formula at Apprentice). wrong: Seedling one H short; Apprentice H2O2.
+  // pace: one input every pace ms. Returns the number of inputs.
+  const build = async ({ wrong = false, locked = true, pace = 0, make = true } = {}) => {
+    const w = (await ws()).work;
+    const v = w.view;
+    const band = v.band === 'adept' ? 'apprentice' : v.band;
+    const recipe = v.recipe || [];
+    const press = locked ? vclick : pclick;
+    let inputs = 0;
+    const t0 = Date.now();
+    const step = async (fn) => {
+      if (pace) { const due = t0 + inputs * pace; const wait = due - Date.now(); if (wait > 0) await sleep(wait); }
+      await fn();
+      inputs += 1;
+    };
+    if (band === 'sprout') {
+      let skip = wrong;
+      for (const t of recipe) for (const [el, n] of t.atoms) for (let k = 0; k < n * Math.max(1, t.coef || 1); k++) {
+        if (skip && el === 'H') { skip = false; continue; }
+        await step(() => press(`#worked .bench-atom[data-el="${el}"]`));
+      }
+    } else if (band === 'seedling' && recipe.some((t) => t.side === 1)) {
+      for (let i = 0; i < recipe.length; i++) {
+        const cur = +(await page.evaluate((i) => document.querySelector(`#worked .bench-coef[data-term="${i}"]`).textContent, i));
+        const taps = ((recipe[i].coef - cur) % 4 + 4) % 4;
+        for (let k = 0; k < taps; k++) await step(() => press(`#worked .bench-coef[data-term="${i}"]`));
+      }
+    } else if (band === 'seedling') {
+      const want = {};
+      for (const t of recipe) for (const [el, n] of t.atoms) want[el] = (want[el] || 0) + n;
+      for (const el of Object.keys(want)) {
+        const target = want[el] - (wrong && el === 'H' ? 1 : 0);
+        const cur = +(await page.evaluate((el) => document.querySelector(`#worked .bench-tile[data-el="${el}"] .bench-tile-count`).textContent, el));
+        const taps = ((target - cur) % 5 + 5) % 5;
+        for (let k = 0; k < taps; k++) await step(() => press(`#worked .bench-tile[data-el="${el}"]`));
+      }
+    } else {
+      const text = wrong ? 'H2O2' : formulaOf(v.pick);
+      for (const ch of text) await step(() => page.keyboard.type(ch));
+      if (make) await step(() => page.keyboard.press('Enter'));
+      return inputs;
+    }
+    if (make) await step(() => press('#worked .bench-make'));
+    return inputs;
+  };
+  // A full worked cast: click, build, and wait for the cast.
+  const workedCast = async () => {
+    const c0 = (await st()).casts;
+    const w = await openBuilder();
+    if (!w) return { ok: false, why: 'no builder' };
+    await build();
+    const x = await until((q) => q.casts > c0, 20000);
+    await waitClosed();
+    await afterGrace(x);
+    return { ok: x.casts === c0 + 1, x };
+  };
+  // Round 2 (should-fix 3): clicks are ignored for 0.4 game seconds after an
+  // accepted worked cast (worked::GRACE_SECS), so the next deliberate click
+  // waits for 0.5 game seconds after the cast (and 400 ms, the cooldown).
+  async function afterGrace(x) {
+    await until((q) => q.gameTime >= x.gameTime + 0.5, 20000);
+    await sleep(400);
+  }
+  const burningTarget = async () => {
+    const x = await st();
+    return x.objs.filter((o) => o.burning).map((o) => o.i);
+  };
+
+  // ======================================================================
+  // W1. Default mode (new contexts: no debug, then debug&cast=worked).
+  await run('worked: W1 default mode', async () => {
+    const ctx = await browser.newContext({ viewport: { width: VW, height: VH } });
+    const p = await ctx.newPage();
+    const warns = [];
+    const errs = [];
+    // Bevy's warn! reaches the console as a WARN log line (console.log), as
+    // the progress section's "needs ?debug" check reads it.
+    p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); else warns.push(m.text()); });
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(urlWith([]));
+    for (const t0 = Date.now(); !(await p.evaluate(() => !!window.__gameState));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start');
+      await sleep(100);
+    }
+    const t0 = Date.now();
+    let w = await wsOf(p);
+    while (!(w && w.ready) && Date.now() - t0 < 5000) { await sleep(100); w = await wsOf(p); }
+    check('worked: W1 without debug the mode is worked and worked.js is ready within 5 s', !!w && w.mode === 'worked' && w.ready === true, `${brief(w)} after ${Date.now() - t0} ms`);
+    await p.evaluate(() => window.__game.cmd('castmode instant'));
+    const f0 = await p.evaluate(() => JSON.parse(window.__gameState).frame);
+    await waitFramesOf(p, f0, 5);
+    await sleep(300);
+    w = await wsOf(p);
+    const warned = warns.some((t) => t.includes('castmode instant') && t.includes('needs ?debug'));
+    check('worked: W1 castmode instant without debug is ignored with a warning, not an error', !!w && w.mode === 'worked' && warned && !errs.some((t) => /castmode/.test(t)),
+      `mode=${w && w.mode} warned=${warned} errors=${errs.slice(0, 2).join(' | ')}`);
+    await p.goto(urlWith(['debug', 'cast=worked']));
+    await booted(p);
+    w = await wsOf(p);
+    check('worked: W1 debug&cast=worked is worked mode', !!w && w.mode === 'worked', brief(w));
+    await ctx.close();
+  });
+
+  // W2. Instant mode is today's game (the main page, debug, before setup);
+  // also N1, the casts a Water-only level-1 completion takes (W18 tripwire).
+  let n1 = null;
+  await run('worked: W2 instant mode is today\'s game', async () => {
+    await record(page);
+    let w = await ws();
+    check('worked: W1 the debug page is instant mode', !!w && w.mode === 'instant', brief(w));
+    await cmd('select 2');
+    await until((x) => x.spell === 1, 10000);
+    await sleep(400);
+    const c0 = (await st()).casts;
+    const at = await cmdAt(page, 'cast');
+    await waitFramesOf(page, at.frame, 6);
+    const recs = await recsOf(page, at.t);
+    const hit = recs.find((r) => r.casts > c0);
+    w = await ws();
+    check('worked: W2 instant mode: routes all instant, cast lands within 2 frames, work null on every frame',
+      !!w && w.routes.every((r) => r === 'instant') && !!hit && hit.frame - at.frame <= 2 && recs.every((r) => r.workId === null),
+      `routes=${w && w.routes} cast frame +${hit ? hit.frame - at.frame : 'none'} work ids=${[...new Set(recs.map((r) => r.workId))]}`);
+    // N1: Water on every fire from a fresh courtyard, counting casts to the win.
+    await cmd('reset');
+    await until((x) => x.outcome === 'playing' && x.burning === 3 && x.casts === 0, 20000);
+    await cmd('tp 0 5.5');
+    await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
+    for (let guard = 0; guard < 16; guard++) {
+      const x = await st();
+      if (x.outcome !== 'playing') break;
+      const lit = x.objs.filter((o) => o.burning).map((o) => o.i);
+      if (!lit.length) break;
+      await cmd(`face ${lit[0]}`);
+      const a = await until((q) => q.aimObj === lit[0], 10000);
+      await sleep(350);
+      await cmd('cast');
+      await until((q) => q.impacts > a.impacts, 20000);
+    }
+    const x = await until((q) => q.outcome !== 'playing', 5000);
+    n1 = x.outcome === 'won' ? x.casts : null;
+    console.log(`  N1 (Water-only level-1 completion): ${n1} casts, outcome ${x.outcome}`);
+  });
+
+  // ---- setup: Seedling, fresh progress, worked mode ----
+  await run('worked: setup', async () => {
+    await load(['debug', 'band=seedling']);
+    const w = await worked();
+    if (!w) throw new Error('castmode worked did not take');
+  });
+
+  // W3. The gate.
+  await run('worked: W3 the gate', async () => {
+    const locked = await fresh('prog learn 1');
+    const s0 = await st();
+    const t = (await nowOf(page)).t;
+    await lclick();
+    await waitFramesOf(page, s0.frame, 32);
+    const press = (await pressesOf(page, t)).find((r) => r.kind === 'down');
+    const recs = await recsOf(page, t);
+    const openR = recs.find((r) => r.workId !== null);
+    const shownR = recs.find((r) => r.open);
+    const w = await ws();
+    const s1 = await st();
+    check('worked: W3 a locked click on a Learning spell casts nothing for 30 frames',
+      locked && recs.length > 0 && recs.every((r) => r.casts === s0.casts), `locked=${locked} casts ${s0.casts} -> ${[...new Set(recs.map((r) => r.casts))]}`);
+    check('worked: W3 the builder opens within 2 frames (state and #worked), paused while open, clicks +1',
+      !!press && !!openR && !!shownR && openR.frame - press.frame <= 2 && shownR.frame - press.frame <= 2
+        && recs.filter((r) => r.workId !== null).every((r) => r.paused) && w.work && w.work.route === 'worked' && s1.clicks === s0.clicks + 1,
+      `press f${press && press.frame} open f${openR && openR.frame} shown f${shownR && shownR.frame} route=${w.work && w.work.route} clicks ${s0.clicks}->${s1.clicks}`);
+    const id = w.work && w.work.id;
+    const c0 = (await st()).casts;
+    await cmd('cast');
+    await cmd('fire');
+    await page.mouse.down();
+    await sleep(800);
+    await page.mouse.up();
+    await frames(5);
+    const w2 = await ws();
+    const s2 = await st();
+    check('worked: W3 while open, cast, fire and a held button cast nothing and keep the same builder',
+      s2.casts === c0 && w2.work && w2.work.id === id, `casts ${c0} -> ${s2.casts}, id ${id} -> ${w2.work && w2.work.id}`);
+    await rclick();
+    await waitClosed();
+  });
+
+  // W4. The world holds, and the view does not move.
+  await run('worked: W4 the world holds', async () => {
+    const locked = await fresh('prog learn 1');
+    const w = await openBuilder();
+    const t = (await nowOf(page)).t;
+    const a = await st();
+    await sleep(1000);
+    const b = await st();
+    const objsSame = a.objs.every((o, i) => o.temp === b.objs[i].temp && o.burning === b.objs[i].burning);
+    check('worked: W4 gameTime and every object stay unchanged over 1 s', !!w && a.gameTime === b.gameTime && objsSame,
+      `gameTime ${a.gameTime} -> ${b.gameTime}, objs same=${objsSame}`);
+    await page.keyboard.down('KeyW');
+    await sleep(500);
+    await page.keyboard.up('KeyW');
+    await frames(2);
+    const c = await st();
+    check('worked: W4 holding W for 500 ms does not move the player', c.pos.every((v, i) => v === b.pos[i]), `pos ${b.pos} -> ${c.pos}`);
+    const v0 = await vpos();
+    for (let k = 0; k < 10; k++) await mmove(40, 0);
+    const v1 = await vpos();
+    for (let k = 0; k < 10; k++) await mmove(-40, 0);
+    await frames(3);
+    const d = await st();
+    check('worked: W4 locked mouse moves turn nothing and move the virtual cursor',
+      d.yaw === c.yaw && d.pitch === c.pitch && !!v0 && !!v1 && (v0[0] !== v1[0] || v0[1] !== v1[1]),
+      `yaw ${c.yaw}->${d.yaw} pitch ${c.pitch}->${d.pitch} vcursor ${v0} -> ${v1}`);
+    const recs = (await recsOf(page, t)).filter((r) => r.workId !== null);
+    check('worked: W4 the pointer stays locked on every frame while the builder is open', locked && recs.length > 0 && recs.every((r) => r.lock),
+      `locked=${locked} frames=${recs.length} unlocked=${recs.filter((r) => !r.lock).length}`);
+    await rclick();
+    await waitClosed();
+  });
+
+  // W5. No stuck keys.
+  await run('worked: W5 no stuck keys', async () => {
+    await fresh('prog learn 1');
+    await page.keyboard.down('KeyW');
+    await frames(3);
+    const w = await openBuilder();
+    await page.keyboard.up('KeyW');
+    await frames(2);
+    await rclick();
+    await waitClosed();
+    const p0 = (await st()).pos;
+    await sleep(500);
+    const p1 = (await st()).pos;
+    const moved = Math.hypot(p1[0] - p0[0], p1[2] - p0[2]);
+    check('worked: W5 W released while the builder is open is released in the game', !!w && moved < 0.01, `opened=${!!w} moved ${moved.toFixed(4)} m`);
+  });
+
+  // W6. Wrong builds fizzle kindly.
+  await run('worked: W6 wrong builds fizzle kindly', async () => {
+    await fresh('prog learn 1');
+    const w = await openBuilder();
+    const s0 = await st();
+    const ws0 = await ws();
+    await build({ wrong: true });
+    const w1 = await withinMs(async () => { const x = await ws(); return x && x.wrong === ws0.wrong + 1 && x.work && x.work.view && x.work.view.result ? x : null; }, 10000);
+    await frames(3);
+    const reason = await page.evaluate(() => { const r = document.querySelector('#worked .worked-reason'); return r ? { text: r.textContent, cross: !!r.querySelector('.bench-mark.cross') } : null; });
+    const s1 = await st();
+    check('worked: W6 a wrong Seedling build: no cast, wrong +1, ok false, the count reason with a cross, no XP',
+      !!w && !!w1 && s1.casts === s0.casts && w1.work.view.result.ok === false && reason && reason.text === 'Count again: H should be 2. You have 1.' && reason.cross && xp(s1, 1) === xp(s0, 1),
+      `casts ${s0.casts}->${s1.casts} result=${brief(w1 && w1.work.view.result)} reason=${JSON.stringify(reason)} xp ${xp(s0, 1)}->${xp(s1, 1)}`);
+    await build({ wrong: true });
+    const w2 = await withinMs(async () => { const x = await ws(); return x && x.work && x.work.help ? x : null; }, 10000);
+    await frames(3);
+    const copy = await page.evaluate(() => { const c = document.querySelector('#worked .worked-copy'); return c && c.getClientRects().length > 0 ? c.textContent : null; });
+    check('worked: W6 a second wrong build turns on help and shows the Copy line', !!w2 && !!copy, `help=${w2 && w2.work.help} copy=${copy}`);
+    await build();
+    const s2 = await until((x) => x.casts > s0.casts, 20000);
+    await frames(2);
+    check('worked: W6 a correct build after help casts and earns no XP', s2.casts === s0.casts + 1 && xp(s2, 1) === xp(s0, 1), `casts ${s0.casts}->${s2.casts} xp ${xp(s0, 1)}->${xp(s2, 1)}`);
+    await waitClosed();
+  });
+
+  // W7. A correct build fires at the click's target and earns XP.
+  // (arbiter r2) Opened with `cmd('cast')`: a real locked press in headless
+  // Chromium turns the view about 11 degrees before the click is read (break
+  // 1), which tests the browser, not the game. The row where #worked first
+  // shows must aim at the target (the world holds, so that is the opening
+  // aim); the Make press stays a real virtual-cursor press. Real-press opens:
+  // W3, W5, W12 and W18; real-click aim: 'cast: a real click casts exactly once'.
+  await run('worked: W7 a correct build fires at the target and earns XP', async () => {
+    await fresh('prog learn 1');
+    await cmd('tp 0 5.5');
+    await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
+    const target = (await burningTarget())[0];
+    await cmd(`face ${target}`);
+    const a = await until((q) => q.aimObj === target, 10000);
+    const ws0 = await ws();
+    const t0 = (await cmdAt(page, 'cast')).t;
+    const w = await waitOpen();
+    const shownR = (await recsOf(page, t0)).find((r) => r.open);
+    check('worked: W7 (arbiter r2) the builder opened by cast shows on a frame aimed at the target',
+      !!w && !!shownR && shownR.aimObj === target, `target ${target} shown row ${brief(shownR)}`);
+    await build({ make: false });
+    const t = (await nowOf(page)).t;
+    await vclick('#worked .bench-make');
+    const press = (await pressesOf(page, t)).filter((r) => r.kind === 'down').pop();
+    await waitFramesOf(page, press ? press.frame : a.frame, 34);
+    const recs = await recsOf(page, t);
+    const castR = recs.find((r) => r.casts === a.casts + 1);
+    const nullR = recs.find((r) => r.workId === null);
+    const unpR = recs.find((r) => !r.paused);
+    const goneR = recs.find((r) => !r.open);
+    const pf = press ? press.frame : -99;
+    check('worked: W7 within 2 frames of Make: casts +1, work null, unpaused, #worked gone',
+      !!w && a.aimObj === target && !!castR && !!nullR && !!unpR && !!goneR && castR.frame - pf <= 2 && nullR.frame - pf <= 2 && unpR.frame - pf <= 2 && goneR.frame - pf <= 2,
+      `press f${pf}: cast f${castR && castR.frame} null f${nullR && nullR.frame} unpaused f${unpR && unpR.frame} gone f${goneR && goneR.frame}`);
+    const after = recs.filter((r) => castR && r.frame >= castR.frame && r.frame <= castR.frame + 30);
+    check('worked: W7 one Make casts once and nothing reopens for 30 frames', after.length > 0 && after.every((r) => r.casts === a.casts + 1 && r.workId === null),
+      `casts seen ${[...new Set(after.map((r) => r.casts))]} work ids ${[...new Set(after.map((r) => r.workId))]}`);
+    const s = await until((q) => q.impacts > a.impacts, 20000);
+    await frames(2);
+    const z = await st();
+    const ws1 = await ws();
+    check('worked: W7 the impact puts out the clicked target, Water +10 XP, done +1',
+      z.hitKind === 'out' && !z.objs[target].burning && xp(z, 1) === xp(a, 1) + 10 && ws1.done === ws0.done + 1,
+      `target ${target} impacts ${a.impacts}->${s.impacts} hitKind=${z.hitKind} burning=${z.objs[target].burning} xp ${xp(a, 1)}->${xp(z, 1)} done ${ws0.done}->${ws1.done}`);
+  });
+
+  // W8. Practised.
+  await run('worked: W8 practised', async () => {
+    await fresh('prog learn 1');
+    const r1 = await workedCast();
+    const r2 = await workedCast();
+    const w = await withinMs(async () => { const x = await ws(); return x && x.stages[1] === 'practised' ? x : null; }, 5000);
+    const toast = await page.evaluate(() => { const t = document.getElementById('worked-toast'); return t && !t.hidden ? t.textContent : null; });
+    const x = await st();
+    check('worked: W8 two worked casts from Learning make Water practised, with the toast, still worked',
+      r1.ok && r2.ok && !!w && xp(x, 1) === 30 && !!toast && /Practised/.test(toast) && w.routes[1] === 'worked',
+      `casts ok ${r1.ok}/${r2.ok} stage=${w && w.stages[1]} xp=${xp(x, 1)} toast=${toast} route=${w && w.routes[1]}`);
+  });
+
+  // R2a (round 2, break 1 should-fix 3). A click just after Make opens
+  // nothing (worked::GRACE_SECS); a click after the pause opens the builder.
+  await run('worked: R2a a click just after Make opens nothing', async () => {
+    await fresh('prog learn 1');
+    const w = await openBuilder();
+    await build({ make: false });
+    const c0 = (await st()).casts;
+    const t = (await nowOf(page)).t;
+    await vclick('#worked .bench-make');
+    await lclick();
+    const x = await until((q) => q.casts > c0, 20000);
+    await frames(10);
+    const recs = (await recsOf(page, t)).filter((r) => r.casts > c0);
+    const w1 = await ws();
+    check('worked: R2a a click right after an accepted Make casts nothing more and opens no builder for 10 frames',
+      !!w && x.casts === c0 + 1 && recs.length > 0 && recs.every((r) => r.casts === c0 + 1 && r.workId === null) && w1.work === null,
+      `casts ${c0}->${x.casts} ids after the cast ${[...new Set(recs.map((r) => r.workId))]}`);
+    await afterGrace(x);
+    const w2 = await openBuilder();
+    check('worked: R2a after the pause a click opens the next builder', !!w2, brief(w2 && w2.work && { id: w2.work.id }));
+    await rclick();
+    await waitClosed();
+  });
+
+  // W9. Mastered is instant.
+  await run('worked: W9 mastered is instant', async () => {
+    await fresh(`prog load ${MASTERED_WATER}`);
+    const w = await withinMs(async () => { const x = await ws(); return x && x.routes[1] === 'instant' && x.stages[1] === 'mastered' ? x : null; }, 5000);
+    const s0 = await st();
+    const t = (await nowOf(page)).t;
+    await lclick();
+    const press = (await pressesOf(page, t)).find((r) => r.kind === 'down');
+    await waitFramesOf(page, press ? press.frame : s0.frame, 32);
+    const recs = await recsOf(page, t);
+    const castR = recs.find((r) => r.casts === s0.casts + 1);
+    const s1 = await st();
+    const badge = await page.evaluate(() => { const b = document.querySelectorAll('.slot')[1]?.querySelector('span.stage'); return b ? { text: b.textContent, label: b.getAttribute('aria-label') } : null; });
+    check('worked: W9 a Mastered spell casts on one click within 2 frames, no builder, +2 XP',
+      !!w && !!press && !!castR && castR.frame - press.frame <= 2 && recs.every((r) => r.workId === null) && xp(s1, 1) === xp(s0, 1) + 2,
+      `route=${w && w.routes[1]} press f${press && press.frame} cast f${castR && castR.frame} ids=${[...new Set(recs.map((r) => r.workId))]} xp ${xp(s0, 1)}->${xp(s1, 1)}`);
+    check('worked: W9 the hotbar shows a star for Mastered Water', !!badge && badge.text === '★' && /Mastered/.test(badge.label || ''), JSON.stringify(badge));
+  });
+
+  // W12. Pause and lock rules.
+  await run('worked: W12 pause and lock rules', async () => {
+    await fresh('prog learn 1');
+    const w = await openBuilder();
+    const s0 = await st();
+    const t = (await nowOf(page)).t;
+    await page.keyboard.press('Escape');
+    const press = (await pressesOf(page, t)).find((r) => r.kind === 'key' && r.key === 'Escape');
+    await waitFramesOf(page, press ? press.frame : s0.frame, 4);
+    const recs = await recsOf(page, t);
+    const nullR = recs.find((r) => r.workId === null);
+    const card = await page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'));
+    const s1 = await st();
+    check('worked: W12 Escape shows the pause card and closes the builder within 2 frames, no cast, no XP',
+      !!w && card && !!press && !!nullR && nullR.frame - press.frame <= 2 && s1.casts === s0.casts && xp(s1, 1) === xp(s0, 1),
+      `card=${card} press f${press && press.frame} null f${nullR && nullR.frame} casts ${s0.casts}->${s1.casts}`);
+    await ensureLocked();
+    await frames(10);
+    const w2 = await ws();
+    const openRecs = (await recsOf(page, 0)).filter((r) => r.workId === (w && w.work && w.work.id));
+    check('worked: W12 resume does not reopen the builder, and gameTime held while it was open',
+      w2.work === null && openRecs.length > 0 && openRecs.every((r) => r.gameTime === openRecs[0].gameTime),
+      `work=${brief(w2.work)} open frames=${openRecs.length} gameTimes=${[...new Set(openRecs.map((r) => r.gameTime))].slice(0, 4)}`);
+    // Lock calls over a full worked cast and a right-press cancel: none.
+    await fresh('prog learn 1');
+    await page.evaluate(() => { window.__wcLock.req = 0; window.__wcLock.exit = 0; });
+    const r = await workedCast();
+    await frames(30);
+    await openBuilder();
+    await rclick();
+    await waitClosed();
+    const n = await page.evaluate(() => ({ ...window.__wcLock }));
+    check('worked: W12 the overlay never requests or releases the pointer lock', r.ok && n.req === 0 && n.exit === 0, `cast ok=${r.ok} requestPointerLock=${n.req} exitPointerLock=${n.exit}`);
+  });
+
+  // W14. No spell switch while open.
+  await run('worked: W14 no spell switch while open', async () => {
+    await fresh('prog learn 1');
+    const w = await openBuilder();
+    for (const k of ['Digit1', 'Digit2', 'Digit3', 'Digit4']) await page.keyboard.press(k);
+    await page.mouse.wheel(0, 120);
+    await sleep(80);
+    await page.mouse.wheel(0, 120);
+    await cmd('select 3');
+    await frames(6);
+    const x = await st();
+    const wx = await ws();
+    check('worked: W14 keys 1-4, the wheel and select do not change the spell while open', !!w && x.spell === 1 && !!wx.work, `opened=${!!w} open now=${!!wx.work} spell=${x.spell}`);
+    await rclick();
+    await waitClosed();
+    await cmd('select 3');
+    const y = await until((q) => q.spell === 2, 10000);
+    check('worked: W14 after cancel, select 3 works', y.spell === 2, `spell=${y.spell}`);
+  });
+
+  // W15. Reset closes it.
+  await run('worked: W15 reset closes it', async () => {
+    await fresh('prog learn 1');
+    const w = await openBuilder();
+    const at = await cmdAt(page, 'reset');
+    await waitFramesOf(page, at.frame, 5);
+    const recs = await recsOf(page, at.t);
+    const ok = (pred) => { const r = recs.find(pred); return r ? r.frame - at.frame : 99; };
+    const fNull = ok((r) => r.workId === null), fGone = ok((r) => !r.open), fUnp = ok((r) => !r.paused);
+    check('worked: W15 reset while open: work null, #worked gone, unpaused within 2 frames', !!w && fNull <= 2 && fGone <= 2 && fUnp <= 2,
+      `null +${fNull} gone +${fGone} unpaused +${fUnp}`);
+  });
+
+  // W17. The bench wins.
+  await run('worked: W17 the bench wins', async () => {
+    await fresh('prog learn 1');
+    const w = await openBuilder();
+    const s0 = await st();
+    // The bench takes B in its own capture listener (registered first), so
+    // the frame is read just before the press: one frame stricter, never looser.
+    const at = await nowOf(page);
+    const t = at.t;
+    await page.keyboard.press('KeyB');
+    const press = { frame: at.frame };
+    await waitFramesOf(page, press ? press.frame : s0.frame, 4);
+    const recs = await recsOf(page, t);
+    const nullR = recs.find((r) => r.workId === null);
+    const benchOpen = await page.evaluate(() => { const b = document.getElementById('bench'); return !!b && !b.hidden; });
+    check('worked: W17 B opens the bench and closes the builder within 2 frames, no cast',
+      !!w && benchOpen && !!press && !!nullR && nullR.frame - press.frame <= 2 && (await st()).casts === s0.casts,
+      `bench=${benchOpen} press f${press && press.frame} null f${nullR && nullR.frame}`);
+    const t2 = (await nowOf(page)).t;
+    await cmd('cast');
+    await page.mouse.click(vw / 2, vh / 2);
+    await frames(10);
+    const recs2 = await recsOf(page, t2);
+    check('worked: W17 with the bench open, cast and a click cast nothing and open nothing',
+      recs2.every((r) => r.casts === s0.casts && r.workId === null), `casts ${[...new Set(recs2.map((r) => r.casts))]} ids ${[...new Set(recs2.map((r) => r.workId))]}`);
+    await page.keyboard.press('Escape');
+    await withinMs(async () => page.evaluate(() => document.getElementById('bench').hidden), 5000);
+  });
+
+  // W13. Point mode and taps (point mode lasts until a reload).
+  await run('worked: W13 point mode and taps', async () => {
+    await fresh('prog learn 1');
+    await page.keyboard.press('Escape');
+    await withinMs(async () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden')), 5000);
+    await page.evaluate(() => document.getElementById('pointmode').click());
+    await until((q) => !q.paused && !q.locked, 8000);
+    const lit = await burningTarget();
+    // Aim the crosshair at one fire, then find another one under the cursor.
+    // (Round 2, a setup fix: the three fires sit at (-13.5, -3), (13.5, -3)
+    // and (0, -5), about 58 degrees apart seen from z = 5.5, so no two share
+    // the 90-degree view there (break 1's "no second fire"); from z = 18 they
+    // are 33 degrees apart. Each probe waits 2 game frames for the hover, not
+    // 450 ms, which can end before the frame that reads the new cursor.)
+    let found = null;
+    for (const z of [18, 5.5]) {
+      await cmd(`tp 0 ${z}`);
+      await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - z) < 0.5, 10000);
+      for (const aimAt of lit) {
+        await cmd(`face ${aimAt}`);
+        await until((q) => q.aimObj === aimAt, 10000);
+        for (const fy of [0.5, 0.45, 0.55]) {
+          for (const fx of [0.82, 0.18, 0.78, 0.22, 0.86, 0.14, 0.7, 0.3]) {
+            await page.mouse.move(fx * vw, fy * vh);
+            await frames(2);
+            const x = await st();
+            if (lit.includes(x.hover) && x.hover !== aimAt) { found = { target: x.hover, aimAt, fx, fy, z }; break; }
+          }
+          if (found) break;
+        }
+        if (found) break;
+      }
+      if (found) break;
+    }
+    if (!found) { check('worked: W13 a tap opens the builder and its cast lands on the tapped object', false, 'no second fire found under the cursor'); return; }
+    const r = await page.evaluate(() => { const c = document.getElementById('game').getBoundingClientRect(); return [c.left, c.top, c.width, c.height]; });
+    const tx = (found.fx * vw - r[0]) / r[2], ty = (found.fy * vh - r[1]) / r[3];
+    const a = await st();
+    await cmd(`tap ${tx.toFixed(4)} ${ty.toFixed(4)}`);
+    const w = await waitOpen();
+    await build({ locked: false });
+    await until((q) => q.impacts > a.impacts, 20000);
+    await frames(2);
+    const z = await st();
+    check('worked: W13 a tap opens the builder and its cast lands on the tapped object',
+      !!w && a.aimObj === found.aimAt && z.casts === a.casts + 1 && z.hitKind === 'out' && !z.objs[found.target].burning && z.objs[found.aimAt].burning,
+      `${JSON.stringify(found)} crosshair=${a.aimObj} casts ${a.casts}->${z.casts} hitKind=${z.hitKind} tapped burning=${z.objs[found.target].burning} crosshair target burning=${z.objs[found.aimAt].burning}`);
+  });
+
+  // W16. Typing is not eaten (Apprentice, Water Unknown).
+  await run('worked: W16 typing is not eaten', async () => {
+    await load(['debug', 'band=apprentice']);
+    await worked();
+    await fresh();
+    const w = await openBuilder();
+    await frames(2);
+    const v = await page.evaluate(() => ({ focus: document.activeElement && document.activeElement.id, copy: document.querySelector('#worked .worked-copy')?.textContent, card: !document.getElementById('pause').classList.contains('hidden') }));
+    check('worked: W16 at Apprentice the formula box has focus and the Copy line reads H₂O(l)', !!w && v.focus === 'bench-input' && v.copy === 'Copy: H₂O(l)', JSON.stringify(v));
+    const s0 = await st();
+    await page.keyboard.type('wasd12rpc');
+    await frames(5);
+    const s1 = await st();
+    const after = await page.evaluate(() => ({ value: document.getElementById('bench-input')?.value, card: !document.getElementById('pause').classList.contains('hidden') }));
+    check('worked: W16 typing wasd12rpc fills the box and moves, selects, captions and pauses nothing',
+      after.value === 'wasd12rpc' && s1.pos.every((x, i) => x === s0.pos[i]) && s1.spell === s0.spell && s1.captionId === s0.captionId && s1.paused === s0.paused && after.card === v.card,
+      `${JSON.stringify(after)} pos ${s0.pos}->${s1.pos} spell ${s0.spell}->${s1.spell} caption ${s0.captionId}->${s1.captionId} paused ${s0.paused}->${s1.paused}`);
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.type('H2O(l)');
+    await page.keyboard.press('Enter');
+    const s2 = await until((q) => q.casts > s0.casts, 20000);
+    check('worked: W16 then H2O(l) and Enter casts', s2.casts === s0.casts + 1, `casts ${s0.casts}->${s2.casts}`);
+    await waitClosed();
+  });
+
+  // W10. The Sprout rule (F1).
+  await run('worked: W10 the Sprout rule', async () => {
+    await load(['debug', 'band=sprout']);
+    const w = await worked();
+    check('worked: W10 at Sprout, Fire (not learnable) routes instant', !!w && w.band === 'sprout' && w.routes[0] === 'instant', brief(w));
+    await fresh();
+    await cmd('select 1');
+    await until((q) => q.spell === 0, 10000);
+    const s0 = await st();
+    const t = (await nowOf(page)).t;
+    await lclick();
+    const press = (await pressesOf(page, t)).find((r) => r.kind === 'down');
+    await waitFramesOf(page, press ? press.frame : s0.frame, 30);
+    const recs = await recsOf(page, t);
+    const castR = recs.find((r) => r.casts === s0.casts + 1);
+    const s1 = await st();
+    check('worked: W10 Fire at Sprout casts on one click within 2 frames, no builder, no XP',
+      !!press && !!castR && castR.frame - press.frame <= 2 && recs.every((r) => r.workId === null) && xp(s1, 0) === 0,
+      `press f${press && press.frame} cast f${castR && castR.frame} ids=${[...new Set(recs.map((r) => r.workId))]} fire xp=${xp(s1, 0)}`);
+    await cmd('select 2');
+    await until((q) => q.spell === 1, 10000);
+    await sleep(400);
+    const c0 = (await st()).casts;
+    const wo = await openBuilder();
+    const copy = await page.evaluate(() => { const c = document.querySelector('#worked .worked-copy'); return !!c && c.getClientRects().length > 0; });
+    const inputs = await build();
+    const s2 = await until((q) => q.casts > c0, 20000);
+    check('worked: W10 Water at Sprout is a 4-input picture build with no Copy line, and casts with no XP (Unknown)',
+      !!wo && wo.work.view.band === 'sprout' && !copy && inputs === 4 && s2.casts === c0 + 1 && xp(s2, 1) === 0,
+      `band=${wo && wo.work.view.band} copy=${copy} inputs=${inputs} casts ${c0}->${s2.casts} xp=${xp(s2, 1)}`);
+    await waitClosed();
+    await afterGrace(s2);
+    await cmd('select 3');
+    await until((q) => q.spell === 2, 10000);
+    const wf = await openBuilder();
+    check('worked: W10 Frost at Sprout opens a builder (learnable)', !!wf && wf.work.spell === 2, brief(wf && wf.work && { id: wf.work.id, spell: wf.work.spell }));
+    await rclick();
+    await waitClosed();
+  });
+
+  // W18. Time to cast, per band (the lag check), at 1366 x 768.
+  // (arbiter r2) castFrames counts game frames from the Make press (the last
+  // capture-phase left pointerdown, or Enter at Apprentice, at or before the
+  // first row with casts +1) to that row: <= 2. The first casts +1 row must
+  // also be the first row with work null after the press (accept and cast in
+  // one update). The wall-time bar is gone (it measured the harness's round
+  // trips); ttcMs is printed for information. The node test '14: Make and
+  // Enter send work submit synchronously' covers a sub-frame JS delay.
+  await run('worked: W18 time to cast', async () => {
+    const PACE = 150;
+    const perInput = { sprout: 1.5, seedling: 0.9, apprentice: 0.35 };
+    vw = 1366; vh = 768;
+    await page.setViewportSize({ width: vw, height: vh });
+    const rows = [];
+    for (const band of ['sprout', 'seedling', 'apprentice']) {
+      await load(['debug', `band=${band}`]);
+      await worked();
+      for (const slot of band === 'sprout' ? [2] : [2, 1]) {
+        await freshAt(slot, `prog learn ${slot - 1}`);
+        await cmd('tp 0 5.5');
+        await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
+        const target = (await burningTarget())[0];
+        if (target !== undefined) { await cmd(`face ${target}`); await until((q) => q.aimObj === target, 10000); }
+        await sleep(400);
+        const s0 = await st();
+        const t = (await nowOf(page)).t;
+        await lclick();
+        const w = await waitOpen();
+        const layout = await page.evaluate(() => {
+          const p = document.getElementById('worked').getBoundingClientRect();
+          const c = document.getElementById('crosshair').getBoundingClientRect();
+          const pieces = [...document.querySelectorAll('#worked [data-token], #worked .bench-make')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+          return { top: p.top, bottom: p.bottom, crossBottom: c.bottom, inner: innerHeight, pieces };
+        });
+        const inputs = await build({ pace: PACE });
+        await until((q) => q.casts > s0.casts, 20000);
+        await frames(3);
+        const presses = await pressesOf(page, t);
+        const recs = await recsOf(page, t);
+        const press = presses.find((r) => r.kind === 'down');
+        const shownI = recs.findIndex((r) => r.open);
+        const shownR = recs[shownI];
+        const prevR = recs[shownI - 1] || { t: shownR ? shownR.t - 1000 : 0 };
+        const castR = recs.find((r) => r.casts > s0.casts);
+        const makeP = castR ? presses.filter((r) => r.t <= castR.t && ((r.kind === 'down' && r.button === 0) || (r.kind === 'key' && r.key === 'Enter'))).pop() : null;
+        const nullR = makeP ? recs.find((r) => r.t >= makeP.t && r.workId === null) : null;
+        const cpu = await page.evaluate(([a, b]) => window.__wcCpu.filter((c) => c.t > a && c.t <= b).reduce((s, c) => s + c.d, 0), [prevR.t, shownR ? shownR.t : 0]);
+        const min = band === 'sprout' ? 64 : 44;
+        const row = {
+          band, spell: slot === 2 ? 'water' : 'fire', inputs,
+          openFrames: press && shownR ? shownR.frame - press.frame : null,
+          castFrames: makeP && castR ? castR.frame - makeP.frame : null,
+          sameFrame: !!castR && !!nullR && castR.frame === nullR.frame,
+          ttcMs: press && castR ? Math.round(castR.t - press.t) : null,
+          openCpuMs: +cpu.toFixed(1),
+          estS: +(1.0 + inputs * perInput[band]).toFixed(2),
+          layout: { gap: Math.round(layout.top - layout.crossBottom), bottomIn: layout.bottom <= layout.inner, minPiece: Math.min(...layout.pieces.flat()) },
+        };
+        console.log(`WORKEDTTC ${JSON.stringify(row)}`);
+        rows.push(row);
+        const ok = !!w && row.openFrames !== null && row.openFrames <= 2 && row.castFrames !== null && row.castFrames <= 2
+          && row.sameFrame && row.openCpuMs <= 50
+          && row.layout.gap >= 24 && row.layout.bottomIn && row.layout.minPiece >= min;
+        check(`worked: W18 ${band} ${row.spell}: open within 2 frames, cast within 2 game frames of Make and on the accept frame, open frame <= 50 ms CPU, layout at 1366x768`, ok, JSON.stringify(row));
+        await waitClosed();
+      }
+    }
+    const water = (b) => rows.find((r) => r.band === b && r.spell === 'water');
+    check('worked: W18 input-count tripwire: Water at Sprout is 4 inputs and every estS <= 10',
+      water('sprout') && water('sprout').inputs === 4 && rows.every((r) => r.estS <= 10), rows.map((r) => `${r.band}/${r.spell}: ${r.inputs} inputs, estS ${r.estS}`).join('; '));
+    const es = water('sprout') && water('sprout').estS, ed = water('seedling') && water('seedling').estS;
+    check('worked: W18 level-1 chore tripwire: N1 x estS(Water) <= 60 s at Sprout and Seedling',
+      n1 !== null && !!es && !!ed && n1 * es <= 60 && n1 * ed <= 60, `N1=${n1} sprout ${n1}x${es}=${n1 && es ? (n1 * es).toFixed(1) : '?'} seedling ${n1}x${ed}=${n1 && ed ? (n1 * ed).toFixed(1) : '?'}`);
+    vw = VW; vh = VH;
+    await page.setViewportSize({ width: VW, height: VH });
+  });
+
+  // R2b (round 2, break 1 should-fix 1). Make is always in the panel's view
+  // and the virtual cursor can press it: text size 2 at Sprout, a short
+  // 1024x600 screen at Apprentice (New spells), Seedling Fire New at 1280x720.
+  await run('worked: R2b Make stays in view', async () => {
+    const cases = [
+      { band: 'sprout', slot: 2, w: 1280, h: 720, ui: 2 },
+      { band: 'sprout', slot: 2, w: 1024, h: 600, ui: 2 },
+      { band: 'apprentice', slot: 2, w: 1024, h: 600, ui: 1 },
+      { band: 'apprentice', slot: 1, w: 1024, h: 600, ui: 1 },
+      { band: 'seedling', slot: 1, w: 1280, h: 720, ui: 1 },
+      { band: 'seedling', slot: 1, w: 1280, h: 720, ui: 2 },
+    ];
+    const out = [];
+    let allOk = true;
+    for (const c of cases) {
+      vw = c.w; vh = c.h;
+      await page.setViewportSize({ width: vw, height: vh });
+      await load(['debug', `band=${c.band}`]);
+      await worked();
+      await freshAt(c.slot);
+      // Text size after the lock: at 200 % the hotbar wraps over the canvas
+      // centre, where ensureLocked clicks (locked presses go to the canvas).
+      await page.evaluate((ui) => document.documentElement.style.setProperty('--ui', String(ui)), c.ui);
+      await frames(2);
+      const ws0 = await ws();
+      const c0 = (await st()).casts;
+      const w = await openBuilder();
+      await frames(2);
+      const m = await page.evaluate(() => {
+        const p = document.getElementById('worked');
+        const b = document.querySelector('#worked .bench-make');
+        if (!p || !b) return null;
+        const pr = p.getBoundingClientRect(), br = b.getBoundingClientRect();
+        const hit = document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2);
+        return {
+          inPanel: br.top >= pr.top - 0.5 && br.bottom <= pr.bottom + 0.5, inView: br.bottom <= innerHeight,
+          onTop: !!hit && !!hit.closest && hit.closest('.bench-make') === b, scroll: p.scrollHeight > p.clientHeight,
+        };
+      });
+      let pressed = false;
+      if (w && m) {
+        await vclick('#worked .bench-make');
+        const x = await withinMs(async () => { const q = await ws(); return q && (q.wrong > ws0.wrong || q.done > ws0.done) ? q : null; }, 10000);
+        pressed = !!x || (await st()).casts > c0;
+      }
+      const ok = !!w && !!m && m.inPanel && m.inView && m.onTop && pressed;
+      allOk = allOk && ok;
+      out.push(`${c.band} slot ${c.slot} ${c.w}x${c.h} ui ${c.ui}: ${ok ? 'ok' : 'FAIL'} ${JSON.stringify(m)} pressed=${pressed}`);
+      if ((await ws()).work) { await rclick(); await waitClosed(); }
+    }
+    check('worked: R2b Make is in view and pressable by the virtual cursor (text size 2 Sprout, 1024x600 Apprentice New, Seedling Fire New)', allOk, out.join(' | '));
+    vw = VW; vh = VH;
+    await page.setViewportSize({ width: VW, height: VH });
+  });
+
+  // W11. No band known (new context, no debug).
+  await run('worked: W11 no band known', async () => {
+    const ctx = await browser.newContext({ viewport: { width: VW, height: VH } });
+    const p = await ctx.newPage();
+    await p.goto(urlWith([]));
+    await booted(p);
+    await record(p);
+    const w = await wsOf(p);
+    await p.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); !(await isLocked(p)) && Date.now() - t0 < 8000;) await sleep(100);
+    const locked = await isLocked(p);
+    await sleep(400);
+    const s0 = await p.evaluate(() => window.__game.state());
+    const t = (await nowOf(p)).t;
+    await p.mouse.down(); await sleep(60); await p.mouse.up();
+    const press = (await pressesOf(p, t)).find((r) => r.kind === 'down');
+    await waitFramesOf(p, press ? press.frame : s0.frame, 6);
+    const recs = await recsOf(p, t);
+    const castR = recs.find((r) => r.casts > s0.casts);
+    check('worked: W11 with no band known every route is instant and a locked click casts within 2 frames',
+      !!w && w.band === null && w.routes.every((r) => r === 'instant') && locked && !!press && !!castR && castR.frame - press.frame <= 2 && recs.every((r) => r.workId === null),
+      `band=${w && w.band} routes=${w && w.routes} locked=${locked} press f${press && press.frame} cast f${castR && castR.frame}`);
+    await ctx.close();
+  });
+
+  // W19. Robust when worked.js is missing.
+  await run('worked: W19 robust when worked.js is missing', async () => {
+    const ctx = await browser.newContext({ viewport: { width: VW, height: VH } });
+    await ctx.route('**/worked.js', (r) => r.fulfill({ status: 404, body: '' }));
+    const p = await ctx.newPage();
+    const consoleErrs = [];
+    const pageErrs = [];
+    p.on('console', (m) => { if (m.type() === 'error') consoleErrs.push({ text: m.text(), url: (m.location() || {}).url || '' }); });
+    p.on('pageerror', (e) => pageErrs.push(e.message));
+    await p.goto(urlWith(['band=seedling']));
+    await booted(p);
+    await record(p);
+    await sleep(2000);
+    const w = await wsOf(p);
+    await p.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); !(await isLocked(p)) && Date.now() - t0 < 8000;) await sleep(100);
+    const locked = await isLocked(p);
+    await sleep(400);
+    const t = (await nowOf(p)).t;
+    const s0 = await p.evaluate(() => window.__game.state());
+    await p.mouse.down(); await sleep(60); await p.mouse.up();
+    const press = (await pressesOf(p, t)).find((r) => r.kind === 'down');
+    await waitFramesOf(p, press ? press.frame : s0.frame, 10);
+    const recs = await recsOf(p, t);
+    const all = await recsOf(p, 0);
+    const castR = recs.find((r) => r.casts > s0.casts);
+    const other = consoleErrs.filter((e) => !(/Failed to load resource/.test(e.text) && /worked\.js/.test(e.url + e.text)));
+    check('worked: W19 with worked.js missing the game boots, ready stays false and every route is instant',
+      !!w && w.ready === false && w.band === 'seedling' && w.routes.every((r) => r === 'instant'), brief(w));
+    check('worked: W19 and a locked click casts within 2 frames, never paused, no other console error',
+      locked && !!press && !!castR && castR.frame - press.frame <= 2 && all.every((r) => !r.paused) && pageErrs.length === 0 && other.length === 0,
+      `locked=${locked} press f${press && press.frame} cast f${castR && castR.frame} paused frames=${all.filter((r) => r.paused).length} errors=${consoleErrs.length} other=${other.map((e) => e.text).slice(0, 2).join(' | ')}`);
+    await ctx.close();
+  });
+
+  // W20. Packaging.
+  await run('worked: W20 worked.js is served', async () => {
+    const status = await page.evaluate(() => fetch('worked.js').then((r) => r.status).catch(() => 0));
+    check('worked: W20 pkg-out serves worked.js', status === 200, `status ${status}`);
+  });
+
+  // Evidence screenshots (SHOTS only): the overlay, in point mode so no lock
+  // is lost to the capture, and a Mastered spell's instant cast.
+  if (shotDir) {
+    await run('worked: screenshots', async () => {
+      await load(['debug', 'band=seedling']);
+      await worked();
+      await cmd('prog clear');
+      await cmd('reset');
+      await cmd('select 2');
+      await cmd('prog learn 1');
+      await page.keyboard.press('Escape');
+      await sleep(300);
+      if (await page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'))) await page.evaluate(() => document.getElementById('pointmode').click());
+      await cmd('tp 0 5.5');
+      await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
+      const target = (await burningTarget())[0];
+      await cmd(`face ${target}`);
+      await until((q) => q.aimObj === target, 10000);
+      await cmd('tap 0.5 0.5');
+      await waitOpen();
+      await pclick('#worked .bench-tile[data-el="H"]');
+      await frames(3);
+      await screenshot(page, '29-worked-overlay.png');
+      await rclickFree();
+      await cmd(`prog load ${MASTERED_WATER}`);
+      await sleep(400);
+      const c0 = (await st()).casts;
+      await cmd('cast');
+      await until((q) => q.casts > c0, 10000);
+      await frames(1);
+      await screenshot(page, '29-instant-cast.png');
+    });
+  }
+  async function rclickFree() {
+    const id = (await ws()).work?.id;
+    if (id) await cmd(`work cancel ${id}`);
+    await waitClosed();
+  }
+
+  // I-035 handoff (spec "Overlap and merge order"; this item merged second).
+  // Level 2 at Sprout with worked casts on: Fire routes instant (the Sprout
+  // rule), three instant Fire casts melt the gate, and the lantern wins it.
+  await run('worked: handoff level 2 at Sprout', async () => {
+    await load(['debug', 'band=sprout', 'level=2']);
+    const w = await worked();
+    let x = await until((q) => q.level === 2, 20000);
+    const gate = x.objs.findIndex((o) => o.n === 'ice gate');
+    await cmd('tp 0 1.5');
+    await until((q) => Math.abs(q.pos[2] - 1.5) < 0.5, 10000);
+    await cmd('select 1');
+    const fast = [];
+    for (let k = 0; k < 3; k++) {
+      await cmd(`face ${gate}`);
+      const a = await until((q) => q.spell === 0 && q.aimObj === gate && q.cooldown <= 0, 15000);
+      const at = await cmdAt(page, 'cast');
+      x = await until((q) => q.impacts > a.impacts, 20000);
+      const recs = await recsOf(page, at.t);
+      const castR = recs.find((r) => r.casts > a.casts);
+      fast.push(!!castR && castR.frame - at.frame <= 2 && recs.every((r) => r.workId === null));
+      await sleep(400);
+    }
+    const gone = (await st()).objs[gate].wall === false;
+    await cmd('tp 0 -11');
+    await cmd('look 0 -4');
+    await cmd('move 0 1 4');
+    x = await until((q) => q.outcome === 'won', 30000);
+    await cmd('move 0 0 0');
+    check('worked: handoff: level 2 at Sprout (castmode worked): Fire routes instant, three instant Fire casts melt the gate, and the level is won',
+      !!w && w.band === 'sprout' && w.routes[0] === 'instant' && fast.every(Boolean) && gone && x.outcome === 'won',
+      `routes=${w && w.routes} instant casts ${fast} gate gone=${gone} outcome=${x.outcome}`);
+  });
+
+  // W21. Teardown.
+  await run('worked: W21 teardown', async () => {
+    await cmd('castmode instant');
+    await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
+    await page.goto(base);
+    await booted(page);
+    await record(page);
+    const w = await ws();
+    await cmd('select 2');
+    await until((q) => q.spell === 1, 10000);
+    await sleep(400);
+    const c0 = (await st()).casts;
+    const at = await cmdAt(page, 'cast');
+    await waitFramesOf(page, at.frame, 5);
+    const castR = (await recsOf(page, at.t)).find((r) => r.casts > c0);
+    check('worked: W21 after the section: instant mode, every stage unknown, select 2 and cast lands within 2 frames',
+      !!w && w.mode === 'instant' && w.stages.every((s) => s === 'unknown') && !!castR && castR.frame - at.frame <= 2,
+      `${brief(w)} cast f+${castR ? castR.frame - at.frame : 'none'}`);
   });
 }
 

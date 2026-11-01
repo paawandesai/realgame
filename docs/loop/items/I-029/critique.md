@@ -117,3 +117,96 @@ Other points:
 - **Field overlay never offers the trial.** Accept. Stated in Smallest version 1 and Out of scope.
 - **GS-22 measured sizes; GS-23 in the walk.** Accept. G14 measures pieces inside the panel at 1366 × 768 (64 px Sprout, 44 px otherwise) via `#worked`-scoped CSS, with no `bench.js` edit; GS-23 line added.
 - **Planner-originated change (not in the critique):** a spell above the band (Fire at Sprout) now routes `instant` with no XP instead of `guided`, because I-028's `judge` returns `NotForBand` for every text there, so a guided build could never succeed. Recorded as Open decision 4.
+
+---
+
+# Critique of I-029, revision 3 (wave 13, on d476ac8)
+
+**Verdict: revise, with the revision already made by the critic.** The minimal edits are in `spec.md`, each marked "(critic r3)". As amended, the spec is ready for the contract step and needs no further planner round. Revision 3 builds on merged I-028 names as they are (`judge`, `learnable`, `recipe`, `prompt`, `BenchView`, `mountBuilder(root, { band, spell, recipe, prompt, onMake })`, `reasonFor`, `BenchState.band`), edits no existing golden check, leaves `bench.js` and the `hud.js` pointer-lock block alone, and answers I-035's F1. The edits below close one false-fail test, two honesty gaps in the red/green story, and the main fun risk. None changes the contract, the lanes or the seam.
+
+## 1. Fun for a 6-year-old and a 13-year-old (not a chore every cast)
+
+- **First casts are good.** The world holds, the answer is on screen (recipe card at Sprout/Seedling, `Copy:` line otherwise), a mistake costs nothing, and the cast lands at the click's target within 2 frames of Make. Badges (○ ◔ ◑ ★) and the Practised toast give visible progress. That is the right first-wave shape and it ships something a player sees (Paawan's rule).
+- **The real risk is the tenth build, not the first.** Mastery needs 3 builds over 2 days, so in a first session no learnable spell ever becomes instant. Every Water shot in level 1 is 4 taps at Sprout or about 6 typed characters at Apprentice, with no cap. The spec measured one cast (W18) and the clarity drop (B4) but nothing about a whole level or about fun (B5). Also, on the built site the age picker sets the band, so for real players the very first click of the game opens a copy build; the B4 prediction only covered the band-less case.
+- **Critic edits:**
+  - B4: the panel run must use a page with a known band for the 6- and 13-year-old, otherwise it measures today's game.
+  - B5 rule: median fun down by at most 1, no persona down by 2+, and the 13-year-old's GS-30 answer; a failure wakes the critic, never auto-tuning.
+  - W18 gains a **level-1 chore tripwire**: `N1` (casts golden's level-1 completion makes) × `estS(Water)` at most 60 s at Sprout and Seedling.
+  - Out of scope names the pre-agreed fallback, **charged casts** (one build loads a few shots). It bends target.md's "every cast is a worked cast", so it needs Paawan's yes and is its own item.
+- I accept the copy build for Unknown spells (Open decision 3). Making Unknown instant would mean learning a spell slows it down, which teaches kids to never learn.
+
+## 2. Smallest version
+
+Yes. Two routes (`instant`, `worked`), no seed, no XP pop, no chooser, no `bench.js` edit, no `__gameState` key, no `Settings` change, and native stays instant. The virtual cursor stays: without it there is no mouse-only path under lock for ages 4-8 (GS-11). Nothing more to cut.
+
+## 3. Can the tests fail?
+
+Mostly yes. The route table (36 cases), `Desk` units, node tests 8-12 and W1, W3-W9, W12-W18 are red on the stub. Fixes:
+- **W12 could false-fail.** It counted `exitPointerLock` calls "while the builder is open" around an Escape press, and `hud.js`'s own pause path may release the lock in that same tick. The count window is now a full worked cast plus a right-press cancel, without the Escape. It still fails if `worked.js` touches the lock.
+- **The stub story was overstated.** Lanes said only W2 and W20 pass on the stub. W11, W19, W21 and W10's first two bullets pass too (all routes are instant there). They are now labelled guards, and every other W check must be seen red.
+- **"One click never casts twice / the held path cannot reopen" was only a breaker note.** W7 now asserts it for 30 frames after the accepted cast.
+- **W6 pins a reason literal** ("Count again: H should be 2. You have 1.") copied from I-028's spec. The contract step confirms it against `reasonFor` before the lanes start, then freezes it. This is a spec-time check, not a way to weaken the test later.
+- `estS` is still a labelled tripwire on fixed constants. The real lag checks are `openFrames`, `castFrames`, `ttcMs - inputs*PACE <= 400` and the 50 ms open frame. Fine.
+
+## 4. Is the Sprout rule safe for levels 1-2?
+
+Yes.
+- No spell is ever locked. Row 3 (no band → instant) and row 4 (not learnable at the band → instant, no XP) mean every hotbar slot casts at every band. Rows 1 (`ready` false, for example a missing `worked.js`) and W19 make sure a load failure can never hold the world.
+- **Level 1 at Sprout:** Water is learnable, so each cast is a 4-tap picture copy build. Still winnable, and the world holds, so fires do not spread while the child builds. The new tripwire bounds the total.
+- **Level 2 at Sprout:** Fire is instant (W10), and Frost is a 3-input picture build. The I-035 handoff check (`?level=2&band=sprout`, `routes[0] === 'instant'`, the gate melts with three instant Fire casts) is assigned to whichever item merges second. Good.
+- **Level 2 at Seedling:** Fire is learnable, so each gate cast is a balance-scale build with the `Copy:` line showing coefficients while Unknown, about 7 s each by `estS`. That is acceptable, and the B5 rule covers it if the panel disagrees.
+- No band, no build (GS-27): a 13-year-old is never shown picture cards by default.
+
+## 5. Can lanes build from the contract?
+
+Yes. The stub items (`worked.rs` signatures, `Working`, `WorkCtx`, the two `Game` fields, the filter pass-through, `publish_work`, the `worked.js` exports, the `boot.js` line, `build-web.sh:21`, `hud.js` hook 1), the `__workState` key table, the command strings and the DOM ids are enough for the rust and web lanes to work apart. The overlap with I-035 is limited to two append points (the `Game` tail and `aim_and_cast`'s parameter tail, 15 of Bevy's 16 with I-035), and the merge order is written down. Small notes for the rust lane, no spec change needed:
+- `route` takes `stage as u8` in I-027 order.
+- How a cast gets "marked accepted" so it skips the gate is internal to `aim_and_cast`.
+- `crate::spells::book().all()` must yield the `SpellDef` slice `judge` takes. If it does not, map by slot in `work_view` and the judge call.
+
+## Critic r3 edits in `spec.md`
+
+1. Bars moved, B4: the built-site first click is a copy build; panel personas need a known band.
+2. Bars moved, new B5 rule: fun thresholds and GS-30 "quiz" answer wake the critic.
+3. W6: confirm the reason literal against `reasonFor` at the contract step.
+4. W7: no second cast and no reopen for 30 frames after an accepted cast.
+5. W12: pointer-lock call count window excludes Escape (false-fail fix).
+6. W18: level-1 chore tripwire (`N1 * estS <= 60` at Sprout and Seedling).
+7. Lanes (web): stub-passing W checks listed as guards; all others must be seen red.
+8. Out of scope: charged casts as the pre-agreed fallback, needing Paawan's yes.
+
+# Round 2 ruling (arbiter, wave 13, on fc9d295)
+
+The arbiter rules on two questions from break 1: W18 at headless frame rates, and W7 opening the builder by command.
+
+## W18: time to cast, per band
+
+**Finding.** The round-1 harness took `castFrames` from `lastInput`, a `nowOf` snapshot taken *before* the final input's virtual-cursor moves. Each `vclick` makes several `page.evaluate` round trips (vpos, then synthetic moves, then a 60 ms press), and each one costs a frame at 1.5-3 fps. So rows that used the virtual cursor read 3-5 frames, while the keyboard rows (Apprentice) read 1-2. In the product, `work submit` is handled in `aim_and_cast`, which sets `accepted` and casts in the same call (`game.casts += 1`). `publish` is chained after it, so the cast is visible one game frame after the press that sends the submit. The `ttcMs - inputs * PACE <= 400` bar adds the harness's wall-clock round trips once per input, so it cannot hold headless and does not measure the game.
+
+**Ruling.**
+1. `castFrames` is counted in game frames, from the Make press to the first recorder row with `casts` +1. The Make press is the last capture-phase `pointerdown` (or `keydown` Enter at Apprentice) in `__wcPress` at or before that row. This is the same anchor W7 already uses. The bar stays at **<= 2**, equal to the instant-click bar (W2, W9-W11, W19, W21, GS-12), so a worked cast after Make is never slower than an instant click. Game frames do not depend on wall time. Because dt is clamped to 0.25 s (`clock::MAX_FRAME_DT`), a game-time delay of 0.5 s or more also adds frames headless.
+2. **New fps-independent check:** the first row with `casts` +1 must be the first row with `work === null` after the press (same `frame`). Accept and cast share one update today. Any deferral fails at any frame rate, whether by timer, by a second command, or by a hop back through JS between accept and cast.
+3. **The wall-time bar `ttcMs - inputs * PACE <= 400` is removed.** `ttcMs` is still printed in `WORKEDTTC` and copied to `evidence/ttc.md` for information. The per-band build time is bounded by the computed tripwires, which are unchanged:
+   - `estS = 1.0 + inputs * perInput[band]` <= 10 on every row;
+   - Water at Sprout is exactly 4 inputs;
+   - critic r3's `N1 * estS(Water) <= 60` at Sprout and Seedling.
+4. **Sub-frame JS delay hole:** at 1.5-3 fps, a JS `setTimeout` shorter than about 300-600 ms between the press and `send` would not show up in frames. So `test/bevy-worked.test.ts` gains a node test with a fake `cmd`. It calls `press(0)` with the virtual cursor over Make (and `key` with Enter in the Apprentice input) and asserts that `work submit <id> ...` was sent before `press` returns, with no timers, microtasks or animation frames flushed first. This adds a test and weakens nothing.
+5. `openFrames <= 2`, the open-frame CPU <= 50 ms and the 1366 x 768 layout bars are unchanged.
+
+Why this is not a weakening: the removed bar measured the harness. Every way the game itself could add delay after `work submit` still fails: an extra frame (bar 2, with 1 seen today), a deferred cast (same-row check), a Rust timer of 0.5 s or more (frames, with dt clamped), and a JS delay (node test). A real extra frame on top of today's 1 would still pass at 2. The arbiter accepts this, because 2 frames is the project-wide instant-cast budget.
+
+## W7: opening the builder with `cmd('cast')`
+
+**Acceptable, with conditions.** W7 checks that an accepted build lands at the opening aim and earns XP. A real locked `mouse.down` in headless Chromium turns the view about 11 degrees before the click is read (break 1, X1; instant mode misses the same way), so a real press there tests the headless browser, not the game. The real-press path is covered elsewhere:
+- W3: a locked real click on a Learning spell opens the builder within 2 frames.
+- W5: a real click opens the builder.
+- W18: each row opens with a real `lclick` and checks `openFrames`.
+- Golden test 9, 'cast: a real click casts exactly once': real-click aim fidelity, with the mouse placed first.
+
+Conditions:
+- (a) The recorder row where `#worked` first shows must have `aimObj === target`. Since the world holds while the builder is open, this is `work_aim`. The recorder `tick` gains an `aimObj` field, which is a harness addition.
+- (b) The Make press stays a real virtual-cursor press, so the 2-frame and 30-frame checks stay anchored on a real input.
+- (c) W12's pointer-lock call count keeps a real opening press (`lclick`), because the lock risk is on the real-press path.
+- (d) The builder lists this harness change in the round-2 notes.
+
+Spec edits are marked "(arbiter r2)" in W7, W18 and GS-12.
