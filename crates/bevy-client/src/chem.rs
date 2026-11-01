@@ -50,6 +50,13 @@ pub const HOLLOW_CO2_PER_CAST: f32 = 0.34;
 /// How long Water or Frost knocks a gas flame down before it grows back,
 /// seconds (gameplay tuning, P-023).
 pub const FLICKER_S: f32 = 1.5;
+/// Level 4 (I-036): how much of the balloon one split of water fills with
+/// hydrogen (gameplay tuning, P-024): three casts fill it (0.34, 0.68, then
+/// capped at 1).
+pub const H2_PER_SPLIT: f32 = 0.34;
+/// How long one split runs, seconds: the tubes fill 2:1, hold, then the gas
+/// moves on (gameplay tuning, P-025; display only).
+pub const SPLIT_S: f32 = 2.5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -79,6 +86,16 @@ pub enum Kind {
     /// Level 3: a low place in the boardwalk (the dip or the hollow). Inert
     /// floor; CO2 cast at it or at a vent in it fills it (`co2`).
     Hollow,
+    /// Level 4: the water splitter (a battery and two gas tubes). Water cast
+    /// into it is split 2:1 into hydrogen and oxygen; the hydrogen goes to
+    /// the balloon.
+    Splitter,
+    /// Level 4: the balloon tied to the crate. Holds hydrogen (`gas`); full,
+    /// it lifts the crate. Fire pops the hydrogen in it.
+    Balloon,
+    /// Level 4: the iron crate in the doorway. Solid until the balloon lifts
+    /// it onto the ledge (`lifted`).
+    Crate,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -152,6 +169,13 @@ pub enum EventKind {
     Pooled,
     /// Level 3: CO2 on a vent in no hollow: it spills away.
     Spilled,
+    /// Level 4: water split into hydrogen and oxygen; the balloon is not
+    /// full yet (or the crate is already up).
+    Split,
+    /// Level 4: the split filled the balloon, and it lifted the crate.
+    Lifted,
+    /// Level 4: Fire burnt the hydrogen in the balloon with a pop.
+    Popped,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -284,6 +308,15 @@ impl EventKind {
                 "The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen."
             }
             EventKind::Spilled => "No hollow here: the CO₂ spills away downhill.",
+            EventKind::Split => {
+                "2H₂O → 2H₂ + O₂: the hydrogen tube fills twice as fast as the oxygen tube."
+            }
+            EventKind::Lifted => {
+                "H₂ (2 g/mol) is about 14 times lighter than air (29 g/mol). The balloon floats, and the crate goes with it."
+            }
+            EventKind::Popped => {
+                "Pop! 2H₂ + O₂ → 2H₂O. Hydrogen is flammable, so the balloon burst. Split more water to fill it again."
+            }
         }
     }
 }
@@ -318,6 +351,12 @@ pub struct Obj {
     pub co2_step: f32,
     /// Level 3 vents: seconds left of a flame knocked down by Water or Frost.
     pub flicker: f32,
+    /// Level 4 balloon: how full of hydrogen, 0 (limp) to 1 (lifts the crate).
+    pub gas: f32,
+    /// Level 4 crate: lifted onto the ledge (out of the doorway).
+    pub lifted: bool,
+    /// Level 4 splitter: seconds left of the current split (tube display).
+    pub run: f32,
 }
 
 impl Obj {
@@ -334,6 +373,7 @@ impl Obj {
             Kind::Lantern => (0.0, 0.0, false, AMBIENT_C),
             Kind::GasVent => (0.0, 0.0, false, FLAME_C),
             Kind::Hollow => (0.0, 0.0, false, AMBIENT_C),
+            Kind::Splitter | Kind::Balloon | Kind::Crate => (0.0, 0.0, false, AMBIENT_C),
         };
         Obj {
             kind,
@@ -352,6 +392,9 @@ impl Obj {
             co2: 0.0,
             co2_step: 0.0,
             flicker: 0.0,
+            gas: 0.0,
+            lifted: false,
+            run: 0.0,
         }
     }
 
@@ -547,6 +590,13 @@ impl World {
     fn apply_inner(&mut self, i: usize, spell: Spell, events: &mut Vec<Event>) {
         if matches!(self.objs[i].kind, Kind::GasVent | Kind::Hollow) {
             self.apply_marsh(i, spell, events);
+            return;
+        }
+        if matches!(
+            self.objs[i].kind,
+            Kind::Splitter | Kind::Balloon | Kind::Crate
+        ) {
+            self.apply_lab(i, spell, events);
             return;
         }
         let mut ev = |kind| events.push(Event { obj: i, kind });
@@ -791,6 +841,12 @@ impl World {
         }
     }
 
+    /// Level 4 (I-036): a spell lands on the water splitter, the balloon or
+    /// the crate. Contract stub: no behaviour yet.
+    fn apply_lab(&mut self, i: usize, spell: Spell, events: &mut Vec<Event>) {
+        let _ = (i, spell, events);
+    }
+
     /// One fixed step of [`DT`] seconds: burning, spreading heat, drying,
     /// cooling and the CO2 blanket wearing off.
     pub fn step(&mut self, events: &mut Vec<Event>) {
@@ -1008,6 +1064,13 @@ pub mod electrolysis {
     /// The hydrogen (cathode) tube, then the oxygen (anode) tube.
     pub fn tubes() -> [Tube; 2] {
         [tube(CATHODE_DZ, GAS_H2), tube(ANODE_DZ, GAS_O2)]
+    }
+
+    /// Level 4 (I-036): the H2 and O2 gas column heights shown while a split
+    /// runs, with `run` seconds of [`super::SPLIT_S`] left. Contract stub.
+    pub fn column(run: f32) -> (f32, f32) {
+        let _ = run;
+        (0.0, 0.0)
     }
 }
 
@@ -1760,5 +1823,134 @@ mod tests {
         assert_eq!(w.burning(), 8);
         w.reach();
         assert_eq!(w.outcome(), Outcome::Won);
+    }
+
+    // ---- I-036 (level 4, the Crystal Lab) ----
+
+    const SPLITTER: usize = 0;
+    const BALLOON: usize = 1;
+    const CRATE: usize = 2;
+
+    /// The lab's chemistry: the splitter, the balloon, the crate and the
+    /// lantern, the way level 4 lays them out.
+    fn lab() -> World {
+        World::with_goal(
+            vec![
+                Obj::new(Kind::Splitter, [-4.0, 8.0], [1.2, 0.5]),
+                Obj::new(Kind::Balloon, [1.0, -3.5], [2.5, 1.0]),
+                Obj::new(Kind::Crate, [0.0, -4.0], [1.2, 0.5]),
+                Obj::new(Kind::Lantern, [0.0, -16.0], [0.4, 0.4]),
+            ],
+            Goal::Reach,
+        )
+    }
+
+    fn cast(w: &mut World, i: usize, s: Spell) -> Vec<EventKind> {
+        let mut ev = Vec::new();
+        w.apply(i, s, &mut ev);
+        ev.into_iter().map(|e| e.kind).collect()
+    }
+
+    #[test]
+    fn i036_three_splits_fill_the_balloon_and_lift_the_crate() {
+        let mut w = lab();
+        let want = [
+            (0.34, EventKind::Split, false),
+            (0.68, EventKind::Split, false),
+            (1.0, EventKind::Lifted, true),
+        ];
+        for (gas, kind, up) in want {
+            let ev = cast(&mut w, SPLITTER, Spell::Water);
+            assert_eq!(ev, vec![kind]);
+            assert!((w.objs[BALLOON].gas - gas).abs() < 1e-6, "gas {}", w.objs[BALLOON].gas);
+            assert_eq!(w.objs[CRATE].lifted, up);
+            assert!((w.objs[SPLITTER].run - SPLIT_S).abs() < 1e-6, "a split runs");
+        }
+        assert_eq!(w.objs[BALLOON].gas, 1.0, "snapped to exactly full");
+        // A fourth split changes nothing.
+        let before = w.objs.clone();
+        assert_eq!(cast(&mut w, SPLITTER, Spell::Water), vec![EventKind::Split]);
+        assert_eq!(w.objs[BALLOON].gas, before[BALLOON].gas);
+        assert!(w.objs[CRATE].lifted);
+        assert_eq!(w.outcome(), Outcome::Playing);
+    }
+
+    #[test]
+    fn i036_wrong_spells_change_nothing() {
+        let mut w = lab();
+        assert_eq!(
+            cast(&mut w, SPLITTER, Spell::Fire),
+            vec![EventKind::Fizzle(Fizzle::NotFlammable)]
+        );
+        assert_eq!(cast(&mut w, SPLITTER, Spell::Frost), vec![EventKind::Chilled]);
+        assert_eq!(cast(&mut w, SPLITTER, Spell::Foam), vec![EventKind::Smothered]);
+        assert_eq!(w.objs[BALLOON].gas, 0.0);
+        assert_eq!(w.objs[SPLITTER].run, 0.0, "only water runs it");
+        // One split, then the wrong spells on the balloon keep its gas.
+        cast(&mut w, SPLITTER, Spell::Water);
+        let gas = w.objs[BALLOON].gas;
+        assert_eq!(cast(&mut w, BALLOON, Spell::Foam), vec![EventKind::NoChange]);
+        assert_eq!(cast(&mut w, BALLOON, Spell::Water), vec![EventKind::Soaked]);
+        assert_eq!(cast(&mut w, BALLOON, Spell::Frost), vec![EventKind::Chilled]);
+        assert_eq!(w.objs[BALLOON].gas, gas);
+        for s in Spell::ALL {
+            assert_eq!(cast(&mut w, CRATE, s), vec![EventKind::NoChange], "{s:?} on the crate");
+        }
+        assert!(!w.objs[CRATE].lifted);
+        assert_eq!(w.objs[BALLOON].gas, gas);
+    }
+
+    #[test]
+    fn i036_fire_pops_the_hydrogen_and_the_crate_stays_up() {
+        let mut w = lab();
+        assert_eq!(
+            cast(&mut w, BALLOON, Spell::Fire),
+            vec![EventKind::Fizzle(Fizzle::NotFlammable)],
+            "nothing to burn in an empty balloon"
+        );
+        cast(&mut w, SPLITTER, Spell::Water);
+        assert_eq!(cast(&mut w, BALLOON, Spell::Fire), vec![EventKind::Popped]);
+        assert_eq!(w.objs[BALLOON].gas, 0.0);
+        assert!(!w.objs[CRATE].lifted);
+        // Refill, lift, then pop: the crate stays on the ledge.
+        for _ in 0..3 {
+            cast(&mut w, SPLITTER, Spell::Water);
+        }
+        assert!(w.objs[CRATE].lifted);
+        assert_eq!(cast(&mut w, BALLOON, Spell::Fire), vec![EventKind::Popped]);
+        assert_eq!(w.objs[BALLOON].gas, 0.0);
+        assert!(w.objs[CRATE].lifted, "no soft-lock: the crate stays up");
+        assert_eq!(hit_kind(&[Event { obj: BALLOON, kind: EventKind::Popped }]), HitKind::Hit);
+        assert_eq!(hit_kind(&[Event { obj: SPLITTER, kind: EventKind::Lifted }]), HitKind::Hit);
+    }
+
+    #[test]
+    fn i036_a_lab_never_wins_loses_or_reseeds_by_itself() {
+        let mut w = lab();
+        cast(&mut w, SPLITTER, Spell::Water);
+        assert!(w.objs[SPLITTER].run > 0.0);
+        let ev = run(&mut w, 20_000.0 * DT);
+        assert!(ev.is_empty(), "{ev:?}");
+        assert_eq!(w.outcome(), Outcome::Playing);
+        assert_eq!(w.objs[SPLITTER].run, 0.0, "the split ran down");
+        assert!((w.objs[BALLOON].gas - H2_PER_SPLIT).abs() < 1e-6);
+        w.reach();
+        assert_eq!(w.outcome(), Outcome::Won);
+    }
+
+    #[test]
+    fn i036_split_columns_are_always_two_to_one() {
+        use electrolysis::{column, GAS_H2, GAS_O2};
+        assert_eq!(column(0.0), (0.0, 0.0));
+        assert_eq!(column(SPLIT_S), (0.0, 0.0));
+        let mut full = false;
+        for k in 0..=250 {
+            let run = SPLIT_S * k as f32 / 250.0;
+            let (h2, o2) = column(run);
+            assert!((h2 - 2.0 * o2).abs() < 1e-6, "run {run}: {h2} vs {o2}");
+            assert!((0.0..=GAS_H2 + 1e-6).contains(&h2) && (0.0..=GAS_O2 + 1e-6).contains(&o2));
+            full |= (h2 - GAS_H2).abs() < 1e-6 && (o2 - GAS_O2).abs() < 1e-6;
+        }
+        assert!(full, "the columns reach the full 2:1 heights while the split holds");
     }
 }

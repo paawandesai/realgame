@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
 // I-035 level-2 section and the console-error check; also marsh (I-037),
-// spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
+// crystalLab (I-036), spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -93,11 +93,12 @@ function check(name, ok, detail = '') {
   const frames = async (n) => { const f0 = (await st()).frame; await until((x) => x.frame >= f0 + n, 60000); };
   await sleep(2500);
   // ONLY=<section>[,<section>...]: those sections alone (each loads its own
-  // page), then the error check. frozenGate (I-035); marsh (I-037); spellProgress,
+  // page), then the error check. frozenGate (I-035); marsh (I-037); crystalLab (I-036); spellProgress,
   // formulaBench and workedCasts (I-029).
   const onlyRuns = {
     frozenGate: () => frozenGate({ page, st, cmd, until, frames, sleep, base, logs }),
     marsh: () => marsh({ page, st, cmd, until, frames, sleep, base, logs }),
+    crystalLab: () => crystalLab({ page, st, cmd, until, frames, sleep, base, logs }),
     spellProgress: () => spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     formulaBench: () => formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     workedCasts: () => workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors }),
@@ -379,6 +380,8 @@ function check(name, ok, detail = '') {
   await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
 
   await marsh({ page, st, cmd, until, frames, sleep, base, logs });
+
+  await crystalLab({ page, st, cmd, until, frames, sleep, base, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -1089,8 +1092,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   const I035_KEYS = ['level', 'exitOpen', 'capIcon', 'fxBeads'];
   // I-037 appends its level-3 keys after them (its acceptance test 18).
   const I037_KEYS = ['nextOpen', 'pools', 'ventsLit'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length + I035_KEYS.length + I037_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS, ...I035_KEYS, ...I037_KEYS].every((k, i) => keys[i] === k);
+  // I-036 appends its level-4 keys after them (its acceptance test 19).
+  const I036_KEYS = ['balloon', 'crateUp', 'tubes'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length + I035_KEYS.length + I037_KEYS.length + I036_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS, ...I035_KEYS, ...I037_KEYS, ...I036_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The
@@ -1361,11 +1366,12 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     check('streams: fireInView is a boolean, the last state key',
       // I-027 appends exactly its three progress keys after fireInView (its
       // Contract), I-035 its four level keys after those (its test 14), and
-      // I-037 its three level-3 keys after those (its test 18); fireInView is
+      // I-037 its three level-3 keys after those (its test 18), and I-036
+      // its three level-4 keys after those (its test 19); fireInView is
       // still the last key before them, after fxWater.
-      typeof s0.fireInView === 'boolean' && keys[keys.length - 11] === 'fireInView' && keys[keys.length - 12] === 'fxWater'
-        && keys.slice(-10).join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit',
-      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-12).join(',')}`);
+      typeof s0.fireInView === 'boolean' && keys[keys.length - 14] === 'fireInView' && keys[keys.length - 15] === 'fxWater'
+        && keys.slice(-13).join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit,balloon,crateUp,tubes',
+      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-15).join(',')}`);
   }
 
   // 6. The arrow stays away while a fire is aimed at or on screen.
@@ -5317,4 +5323,217 @@ async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted',
     s.level === 2 && s.nextOpen === true && direct.gateWall === false && direct.streamFrozen === true,
     `level=${s.level} nextOpen=${s.nextOpen} outcome=${s.outcome} ${JSON.stringify(direct)} pos=${s.pos}`);
+}
+
+async function crystalLab({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- crystalLab (I-036) --');
+  const L = {
+    split: '2H₂O → 2H₂ + O₂: the hydrogen tube fills twice as fast as the oxygen tube.',
+    lifted: 'H₂ (2 g/mol) is about 14 times lighter than air (29 g/mol). The balloon floats, and the crate goes with it.',
+    popped: 'Pop! 2H₂ + O₂ → 2H₂O. Hydrogen is flammable, so the balloon burst. Split more water to fill it again.',
+    needsWater: 'Electricity splits water, so the splitter needs water. Cast Water into it.',
+    co2Balloon: 'CO₂ is heavier than air, so it would weigh the balloon down. It needs a light gas: hydrogen.',
+  };
+  const SPLIT = {
+    sprout: 'Zap! The water splits into two gases. More water!',
+    seedling: 'Electricity splits water into hydrogen and oxygen. Twice as much hydrogen comes out as oxygen.',
+    apprentice: L.split,
+    adept: 'Electrolysis: 2H₂O(l) → 2H₂(g) + O₂(g). Two moles of H₂ for every mole of O₂, and equal moles of gas fill equal volumes, so the gas columns are 2:1.',
+  };
+  const load = async (url) => {
+    await page.goto(url);
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+  };
+  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
+  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
+  const castWhen = async (aimed, spell, what) => {
+    await resume();
+    await cmd(`select ${spell}`);
+    const a = await until((x) => x.spell === spell - 1 && aimed(x) && x.cooldown <= 0, 15000);
+    await cmd('cast');
+    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
+    if (!(z.impacts > a.impacts)) console.log(`  cast ${spell} at ${what} did not land: aim=${a.aimObj} spell=${a.spell}`);
+    return z;
+  };
+  const castAt = async (i, spell) => { await cmd(`face ${i}`); return castWhen((x) => x.aimObj === i, spell, `obj ${i}`); };
+  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
+  const banner = () => page.evaluate(() => {
+    const b = document.getElementById('banner');
+    return { shown: !b.classList.contains('hidden'), big: b.querySelector('.big').textContent, small: b.querySelector('.small').textContent };
+  });
+  const pushBand = async (id) => {
+    await page.evaluate((c) => { window.__gameIn = window.__gameIn || {}; (window.__gameIn.bench = window.__gameIn.bench || []).push(c); }, `band ${id}`);
+    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(150)) {
+      const b = await page.evaluate(() => { try { return JSON.parse(window.__benchState).band; } catch { return null; } });
+      if (b === id) return true;
+    }
+    return false;
+  };
+  const near = (a, b, e = 1e-3) => typeof a === 'number' && Math.abs(a - b) <= e;
+
+  // A fresh page, then the Marsh.
+  await load(base);
+  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
+
+  // 9. The Marsh's forward arch is shut before its lantern.
+  await cmd('level 3');
+  s = await until((x) => x.level === 3, 10000);
+  await cmd('tp 0 -21.8');
+  await gameSecs(0.5);
+  s = await st();
+  check('crystalLab: the Marsh forward arch is shut before its lantern (level 3, nextOpen false)',
+    s.level === 3 && s.nextOpen === false, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
+
+  // 10. Reach the lab by playing: solve the Marsh, then walk into its north arch.
+  await cmd('level 3');
+  s = await until((x) => x.level === 3 && x.ventsLit === 7, 10000);
+  const dip = idx(s, 'dip'), hollow = idx(s, 'hollow');
+  await cmd('tp 0 14');
+  for (let k = 0; k < 2; k++) await castAt(dip, 4);
+  await cmd('tp 0 -3');
+  for (let k = 0; k < 3; k++) await castAt(hollow, 4);
+  s = await until((x) => x.ventsLit === 0, 10000);
+  await cmd('tp 0 -13');
+  await cmd('look 0 0');
+  await cmd('move 0 1 3');
+  s = await until((x) => x.outcome === 'won', 30000);
+  await cmd('move 0 0 0');
+  await gameSecs(0.5);
+  const b3 = await banner();
+  check('crystalLab: the Marsh win opens its forward arch and the banner points to the Crystal Lab',
+    s.outcome === 'won' && (await st()).nextOpen === true && b3.shown && /Crystal Lab/.test(b3.small),
+    `outcome=${s.outcome} nextOpen=${(await st()).nextOpen} banner=${JSON.stringify(b3)}`);
+  await cmd('tp 0 -21.8');
+  const t10 = Date.now();
+  s = await until((x) => x.level === 4, 5000);
+  const ms10 = Date.now() - t10;
+  s = await until((x) => x.level === 4 && /^The Crystal Lab/.test(x.caption), 3000);
+  const names = s.objs.map((o) => o.n);
+  check('crystalLab: walking into the open Marsh arch loads the Crystal Lab within 5 s',
+    s.level === 4 && ms10 <= 5500 && ['water splitter', 'balloon', 'crate', 'lantern'].every((n) => names.includes(n))
+      && s.balloon === 0 && s.crateUp === false && s.outcome === 'playing' && /^The Crystal Lab/.test(s.caption)
+      && Array.isArray(s.tubes) && s.tubes.length === 2,
+    `level=${s.level} after ${ms10} ms objs=${names.join(',')} balloon=${s.balloon} crateUp=${s.crateUp} tubes=${JSON.stringify(s.tubes)} outcome=${s.outcome} caption=${s.caption}`);
+  const splitter = idx(s, 'water splitter'), balloon = idx(s, 'balloon');
+  await cmd('look 0 -6');
+  await frames(3);
+  await screenshot(page, 'l4-01-arrive.png');
+
+  // 11. The crate blocks the doorway.
+  await cmd('tp 0 4');
+  await cmd('look 0 0');
+  await cmd('move 0 1 4');
+  await gameSecs(4.4);
+  s = await st();
+  check('crystalLab: the crate blocks the doorway (stopped south of the wall, z > -4)',
+    s.pos[2] > -4 && s.pos[2] < 0 && s.crateUp === false, `pos=${s.pos} crateUp=${s.crateUp}`);
+
+  // 12. Wrong chemistry fails kindly (no band: the Apprentice lines).
+  await cmd('tp 0 10');
+  let z = await castAt(splitter, 1);
+  const fire = { balloon: z.balloon, cap: z.caption };
+  await cmd('tp 0 2');
+  z = await castAt(balloon, 4);
+  const co2 = { balloon: z.balloon, cap: z.caption };
+  check('crystalLab: Fire on the splitter needs water, CO2 on the balloon is too heavy (balloon 0)',
+    fire.balloon === 0 && fire.cap === L.needsWater && co2.balloon === 0 && co2.cap === L.co2Balloon,
+    `fire=${JSON.stringify(fire)} co2=${JSON.stringify(co2)}`);
+
+  // 13. Three splits fill the balloon (2:1 tubes) and lift the crate.
+  await cmd('tp 0 10');
+  const fills = [], ups = [], caps = [], ratios = [];
+  for (let k = 0; k < 3; k++) {
+    z = await castAt(splitter, 2);
+    fills.push(z.balloon); ups.push(z.crateUp); caps.push(z.caption);
+    const t = await until((x) => Array.isArray(x.tubes) && x.tubes[1] > 0.05, 4000);
+    ratios.push(t.tubes && t.tubes[1] > 0 ? t.tubes[0] / t.tubes[1] : NaN);
+    if (k === 0) { await cmd(`face ${splitter}`); await frames(3); await screenshot(page, 'l4-02-split.png'); }
+  }
+  check('crystalLab: three splits fill the balloon (0.34 / 0.68 / 1) and lift the crate on the third',
+    near(fills[0], 0.34) && near(fills[1], 0.68) && near(fills[2], 1)
+      && ups[0] === false && ups[1] === false && ups[2] === true
+      && caps[0] === L.split && caps[1] === L.split && caps[2] === L.lifted,
+    `balloon ${fills.join(' / ')} crateUp ${ups.join(' / ')} captions ${JSON.stringify(caps)}`);
+  check('crystalLab: while water splits, the hydrogen column is twice the oxygen column',
+    ratios.length === 3 && ratios.every((r) => near(r, 2)), `H2/O2 ratios ${ratios.join(' / ')}`);
+  await gameSecs(3.5);
+  await cmd('tp 0 4');
+  await cmd('look 20 8');
+  await frames(3);
+  await screenshot(page, 'l4-03-lifted.png');
+
+  // 14. Fire pops the hydrogen; the crate stays up.
+  await cmd('tp 0 2');
+  z = await castAt(balloon, 1);
+  check('crystalLab: Fire on the balloon pops the hydrogen (balloon 0) and the crate stays up',
+    z.caption === L.popped && z.balloon === 0 && z.crateUp === true,
+    `caption=${z.caption} balloon=${z.balloon} crateUp=${z.crateUp}`);
+
+  // 15. The doorway is open: walk to the lantern; the walk stops on the win.
+  await cmd('tp 0 0');
+  await cmd('look 0 0');
+  await cmd('move 0 1 1.6');
+  await gameSecs(2);
+  s = await st();
+  const crossed = s.pos[2];
+  await cmd('move 0 1 4');
+  s = await until((x) => x.outcome === 'won', 30000);
+  await gameSecs(0.5);
+  const b4 = await banner();
+  const p0 = (await st()).pos;
+  await cmd('move 0 1 2');
+  s = await gameSecs(2.2);
+  check('crystalLab: through the doorway to the lantern wins ("You lit up the Crystal Lab!") and the walk stops',
+    crossed < -5 && s.outcome === 'won' && b4.shown && b4.big === 'You lit up the Crystal Lab!'
+      && near(s.pos[0], p0[0]) && near(s.pos[2], p0[2]),
+    `crossed z=${crossed} outcome=${s.outcome} banner=${JSON.stringify(b4)} pos ${p0} -> ${s.pos}`);
+  await cmd('look 180 -10');
+  await frames(3);
+  await screenshot(page, 'l4-04-won.png');
+
+  // 17. The way back: the Marsh, solved, with its forward arch open.
+  await cmd('move 0 0 0');
+  await frames(2);
+  await cmd('tp 0 21.8');
+  s = await until((x) => x.level === 3, 5000);
+  await frames(2);
+  s = await st();
+  check('crystalLab: the back arch returns to the Marsh, solved, with its forward arch open',
+    s.level === 3 && s.nextOpen === true && Array.isArray(s.pools) && s.pools[0] === 1 && s.pools[1] === 1 && s.ventsLit === 0 && s.pos[2] < -19,
+    `level=${s.level} nextOpen=${s.nextOpen} pools=${JSON.stringify(s.pools)} ventsLit=${s.ventsLit} pos=${s.pos}`);
+
+  // 16. Captions per band, each on a fresh level 4.
+  const per = [];
+  let bandsOk = true;
+  for (const id of ['sprout', 'seedling', 'apprentice', 'adept']) {
+    const pushed = await pushBand(id);
+    await cmd('level 4');
+    let x = await until((q) => q.level === 4 && q.casts === 0 && q.balloon === 0, 10000);
+    await cmd('tp 0 10');
+    await until((q) => Math.abs(q.pos[2] - 10) < 0.5, 10000);
+    x = await castAt(idx(x, 'water splitter'), 2);
+    const icon = id === 'sprout' ? 'gas' : '';
+    const ok = pushed && x.caption === SPLIT[id] && x.capIcon === icon && (id === 'apprentice' || x.caption !== L.split);
+    bandsOk = bandsOk && ok;
+    per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
+  }
+  check('crystalLab: each band sees its own Split line; Sprout shows the gas picture', bandsOk, per.join(' | '));
+
+  // 18. ?level=4 without debug loads the lab, and Water can be selected and cast.
+  const plain = base.replace(/([?&])debug(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  await load(`${plain}${plain.includes('?') ? '&' : '?'}level=4`);
+  s = await until((x) => x.level === 4, 10000);
+  const c0 = s.casts;
+  await resume();
+  await cmd('select 2');
+  await until((x) => x.spell === 1 && x.cooldown <= 0, 10000);
+  await cmd('cast');
+  const c1 = await until((x) => x.casts > c0, 10000);
+  check('crystalLab: ?level=4 (no debug) opens the Crystal Lab and Water can be selected and cast',
+    s.level === 4 && /^The Crystal Lab/.test(s.caption) && c1.spell === 1 && c1.casts > c0,
+    `level=${s.level} caption=${s.caption} spell=${c1.spell} casts ${c0} -> ${c1.casts} url=${page.url()}`);
 }

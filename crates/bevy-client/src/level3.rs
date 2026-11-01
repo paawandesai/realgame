@@ -244,6 +244,16 @@ pub fn layout() -> Layout {
     }
 }
 
+/// I-036: the arch in the north wall to the Crystal Lab, shut until the
+/// lantern is reached (the same place as level 2's north arch).
+pub const NEXT_ARCH: (f32, f32) = (0.0, -22.6);
+
+/// I-036: the Marsh as the player left it, for the walk back from the
+/// Crystal Lab. Contract stub.
+pub fn solved(w: &mut chem::World) {
+    let _ = w;
+}
+
 /// Each hollow's CO2 fill, dip first (`pools`); empty outside level 3.
 pub fn pools(w: &chem::World) -> Vec<f32> {
     w.objs
@@ -993,6 +1003,21 @@ mod tests {
                 }
             }
         }
+    }
+
+    // ---- I-036 acceptance test 8: the Marsh, solved for the way back ----
+
+    #[test]
+    fn i036_solved_fills_both_hollows_and_latches_the_win() {
+        let mut w = layout().world;
+        solved(&mut w);
+        assert_eq!(pools(&w), vec![1.0, 1.0]);
+        assert_eq!(vents_lit(&w), 0);
+        assert_eq!(w.outcome(), chem::Outcome::Won);
+        // Solving again changes nothing.
+        let before = (pools(&w), vents_lit(&w));
+        solved(&mut w);
+        assert_eq!((pools(&w), vents_lit(&w)), before);
     }
 
     // ---- I-037 acceptance test 5: the walk to the lantern ----

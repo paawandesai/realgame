@@ -21,6 +21,7 @@ mod feel;
 mod fx;
 mod level2;
 mod level3;
+mod level4;
 mod motion;
 mod player;
 mod progress;
