@@ -32,6 +32,7 @@ mod player;
 mod progress;
 mod spells;
 mod story;
+mod tuning;
 mod voxel_cast;
 mod voxel_tex;
 mod voxel_view;
@@ -1183,6 +1184,8 @@ fn control(
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     bridge::poll(&mut web);
+    // The block world turns faster side to side (tuning.rs); classic as before.
+    let yaw_scale = if vx.on() { tuning::YAW_SCALE } else { 1.0 };
     #[cfg(target_arch = "wasm32")]
     {
         game.locked = web.locked;
@@ -1190,7 +1193,7 @@ fn control(
         game.paused = web.paused || game.work.is_open();
         let _ = (&motion, &mouse);
         if !game.work.is_open() {
-            player.look(web.dx, web.dy, settings.sens);
+            player.look(web.dx * yaw_scale, web.dy, settings.sens);
         }
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -1207,7 +1210,7 @@ fn control(
             game.locked = false;
         }
         if game.locked {
-            player.look(motion.delta.x, motion.delta.y, settings.sens);
+            player.look(motion.delta.x * yaw_scale, motion.delta.y, settings.sens);
         }
     }
     // The game clock: frozen while paused, back to 0 on a reset (below).
@@ -1332,7 +1335,7 @@ fn control(
                 player.yaw = f(1).to_radians();
                 player.pitch = f(2).clamp(-89.0, 89.0).to_radians();
             }
-            Some("turn") => player.look(f(1), f(2), settings.sens),
+            Some("turn") => player.look(f(1) * yaw_scale, f(2), settings.sens),
             Some("face") => {
                 let i = f(1) as usize;
                 if i < chem.targets.len() {

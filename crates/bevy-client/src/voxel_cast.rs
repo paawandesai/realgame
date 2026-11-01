@@ -73,8 +73,6 @@ struct ArcDot;
 
 /// Dots in the arc preview.
 const ARC_DOTS: usize = 24;
-/// A cone's spray reaches its end this fast (m/s).
-const CONE_SPEED: f32 = 20.0;
 /// Arcs are traced in steps of this long, for at most `MAX_FLIGHT_S`.
 const STEP_S: f32 = 1.0 / 60.0;
 const MAX_FLIGHT_S: f32 = 4.0;
@@ -107,7 +105,7 @@ fn plan(
         normal: l.normal,
         pos: Vec3::from(l.pos),
     };
-    match ballistics::motion(spell, held) {
+    match crate::tuning::motion(spell, held) {
         ballistics::Motion::Arc { reach } => {
             let v0 = forward * ballistics::launch_speed(reach);
             let (end, t) = match blocks {
@@ -152,7 +150,7 @@ fn plan(
             let to = hit.map_or(b, |h| h.pos);
             (
                 vec![hand, to],
-                (hand.distance(to) / CONE_SPEED).max(0.05),
+                (hand.distance(to) / crate::tuning::CONE_SPEED).max(0.05),
                 hit,
             )
         }

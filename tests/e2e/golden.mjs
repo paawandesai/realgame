@@ -5133,7 +5133,7 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
   const mode = (await st()).mode;
   check('voxelCast: the default page is the block world', mode === 'voxel', `mode=${mode}`);
 
-  // V1. A tapped Water jet and a 0.8 s hold, view 40 degrees up.
+  // V1. A tapped Water jet and a full charge, view 40 degrees up.
   // Open, flat ground: the Village plaza in the block world (its top at
   // the feet), or the plane y = 0 without a world.
   await cmd(mode === 'voxel' ? 'tp 128.5 35 205.5' : 'tp 8 12');
@@ -5141,15 +5141,17 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
   await frames(4);
   const ground = (await st()).pos[1];
   const tap = await castNow(2, 'cast');
-  const hold = await castNow(2, 'cast 0.8');
-  check('voxelCast: Water tapped lands 6-9.5 m away and held 0.8 s lands 11-16 m away, on the ground at the feet',
-    tap.landed && hold.landed && flat(tap) >= 6 && flat(tap) <= 9.5 && flat(hold) >= 11 && flat(hold) <= 16
+  const hold = await castNow(2, 'cast 1');
+  // Tuning (tuning.rs, 2026-11-01): a tap reaches 10 m and a 1 s charge
+  // 25 m at 45 degrees; from the hand, 40 degrees up, a little farther.
+  check('voxelCast: Water tapped lands 10-13.5 m away and a full 1 s charge lands 23-29 m away, on the ground at the feet',
+    tap.landed && hold.landed && flat(tap) >= 10 && flat(tap) <= 13.5 && flat(hold) >= 23 && flat(hold) <= 29
       && Math.abs(tap.land.p[1] - ground) < 0.2 && Math.abs(hold.land.p[1] - ground) < 0.2,
     `tap ${flat(tap).toFixed(2)} m ${JSON.stringify(tap.land)}, hold ${flat(hold).toFixed(2)} m ${JSON.stringify(hold.land)}`);
 
-  // V2. CO2 is a heavier, shorter lob: 5-9 m for any hold.
-  const co2 = await castNow(4, 'cast 1.5');
-  check('voxelCast: CO2 held 1.5 s lobs 7-11 m', co2.landed && flat(co2) >= 7 && flat(co2) <= 11,
+  // V2. CO2 is a heavier, shorter lob: 8-14 m on flat ground.
+  const co2 = await castNow(4, 'cast 1');
+  check('voxelCast: CO2 at full charge lobs 12-17 m', co2.landed && flat(co2) >= 12 && flat(co2) <= 17,
     `${flat(co2).toFixed(2)} m ${JSON.stringify(co2.land)}`);
 
   // V3. Fire is a short spray: aimed down it lands within 2.5 m; aimed up
@@ -5160,8 +5162,8 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
   await cmd('look 0 30');
   await frames(2);
   const up = await castNow(1, 'cast', 3000);
-  check('voxelCast: Fire aimed down lands within 2.5 m; aimed up it lands nowhere',
-    down.landed && flat(down) <= 2.5 && Math.abs(down.land.p[1] - ground) < 0.05 && !up.landed && !up.land,
+  check('voxelCast: Fire aimed down lands within 3.5 m; aimed up it lands nowhere',
+    down.landed && flat(down) <= 3.5 && Math.abs(down.land.p[1] - ground) < 0.05 && !up.landed && !up.land,
     `down ${down.landed} ${flat(down).toFixed(2)} m ${JSON.stringify(down.land)} up ${up.landed} ${JSON.stringify(up.land)}`);
 
   // V4. A real held press charges: it reaches farther than a quick click,
@@ -5188,7 +5190,7 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
   await frames(4);
   const click = await press(60);
   const held = await press(1300);
-  check('voxelCast: a 1.3 s press flies at least 4 m farther than a click, each press one cast, none while held',
-    flat(held) - flat(click) >= 4 && click.n === 1 && held.n === 1 && click.casts === 1 && held.casts === 1 && held.castsDuring === 0,
+  check('voxelCast: a 1.3 s press flies at least 8 m farther than a click, each press one cast, none while held',
+    flat(held) - flat(click) >= 8 && click.n === 1 && held.n === 1 && click.casts === 1 && held.casts === 1 && held.castsDuring === 0,
     `click ${flat(click).toFixed(2)} m (${click.n}), held ${flat(held).toFixed(2)} m (${held.n}), during=${held.castsDuring}`);
 }
