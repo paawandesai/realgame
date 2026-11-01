@@ -1,0 +1,28 @@
+#[cfg(test)]
+mod brk_probe {
+    use super::*;
+    use crate::reactions::ReactionBook;
+    use crate::spellbook::SpellBook;
+    #[test]
+    fn probe() {
+        let b = SpellBook::load(&ReactionBook::load());
+        let s = &b.spells;
+        for (slot, band, t) in [
+            (1, Tier::Apprentice, "0CH4 + 0O2 -> 0CO2 + 0H2O"),
+            (1, Tier::Seedling, "0CH4 + 0O2 -> 0CO2 + 0H2O"),
+            (1, Tier::Apprentice, "0CH4 + 2O2 -> CO2 + 2H2O"),
+            (1, Tier::Apprentice, "CH4 + 2O2 + 0N2 -> CO2 + 2H2O"),
+            (1, Tier::Apprentice, "CH4 + 2O2 -> CO2 + 2H2O + 0CO"),
+            (2, Tier::Sprout, "0H2O"),
+            (3, Tier::Apprentice, "00N2(l)"),
+            (3, Tier::Apprentice, "0/1N2(l)"),
+            (3, Tier::Apprentice, "N0(l)"),
+            (3, Tier::Apprentice, "N2O0(l)"),
+            (4, Tier::Apprentice, "CO2H0(g)"),
+            (1, Tier::Apprentice, "CH4 + 2O2 -> CO2 + 2H2OC0"),
+] {
+            let v = judge(s, slot, band, t);
+            println!("PROBE slot={slot} {band:?} {t:?} => {}", serde_json::to_string(&v).unwrap());
+        }
+    }
+}
