@@ -18,7 +18,11 @@ notify: thread reply in the project thread on each merge, ACTION or bar change
 max_parallel_items: 2
 # 2026-10-30 Paawan: "parallelize as much as you can". Build slots stay 2: the 4-CPU/16 GB cloud box crashes Chromium suites with a third concurrent build + golden. Planning runs wide (design_ahead 7) so a ready spec is always waiting.
 max_lanes: 3
-design_ahead: 7
+design_ahead: 3
+# 2026-10-31 Paawan (decision card): "Ship something playable each wave".
+visible_each_wave: true   # every wave merges at least one change a player can see and play; Bench, worked casts, mastery first; internal-only items ride alongside, never alone
+small_item_review: light  # small items (single lane, < ~300 lines, no data/privacy change): spec + build + ONE breaker, no separate critic round; large or privacy items keep the full plan/critique/break
+# CI checks and golden checks are unchanged; nothing is loosened.
 max_concurrent_agents: 8
 artifact_dir: .loop-artifacts
 nightly_budget_tokens: 6000000   # confirm with Paawan
