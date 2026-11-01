@@ -114,6 +114,9 @@ pub(crate) fn solid_obj(o: &Obj) -> bool {
         Kind::Puddle => false,
         // Too deep to wade while liquid; a bridge once frozen solid.
         Kind::Stream => o.ice < 1.0,
+        // Level 3: a burning gas vent is too hot to pass; the floor is never solid.
+        Kind::GasVent => o.burning,
+        Kind::Hollow => false,
         _ => true,
     }
 }

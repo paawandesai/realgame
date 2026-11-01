@@ -637,7 +637,7 @@ export function startHud() {
   // and make the Water slot glow (for players who cannot read yet).
   let idleOn = false;
   function updateIdle(now) {
-    const on = !!state && settings.hints && state.level !== 2 && state.outcome === 'playing' && !state.paused && !input.paused && now - idleSince >= IDLE_MS;
+    const on = !!state && settings.hints && state.level === 1 && state.outcome === 'playing' && !state.paused && !input.paused && now - idleSince >= IDLE_MS;
     if (on === idleOn) return;
     idleOn = on;
     slots[IDLE_SLOT].classList.toggle('nudge', on);
@@ -696,17 +696,20 @@ export function startHud() {
       const playing = state.outcome === 'playing';
       if (state.locked) note = '';
       updateIdle(now);
-      // Level 2 has no fires, so the fire aiming hint never applies there.
-      const extinguished = state.level === 2 ? 1 : state.extinguished;
+      // Levels 2 and 3 have no courtyard fires (level 3's gas flames need
+      // CO2, not Water), so the fire aiming hint never applies there.
+      const extinguished = state.level >= 2 ? 1 : state.extinguished;
       setHint(pickHint({ playing, idle: idleOn, note, locked: state.locked, extinguished, casts: state.casts }));
       // The arrow to the nearest fire, while it is off screen and no fire is
       // in view or aimed at (I-025).
       // I-035: after the courtyard is saved, the same arrow points at the open
       // exit arch, once the win banner has had 3 s of game time on its own
       // (nothing shows under a banner as it appears, I-025 test 18).
-      if (state.outcome !== 'won' || state.level !== 1) wonAt = null;
+      // I-037: the same after the Frozen Gate is opened, toward its forward arch.
+      const exitAhead = (state.level === 1 && state.exitOpen) || (state.level === 2 && state.nextOpen);
+      if (state.outcome !== 'won' || state.level === 3) wonAt = null;
       else if (wonAt === null) wonAt = state.gameTime;
-      const findExit = state.level === 1 && state.exitOpen && state.outcome === 'won' && wonAt !== null && state.gameTime - wonAt >= EXIT_ARROW_DELAY_S
+      const findExit = exitAhead && state.outcome === 'won' && wonAt !== null && state.gameTime - wonAt >= EXIT_ARROW_DELAY_S
         && state.fireOff && !state.paused && !input.paused;
       const findOn = (playing && state.fireOff && !state.fireInView && state.nearFire >= 0 && !state.paused && !input.paused) || findExit;
       finder.classList.toggle('hidden', !findOn);
@@ -717,15 +720,16 @@ export function startHud() {
         finder.classList.toggle('left', !right);
       }
       const objTitle = document.querySelector('#objective .title');
-      const titleText = state.level === 2 ? 'The Frozen Gate' : 'Save the Greenhouse';
+      const titleText = state.level === 3 ? 'The Marsh' : state.level === 2 ? 'The Frozen Gate' : 'Save the Greenhouse';
       if (objTitle && objTitle.textContent !== titleText) objTitle.textContent = titleText;
-      if (state.level === 2) setObjective(state.outcome === 'won' ? 'Gate opened!' : 'Cross the stream, melt the gate, reach the lantern.', 0);
+      if (state.level === 3) setObjective(state.outcome === 'won' ? 'Marsh cleared!' : 'Put out the gas flames, cross the boardwalk, reach the lantern.', 0);
+      else if (state.level === 2) setObjective(state.outcome === 'won' ? 'Gate opened!' : 'Cross the stream, melt the gate, reach the lantern.', 0);
       else if (state.outcome === 'won') setObjective('Greenhouse saved!', 0);
       else setObjective(`Fires to put out: ${state.firesLeft}`, state.firesLeft);
       if (state.captionId !== capId) {
         capId = state.captionId;
         showCaption(state.caption);
-        const icon = ['freeze', 'melt', 'wrong'].includes(state.capIcon) ? state.capIcon : '';
+        const icon = ['freeze', 'melt', 'wrong', 'gas'].includes(state.capIcon) ? state.capIcon : '';
         capIcon.dataset.icon = icon;
         capIcon.classList.toggle('hidden', !icon);
         if (state.caption && history[0] !== state.caption) {
@@ -745,9 +749,12 @@ export function startHud() {
       const banner = $('banner');
       banner.classList.toggle('hidden', state.outcome === 'playing');
       banner.classList.toggle('lost', state.outcome === 'lost');
-      if (state.outcome === 'won' && state.level === 2) {
+      if (state.outcome === 'won' && state.level === 3) {
+        banner.querySelector('.big').textContent = 'You cleared the Marsh!';
+        banner.querySelector('.small').textContent = 'CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back.';
+      } else if (state.outcome === 'won' && state.level === 2) {
         banner.querySelector('.big').textContent = 'You opened the Frozen Gate!';
-        banner.querySelector('.small').textContent = 'Freeze to cross, melt to open: water changed state both ways. Walk to the arch to go back.';
+        banner.querySelector('.small').textContent = 'Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again.';
       } else if (state.outcome === 'won') {
         banner.querySelector('.big').textContent = 'You saved the greenhouse!';
         banner.querySelector('.small').textContent = 'Walk to the glowing arch behind you to visit the Frozen Gate. Press R to play again.';

@@ -1,0 +1,27 @@
+# I-037 acceptance tests on the contract stubs (Kind::GasVent/Hollow, Obj.co2/co2_step/flicker, World.hollow_of, new EventKinds, level3::layout; no rules, caption() -> None)
+
+## standalone: rustc --edition 2021 --test src/chem.rs
+test result: FAILED. 24 passed; 4 failed
+  tests::i037_a_cast_at_the_floor_fills_like_a_cast_at_a_vent
+  tests::i037_a_marsh_never_wins_loses_or_reseeds_by_itself
+  tests::i037_co2_pools_low_and_smothers_a_whole_hollow_at_once
+  tests::i037_gas_vents_burn_forever_and_shrug_off_water_frost_and_fire
+
+## native: cargo test --locked (crates/bevy-client)
+failures:
+    chem::tests::i037_a_cast_at_the_floor_fills_like_a_cast_at_a_vent
+    chem::tests::i037_a_marsh_never_wins_loses_or_reseeds_by_itself
+    chem::tests::i037_co2_pools_low_and_smothers_a_whole_hollow_at_once
+    chem::tests::i037_gas_vents_burn_forever_and_shrug_off_water_frost_and_fire
+    level3::tests::i037_caption_strings_are_safe_player_text
+    level3::tests::i037_caption_table_is_exact_per_band
+    level3::tests::i037_flames_block_the_boardwalk_until_each_hollow_is_pooled
+
+test result: FAILED. 82 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.34s
+
+error: test failed, to rerun pass `--bin bevy-client`
+
+passing on the stubs: level3::tests::i037_reed_beds_close_both_sides_of_the_boardwalk (it checks the contract's pure layout, which the stub step already had; it is a guard, not a behaviour test)
+
+## raw panics (native)
+thread 'level3::tests::i037_flames_block_the_boardwalk_until_each_hollow_is_pooled' (22813) panicked at src/level3.rs:917:9:

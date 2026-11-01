@@ -28,6 +28,25 @@ pub const BACK_ARCH: (f32, f32) = (0.0, 22.6);
 /// The lantern's centre (x, z): walking within [`LANTERN_REACH`] wins.
 pub const LANTERN: (f32, f32) = (0.0, -17.0);
 pub const LANTERN_REACH: f32 = 1.5;
+/// I-037: the arch in the north wall to the Marsh, shut until the lantern
+/// is reached.
+pub const NEXT_ARCH: (f32, f32) = (0.0, -22.6);
+/// Where the player arrives back from the Marsh (feet), facing +z: in front
+/// of the north arch, out of its reach.
+pub const ARRIVE_NORTH: Vec3 = Vec3::new(0.0, 0.0, -20.4);
+
+/// I-037: the north arch's door panel; it shows `ArchMats::open` while the
+/// way to the Marsh is open.
+#[derive(Component)]
+pub struct NextDoor;
+
+/// The closed north door's solid box (before the lantern is reached).
+pub fn next_door() -> Aabb {
+    Aabb::new(
+        Vec3::new(NEXT_ARCH.0, 1.5, NEXT_ARCH.1 - 0.4),
+        Vec3::new(1.5, 1.5, 0.2),
+    )
+}
 
 /// The stream's extent along z (it spans the whole valley along x).
 pub const STREAM_Z: (f32, f32) = (4.0, 8.0);
@@ -412,6 +431,38 @@ pub fn build(
             &leaf,
             Transform::from_xyz(x, 4.25, z + 0.4).with_scale(Vec3::splat(0.4)),
         );
+    }
+
+    // I-037: the way on, the north arch (solid posts and lintel; the door
+    // panel glows once the lantern is reached), with a reed on its lintel.
+    {
+        let (x, z) = NEXT_ARCH;
+        for dx in [-1.75f32, 1.75] {
+            b.block(
+                Vec3::new(x + dx, 1.75, z - 0.4),
+                Vec3::new(0.5, 3.5, 0.7),
+                &rock,
+            );
+        }
+        b.piece(
+            &cube,
+            &rock,
+            Transform::from_xyz(x, 3.7, z - 0.4).with_scale(Vec3::new(4.0, 0.5, 0.8)),
+        );
+        b.piece(
+            &cone,
+            &pine,
+            Transform::from_xyz(x, 4.3, z - 0.4).with_scale(Vec3::new(0.4, 0.8, 0.4)),
+        );
+        let closed = world::toon(materials, Color::srgb(0.22, 0.24, 0.32));
+        b.commands.spawn((
+            Mesh3d(cube.clone()),
+            MeshMaterial3d(closed),
+            Transform::from_xyz(x, 1.5, z - 0.5).with_scale(Vec3::new(3.0, 3.0, 0.12)),
+            NotShadowCaster,
+            NextDoor,
+            LevelRoot,
+        ));
     }
 
     // Rock banks with snow on top, and the ridge.

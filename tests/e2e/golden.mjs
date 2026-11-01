@@ -10,7 +10,8 @@
 //   node tests/e2e/golden.mjs                   # serves web/pkg-out itself
 //
 // Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
-// I-035 level-2 section and the console-error check), QUERY (for example `?low`,
+// I-035 level-2 section and the console-error check), ONLY=marsh (just the
+// I-037 level-3 section and the console-error check), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -91,9 +92,10 @@ function check(name, ok, detail = '') {
   const tickNow = async () => (await st()).tick;
   const frames = async (n) => { const f0 = (await st()).frame; await until((x) => x.frame >= f0 + n, 60000); };
   await sleep(2500);
-  if (process.env.ONLY === 'frozenGate') {
-    // The I-035 section alone (it reloads the page itself), then the error check.
-    await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
+  if (process.env.ONLY === 'frozenGate' || process.env.ONLY === 'marsh') {
+    // The I-035 (or I-037) section alone (it reloads the page itself), then the error check.
+    if (process.env.ONLY === 'marsh') await marsh({ page, st, cmd, until, frames, sleep, base, logs });
+    else await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
     check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
     const failed = results.filter((r) => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} passed`);
@@ -362,6 +364,8 @@ function check(name, ok, detail = '') {
   await formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
   await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
+
+  await marsh({ page, st, cmd, until, frames, sleep, base, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -1070,8 +1074,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   const I027_KEYS = ['progress', 'progRev', 'progSave'];
   // I-035 appends its level keys after them (its acceptance test 14).
   const I035_KEYS = ['level', 'exitOpen', 'capIcon', 'fxBeads'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length + I035_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS, ...I035_KEYS].every((k, i) => keys[i] === k);
+  // I-037 appends its level-3 keys after them (its acceptance test 18).
+  const I037_KEYS = ['nextOpen', 'pools', 'ventsLit'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length + I035_KEYS.length + I037_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS, ...I035_KEYS, ...I037_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The
@@ -1341,11 +1347,12 @@ async function streamsAndFinder({ page, st, cmd, until, frames, sleep, idx, lit,
     const keys = Object.keys(s0);
     check('streams: fireInView is a boolean, the last state key',
       // I-027 appends exactly its three progress keys after fireInView (its
-      // Contract), and I-035 its four level keys after those (its test 14);
-      // fireInView is still the last key before them, after fxWater.
-      typeof s0.fireInView === 'boolean' && keys[keys.length - 8] === 'fireInView' && keys[keys.length - 9] === 'fxWater'
-        && keys.slice(-7).join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads',
-      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-9).join(',')}`);
+      // Contract), I-035 its four level keys after those (its test 14), and
+      // I-037 its three level-3 keys after those (its test 18); fireInView is
+      // still the last key before them, after fxWater.
+      typeof s0.fireInView === 'boolean' && keys[keys.length - 11] === 'fireInView' && keys[keys.length - 12] === 'fxWater'
+        && keys.slice(-10).join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit',
+      `fireInView=${s0.fireInView} (${typeof s0.fireInView}) last keys ${keys.slice(-12).join(',')}`);
   }
 
   // 6. The arrow stays away while a fire is aimed at or on screen.
@@ -2685,8 +2692,9 @@ async function spellProgress({ page, st, cmd, until, frames, sleep, base, browse
       const fresh = Array.isArray(x.progress) && x.progress.length === 4
         && x.progress.every((e, i) => e.id === IDS[i] && e.st === 'unknown' && e.xp === 0
           && Object.keys(e).join() === 'id,st,xp,builds,days,predicted');
-      // I-035 appends its four level keys after these (its test 14).
-      ok = fresh && x.progRev === 0 && x.progSave === 'p1' && tail.join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads';
+      // I-035 appends its four level keys after these (its test 14), and
+      // I-037 its three level-3 keys after those (its test 18).
+      ok = fresh && x.progRev === 0 && x.progSave === 'p1' && tail.join() === 'progress,progRev,progSave,level,exitOpen,capIcon,fxBeads,nextOpen,pools,ventsLit';
       note = `${brief(x)} tail=${tail.join()}`;
     } catch (e) { note = `error: ${e && e.message}`; }
     check('progress: fresh state has 4 unknown spells, progRev 0, progSave p1, keys in order', ok, note);
@@ -3952,4 +3960,256 @@ async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
   s = await until((x) => x.level === 2, 10000);
   check('frozen gate: ?level=2 opens the Frozen Gate directly', s.level === 2 && idx(s, 'stream') >= 0 && /^The Frozen Gate/.test(s.caption),
     `level=${s.level} caption=${s.caption}`);
+}
+
+// I-037: level 3, the Marsh (docs/loop/items/I-037/spec.md, golden tests
+// 6-17 and 20). Drives the state bridge only.
+async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- marsh (I-037) --');
+  const L = {
+    flickerWater: 'Marsh gas is methane (CH₄). It keeps bubbling up through the water, so a splash only knocks the flame down for a moment.',
+    flickerFrost: 'Liquid nitrogen boils into N₂ gas. Once it warms up, N₂ is about as heavy as air, so it mixes away and the methane keeps burning.',
+    fire: 'That gas is already burning. Fire cannot put out fire.',
+    filling: 'CO₂ (44 g/mol) is denser than air (29 g/mol), so it pools low, like an invisible pond.',
+    pooled: 'The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.',
+    noOxygen: 'Fire needs oxygen, and the CO₂ keeps it away.',
+  };
+  const FILLING = {
+    sprout: 'The gas sinks down low. More!',
+    seedling: 'CO₂ is heavier than air, so it sinks and fills the hollow from the bottom.',
+    apprentice: L.filling,
+    adept: 'At the same temperature and pressure, gas density goes with molar mass: CO₂ is about 1.5 times as dense as air, so it settles in low places.',
+  };
+  const load = async (url) => {
+    await page.goto(url);
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+  };
+  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
+  const all = (x, n) => x.objs.filter((o) => o.n === n).map((o) => o.i);
+  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
+  // Casts `spell` (1 Fire, 2 Water, 3 Frost, 4 CO2) at whatever the view
+  // aims at once `aimed(state)` holds; returns the state after it landed.
+  const castWhen = async (aimed, spell, what) => {
+    await resume();
+    await cmd(`select ${spell}`);
+    const a = await until((x) => x.spell === spell - 1 && aimed(x) && x.cooldown <= 0, 15000);
+    await cmd('cast');
+    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
+    if (!(z.impacts > a.impacts)) console.log(`  cast ${spell} at ${what} did not land: aim=${a.aimObj} spell=${a.spell}`);
+    return z;
+  };
+  const castAt = async (i, spell) => { await cmd(`face ${i}`); return castWhen((x) => x.aimObj === i, spell, `obj ${i}`); };
+  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
+  const statsAfter = async () => {
+    const n0 = logs.length;
+    let seen = 0, line = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 30000 && seen < 2; await sleep(200)) {
+      const fresh = logs.slice(n0).filter((l) => /STATS /.test(l));
+      seen = fresh.length;
+      line = fresh[fresh.length - 1] || null;
+    }
+    const num = (re) => { const m = line && re.exec(line); return m ? +m[1] : NaN; };
+    return { entities: num(/entities=(\d+)/), mem: num(/wasm_mem_mb=([\d.]+)/) };
+  };
+  const banner = () => page.evaluate(() => {
+    const b = document.getElementById('banner');
+    return { shown: !b.classList.contains('hidden'), big: b.querySelector('.big').textContent, small: b.querySelector('.small').textContent };
+  });
+  const pushBand = async (id) => {
+    await page.evaluate((c) => { window.__gameIn = window.__gameIn || {}; (window.__gameIn.bench = window.__gameIn.bench || []).push(c); }, `band ${id}`);
+    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(150)) {
+      const b = await page.evaluate(() => { try { return JSON.parse(window.__benchState).band; } catch { return null; } });
+      if (b === id) return true;
+    }
+    return false;
+  };
+  const near = (a, b, e = 1e-3) => typeof a === 'number' && Math.abs(a - b) <= e;
+
+  // A fresh page: level 1, no band picked.
+  await load(base);
+  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
+  const first = await statsAfter();
+
+  // 6. Level 2's forward arch is shut before the lantern.
+  await cmd('level 2');
+  s = await until((x) => x.level === 2, 10000);
+  await cmd('tp 0 -21.8');
+  await gameSecs(0.5);
+  s = await st();
+  check('marsh: level 2 forward arch is shut before the lantern (level 2, nextOpen false)',
+    s.level === 2 && s.nextOpen === false, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
+
+  // 7. Reach the Marsh by playing: solve level 2, then walk into the north arch.
+  const stream = idx(s, 'stream'), gate = idx(s, 'ice gate');
+  await cmd('tp 0 10');
+  for (let k = 0; k < 3; k++) await castAt(stream, 3);
+  await cmd('tp 0 -2');
+  for (let k = 0; k < 3; k++) await castAt(gate, 1);
+  await cmd('tp 0 -13');
+  await cmd('look 0 0');
+  await cmd('move 0 1 3');
+  s = await until((x) => x.outcome === 'won', 30000);
+  await cmd('move 0 0 0');
+  const b2 = await banner();
+  check('marsh: the level-2 win opens the forward arch and the banner points to the Marsh',
+    s.outcome === 'won' && s.nextOpen === true && b2.shown && /Marsh/.test(b2.small),
+    `outcome=${s.outcome} nextOpen=${s.nextOpen} banner=${JSON.stringify(b2)}`);
+  await frames(2);
+  await cmd('tp 0 -21.8');
+  const t7 = Date.now();
+  s = await until((x) => x.level === 3, 5000);
+  const ms7 = Date.now() - t7;
+  s = await until((x) => x.level === 3 && /^The Marsh/.test(x.caption), 3000);
+  const names = s.objs.map((o) => o.n);
+  check('marsh: walking into the open forward arch loads the Marsh within 5 s',
+    s.level === 3 && ms7 <= 5500 && ['dip', 'hollow', 'lantern'].every((n) => names.includes(n))
+      && all(s, 'dip vent').length === 3 && all(s, 'hollow vent').length === 4
+      && s.ventsLit === 7 && s.outcome === 'playing' && /^The Marsh/.test(s.caption)
+      && Array.isArray(s.pools) && s.pools.length === 2,
+    `level=${s.level} after ${ms7} ms objs=${names.join(',')} ventsLit=${s.ventsLit} pools=${JSON.stringify(s.pools)} outcome=${s.outcome} caption=${s.caption}`);
+  const dip = idx(s, 'dip'), hollow = idx(s, 'hollow');
+  const dipVent = all(s, 'dip vent')[1]; // the middle one, straight ahead
+  const hollowVents = all(s, 'hollow vent');
+  await cmd('look 0 -8');
+  await frames(3);
+  await screenshot(page, 'l3-01-arrive.png');
+
+  // 9. The flames block the boardwalk.
+  await cmd('look 0 0');
+  await cmd('move 0 1 3');
+  await gameSecs(3.4);
+  s = await st();
+  check('marsh: burning gas blocks the walk (stopped south of the dip flames, z > 10)',
+    s.pos[2] > 10 && s.pos[2] < 12.5 && s.ventsLit === 7, `pos=${s.pos} ventsLit=${s.ventsLit}`);
+
+  // 10, 11. Wrong chemistry fails kindly (no band: the Apprentice lines).
+  let z = await castAt(dipVent, 2);
+  const water = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
+  check('marsh: Water on a gas vent only knocks it down (7 lit, pool 0, Flicker(Water) line)',
+    water.lit === 7 && water.pool === 0 && water.cap === L.flickerWater, JSON.stringify(water));
+  z = await castAt(dipVent, 3);
+  const frost = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
+  z = await castAt(dipVent, 1);
+  const fire = { lit: z.ventsLit, cap: z.caption };
+  check('marsh: Frost knocks it down too and Fire changes nothing (7 lit, Frost and Fire lines)',
+    frost.lit === 7 && frost.pool === 0 && frost.cap === L.flickerFrost && fire.lit === 7 && fire.cap === L.fire,
+    `frost=${JSON.stringify(frost)} fire=${JSON.stringify(fire)}`);
+
+  // 12. CO2 fills the dip: 0.5 at a vent, then 1 at the floor.
+  z = await castAt(dipVent, 4);
+  const half = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
+  await cmd('tp 0 13');
+  await cmd('look 0 -40');
+  z = await castWhen((x) => x.aimObj === dip, 4, 'the dip floor');
+  const full = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption, icon: z.capIcon };
+  await frames(3);
+  await cmd('look 0 -18');
+  await frames(3);
+  await screenshot(page, 'l3-02-dip-pooled.png');
+  s = await gameSecs(5);
+  check('marsh: CO2 fills the dip (0.5 at a vent, Filling; 1 at the floor, Pooled; 4 lit, still 4 after 5 s)',
+    half.pool === 0.5 && half.lit === 7 && half.cap === L.filling
+      && full.pool === 1 && full.lit === 4 && full.cap === L.pooled && s.ventsLit === 4,
+    `half=${JSON.stringify(half)} full=${JSON.stringify(full)} after 5 s ventsLit=${s.ventsLit}`);
+
+  // 13. A smothered vent cannot be relit.
+  z = await castAt(dipVent, 1);
+  check('marsh: Fire on a smothered vent fizzles (no oxygen), 4 lit',
+    z.ventsLit === 4 && z.caption === L.noOxygen, `ventsLit=${z.ventsLit} caption=${z.caption}`);
+
+  // 14. The hollow needs three casts; then both cross.
+  await cmd('look 0 0');
+  await cmd('move 0 1 4');
+  await gameSecs(4.4);
+  s = await st();
+  const stopped = s.pos[2];
+  const pools1 = [], lit1 = [];
+  for (const i of [hollowVents[0], hollowVents[1], hollowVents[0]]) {
+    z = await castAt(i, 4);
+    pools1.push(z.pools[1]); lit1.push(z.ventsLit);
+  }
+  await cmd('look 0 0');
+  await cmd('move 0 1 1.2');
+  await gameSecs(1.6);
+  s = await st();
+  check('marsh: the hollow fills in three casts (0.34 / 0.68 / 1.00; 4 lit after two, 0 after three) and both cross',
+    stopped < 8 && stopped > -6.5 && near(pools1[0], 0.34) && near(pools1[1], 0.68) && near(pools1[2], 1)
+      && lit1[1] === 4 && lit1[2] === 0 && s.pos[2] < -12 && s.outcome === 'playing',
+    `stopped at z=${stopped} pools ${pools1.join(' / ')} lit ${lit1.join(' / ')} then pos=${s.pos} outcome=${s.outcome}`);
+
+  // 15. The lantern wins, and the walk stops.
+  await cmd('move 0 1 2');
+  s = await until((x) => x.outcome === 'won', 30000);
+  await gameSecs(0.5);
+  const b3 = await banner();
+  const p0 = (await st()).pos;
+  await cmd('move 0 1 2');
+  s = await gameSecs(2.2);
+  check('marsh: walking to the lantern wins ("You cleared the Marsh!") and the walk stops',
+    s.outcome === 'won' && b3.shown && b3.big === 'You cleared the Marsh!'
+      && near(s.pos[0], p0[0]) && near(s.pos[2], p0[2]),
+    `outcome=${s.outcome} banner=${JSON.stringify(b3)} pos ${p0} -> ${s.pos}`);
+  await cmd('look 180 -10');
+  await frames(3);
+  await screenshot(page, 'l3-03-won.png');
+
+  // 17. The way back: level 2, with its forward arch open.
+  await cmd('move 0 0 0');
+  await frames(2);
+  await cmd('tp 0 21.8');
+  s = await until((x) => x.level === 2, 5000);
+  check('marsh: the back arch returns to the Frozen Gate with its forward arch open',
+    s.level === 2 && s.nextOpen === true && s.pos[2] < -19, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
+
+  // 16. Captions per band, each on a fresh level 3.
+  const per = [];
+  let bandsOk = true;
+  for (const id of ['sprout', 'seedling', 'apprentice', 'adept']) {
+    const pushed = await pushBand(id);
+    await cmd('level 3');
+    let x = await until((q) => q.level === 3 && q.casts === 0 && q.pools && q.pools[0] === 0, 10000);
+    await cmd('tp 0 13');
+    await until((q) => Math.abs(q.pos[2] - 13) < 0.5, 10000);
+    x = await castAt(dipVent, 4);
+    const icon = id === 'sprout' ? 'gas' : '';
+    const ok = pushed && x.caption === FILLING[id] && x.capIcon === icon && (id === 'apprentice' || x.caption !== L.filling);
+    bandsOk = bandsOk && ok;
+    per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
+  }
+  check('marsh: each band sees its own Filling line; Sprout shows the gas picture', bandsOk, per.join(' | '));
+
+  // 19 (entities) and 20. Switching 1 -> 2 -> 3 -> 2 -> 1 ten times leaks nothing.
+  await cmd('level 1');
+  await until((q) => q.level === 1 && q.burning === 3, 10000);
+  let l3 = null, mem2 = NaN, last = null;
+  for (let k = 1; k <= 10; k++) {
+    for (const n of [2, 3, 2]) { await cmd(`level ${n}`); await until((q) => q.level === n, 10000); if (k === 1 && n === 3) { await gameSecs(0.3); l3 = await statsAfter(); } }
+    await cmd('level 1');
+    await until((q) => q.level === 1 && q.burning === 3, 10000);
+    if (k === 2) mem2 = (await statsAfter()).mem;
+    if (k === 10) last = await statsAfter();
+  }
+  check('marsh: level 3 has no more entities than level 1', l3.entities <= first.entities,
+    `level 1 ${first.entities}, level 3 ${l3.entities}`);
+  check('marsh: 10 switches 1-2-3-2-1 leave entities exact and WASM memory flat (± 2 %)',
+    last.entities === first.entities && Math.abs(last.mem - mem2) <= 0.02 * mem2,
+    `entities ${first.entities} -> ${last.entities}; wasm MB after switch 2 ${mem2}, after 10 ${last.mem}`);
+
+  // 8. ?level=3 without debug loads the Marsh, and CO2 can be selected and cast.
+  const plain = base.replace(/([?&])debug(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  await load(`${plain}${plain.includes('?') ? '&' : '?'}level=3`);
+  s = await until((x) => x.level === 3, 10000);
+  const c0 = s.casts;
+  await resume();
+  await cmd('select 4');
+  await until((x) => x.spell === 3 && x.cooldown <= 0, 10000);
+  await cmd('cast');
+  const c1 = await until((x) => x.casts > c0, 10000);
+  check('marsh: ?level=3 (no debug) opens the Marsh and CO2 can be selected and cast',
+    s.level === 3 && /^The Marsh/.test(s.caption) && c1.spell === 3 && c1.casts > c0,
+    `level=${s.level} caption=${s.caption} spell=${c1.spell} casts ${c0} -> ${c1.casts} url=${page.url()}`);
 }
