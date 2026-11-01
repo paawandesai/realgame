@@ -12,6 +12,9 @@
 //! that make a cast legible (fires left, the nearest fire's bearing, flight
 //! time).
 
+// The courtyard's planner (loop/I-051) uses the aim solver and cones too.
+#[allow(dead_code)]
+mod ballistics;
 mod bench;
 mod blockchem;
 mod bridge;
@@ -27,6 +30,7 @@ mod player;
 mod progress;
 mod spells;
 mod story;
+mod voxel_cast;
 mod voxel_tex;
 mod voxel_view;
 mod worked;
@@ -787,7 +791,12 @@ fn main() {
     // entities, and the courtyard's chemistry, reactions and visuals do not
     // run (spec section 9).
     if game_mode == Mode::Voxel {
-        app.add_plugins((voxel_view::plugin, blockchem::plugin, story::plugin));
+        app.add_plugins((
+            voxel_view::plugin,
+            blockchem::plugin,
+            story::plugin,
+            voxel_cast::plugin,
+        ));
     }
     app.run();
 }
@@ -1384,6 +1393,8 @@ fn control(
         .filter(|c| {
             c.starts_with("tap")
                 || c == "cast"
+                // I-051-voxel: `cast <hold>` (voxel_cast.rs reads the hold).
+                || c.starts_with("cast ")
                 || c == "fire"
                 || c.starts_with("work ")
                 || c.starts_with("castmode ")
@@ -1841,7 +1852,7 @@ fn aim_and_cast(
     window: Single<&Window, With<PrimaryWindow>>,
     cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
     mut wk: WorkCtx,
-    (level, vx): (Res<Level>, VoxAim),
+    (level, vx, mut charge): (Res<Level>, VoxAim, Option<ResMut<voxel_cast::Charge>>),
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     game.cooldown -= dt;
@@ -2119,6 +2130,12 @@ fn aim_and_cast(
         game.casts += 1;
         game.say(spell.cast_caption());
         let hand = eye + player.rotation() * Vec3::new(0.2, -0.15, -0.5);
+        // I-051-voxel: in the block world the spell flies its arc or cone
+        // through the blocks (voxel_cast.rs) instead of the courtyard beam.
+        if let Some(v) = charge.as_deref_mut() {
+            v.shoot(game.spell, hand, player.forward(), game.held, game.epoch);
+            continue;
+        }
         let dist = hand.distance(aim.point);
         let size = match spell {
             Spell::Fire => 0.32,
