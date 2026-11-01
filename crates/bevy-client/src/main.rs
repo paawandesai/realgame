@@ -12,6 +12,8 @@
 //! that make a cast legible (fires left, the nearest fire's bearing, flight
 //! time).
 
+// I-054: the generated block atlas; voxel_tex.rs draws the blocks with it.
+mod atlas_gen;
 // The courtyard's planner (loop/I-051) uses the aim solver and cones too.
 #[allow(dead_code)]
 mod ballistics;

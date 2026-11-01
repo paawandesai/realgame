@@ -76,8 +76,8 @@ struct Chunks {
     /// Waiting to be meshed (index order; sorted by distance when picked).
     queue: Vec<usize>,
     queued: Vec<bool>,
-    opaque: Handle<StandardMaterial>,
-    clear: Handle<StandardMaterial>,
+    opaque: Handle<crate::voxel_tex::VoxMat>,
+    clear: Handle<crate::voxel_tex::VoxMat>,
     /// The spawn ring (3 x 2 x 3 chunks around the start) is meshed.
     ring_done: bool,
 }
@@ -120,6 +120,7 @@ pub fn plugin(app: &mut App) {
         .filter(|_| crate::param("debug").is_some())
         .and_then(|s| parse_seed(&s))
         .unwrap_or(vox::DEFAULT_SEED);
+    crate::voxel_tex::register(app);
     let t = Instant::now();
     let world = vox::generate(seed);
     info!(
@@ -157,13 +158,13 @@ fn parse_seed(s: &str) -> Option<u64> {
 fn setup(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
-    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut mats: ResMut<Assets<crate::voxel_tex::VoxMat>>,
     world: Res<VoxWorld>,
     start: Res<crate::StartBiome>,
     mut player: ResMut<Player>,
     mut game: ResMut<Game>,
 ) {
-    let m = crate::voxel_tex::materials(&mut images, &mut mats);
+    let m = crate::voxel_tex::materials(&mut images, &mut mats, world.0.seed);
     let n = world.0.chunk_count();
     let mut chunks = Chunks {
         ents: vec![[None, None]; n],
@@ -247,6 +248,11 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     if body.grounded && !jump && want > 1e-4 && moved(&a) < want * 0.5 {
         let mut b = body;
         b.pos[1] += STEP;
+        // Pressed against the step, the body's speed into it is already 0
+        // (the last frame's collision), so the raised try walks at the
+        // wished speed; otherwise a stopped player could never step up.
+        b.vel[0] = target.x;
+        b.vel[2] = target.z;
         let room = !solids.iter().any(|s| s.overlaps(&body_box(&b)));
         if room {
             motion::advance(
@@ -796,21 +802,57 @@ fn mesh_chunks(
 }
 
 /// A `MeshData` as a Bevy mesh that lives on the GPU only.
+/// The atlas material reads block UVs (UV_0), the tile's origin (UV_1) and
+/// the AO light as the vertex colour (`voxel_tex`).
 fn to_mesh(d: &vox::MeshData) -> Mesh {
+    use crate::voxel_tex::{block_uv, tile_origin};
+    let n = d.positions.len();
+    let uv0: Vec<[f32; 2]> = (0..n)
+        .map(|i| block_uv(d.positions[i], d.normals[i]))
+        .collect();
+    let uv1: Vec<[f32; 2]> = (0..n)
+        .map(|i| tile_origin(d.mats[i], d.normals[i]))
+        .collect();
+    let colors: Vec<[f32; 4]> = d.light.iter().map(|&l| [l, l, l, 1.0]).collect();
     Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::RENDER_WORLD,
     )
     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, d.positions.clone())
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, d.normals.clone())
-    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, d.uvs.clone())
-    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, d.colors.clone())
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv0)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, uv1)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
     .with_inserted_indices(Indices::U32(d.indices.clone()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_player_stopped_at_a_step_walks_up_it() {
+        // The Kiln terrace's first brick step is at z 180 (top y 36); start
+        // pressed against it, at rest.
+        let world = vox::generate(vox::DEFAULT_SEED);
+        for x0 in [128.5f32, 127.5] {
+            let mut p = Player {
+                pos: Vec3::new(x0, 35.0, 181.36),
+                grounded: true,
+                ..Player::default()
+            };
+            let mut w = Walk::default();
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump: false,
+            };
+            for _ in 0..120 {
+                walk(&mut p, &mut w, &world, input, 1.0 / 60.0);
+            }
+            assert!(p.pos.y >= 36.9 && p.pos.z < 179.5, "x {x0}: {:?}", p.pos);
+        }
+    }
 
     #[test]
     fn seeds_parse_in_hex_and_decimal() {

@@ -1,67 +1,59 @@
-//! The block world's generated texture (I-052, Lane A; spec section 5.9):
-//! made at startup, no downloads, nearest-neighbour, no mipmaps
-//! (WebGL2-safe).
+//! The block world's generated texture (I-052; the art is I-054's
+//! `atlas_gen`): made at startup from the world seed, no downloads,
+//! nearest-neighbour, no mipmaps (WebGL2-safe).
 //!
-//! The style is "toon block": the colour of each block comes from the
-//! mesher's vertex colours (`realgame_voxel::mesh::TINT`, the courtyard's
-//! palette, times the AO), and this one greyscale tile adds the thin darker
-//! border and a little seeded speckle. The tile repeats once per block,
-//! because the mesher's UVs are in blocks, so greedy-merged quads still show
-//! every block's edge.
-//!
-//! Round 1 uses one shared tile for every material. Per-material detail
-//! (wood rings, ice streaks, crystal facets, the carved runestone) needs the
-//! 16 x 16 atlas of section 5.9 and a small material extension that wraps
-//! the UVs inside a tile (a merged quad cannot repeat one tile of an atlas
-//! with a plain `StandardMaterial`); that is the Wednesday polish item.
+//! Each block face shows its material's tile (`atlas_gen::tile_for`: grass
+//! and snow have side tiles, logs have rings on their ends). The mesher's
+//! UVs are in blocks, so one greedy-merged quad spans several blocks; the
+//! chunk material (`VoxMat`, a `StandardMaterial` with a small fragment
+//! shader, `voxel_atlas.wesl`) wraps each block's UV into the tile whose
+//! origin rides in UV_1. Vertex colours carry only the AO light. The glow
+//! atlas is the emissive texture, so crystal cores, runes, torches and the
+//! hearth light up under bloom.
 
-use bevy::asset::RenderAssetUsages;
+use crate::atlas_gen;
+use bevy::asset::{uuid_handle, RenderAssetUsages};
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
+use bevy::pbr::{ExtendedMaterial, MaterialExtension};
 use bevy::prelude::*;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use bevy::render::render_resource::{AsBindGroup, Extent3d, TextureDimension, TextureFormat};
+use bevy::shader::{Shader, ShaderRef};
 
-/// Pixels along each edge of the tile.
-pub const TILE: u32 = 16;
+/// The chunk material: StandardMaterial plus the tile-wrapping shader.
+pub type VoxMat = ExtendedMaterial<StandardMaterial, AtlasTiles>;
 
-/// A small integer hash in 0..1 (no `sin`).
-fn hash(x: u32, y: u32) -> f32 {
-    let mut h = x.wrapping_mul(0x27d4_eb2d) ^ y.wrapping_mul(0x1656_67b1);
-    h ^= h >> 15;
-    h = h.wrapping_mul(0x85eb_ca6b);
-    h ^= h >> 13;
-    (h & 0xffff) as f32 / 65535.0
+/// The extension: no data of its own, only the fragment shader.
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]
+pub struct AtlasTiles {}
+
+const SHADER: Handle<Shader> = uuid_handle!("5f2b7a64-1c0e-4c1f-9a3d-52a7b31e0954");
+
+impl MaterialExtension for AtlasTiles {
+    fn fragment_shader() -> ShaderRef {
+        ShaderRef::Handle(SHADER)
+    }
 }
 
-/// The tile's brightness at pixel (x, y): a 1 px darker border, a faint
-/// bevel just inside it, and speckle.
-pub fn tile_value(x: u32, y: u32) -> f32 {
-    let edge = x == 0 || y == 0 || x == TILE - 1 || y == TILE - 1;
-    if edge {
-        return 0.62;
-    }
-    let bevel = if x == 1 || y == 1 {
-        0.05
-    } else if x == TILE - 2 || y == TILE - 2 {
-        -0.05
-    } else {
-        0.0
-    };
-    0.9 + bevel + 0.08 * (hash(x, y) - 0.5) + 0.05 * (hash(x / 4, y / 4 + 17) - 0.5)
+/// Registers the chunk material and its shader (voxel mode only).
+pub fn register(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<Assets<Shader>>()
+        .insert(
+            SHADER.id(),
+            Shader::from_wesl(
+                include_str!("voxel_atlas.wesl"),
+                "realgame/voxel_atlas.wesl",
+            ),
+        )
+        .ok();
+    app.add_plugins(MaterialPlugin::<VoxMat>::default());
 }
 
-/// The tile as a repeating, nearest-sampled sRGB image.
-pub fn tile(images: &mut Assets<Image>) -> Handle<Image> {
-    let mut data = Vec::with_capacity((TILE * TILE * 4) as usize);
-    for y in 0..TILE {
-        for x in 0..TILE {
-            let v = (tile_value(x, y).clamp(0.0, 1.0) * 255.0) as u8;
-            data.extend_from_slice(&[v, v, v, 255]);
-        }
-    }
+fn image(size: u32, data: Vec<u8>) -> Image {
     let mut img = Image::new(
         Extent3d {
-            width: TILE,
-            height: TILE,
+            width: size,
+            height: size,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -70,58 +62,108 @@ pub fn tile(images: &mut Assets<Image>) -> Handle<Image> {
         RenderAssetUsages::RENDER_WORLD,
     );
     img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-        address_mode_u: ImageAddressMode::Repeat,
-        address_mode_v: ImageAddressMode::Repeat,
+        address_mode_u: ImageAddressMode::ClampToEdge,
+        address_mode_v: ImageAddressMode::ClampToEdge,
         mag_filter: ImageFilterMode::Nearest,
         min_filter: ImageFilterMode::Nearest,
         mipmap_filter: ImageFilterMode::Nearest,
         ..ImageSamplerDescriptor::default()
     });
-    images.add(img)
+    img
+}
+
+/// UV_1 for a vertex of material `mat` on a face with normal `n`: the
+/// origin of its tile in the atlas.
+pub fn tile_origin(mat: u8, n: [f32; 3]) -> [f32; 2] {
+    let face = if n[1] > 0.5 {
+        atlas_gen::Face::Top
+    } else if n[1] < -0.5 {
+        atlas_gen::Face::Bottom
+    } else {
+        atlas_gen::Face::Side
+    };
+    let r = atlas_gen::uv_rect(atlas_gen::tile_for(mat, face));
+    [r[0], r[1]]
+}
+
+/// UV_0 for a vertex at `p` on a face with normal `n`, in blocks: top and
+/// bottom faces map x and z; side faces map their horizontal axis and -y,
+/// so a side tile's top row is at the block's top (the grass lip).
+pub fn block_uv(p: [f32; 3], n: [f32; 3]) -> [f32; 2] {
+    if n[1].abs() > 0.5 {
+        [p[0], p[2]]
+    } else if n[0].abs() > 0.5 {
+        [p[2], -p[1]]
+    } else {
+        [p[0], -p[1]]
+    }
 }
 
 /// The two chunk materials: `opaque` (lit, rough) and `clear` (water, ice,
-/// glass, crystal: alpha blend, both sides).
+/// glass, crystal, steam: alpha blend, both sides).
 pub struct ChunkMats {
-    pub opaque: Handle<StandardMaterial>,
-    pub clear: Handle<StandardMaterial>,
+    pub opaque: Handle<VoxMat>,
+    pub clear: Handle<VoxMat>,
 }
 
-pub fn materials(images: &mut Assets<Image>, mats: &mut Assets<StandardMaterial>) -> ChunkMats {
-    let tex = tile(images);
-    let opaque = mats.add(StandardMaterial {
-        base_color: Color::WHITE,
-        base_color_texture: Some(tex.clone()),
-        perceptual_roughness: 0.9,
-        reflectance: 0.2,
-        ..default()
-    });
-    let clear = mats.add(StandardMaterial {
-        base_color: Color::WHITE,
-        base_color_texture: Some(tex),
-        perceptual_roughness: 0.15,
-        reflectance: 0.5,
-        alpha_mode: AlphaMode::Blend,
-        cull_mode: None,
-        double_sided: true,
-        ..default()
-    });
-    ChunkMats { opaque, clear }
+pub fn materials(images: &mut Assets<Image>, mats: &mut Assets<VoxMat>, seed: u64) -> ChunkMats {
+    let a = atlas_gen::generate_atlas(seed);
+    let base = images.add(image(a.size, a.rgba));
+    let glow = images.add(image(a.size, a.glow));
+    let mut make = |clear: bool| {
+        mats.add(ExtendedMaterial {
+            base: StandardMaterial {
+                base_color: Color::WHITE,
+                base_color_texture: Some(base.clone()),
+                emissive: LinearRgba::rgb(2.0, 2.0, 2.0),
+                emissive_texture: Some(glow.clone()),
+                perceptual_roughness: if clear { 0.15 } else { 0.9 },
+                reflectance: if clear { 0.5 } else { 0.2 },
+                alpha_mode: if clear {
+                    AlphaMode::Blend
+                } else {
+                    AlphaMode::Opaque
+                },
+                cull_mode: if clear {
+                    None
+                } else {
+                    Some(bevy::render::render_resource::Face::Back)
+                },
+                double_sided: clear,
+                ..default()
+            },
+            extension: AtlasTiles {},
+        })
+    };
+    ChunkMats {
+        opaque: make(false),
+        clear: make(true),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use realgame_voxel::mat;
 
     #[test]
-    fn the_border_is_darker_than_the_middle() {
-        let mid = tile_value(TILE / 2, TILE / 2);
-        assert!(tile_value(0, 5) < mid - 0.15);
-        assert!(tile_value(5, TILE - 1) < mid - 0.15);
-        for y in 0..TILE {
-            for x in 0..TILE {
-                assert!((0.0..=1.0).contains(&tile_value(x, y)));
-            }
-        }
+    fn faces_pick_their_tiles() {
+        let up = [0.0, 1.0, 0.0];
+        let side = [1.0, 0.0, 0.0];
+        assert_eq!(tile_origin(mat::GRASS, up), {
+            let r = atlas_gen::uv_rect(mat::GRASS);
+            [r[0], r[1]]
+        });
+        let r = atlas_gen::uv_rect(atlas_gen::GRASS_SIDE);
+        assert_eq!(tile_origin(mat::GRASS, side), [r[0], r[1]]);
+    }
+
+    #[test]
+    fn side_uvs_run_down_from_the_top() {
+        // On a side face, v grows downward: the top edge of a block is v = -top.
+        let a = block_uv([3.0, 35.0, 7.0], [0.0, 0.0, 1.0]);
+        let b = block_uv([3.0, 34.5, 7.0], [0.0, 0.0, 1.0]);
+        assert!(b[1] > a[1]);
+        assert_eq!(block_uv([2.0, 9.0, 5.0], [0.0, 1.0, 0.0]), [2.0, 5.0]);
     }
 }

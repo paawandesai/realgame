@@ -4824,6 +4824,20 @@ async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser,
     }
     return Date.now();
   };
+  // Integration (lanes A + C): the block world opens with the story intro,
+  // which takes the keys and the pointer for its first second. Checks that
+  // walk, dig or cast close it first with its "Just play" button.
+  const skipIntro = async () => {
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+      if (open) {
+        await page.click('#intro .intro-play');
+        break;
+      }
+      if (((await st()) || {}).quest > 0) return;
+    }
+    await until((x) => x.quest > 0 && !x.paused, 8000);
+  };
   // `probe x y z` writes the cell into the next state (spec section 8).
   // Each probe has a sequence number `n`, so a repeated probe of the same
   // cell is never answered by the last one.
@@ -4876,6 +4890,7 @@ async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser,
   // E3: WASD walks up the Kiln terrace steps; the feet follow the ground and
   // are never more than 0.1 m inside a solid cell.
   await load(base);
+  await skipIntro();
   await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 30000);
   await cmd('tp 128.5 35 187.5');
   await cmd('look 0 -10');
@@ -4963,6 +4978,7 @@ async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser,
   // E5: a protected cell (the ford's canyon wall) cannot be dug.
   {
     await load(base);
+    await skipIntro();
     await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 30000);
     await cmd('tp 110.5 35 161.5');
     await cmd('face 110.5 34.5 159.5');
@@ -5108,18 +5124,27 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
     await gameSecs(0.3);
     return { land: lands(n0).pop() || null, landed: z.impacts > a.impacts };
   };
+  // The story intro opens first; "Just play" closes it.
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    if (await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; })) { await page.click('#intro .intro-play'); break; }
+    if ((await st()).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 8000);
   const mode = (await st()).mode;
   check('voxelCast: the default page is the block world', mode === 'voxel', `mode=${mode}`);
 
   // V1. A tapped Water jet and a 0.8 s hold, view 40 degrees up.
-  await cmd('tp 8 12');
+  // Open, flat ground: the Village plaza in the block world (its top at
+  // the feet), or the plane y = 0 without a world.
+  await cmd(mode === 'voxel' ? 'tp 128.5 35 205.5' : 'tp 8 12');
   await cmd('look 0 40');
-  await frames(2);
+  await frames(4);
+  const ground = (await st()).pos[1];
   const tap = await castNow(2, 'cast');
   const hold = await castNow(2, 'cast 0.8');
-  check('voxelCast: Water tapped lands 6-9.5 m away and held 0.8 s lands 11-16 m away, on the ground',
+  check('voxelCast: Water tapped lands 6-9.5 m away and held 0.8 s lands 11-16 m away, on the ground at the feet',
     tap.landed && hold.landed && flat(tap) >= 6 && flat(tap) <= 9.5 && flat(hold) >= 11 && flat(hold) <= 16
-      && Math.abs(tap.land.p[1]) < 0.2 && Math.abs(hold.land.p[1]) < 0.2,
+      && Math.abs(tap.land.p[1] - ground) < 0.2 && Math.abs(hold.land.p[1] - ground) < 0.2,
     `tap ${flat(tap).toFixed(2)} m ${JSON.stringify(tap.land)}, hold ${flat(hold).toFixed(2)} m ${JSON.stringify(hold.land)}`);
 
   // V2. CO2 is a heavier, shorter lob: 5-9 m for any hold.
@@ -5136,7 +5161,7 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
   await frames(2);
   const up = await castNow(1, 'cast', 3000);
   check('voxelCast: Fire aimed down lands within 2.5 m; aimed up it lands nowhere',
-    down.landed && flat(down) <= 2.5 && Math.abs(down.land.p[1]) < 0.05 && !up.landed && !up.land,
+    down.landed && flat(down) <= 2.5 && Math.abs(down.land.p[1] - ground) < 0.05 && !up.landed && !up.land,
     `down ${down.landed} ${flat(down).toFixed(2)} m ${JSON.stringify(down.land)} up ${up.landed} ${JSON.stringify(up.land)}`);
 
   // V4. A real held press charges: it reaches farther than a quick click,
@@ -5158,9 +5183,9 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
     const l = lands(n0);
     return { land: l[l.length - 1] || null, n: l.length, castsDuring: mid.casts - a.casts, casts: (await st()).casts - a.casts };
   };
-  await cmd('tp 8 12');
+  await cmd(mode === 'voxel' ? 'tp 128.5 35 205.5' : 'tp 8 12');
   await cmd('look 0 40');
-  await frames(2);
+  await frames(4);
   const click = await press(60);
   const held = await press(1300);
   check('voxelCast: a 1.3 s press flies at least 4 m farther than a click, each press one cast, none while held',

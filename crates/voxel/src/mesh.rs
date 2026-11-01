@@ -22,6 +22,10 @@ pub struct MeshData {
     pub uvs: Vec<[f32; 2]>,
     /// AO and tint, linear RGBA.
     pub colors: Vec<[f32; 4]>,
+    /// Each vertex's material id and AO light (0-1), for a client that
+    /// textures by material (the generated atlas) instead of the tint.
+    pub mats: Vec<u8>,
+    pub light: Vec<f32>,
     pub indices: Vec<u32>,
 }
 
@@ -331,6 +335,8 @@ fn emit(
         let a = AO_LIGHT[((ao >> (2 * k)) & 3) as usize];
         lights[k] = a;
         mesh.colors.push([t[0] * a, t[1] * a, t[2] * a, t[3]]);
+        mesh.mats.push(m);
+        mesh.light.push(a);
     }
     // Wind outward: counter-clockwise seen from the face's side. Flip the
     // diagonal so the AO gradient interpolates without a crease.
