@@ -136,7 +136,10 @@ export function composeEquation(recipe, coefs) {
 
 /**
  * The balance scale: atom counts per pan (before and after the arrow), level
- * when every element matches, tilt = sign(right total - left total).
+ * when every element matches, tilt = sign(right total - left total). The beam
+ * is never drawn level unless it is level (round 2, break B1): when the totals
+ * are equal but an element differs, it tilts toward the pan with more of the
+ * first mismatched element in recipe order.
  * @param {RecipeTerm[]} recipe
  * @param {number[]} coefs
  */
@@ -154,7 +157,12 @@ export function scaleOf(recipe, coefs) {
   });
   const total = (/** @type {Record<string, number>} */ p) => Object.values(p).reduce((a, b) => a + b, 0);
   const level = order.every((el) => left[el] === right[el]);
-  return { left, right, level, tilt: Math.sign(total(right) - total(left)) };
+  let tilt = Math.sign(total(right) - total(left));
+  if (!level && tilt === 0) {
+    const el = order.find((e) => left[e] !== right[e]);
+    tilt = el === undefined ? 0 : Math.sign((right[el] || 0) - (left[el] || 0));
+  }
+  return { left, right, level, tilt };
 }
 
 /**
@@ -176,6 +184,9 @@ export function reasonFor(band, result, names, tries) {
   const bad = r.bad || '';
   const stateWord = STATE_WORD[bad] || 'a liquid';
   const counts = () => diffs.map(([el, have, want]) => `Count again: ${el} should be ${want}. You have ${have}.`).join('\n');
+  // A verdict without diffs (never from the judge since round 2) falls back
+  // to the line that names no counts, so the reason is never blank.
+  const askCounts = `Not yet. Which atoms does ${name} have, and how many?`;
   switch (r.code) {
     case 'ok':
       return b === 'sprout' ? `You made ${name}!` : `${formula} is right! You are learning ${name}.`;
@@ -183,12 +194,12 @@ export function reasonFor(band, result, names, tries) {
       return b === 'sprout' ? 'Tap the balls to build it.' : b === 'seedling' ? 'Tap the tiles to build it.' : 'Write a formula first.';
     case 'atoms_off':
       if (b === 'sprout') return 'Look again. Count the balls in the picture.';
-      if (b === 'seedling' || tries >= 3) return counts();
-      return `Not yet. Which atoms does ${name} have, and how many?`;
+      if ((b === 'seedling' || tries >= 3) && diffs.length) return counts();
+      return askCounts;
     case 'other_spell':
       return `That makes ${other}. This one is ${name}.`;
     case 'unbalanced':
-      if (b === 'seedling') return 'The scale is not level. Atoms are never made or lost, so both sides need the same atoms.';
+      if (b === 'seedling' || !diffs.length) return 'The scale is not level. Atoms are never made or lost, so both sides need the same atoms.';
       return diffs.map(([el, left, right]) => `Not balanced yet: ${el}: ${left} before, ${right} after.`).join('\n');
     case 'state_missing':
       return 'Right atoms. Now add its state: (s), (l) or (g).';
@@ -427,12 +438,30 @@ export function mountBuilder(root, opts) {
     const drawScale = () => {
       const s = scaleOf(recipe, coefs);
       const order = recipeOrder(recipe);
+      // Per element "C 1" with a mark when the two pans differ (the same
+      // text as before: the mark is drawn by CSS, never a colour alone).
+      /** @param {HTMLElement} box @param {Record<string, number>} p @param {Record<string, number>} q */
+      const counts = (box, p, q) => {
+        /** @type {Array<HTMLElement | string>} */
+        const parts = [];
+        order.forEach((el, k) => {
+          if (k > 0) parts.push(', ');
+          const span = mk(doc, 'span', 'bench-pan-el', `${el} ${p[el] || 0}`);
+          span.setAttribute('data-el', el);
+          span.setAttribute('data-ok', String((p[el] || 0) === (q[el] || 0)));
+          parts.push(span);
+        });
+        box.replaceChildren(...parts);
+      };
+      counts(L.count, s.left, s.right);
+      counts(R.count, s.right, s.left);
+      // "more atoms" only when the totals really differ (B1: equal totals
+      // with different elements tilt the beam but neither pan has more).
       /** @param {Record<string, number>} p */
-      const text = (p) => order.map((el) => `${el} ${p[el] || 0}`).join(', ');
-      L.count.textContent = text(s.left);
-      R.count.textContent = text(s.right);
-      L.more.textContent = s.tilt < 0 ? 'more atoms' : '';
-      R.more.textContent = s.tilt > 0 ? 'more atoms' : '';
+      const sum = (p) => Object.values(p).reduce((a, b) => a + b, 0);
+      const more = Math.sign(sum(s.right) - sum(s.left));
+      L.more.textContent = more < 0 ? 'more atoms' : '';
+      R.more.textContent = more > 0 ? 'more atoms' : '';
       scale.setAttribute('data-level', String(s.level));
       scale.setAttribute('data-tilt', String(s.tilt));
       beam.style.setProperty('--tilt', String(s.tilt));
@@ -589,6 +618,7 @@ export function startBench() {
   let behind = [];
   let shownN = 0;
   let awaiting = false;
+  let sentAt = 0;
   /** @type {Record<number, number>} */
   let misses = {};
   /** @type {Names} */
@@ -600,8 +630,12 @@ export function startBench() {
   }
 
   const view = () => fakeView || rust;
+  // A class link's ?band= fixes the band (spec section 2: the URL comes
+  // first, and the teacher note says a link "can fix the band"), so it beats
+  // even a choice made inside the bench, and "Change age" is hidden for it.
+  const urlBand = () => bandFrom(location.search, null, null);
   const resolveBand = () => {
-    const b = explicit ? bandOf(chosen) : bandFrom(location.search, picked, chosen);
+    const b = urlBand() || (explicit ? bandOf(chosen) : bandFrom(location.search, picked, chosen));
     ui.band = b;
     if (b && b !== sentBand) {
       push(`band ${b}`);
@@ -626,6 +660,7 @@ export function startBench() {
   const closeBtn = mk(document, 'button', 'bench-close', 'Close');
   closeBtn.setAttribute('type', 'button');
   header.append(title, change, closeBtn);
+  change.hidden = !!urlBand();
   const body = mk(document, 'div', 'bench-body');
   panel.append(header, body);
   root.append(panel);
@@ -839,7 +874,12 @@ export function startBench() {
       prompt: card.prompt,
       onMake: (text) => {
         wakeAudio();
+        // A double-clicked Make sends one try: while a try is in flight
+        // (its result not shown yet) a second Make is ignored. The guard
+        // lapses after 2 s so a lost result can never lock the button.
+        if (awaiting && performance.now() - sentAt < 2000) return;
         awaiting = true;
+        sentAt = performance.now();
         push(`try ${ui.pick} ${text}`.trimEnd());
       },
     });
@@ -848,7 +888,10 @@ export function startBench() {
 
   /** @param {Result} r */
   const showFizzle = (r) => {
-    misses[r.slot] = (misses[r.slot] || 0) + 1;
+    // Only misses of the atoms count toward the Apprentice help from the
+    // third try (the 2D rule: help after three misses of the atoms); a
+    // missing or wrong state, or a typing slip, does not (break S4).
+    if (r.code === 'atoms_off' || r.code === 'unbalanced') misses[r.slot] = (misses[r.slot] || 0) + 1;
     ui.view = 'fizzle';
     if (!feedback) return;
     const band = ui.band || 'apprentice';
@@ -967,6 +1010,10 @@ export function startBench() {
       .map((el) => [el, /** @type {HTMLElement} */ (el).inert]));
     for (const [el] of behind) el.inert = true;
     btn.inert = true;
+    // The pause card is shown by the pause above; while the bench is open
+    // it stays out of sight (it showed behind the bench's backdrop), and
+    // comes back on close if the game is still paused (hud.js is not edited).
+    document.getElementById('pause')?.classList.add('bench-under');
     ui.open = true;
     misses = {};
     awaiting = false;
@@ -987,6 +1034,7 @@ export function startBench() {
     root.hidden = true;
     for (const [el, was] of behind) el.inert = was;
     behind = [];
+    document.getElementById('pause')?.classList.remove('bench-under');
     btn.inert = false;
     fakeView = null;
     try { w.__game && w.__game.pause(wasPaused); } catch { /* no HUD */ }
