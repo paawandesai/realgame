@@ -129,6 +129,9 @@ The single register of every science claim the first-person 3D client shows the 
 | `Use element symbols, numbers, + and an arrow.` | crates/bevy-client/web/bench.js | Formula Bench game instruction (Apprentice, text the parser cannot read). Flagged by sentence shape; it states no science. |
 | `How old are you?` | crates/bevy-client/web/bench.js | Formula Bench band chooser question. Flagged by sentence shape; it states no science. |
 | `more atoms` | crates/bevy-client/web/bench.js | Seedling balance scale label under the pan with the larger atom count. The scale compares **atom counts**, not mass: no bench text may say "heavier", "weight" or "mass" about it. Not flagged by the lint; listed for the review. |
+| `New spell: copy it. Learn it at the Formula Bench (B) to earn XP.` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast panel line for a spell the player has not learned yet (I-029). |
+| `${bench.pretty(names[i] \|\| NAMES[i] \|\| '')}: Practised!` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast toast when a spell reaches Practised, e.g. "Water: Practised!" (I-029). |
+| `Copy: ${bench.pretty(card ? card.formula : '')}` | crates/bevy-client/web/worked.js | UI instruction; states no science. The answer to copy in a worked cast; the formula comes from content/spells.json (I-026 rows). Not flagged by the lint; listed for the review. |
 
 ## Sources
 

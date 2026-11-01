@@ -228,6 +228,8 @@ export function startHud() {
   // The idle clock (GS-24): restarts on progress, reset, pause and resume.
   let idleSince = performance.now();
   const showPause = (on) => {
+    // An open worked cast ends on pause (I-029); it never reopens by itself.
+    if (on && overlay) overlay.cancel();
     if (on !== input.paused) idleSince = performance.now();
     input.paused = on;
     $('pause').classList.toggle('hidden', !on);
@@ -254,6 +256,8 @@ export function startHud() {
     hudState: () => drawn,
     pickHint,
     overlay: (o) => { overlay = o; },
+    // The HUD's own sounds, for the worked-cast overlay's miss (I-029).
+    sound: (name) => sound.play(name, settings.sound, state ? state.frame : -1),
   };
 
   // Polled every frame as well as on the event (some browsers, headless
@@ -317,6 +321,8 @@ export function startHud() {
     e.stopImmediatePropagation();
     const [dx, dy] = movement(e);
     if (input.locked) {
+      // An open worked cast takes locked moves for its virtual cursor (I-029).
+      if (overlay && overlay.isOpen()) { overlay.move(dx, dy); return; }
       if (dx || dy) moveWorks = true;
       input.dx += dx;
       input.dy += dy;
@@ -366,12 +372,16 @@ export function startHud() {
   // once; holding keeps casting through `input.fire`. No isTrusted check:
   // the tests click with synthetic events.
   document.addEventListener('pointerdown', (e) => {
-    if (!input.locked || e.button !== 0) return;
+    if (!input.locked) return;
+    // An open worked cast takes locked presses: left clicks, right cancels (I-029).
+    if (overlay && overlay.isOpen()) { overlay.press(e.button); return; }
+    if (e.button !== 0) return;
     input.fire = true;
     cmd('fire');
   });
   document.addEventListener('pointerup', (e) => { if (e.button === 0) input.fire = false; });
   document.addEventListener('wheel', (e) => {
+    if (overlay && overlay.isOpen()) return;
     if (!input.locked || e.deltaY === 0) return;
     const cur = wheelSpell ?? (state ? state.spell : 0);
     wheelSpell = (cur + (e.deltaY > 0 ? 1 : 3)) % 4;
