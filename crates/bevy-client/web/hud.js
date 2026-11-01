@@ -242,6 +242,8 @@ export function startHud() {
       $('history-box').classList.toggle('hidden', history.length === 0);
     }
   };
+  // The worked-cast overlay (web/worked.js, I-029), once it registers.
+  let overlay = null;
   window.__game = {
     state: () => (window.__gameState ? JSON.parse(window.__gameState) : null),
     cmd,
@@ -251,6 +253,7 @@ export function startHud() {
     lastSound: sound.last,
     hudState: () => drawn,
     pickHint,
+    overlay: (o) => { overlay = o; },
   };
 
   // Polled every frame as well as on the event (some browsers, headless

@@ -23,6 +23,7 @@ mod motion;
 mod player;
 mod progress;
 mod spells;
+mod worked;
 mod world;
 
 use bevy::anti_alias::fxaa::Fxaa;
@@ -146,6 +147,46 @@ struct Aim {
 #[derive(Resource, Default)]
 struct Progress(progress::Book);
 
+/// Worked casts (I-029): the mode, whether `web/worked.js` registered, the
+/// per-spell routes and counters. Outside `Game`, so `reset` keeps it.
+#[derive(Resource)]
+#[allow(dead_code)] // contract stub: the rust lane reads every field
+struct Working {
+    mode: worked::CastMode,
+    /// `work ready` arrived: the overlay can draw a builder.
+    ready: bool,
+    /// The id the next worked cast opens with.
+    next_id: u32,
+    /// Accepted worked casts since boot.
+    done: u32,
+    /// Wrong submits since boot.
+    wrong: u32,
+    routes: [worked::Route; 4],
+    /// The last `__workState` published, so it is written only on change.
+    last_json: String,
+}
+
+/// What `aim_and_cast` needs for worked casts (one parameter, so the system
+/// stays under Bevy's limit).
+#[derive(bevy::ecs::system::SystemParam)]
+struct WorkCtx<'w> {
+    working: ResMut<'w, Working>,
+    prog: ResMut<'w, Progress>,
+    bench: Res<'w, bench::BenchState>,
+}
+
+/// The `BenchView` JSON the overlay builds from (I-029 section 4).
+#[allow(dead_code)] // contract stub
+fn work_view(
+    def: &realgame_sim::spellbook::SpellDef,
+    band: realgame_sim::tier::Tier,
+    stage: progress::Stage,
+    result: Option<realgame_sim::bench::ResultView>,
+) -> String {
+    let _ = (def, band, stage, result);
+    "null".to_string()
+}
+
 #[derive(Resource, Default)]
 struct Game {
     spell: usize,
@@ -200,6 +241,11 @@ struct Game {
     /// repeats only after `cues::HOLD_DELAY`.
     held: f32,
     was_down: bool,
+    /// The open worked cast, if any (I-029); a reset closes it.
+    work: worked::Desk,
+    /// Where the click that opened it aimed: the accepted cast lands there.
+    #[allow(dead_code)] // contract stub
+    work_aim: Aim,
 }
 
 impl Game {
@@ -331,6 +377,11 @@ struct Stats {
 
 fn main() {
     let settings = read_settings();
+    let mode = worked::mode_from(
+        settings.debug,
+        param("cast").as_deref(),
+        cfg!(target_arch = "wasm32"),
+    );
     let window = Window {
         title: "Alchemist's Trial: first-person prototype".into(),
         canvas: Some("#game".into()),
@@ -378,6 +429,15 @@ fn main() {
             t
         })
         .insert_resource(settings)
+        .insert_resource(Working {
+            mode,
+            ready: false,
+            next_id: 1,
+            done: 0,
+            wrong: 0,
+            routes: [worked::Route::Instant; 4],
+            last_json: String::new(),
+        })
         .init_resource::<Stats>()
         .init_resource::<Game>()
         .init_resource::<Progress>()
@@ -907,7 +967,13 @@ fn control(
     }
     web.cmds = cmds
         .into_iter()
-        .filter(|c| c.starts_with("tap") || c == "cast" || c == "fire")
+        .filter(|c| {
+            c.starts_with("tap")
+                || c == "cast"
+                || c == "fire"
+                || c.starts_with("work ")
+                || c.starts_with("castmode ")
+        })
         .collect();
     if let Some(m) = cmd_move {
         game.scripted_move = Some(m);
@@ -1051,6 +1117,7 @@ fn aim_and_cast(
     mats: Res<SpellMats>,
     window: Single<&Window, With<PrimaryWindow>>,
     cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
+    mut wk: WorkCtx,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     game.cooldown -= dt;
@@ -1146,7 +1213,9 @@ fn aim_and_cast(
     // paused they are dropped; during the cooldown they wait at most 0.3 s
     // (so a stale click never fires later), and one runs per cooldown (so
     // tap spam cannot fire an unlimited stream of spells).
-    let incoming = std::mem::take(&mut web.cmds);
+    let mut incoming = std::mem::take(&mut web.cmds);
+    // I-029: `work …` and `castmode …` lines never reach the cast queue.
+    incoming.retain(|c| !(c.starts_with("work ") || c.starts_with("castmode ")));
     // A `fire` is one locked left click (hud.js): counted when it arrives,
     // before a pause drops it.
     let fires_in = incoming.iter().filter(|c| c.as_str() == "fire").count() as u32;
@@ -1262,6 +1331,45 @@ fn aim_and_cast(
                 epoch: game.epoch,
             },
         ));
+    }
+
+    publish_work(&mut wk, &game);
+}
+
+/// Writes `window.__workState` (I-029 contract) when it changed.
+fn publish_work(wk: &mut WorkCtx, game: &Game) {
+    let band = wk
+        .bench
+        .band
+        .map_or("null".to_string(), |b| format!("\"{}\"", b.id()));
+    let routes: Vec<String> = wk
+        .working
+        .routes
+        .iter()
+        .map(|r| format!("\"{}\"", r.as_str()))
+        .collect();
+    let stages: Vec<String> = (0..4)
+        .map(|i| {
+            let st = wk.prog.0.get(i).map(|p| p.stage).unwrap_or_default();
+            format!("\"{}\"", st.as_str())
+        })
+        .collect();
+    let mode = match wk.working.mode {
+        worked::CastMode::Worked => "worked",
+        worked::CastMode::Instant => "instant",
+    };
+    let json = format!(
+        "{{\"v\":1,\"mode\":\"{mode}\",\"ready\":{},\"band\":{band},\"routes\":[{}],\"stages\":[{}],\"work\":{},\"done\":{},\"wrong\":{}}}",
+        wk.working.ready,
+        routes.join(","),
+        stages.join(","),
+        game.work.state_json(),
+        wk.working.done,
+        wk.working.wrong,
+    );
+    if json != wk.working.last_json {
+        bridge::publish_work(&json);
+        wk.working.last_json = json;
     }
 }
 
