@@ -4683,6 +4683,17 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
       await frames(2);
       const w = await openBuilder();
       await frames(2);
+      const shot = `worked-i049-${c.band}-slot${c.slot}-${c.w}x${c.h}`;
+      await screenshot(page, `${shot}-open.png`);
+      // Evidence only (SHOTS): the panel scrolled to the top, then put back
+      // where it opened so the checks below measure the open state.
+      if (shotDir) {
+        const st0 = await page.evaluate(() => { const p = document.getElementById('worked'); if (!p) return 0; const t = p.scrollTop; p.scrollTop = 0; return t; });
+        await frames(1);
+        await screenshot(page, `${shot}-top.png`);
+        await page.evaluate((t) => { const p = document.getElementById('worked'); if (p) p.scrollTop = t; }, st0);
+        await frames(1);
+      }
       const m = await page.evaluate(() => {
         const p = document.getElementById('worked');
         if (!p) return null;

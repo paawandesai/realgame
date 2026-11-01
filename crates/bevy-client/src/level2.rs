@@ -1103,14 +1103,21 @@ mod tests {
             // Older bands' line never says bridge: unchanged either way.
             for band in [SEEDLING, APPRENTICE, ADEPT, None] {
                 for bridge in [false, true] {
-                    assert_eq!(caption_at(k, Kind::Stream, band, bridge), caption(k, Kind::Stream, band));
+                    assert_eq!(
+                        caption_at(k, Kind::Stream, band, bridge),
+                        caption(k, Kind::Stream, band)
+                    );
                 }
             }
         }
         // Every other row of the table is unchanged.
         for (k, obj, _) in table() {
             for band in [None, SPROUT, SEEDLING, APPRENTICE, ADEPT] {
-                assert_eq!(caption_at(k, obj, band, true), caption(k, obj, band), "{k:?} {obj:?} {band:?}");
+                assert_eq!(
+                    caption_at(k, obj, band, true),
+                    caption(k, obj, band),
+                    "{k:?} {obj:?} {band:?}"
+                );
             }
         }
     }
@@ -1125,7 +1132,8 @@ mod tests {
             EventKind::Steam,
         ] {
             for band in [None, SPROUT, SEEDLING, APPRENTICE, ADEPT] {
-                let (line, icon) = caption_at(k, Kind::Lantern, band, false).expect("a lantern line");
+                let (line, icon) =
+                    caption_at(k, Kind::Lantern, band, false).expect("a lantern line");
                 assert_eq!((line, icon), (LANTERN_LINE, ""), "{k:?} at {band:?}");
                 assert!(!line.contains("burn") && !line.contains("dry"), "{line}");
             }
@@ -1184,7 +1192,11 @@ mod tests {
             })
         };
         // Arrival points, the landings (every x on them), the gate opening, the lantern.
-        for p in [START, ARRIVE_NORTH, Vec3::new(LANTERN.0, 0.0, LANTERN.1 + LANTERN_REACH)] {
+        for p in [
+            START,
+            ARRIVE_NORTH,
+            Vec3::new(LANTERN.0, 0.0, LANTERN.1 + LANTERN_REACH),
+        ] {
             assert!(clear(p), "{p:?}");
         }
         for k in 0..=8 {

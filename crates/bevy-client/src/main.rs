@@ -1119,8 +1119,8 @@ fn control(
     // the Frozen Gate's lantern (I-035 break 1, should-fix 3: the camera
     // ended inside the lantern), except on the walk back from the Marsh,
     // where level 2 loads already won.
-    let won3 = (level.n == 3 || (level.n == 2 && !game.revisit))
-        && chem.world.outcome() == Outcome::Won;
+    let won3 =
+        (level.n == 3 || (level.n == 2 && !game.revisit)) && chem.world.outcome() == Outcome::Won;
     if !won3 {
         *win_stop = None;
     } else if win_stop.is_none() {
