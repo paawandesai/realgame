@@ -106,7 +106,12 @@ Scope: the Sunday-night and Monday column of spec section 12 for Lane A.
   The pack was a scratch implementation of `Pack::add`/`take`/`count` plus a line in `story::on_event` that fills
   `Keys.pack`, applied only for that run and never committed. On this branch alone, Pack is still the contract stub,
   so E4 fails ("Pack full") until Lane C's C1 lands.
-- Full golden on this branch's build: see the final report (the run was going when these notes were written).
+- **Golden on this branch's own build** (`QUERY=?low`, no scratch pack). The full run hit the 30-minute background
+  limit inside `reviewFollowups`, after 117 PASS and 0 FAIL. Every section from `reviewFollowups` back to the first
+  had passed by then, so the main.rs Mode branches leave the classic checks intact. The rest of the sections then ran
+  with `ONLY=spellProgress,formulaBench,workedCasts,voxelEngine,blockMatter,valleyStory` and gave 125/126. The one
+  failure is E4, with "pack dirt +0": the stub `Pack::add` refuses, so the dig resets as "Pack full". There were no
+  console errors.
 
 ## Not done (Tuesday and later, or blocked)
 
