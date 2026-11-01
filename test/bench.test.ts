@@ -371,3 +371,64 @@ test("11b: mountBuilder renders without a recipe (Seedling) and at Apprentice", 
   input.dispatch("keydown", { key: "Enter" });
   assert.deepEqual(made, ["N2(l)"]);
 });
+
+// ---------------------------------------------------------------------------
+// Round 2 (break-1 B1 and S1).
+
+test("round 2 (B1): the scale's beam is never drawn level unless every element matches", () => {
+  // 1221 is two taps from the start: equal totals (9 and 9), different elements.
+  const s = scaleOf(FIRE, [1, 2, 2, 1]);
+  assert.deepEqual(s.left, { C: 1, H: 4, O: 4 });
+  assert.deepEqual(s.right, { C: 2, H: 2, O: 5 });
+  assert.equal(s.level, false);
+  assert.notEqual(s.tilt, 0);
+  // Every coefficient set 1-4: level <=> tilt 0; unequal totals keep sign(right - left).
+  let flat = 0;
+  for (let a = 1; a <= 4; a++) for (let b = 1; b <= 4; b++) for (let c = 1; c <= 4; c++) for (let d = 1; d <= 4; d++) {
+    const q = scaleOf(FIRE, [a, b, c, d]);
+    const sum = (p: Record<string, number>) => Object.values(p).reduce((x, y) => x + y, 0);
+    const diff = sum(q.right) - sum(q.left);
+    assert.equal(q.tilt === 0, q.level, `${a}${b}${c}${d}`);
+    if (diff !== 0) assert.equal(q.tilt, Math.sign(diff), `${a}${b}${c}${d}`);
+    else if (!q.level) flat++;
+  }
+  assert.equal(flat, 9); // 1221, 2113, 2122, 2131, 2433, 2442, 3334, 3343, 4244
+});
+
+test("round 2 (B1): at 1-2-2-1 the drawn beam tilts, no pan says 'more atoms', and the mismatched elements are marked", () => {
+  const doc = new Doc();
+  const div = doc.createElement("div");
+  mountBuilder(div as unknown as HTMLElement, { band: "seedling", spell: FIRE_CARD, recipe: FIRE, prompt: "p", onMake: () => {} });
+  const coefs = div.querySelectorAll(".bench-coef");
+  coefs[1]?.click();
+  coefs[2]?.click();
+  const scale = div.querySelector(".bench-scale") as El;
+  assert.equal(scale.getAttribute("data-level"), "false");
+  assert.notEqual(scale.getAttribute("data-tilt"), "0");
+  const beam = div.querySelector(".bench-beam") as El;
+  assert.notEqual(beam.style.props.get("--tilt"), "0");
+  assert.deepEqual(div.querySelectorAll(".bench-pan-count").map((p) => p.textContent), ["C 1, H 4, O 4", "C 2, H 2, O 5"]);
+  assert.deepEqual(div.querySelectorAll(".bench-pan-more").map((p) => p.textContent), ["", ""]);
+  const marks = div.querySelectorAll(".bench-pan-el").map((e) => `${e.getAttribute("data-el")}:${e.getAttribute("data-ok")}`);
+  assert.deepEqual(marks, ["C:false", "H:false", "O:false", "C:false", "H:false", "O:false"]);
+  // Balanced: every element is marked ok and the beam is level.
+  coefs[2]?.click(); // 1 2 3 1
+  coefs[2]?.click(); // 1 2 4 1
+  coefs[2]?.click(); // 1 2 1 1
+  coefs[3]?.click(); // 1 2 1 2
+  assert.equal(scale.getAttribute("data-level"), "true");
+  assert.equal(scale.getAttribute("data-tilt"), "0");
+  assert.ok(div.querySelectorAll(".bench-pan-el").every((e) => e.getAttribute("data-ok") === "true"));
+});
+
+test("round 2 (S1): reasonFor never returns an empty line when diffs are missing", () => {
+  const r = { slot: 3, code: "atoms_off", diffs: [] as Array<[string, number, number]> };
+  for (const band of ["seedling", "apprentice", "adept"]) {
+    for (const tries of [1, 3, 5]) {
+      const line = reasonFor(band, r, NAMES, tries);
+      assert.equal(line, "Not yet. Which atoms does Frost have, and how many?", `${band} ${tries}`);
+    }
+  }
+  const u = { slot: 1, code: "unbalanced", diffs: [] as Array<[string, number, number]> };
+  for (const band of ["seedling", "apprentice"]) assert.ok(reasonFor(band, u, NAMES, 1).trim().length > 0, band);
+});

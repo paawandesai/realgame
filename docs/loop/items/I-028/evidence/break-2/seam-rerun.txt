@@ -1,0 +1,65 @@
+PASS A sprout: every composed build is ok (water,frost,co2) [{"id":"water","text":"H2O","code":"ok"},{"id":"frost","text":"N2","code":"ok"},{"id":"co2","text":"CO2","code":"ok"}]
+PASS A seedling: every composed build is ok (fire,water,frost,co2) [{"id":"fire","text":"CH4 + 2O2 -> CO2 + 2H2O","code":"ok"},{"id":"water","text":"H2O","code":"ok"},{"id":"frost","text":"N2","code":"ok"},{"id":"co2","text":"CO2","code":"ok"}]
+PASS A apprentice: every composed build is ok (fire,water,frost,co2) [{"id":"fire","text":"CH4 + 2O2 -> CO2 + 2H2O","code":"ok"},{"id":"water","text":"H2O(l)","code":"ok"},{"id":"frost","text":"N2(l)","code":"ok"},{"id":"co2","text":"CO2(g)","code":"ok"}]
+PASS A adept: every composed build is ok (fire,water,frost,co2) [{"id":"fire","text":"CH4 + 2O2 -> CO2 + 2H2O","code":"ok"},{"id":"water","text":"H2O(l)","code":"ok"},{"id":"frost","text":"N2(l)","code":"ok"},{"id":"co2","text":"CO2(g)","code":"ok"}]
+PASS B scaleOf agrees with judge for all 256 Fire coefficient sets n=256 ok=2 bad=[]
+PASS E closed and still: at most 1 __benchState write in 60 frames writes=0
+PASS C no key reaches winit (canvas) or hud.js (document) while open {"locked":true,"spy":{"doc":0,"canvas":0,"writes":3},"val":"Br2 R 3 P 1 4","spell":[1,1],"cap":[1,1],"gt":[19.973,19.973]}
+PASS C typing b/B in the box does not toggle the bench value="Br2 R 3 P 1 4"
+PASS E open on a build view, 3 tries in 60 frames: at most 3 writes writes=3
+PASS D five more correct builds never re-learn (xp stays 10) {"p":{"id":"frost","st":"learning","xp":10,"builds":0,"days":0,"predicted":false},"rs":["ok/false","ok/false","ok/false","ok/false","ok/false"]}
+PASS C closing restores pause state and inert {"paused":false,"lock":true}
+PASS C no page/console errors 
+PASS F B and #benchbtn do nothing while the age picker shows {"shown":true,"openUnder":false,"btnClick":false}
+PASS F picker pick reaches Rust closed and the bench opens on Seedling list {"b0":"seedling","ui":{"open":true,"band":"seedling","view":"list","pick":0,"chooser":0,"cards":4}}
+PASS F after picker + bench, a click still locks the pointer 
+PASS H kid playthrough: button, chooser, Fire unbalanced then level, done, back {"lvl0":"false","r1":"unbalanced","reason":"The scale is not level. Atoms are never made or lost, so both sides need the same atoms.","lvl1":"true","pans":["C 1, H 4, O 4","C 1, H 4, O 4"],"done":"CH₄ + 2O₂ → CO₂ + 2H₂O is right! You are learning Fire.","p":{"id":"fire","st":"learning","xp":10,"builds":0,"days":0,"predicted":false},"paused":false}
+PASS H cast Fire after building it casts 0 -> 1
+PASS G hint: off before any cast, never on once a spell is learning {"h0":false,"h1":false}
+PASS G/H no page/console errors 
+PASS G hint: on after the first cast with nothing learned 
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('.bench-change')[22m
+[2m    - locator resolved to <button hidden="" type="button" class="bench-change">Change age</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not visible[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not visible[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    20 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is not visible[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+    at /tmp/claude-0/brk12-I-028b/docs/loop/items/I-028/evidence/break-2/brk-seam.mjs:258:14 {
+  log: [
+    "  - waiting for locator('.bench-change')",
+    '    - locator resolved to <button hidden="" type="button" class="bench-change">Change age</button>',
+    '  - attempting click action',
+    '    2 × waiting for element to be visible, enabled and stable',
+    '      - element is not visible',
+    '    - retrying click action',
+    '    - waiting 20ms',
+    '    2 × waiting for element to be visible, enabled and stable',
+    '      - element is not visible',
+    '    - retrying click action',
+    '      - waiting 100ms',
+    '    20 × waiting for element to be visible, enabled and stable',
+    '       - element is not visible',
+    '     - retrying click action',
+    '       - waiting 500ms'
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.22.0
+exit 1

@@ -8,7 +8,7 @@
 //! player-typed text in one tested place.
 //!
 
-use crate::formula::{parse_equation, side_atoms, Equation, ParseError, Term};
+use crate::formula::{normalize, parse_equation, side_atoms, Equation, ParseError, Term};
 use crate::spellbook::SpellDef;
 use crate::tier::Tier;
 use serde::Serialize;
@@ -93,10 +93,44 @@ pub fn judge(spells: &[SpellDef], slot: u8, band: Tier, text: &str) -> Verdict {
         }
         Err(_) => return fizzle(Code::Parse),
     };
+    // A 0 coefficient (`0N2(l)`: no molecules at all) or a 0 subscript
+    // (`N2O0(l)`: none of that atom) is never a formula. The parser reads a
+    // 0 coefficient as 1 and keeps a 0 count in the atom map, so both are
+    // caught here, before any comparison (round 2, break S1 and S2).
+    if has_zero_number(text, &typed) {
+        return Verdict {
+            bad: "0".into(),
+            ..fizzle(Code::Parse)
+        };
+    }
     match def.formula.single() {
         Some(target) => judge_single(spells, def, target, band, &typed),
         None => judge_reaction(spells, def, &typed),
     }
+}
+
+/// True when a term's coefficient is worth zero (`0`, `00`, `0/1`, `0.0`)
+/// or any subscript in a parsed formula is zero (`O0`, `(OH)0`).
+fn has_zero_number(text: &str, typed: &Equation) -> bool {
+    let norm = normalize(text);
+    let zero_coef = norm
+        .split("->")
+        .flat_map(|side| side.split('+'))
+        .any(|term| {
+            let t: String = term.chars().filter(|c| !c.is_whitespace()).collect();
+            let lead: String = t
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '/')
+                .collect();
+            let top = lead.split('/').next().unwrap_or("");
+            top.chars().any(|c| c.is_ascii_digit()) && top.chars().all(|c| c == '0' || c == '.')
+        });
+    let zero_sub = typed.reactants.iter().chain(&typed.products).any(|t| {
+        t.formula
+            .split(|c: char| !c.is_ascii_digit())
+            .any(|run| !run.is_empty() && run.bytes().all(|b| b == b'0'))
+    });
+    zero_coef || zero_sub
 }
 
 fn fizzle(code: Code) -> Verdict {
@@ -432,6 +466,15 @@ mod tests {
     fn agrees(spells: &[SpellDef], slot: u8, band: Tier, text: &str, got: &Verdict) {
         if !got.ok {
             assert_ne!(got.code, Code::Ok, "{text:?}: ok false but code Ok");
+            // Round 2 (break S1): a verdict that says atoms are off or the
+            // sides differ always names at least one element.
+            if matches!(got.code, Code::AtomsOff | Code::Unbalanced) {
+                assert!(
+                    !got.diffs.is_empty(),
+                    "{text:?}: {:?} with no diffs",
+                    got.code
+                );
+            }
             return;
         }
         assert_eq!(got.code, Code::Ok, "{text:?}");
@@ -692,6 +735,41 @@ mod tests {
             (WATER, "H2O(s)"),                // ice: this spell is liquid water
             (CO2, "CO2(s)"),                  // dry ice: this spell is the gas
         ];
+        // Round 2 (break S2): a coefficient of zero means no molecules at
+        // all, so it is never the spell's formula. A zero subscript means
+        // none of that atom (break S1): not a formula either.
+        let zeros: [(u8, Tier, &str); 12] = [
+            (FROST, Tier::Apprentice, "0N2(l)"), // zero molecules of nitrogen
+            (FROST, Tier::Apprentice, "00N2(l)"), // still zero
+            (FROST, Tier::Apprentice, "0/1N2(l)"), // a fraction worth zero
+            (FROST, Tier::Apprentice, "0.0N2(l)"), // a decimal worth zero
+            (WATER, Tier::Sprout, "0H2O"),       // zero water molecules
+            (WATER, Tier::Seedling, "0H2O"),     // the same at Seedling
+            (FIRE, Tier::Apprentice, "0CH4 + 2O2 -> CO2 + 2H2O"), // no methane burns
+            (FIRE, Tier::Seedling, "CH4 + 2O2 -> 0CO2 + 2H2O"), // makes no CO2: O and C unbalanced
+            (FIRE, Tier::Apprentice, "0CH4 + 0O2 -> 0CO2 + 0H2O"), // nothing at all
+            (FROST, Tier::Apprentice, "N2O0(l)"), // a zero subscript names no oxygen
+            (CO2, Tier::Apprentice, "CO2H0(g)"), // a zero subscript names no hydrogen
+            (WATER, Tier::Apprentice, "H2O1H0(l)"), // a zero subscript hidden after a 1
+        ];
+        for (slot, band, text) in zeros {
+            let got = check(&s, slot, band, text);
+            assert!(!got.ok, "{text:?} is not Ok");
+            assert_eq!(
+                got,
+                Verdict {
+                    bad: "0".into(),
+                    ..v(Code::Parse)
+                },
+                "{text:?}"
+            );
+        }
+        // A 1 written out, and a 0 inside a bigger number, are fine.
+        for (slot, text) in [(FROST, "1N2(l)"), (WATER, "H2O1(l)"), (CO2, "C1O2(g)")] {
+            assert!(check(&s, slot, Tier::Apprentice, text).ok, "{text:?} is Ok");
+        }
+        let ten = check(&s, WATER, Tier::Apprentice, "10H2O(l)");
+        assert!(ten.ok && ten.coef == 10, "{ten:?}");
         for (slot, text) in oks {
             assert!(check(&s, slot, Tier::Apprentice, text).ok, "{text:?} is Ok");
         }
@@ -719,7 +797,7 @@ mod tests {
     #[test]
     fn never_panics_never_a_false_ok() {
         let s = spells();
-        let alphabet: Vec<char> = "HONCXx()lgs2 4+->→₂\"\\".chars().collect();
+        let alphabet: Vec<char> = "HONCXx()lgs2 4+->→₂\"\\01".chars().collect();
         let mut oks = 0u32;
         for seed in 0..20u64 {
             let mut rng = Lcg(seed);

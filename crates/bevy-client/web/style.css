@@ -183,6 +183,9 @@ canvas.hover-fire { cursor: pointer; }
 #bench button:focus-visible, #bench input:focus-visible { outline: 5px solid var(--on); outline-offset: 3px; }
 #bench .bench-close { min-width: 96px; min-height: 64px; font-weight: 700; }
 #bench .bench-change { min-height: 48px; }
+#bench .bench-change[hidden] { display: none; }
+/* The pause card stays out of sight while the bench is open (round 2). */
+#pause.bench-under { display: none; }
 #bench h2 { margin: 4px 0 12px; font-size: calc(24px * var(--ui)); }
 #bench p { margin: 8px 0; font-size: calc(18px * var(--ui)); line-height: 1.35; }
 /* Chooser: the age picker's three pictures. */
@@ -248,6 +251,13 @@ canvas.hover-fire { cursor: pointer; }
 #bench .bench-pan { flex: 1; background: #16224a; border-radius: 12px; padding: 6px 10px; text-align: center; }
 #bench .bench-pan-label, #bench .bench-pan-more, #bench .bench-level { font-size: calc(18px * var(--ui)); }
 #bench .bench-pan-count { font-size: calc(22px * var(--ui)); font-weight: 800; }
+/* An element whose count differs between the pans: a dashed underline and a
+   small cross (a shape, not colour alone), so a beam tilted by one element is
+   explained on the pans too (round 2, break B1). */
+#bench .bench-pan-el { display: inline-block; white-space: nowrap; }
+#bench .bench-pan-el[data-ok="false"] { text-decoration: underline dashed #ff9c8a 3px; text-underline-offset: 6px; }
+#bench .bench-pan-el[data-ok="false"]::after { content: ""; display: inline-block; width: 12px; height: 12px; margin-left: 4px; background: #ff9c8a;
+  clip-path: polygon(20% 0, 50% 30%, 80% 0, 100% 20%, 70% 50%, 100% 80%, 80% 100%, 50% 70%, 20% 100%, 0 80%, 30% 50%, 0 20%); }
 #bench .bench-level { text-align: center; font-weight: 700; min-height: 1.3em; }
 #bench .bench-scale[data-level="true"] .bench-level::before { content: ""; display: inline-block; width: 18px; height: 18px; margin-right: 6px; background: #6ee07a;
   clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 86% 8%, 40% 70%); }

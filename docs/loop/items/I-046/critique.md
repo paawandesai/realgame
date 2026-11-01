@@ -44,3 +44,28 @@ Mostly clean, with three things to tighten.
 7. Minor: G2's cross-section range should include r = 0.15f to 0.20f, or the claim "fix 0.17 f" should be dropped. Correct the 10° rationale for U1's upper bound.
 
 Approve after 1 to 6. Item 7 is optional.
+
+## Round 3
+
+**Verdict: REVISE, applied by the critic (two minimal edits, marked "(critic)" in the spec). With them in place the amendments are approved; no further planner round is needed.**
+
+Read: target.md, bars.md, spec.md "## Round 3 amendments" (against the G1 P0, G5 and G6 text it replaces).
+
+### A1. G1 P0, freeze on the last frame before impact
+- **Can it fail on e70df08?** Yes. Before impact there is no flash or mist and the fire is still burning, so only the stream (and the ball) sits between the camera and the fire. The old rule froze on the impact frame, so it measured whether the fire was out (0.00 on both builds). The new freeze measures the right thing. Whether base actually goes below 0.80 is uncertain. At 18 m the full-width rod is only about 13 px across (f = 840, 0.286 m) in a 72 px square, so base may land at 0.8-0.9, not the 0.65-0.75 the amendment predicts. That is a prediction risk, not a soundness problem.
+- **Loosened?** No. The square, the 0.80 threshold, the before rule, the 150-warm validity and the aspects are unchanged, and the validity rule (fire still burning, `aimObj` is the centred fire, next frame is the impact) stops a frozen frame where the fire is already out from counting.
+- **Gap found (fixed, critic edit 1).** "Next observed frame has impacts + 1" does not prove the two frames are adjacent. If the rAF watcher misses a game step, the after shot is an earlier frame where the head is farther from the fire and hides less of it. That makes the check easier on both builds. Added a validity condition: the after frame and the impact frame differ by at most one game step in `gameTime`.
+- **Process fix (critic edit 2).** If P0 passes on base, the old text stopped the lane only so the planner could turn P0 into a guard. Now the lane records the numbers, P0 becomes a guard that must still pass on the branch, and the lane continues. This does not loosen the pass line, the square or the freeze rule, and it saves a round on the likely outcome above. Failing-first for this item stays carried by G1 P2, G2 and G6 (a)/(b).
+
+### A2. G6 (a), measured along the stream's own line
+- **Can it fail on e70df08 for the wrong-origin defect?** Yes. The base stream runs from the unturned hand to the bottom edge, so in-band pixels go well past `Hs'` (t_max − L = +339 px against ±25.2). A stream drawn from a partly turned hand also fails: about 1.2° of tilt error is enough to leave the ±25 px window at f = 1199. A stream that stops short of the hand fails the lower bound, so (a) keeps the one job (b) and (c) cannot do.
+- **Loosened?** Only across the line, and only within the band's existing ±0.03·VH. The old Euclidean rule let the band's half-width leak into where the stream ends, so a correct 78 px wide end-cap failed it. The along-axis tolerance stays at 0.035·VH. Being off sideways is still bounded by the band, and the attachment check (c) still applies. I accept it as a correct re-derivation, not a weakening. (b) and (c) are untouched. It relies on the band extending past `Hs'` toward the screen edge, which (b) already requires and which the measured base +339 px confirms.
+
+### A3. G5, a press with no move and the aim checked at the cast frame
+- **Deterministic?** Yes, as far as the test can control. `down`/`up` removes the `mouseMoved` that caused the saturated ±200 px deltas. The view must hold still for 5 frames before and after the aim, plus `cooldown === 0`. The aim and view must be within 0.5° at the cast frame, and there are 3 attempts. If all 3 are invalid, both checks FAIL; nothing is ever skipped or passed. If the view still moves, step 8 stops the lane and does not widen 0.5°. That is sound.
+- **Loosened?** No. The count half is unchanged (exactly once over 20 + 20 frames), is judged on every attempt and is never retried. The extinguish half keeps the same target `lit[1]` and the same game-time line of 2.0 s, and the caps still end the wait as a failure. The new mutation (Fire at `lit[1]`) proves the extinguish half can fail with the aim valid. The old aim-away mutation must still FAIL, never pass.
+- **Coverage note.** The real-click view jump is a genuine (small) `hud.js` bug that test 9 no longer exercises. It is outside I-046's lanes, and the backlog note includes a golden check for it, so it is tracked rather than hidden. The planner should file that chore this wave.
+
+### Changes made (critic)
+1. A1 validity: added the condition that the after frame and the impact frame are at most one game step apart in `gameTime`.
+2. A1 failing-first: if P0 passes on base, it becomes a guard that must still pass on the branch, and the lane continues instead of stopping. The threshold, square and freeze rule are unchanged.

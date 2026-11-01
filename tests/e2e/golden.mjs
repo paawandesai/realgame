@@ -3619,6 +3619,123 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await page.keyboard.press('Escape');
     await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
   });
+
+  // ---- Round 2 (break-1 and the Mac preview) ----
+  // B1. The Seedling beam is never drawn level when the build is not
+  // balanced: 1-2-2-1 has 9 atoms on each pan but different elements.
+  await run('bench: round 2: an unbalanced equal-total Fire build tilts the beam', async () => {
+    await load(['band=seedling']);
+    await page.keyboard.press('KeyB');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    await clickAt('#bench .bench-spell[data-slot="1"]');
+    await withinFrames(() => page.evaluate(() => !!document.querySelector('#bench .bench-scale')), (o) => o, 10);
+    await clickAt('#bench .bench-coef[data-term="1"]');
+    await clickAt('#bench .bench-coef[data-term="2"]');
+    await frames(2);
+    await sleep(300); // past the 200 ms tilt transition
+    const v = await page.evaluate(() => {
+      const sc = document.querySelector('#bench .bench-scale');
+      return {
+        coefs: [...document.querySelectorAll('#bench .bench-coef')].map((c) => c.textContent).join(''),
+        pans: [...document.querySelectorAll('#bench .bench-pan-count')].map((e) => e.textContent),
+        level: sc.getAttribute('data-level'),
+        tilt: sc.getAttribute('data-tilt'),
+        transform: getComputedStyle(sc.querySelector('.bench-beam')).transform,
+        more: [...document.querySelectorAll('#bench .bench-pan-more')].map((e) => e.textContent),
+        marked: document.querySelectorAll('#bench .bench-pan-el[data-ok="false"]').length,
+      };
+    });
+    check('bench: round 2: at 1-2-2-1 the beam is not level and is drawn tilted, no pan says more atoms, the mismatches are marked',
+      v.coefs === '1221' && v.pans.join('|') === 'C 1, H 4, O 4|C 2, H 2, O 5' && v.level === 'false' && v.tilt !== '0'
+        && v.transform !== 'none' && v.transform !== 'matrix(1, 0, 0, 1, 0, 0)' && v.more.every((m) => m === '') && v.marked === 6,
+      JSON.stringify(v));
+    // Mac minor: one click on a Seedling tile adds exactly one.
+    await clickAt('#bench .bench-back');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-tile').length), (n) => n === 4, 10);
+    await clickAt('#bench .bench-tile[data-el="H"]');
+    const one = await page.evaluate(() => document.querySelector('#bench .bench-tile[data-el="H"] .bench-tile-count').textContent);
+    check('bench: round 2: one click on a Seedling tile adds exactly one', one === '1', `count=${one}`);
+    await page.keyboard.press('Escape');
+  });
+
+  // Mac preview: the pause card never shows behind the open bench, and it
+  // comes back on close when the game was paused before.
+  await run('bench: round 2: the pause card is hidden while the bench is open', async () => {
+    await load();
+    const shown = () => page.evaluate(() => {
+      const p = document.getElementById('pause');
+      const r = p.getBoundingClientRect();
+      return getComputedStyle(p).display !== 'none' && getComputedStyle(p).visibility !== 'hidden' && r.width > 0 && r.height > 0;
+    });
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    const a = await shown();
+    const pausedA = (await st()).paused;
+    await page.keyboard.press('Escape');
+    await withinFrames(isOpen, (o) => !o, 10);
+    await page.evaluate(() => window.__game.pause(true));
+    const before = await shown();
+    await page.keyboard.press('KeyB');
+    await withinFrames(isOpen, (o) => o, 10);
+    const b = await shown();
+    await page.keyboard.press('Escape');
+    await withinFrames(isOpen, (o) => !o, 10);
+    await frames(2);
+    const after = await shown();
+    check('bench: round 2: #pause is not visible while the bench is open, and is back after closing a paused game',
+      pausedA && !a && before && !b && after, `opened from play: paused=${pausedA} pause shown=${a}; from the pause card: before=${before} open=${b} after=${after}`);
+    await page.evaluate(() => window.__game.pause(false));
+  });
+
+  // S5. A class link's ?band= fixes the band: no Change age, and the band holds.
+  await run('bench: round 2: ?band= fixes the band', async () => {
+    await load(['band=sprout']);
+    await page.keyboard.press('KeyB');
+    await withinFrames(cardNames, (n) => n.length === 3, 10);
+    const v = await page.evaluate(() => {
+      const c = document.querySelector('#bench .bench-change');
+      return { change: !!c && c.getClientRects().length > 0, ui: window.__bench.ui() };
+    });
+    await page.keyboard.press('Escape');
+    const x = await bs();
+    check('bench: round 2: with ?band=sprout there is no Change age and the band stays sprout', !v.change && v.ui.band === 'sprout' && x && x.band === 'sprout', `${JSON.stringify(v)} ${brief(x)}`);
+  });
+
+  // S4 and S2. A double-clicked Make sends one try; only atom misses count
+  // toward the third-try help; a 0 coefficient is not the formula.
+  await run('bench: round 2: one try per Make, atom misses only, no zero coefficient', async () => {
+    await load(['band=apprentice']);
+    await page.keyboard.press('KeyB');
+    await withinFrames(cardNames, (n) => n.length === 4, 10);
+    await clickAt('#bench .bench-spell[data-slot="2"]');
+    await withinFrames(() => page.evaluate(() => document.activeElement && document.activeElement.id), (id) => id === 'bench-input', 10);
+    const typeAndMake = async (t, dbl = false) => {
+      await page.fill('#bench-input', t);
+      const n0 = await lastN();
+      const c = await center('#bench .bench-make');
+      if (dbl) await page.mouse.dblclick(c.x, c.y); else await page.mouse.click(c.x, c.y);
+      const x = await resultAfter(n0);
+      await frames(5);
+      return { n0, x, reason: await text('#bench .bench-reason') };
+    };
+    const d = await typeAndMake('HO(l)', true);
+    await frames(10);
+    const nAfter = await lastN();
+    check('bench: round 2: a double-clicked Make is judged once', d.x && d.x.result && nAfter === d.n0 + 1, `n ${d.n0} -> ${nAfter}`);
+    // Two state slips, then the 2nd atom miss: still no counts (only atom misses count).
+    await typeAndMake('H2O');
+    await typeAndMake('H2O(g)');
+    const m2 = await typeAndMake('HO(l)');
+    const m3 = await typeAndMake('HO(l)');
+    check('bench: round 2: state slips do not count toward the third-try help',
+      m2.x && m2.x.result.code === 'atoms_off' && !/\d/.test(m2.reason || '') && /H/.test(m3.reason || '') && /2/.test(m3.reason || ''),
+      `2nd miss: ${m2.reason} | 3rd miss: ${m3.reason}`);
+    const z = await typeAndMake('0H2O(l)');
+    check('bench: round 2: 0H2O(l) is not judged right', z.x && z.x.result && z.x.result.ok === false && z.x.result.code === 'parse' && (await prog(1))?.st === 'unknown', `${brief(z.x && z.x.result)} reason=${z.reason}`);
+    await page.keyboard.press('Escape');
+  });
 }
 
 // ---------------------------------------------------------------------------

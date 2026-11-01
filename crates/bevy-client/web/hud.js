@@ -696,7 +696,9 @@ export function startHud() {
       const playing = state.outcome === 'playing';
       if (state.locked) note = '';
       updateIdle(now);
-      setHint(pickHint({ playing, idle: idleOn, note, locked: state.locked, extinguished: state.extinguished, casts: state.casts }));
+      // Level 2 has no fires, so the fire aiming hint never applies there.
+      const extinguished = state.level === 2 ? 1 : state.extinguished;
+      setHint(pickHint({ playing, idle: idleOn, note, locked: state.locked, extinguished, casts: state.casts }));
       // The arrow to the nearest fire, while it is off screen and no fire is
       // in view or aimed at (I-025).
       // I-035: after the courtyard is saved, the same arrow points at the open
