@@ -12,7 +12,9 @@
       "cast_caption": "Fire spell: a gas flame. Methane burns: CH₄ + 2O₂ → CO₂ + 2H₂O, and lots of heat.",
       "formula": "CH4 + 2O2 -> CO2 + 2H2O",
       "tier_min": "seedling",
-      "reaction": { "kind": "reaction", "id": "methane_combustion", "role": "runs" }
+      "reaction": { "kind": "reaction", "id": "methane_combustion", "role": "runs" },
+      "prompt_seedling": "Fire: methane burns with oxygen. Change the numbers until the scale is level.",
+      "prompt_apprentice": "Fire: write the balanced equation for methane burning in oxygen."
     },
     {
       "id": "water",
@@ -24,7 +26,10 @@
       "cast_caption": "Water soaks up heat and cools things below their ignition temperature.",
       "formula": "H2O(l)",
       "tier_min": "sprout",
-      "reaction": { "kind": "phase_change", "id": "water_boiling", "role": "absorbs_heat" }
+      "reaction": { "kind": "phase_change", "id": "water_boiling", "role": "absorbs_heat" },
+      "prompt_sprout": "Make water! Copy the balls in the picture.",
+      "prompt_seedling": "Water: build one water molecule from atom tiles.",
+      "prompt_apprentice": "Water: write the formula of liquid water, with its state symbol."
     },
     {
       "id": "frost",
@@ -36,7 +41,10 @@
       "cast_caption": "Liquid nitrogen boils at −196 °C (77 K), pulling heat out of anything it touches.",
       "formula": "N2(l)",
       "tier_min": "sprout",
-      "reaction": { "kind": "phase_change", "id": "nitrogen_boiling", "role": "absorbs_heat" }
+      "reaction": { "kind": "phase_change", "id": "nitrogen_boiling", "role": "absorbs_heat" },
+      "prompt_sprout": "Make liquid nitrogen! It is super cold. Copy the balls in the picture.",
+      "prompt_seedling": "Frost: build one nitrogen molecule. Liquid nitrogen is very, very cold.",
+      "prompt_apprentice": "Frost: write the formula of liquid nitrogen, with its state symbol."
     },
     {
       "id": "co2",
@@ -48,7 +56,10 @@
       "cast_caption": "CO₂ from an extinguisher is heavier than air: it smothers fire by pushing the oxygen away.",
       "formula": "CO2(g)",
       "tier_min": "sprout",
-      "reaction": { "kind": "register", "id": "C-035", "role": "cites" }
+      "reaction": { "kind": "register", "id": "C-035", "role": "cites" },
+      "prompt_sprout": "Make carbon dioxide! Copy the balls in the picture.",
+      "prompt_seedling": "CO₂: build one carbon dioxide molecule.",
+      "prompt_apprentice": "CO₂: write the formula of carbon dioxide gas, with its state symbol."
     }
   ]
 }

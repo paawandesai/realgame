@@ -1,0 +1,45 @@
+PASS K1 scaleOf: level iff tilt 0 for all 256 sets n=256 equalTotalUnbalanced=1221,2113,2122,2131,2433,2442,3334,3343,4244
+PASS K1 (detail) 1221 as drawn {"coefs":"1221","level":"false","tilt":"1","transform":"matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 0, 0)","more":["",""],"marked":["CHO","CHO"],"afterW":["12px,12px,12px","12px,12px,12px"],"text":["C 1, H 4, O 4","C 2, H 2, O 5"],"levelText":""}
+PASS K1 all 9 equal-total sets drawn tilted, marked on both pans, no "more atoms", no Level []
+PASS K1 1212 is level, flat, unmarked {"level":"true","tilt":"0","marks":0,"txt":"Level"}
+    {"text":"N2O0(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"N2O0(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"N2O0(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"0N2(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"00N2(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"0/1N2(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"0.0N2(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"₀N₂(l)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"CO2H0(g)","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"0CH4 + 2O2 -> CO2 + 2H2O","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"CH4 + 2O2 → 0CO2 + 2H2O","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+    {"text":"CH4 + 2O2 -> CO2 + 2H2O0","code":"parse","ok":false,"bad":"0","diffs":[],"stage":"unknown","shown":"Use element symbols, numbers, + and an arrow."}
+PASS K2 every zero subscript/coefficient is a fizzle with a non-empty reason, nothing learned 
+PASS K2 Frost, CO2 and Fire still unknown after the zero tries 1:unknown 2:unknown 3:unknown 4:unknown
+PASS K2 controls 10N2(l) and H2O1(l) are right [{"text":"10N2(l)","code":"ok","ok":true,"bad":"","diffs":[],"stage":"learning","shown":"N₂(l) is right! You are learning Frost."},{"text":"H2O1(l)","code":"ok","ok":true,"bad":"","diffs":[],"stage":"learning","shown":"H₂O(l) is right! You are learning Water."}]
+PASS K2 sprout 0H2O is not ok {"n":1,"slot":2,"ok":false,"code":"parse","diffs":[],"other":0,"bad":"0","simplest":"","coef":0,"learned":false,"stage":"unknown"}
+PASS K2 seedling 0H2O is not ok {"n":1,"slot":2,"ok":false,"code":"parse","diffs":[],"other":0,"bad":"0","simplest":"","coef":0,"learned":false,"stage":"unknown"}
+PASS K3 ?band=sprout: Change age hidden, never focused, band stays sprout {"d":{"hidden":true,"disp":"none"},"chooserViaScript":true,"band":"sprout","ui":{"open":true,"band":"sprout","view":"list","pick":0}}
+PASS K3 &band=Sprout: the child reaches a spell list {"first":{"chooser":true,"list":false,"change":true},"ui":{"open":true,"band":"seedling","view":"list","pick":0}}
+PASS K3 &band=bogus: the child reaches a spell list {"first":{"chooser":true,"list":false,"change":true},"ui":{"open":true,"band":"seedling","view":"list","pick":0}}
+PASS K3 &band=: the child reaches a spell list {"first":{"chooser":true,"list":false,"change":true},"ui":{"open":true,"band":"seedling","view":"list","pick":0}}
+PASS K3b ?band=sprout with the age picker: the bench opens on the sprout list {"pickerShown":true,"ui":{"open":true,"band":"sprout","view":"list","pick":0},"rust":"sprout","change":false,"cards":3,"chooser":0}
+    [{"how":"button/Close","during":{"shown":false,"under":true,"paused":true},"after":{"shown":false,"under":false,"paused":false}},{"how":"B/Escape","during":{"shown":false,"under":true,"paused":true},"after":{"shown":false,"under":false,"paused":false}},{"how":"api/api","during":{"shown":false,"under":true,"paused":true},"after":{"shown":false,"under":false,"paused":false}},{"how":"paused/button/Close","before":{"shown":true,"under":false,"paused":true},"during":{"shown":false,"under":true,"paused":true},"after":{"shown":true,"under":false,"paused":true}}]
+PASS K4 #pause never shows while open; bench-under always removed on close; paused game gets its card back 
+    {"t":"N02(l)","ok":true,"code":"ok","learned":true,"shown":"N₂(l) is right! You are learning Frost. | Simplest form: N₂(l)"}
+    {"t":"H02O(l)","ok":true,"code":"ok","learned":true,"shown":"H₂O(l) is right! You are learning Water. | Simplest form: H₂O(l)"}
+    {"t":"N2()(l)","ok":true,"code":"ok","learned":false,"shown":"N₂(l) is right! You are learning Frost. | Simplest form: N₂(l)"}
+    {"t":"N()N(l)","ok":true,"code":"ok","learned":false,"shown":"N₂(l) is right! You are learning Frost. | Simplest form: N₂(l)"}
+FAIL N1 N02(l) (digit zero before 2) is not judged right {"t":"N02(l)","ok":true,"code":"ok","learned":true,"shown":"N₂(l) is right! You are learning Frost. | Simplest form: N₂(l)"}
+FAIL N1 H02O(l) is not judged right {"t":"H02O(l)","ok":true,"code":"ok","learned":true,"shown":"H₂O(l) is right! You are learning Water. | Simplest form: H₂O(l)"}
+PASS N1 (info) empty brackets N2()(l) / N()N(l) [{"t":"N2()(l)","ok":true,"code":"ok","learned":false,"shown":"N₂(l) is right! You are learning Frost. | Simplest form: N₂(l)"},{"t":"N()N(l)","ok":true,"code":"ok","learned":false,"shown":"N₂(l) is right! You are learning Frost. | Simplest form: N₂(l)"}]
+FAIL N2 a fixed build sent before the first answer is judged (not dropped) {"n0":0,"n":1,"code":"unbalanced","level":"true","reason":"The scale is not level. Atoms are never made or lost, so both sides need the same atoms.","done":false}
+FAIL N2 the panel never says "not level" under a level scale {"n":1,"code":"unbalanced","level":"true","reason":"The scale is not level. Atoms are never made or lost, so both sides need the same atoms.","done":false}
+PASS N2 one more Make recovers (not stuck) {"n":2,"slot":1,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"}
+    {"case":"sprout empty tray","code":"empty","reason":"Tap the balls to build it."}
+    {"case":"sprout 14 taps, undo to H2 + O","trayAt14":"12","code":"ok","ok":true,"shown":"You made Water!"}
+    {"case":"seedling frost all tiles 0","code":"empty","reason":"Tap the tiles to build it."}
+    {"case":"seedling frost N tile 7 taps (wraps to 2)","cnt":"2","code":"atoms_off","ok":false}
+FAIL N3 empty builds give a non-empty reason; caps and wraps never produce a wrong right or a stuck builder 
+RESULT 17/22
+exit 1

@@ -1,0 +1,64 @@
+PASS web/dist is built
+PASS d1 migrations apply (local)
+PASS wrangler pages dev serves / with 200 http://127.0.0.1:39779
+PASS GET /classic/ serves the 2D page and its assets [["/classic/assets/index-DmnUk9NL.js",200],["/classic/assets/index-D4gTiRfD.css",200]]
+PASS the classic game's WASM is served under /classic/ ["/classic/assets/realgame_sim_bg-CbQ4rKjl.wasm"]
+PASS the age picker is shown [{"band":"sprout","w":168,"h":188.796875,"label":"4 to 7 years old"},{"band":"seedling","w":168,"h":188.796875,"label":"8 to 10 years old"},{"band":"apprentice","w":168,"h":188.796875,"label":"11 years old and up"}]
+PASS the picker has exactly three buttons and nothing to type in
+PASS each picker button is at least 96x96 CSS px at 1366x768
+PASS the picker takes focus on its first button sprout
+PASS the picker closes after a pick
+PASS the game starts fresh after the pick burning=3 casts=0
+PASS Save the Greenhouse is won ext=3 burning=0
+PASS main run: 0 console errors and 0 page errors
+PASS keyboard: the picker keeps focus and stays open while the game boots behind it focus=sprout open=true
+PASS keyboard: arrow and Tab reach the third picture sprout -> seedling -> apprentice
+PASS keyboard: Enter picks it and closes the picker
+PASS GPC: no picker and no /api/event request within 10 s of the first state picker=false events=0
+PASS DNT: no picker and no /api/event request within 10 s of the first state picker=false events=0
+PASS wire (main): every event body has exactly its allowed keys, v=1 and a 32-hex id [{"v":1,"type":"session_start","band":"seedling","id":"9338c8d2d1a85c2142439adf8173c51c"},{"v":1,"type":"quest_complete","band":"seedling","quest":0,"id":"9338c8d2d1a85c2142439adf8173c51c"},{"v":1,"type":"session_end","band":"seedling","dur":"lt1m","id":"9338c8d2d1a85c2142439adf8173c51c"}]
+PASS wire (main): all events share one id
+PASS wire (main): no request to another origin
+PASS wire (keyboard): every event body has exactly its allowed keys, v=1 and a 32-hex id [{"v":1,"type":"session_start","band":"apprentice","id":"0edc644f3c577c06e47494c8800d8359"}]
+PASS wire (keyboard): all events share one id
+PASS wire (keyboard): no request to another origin
+PASS wire (opt-out 0): every event body has exactly its allowed keys, v=1 and a 32-hex id []
+PASS wire (opt-out 0): all events share one id
+PASS wire (opt-out 0): no request to another origin
+PASS wire (opt-out 1): every event body has exactly its allowed keys, v=1 and a 32-hex id []
+PASS wire (opt-out 1): all events share one id
+PASS wire (opt-out 1): no request to another origin
+PASS the two runs have different daily ids
+PASS GET /api/stats without the token is 401 401
+PASS GET /api/stats with the token is 200 200
+PASS stats: players.today === 2 2
+PASS stats: todayByBand seedling 1, apprentice 1 {"sprout":0,"seedling":1,"apprentice":1}
+PASS stats: funnel.started.seedling === 1 {"sprout":0,"seedling":1,"apprentice":1,"all":2}
+PASS stats: funnel.quests[0].seedling === 1 [{"quest":0,"sprout":0,"seedling":1,"apprentice":0,"all":1}]
+PASS stats: durations sum to 1 or more 2
+PASS server: quest 7 is accepted, quest 16 is rejected 204 400
+PASS D1 main: exactly 1 session_start (seedling) [{"daily_id":"9338c8d2d1a85c2142439adf8173c51c","type":"session_start","band":"seedling","room":null,"dur":null}]
+PASS D1 main: exactly 1 quest_complete (seedling, room 0) [{"daily_id":"9338c8d2d1a85c2142439adf8173c51c","type":"quest_complete","band":"seedling","room":0,"dur":null}]
+PASS D1 main: 1 or more session_end (seedling, valid bucket) [{"daily_id":"9338c8d2d1a85c2142439adf8173c51c","type":"session_end","band":"seedling","room":null,"dur":0}]
+PASS D1 keyboard: exactly 1 session_start (apprentice) [{"daily_id":"0edc644f3c577c06e47494c8800d8359","type":"session_start","band":"apprentice","room":null,"dur":null}]
+PASS D1 keyboard: no quest_complete
+PASS D1 keyboard: at most 1 session_end
+PASS D1 probe: quest 7 stored as room 7, quest 16 not stored [{"daily_id":"6a7f8400c65d504c2afa3b70bf6b421c","type":"quest_complete","band":"sprout","room":7,"dur":null}]
+PASS D1: no rows with any other daily_id (the opt-out runs left none) []
+PASS D1: events has exactly id, day, daily_id, type, band, room, dur id,day,daily_id,type,band,room,dur
+PASS wrangler pages dev serves / again for the follow-up runs http://127.0.0.1:37699
+PASS playwright has page.clock (1.45 or newer) 1.63.0
+PASS midnight: session_start and session_end carry the same id start=724893bb9a23441b9ab9f23cf06f63f7 end=724893bb9a23441b9ab9f23cf06f63f7
+PASS midnight: session_end still carries a valid duration (performance.now is not faked) lt1m
+PASS midnight: 0 console errors and 0 page errors
+PASS picker: the canvas takes the pointer lock while age.js is held back clear=true locked=true pickerHidden=true
+PASS picker: it frees the pointer lock within 1 s of appearing visible=true freed=true capped=false
+PASS picker: #stage, #hud, #loading and #pause are inert while it is open; #age is not {"game":[["stage",true],["hud",true],["loading",true],["pause",true]],"age":false,"ageAncestor":false}
+PASS picker: a pick closes it and sends session_start (sprout) closed=true sent=true
+PASS picker: after the pick nothing is inert and the canvas has focus {"game":[["stage",false],["hud",false],["loading",false],["pause",false]],"active":"game"}
+PASS picker run: 0 console errors and 0 page errors
+PASS bench: a picker pick (8 to 10) opens the bench on the Seedling list, no chooser {"open":true,"chooser":0,"cards":4}
+PASS bench run: 0 console errors and 0 page errors
+PASS bench: with DNT (no picker) the bench asks with its chooser {"open":true,"chooser":3,"cards":0}
+62/62 checks passed
+AE_EXIT 0 Sat Oct 31 22:03:02 UTC 2026

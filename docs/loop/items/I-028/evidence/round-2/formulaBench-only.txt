@@ -1,0 +1,56 @@
+PASS bench: a missing bench.js does not stop the boot booted=true casts +1 spell=2 pageerrors=0 console errors=1 (other: )
+PASS bench: closed shape after boot {"v":1,"atBench":false,"open":false}
+PASS bench: the pad is on screen from the start pose bearing -40.6 deg, half view 45.0 deg, pos 0,0,18 yaw 0
+PASS bench: standing on the pad lights the button and never opens the bench locked=true
+PASS bench: no collider pushes the player off the pad pos -3,0,14.5 -> -3,0,14.5
+PASS bench: leaving the pad clears atBench and near {"b":{"v":1,"atBench":false,"open":false},"near":false}
+PASS bench: B opens it from a locked game (lock freed, paused, on top, the rest inert) locked=true {"open":true,"lock":false,"paused":true,"atCentre":true,"inert":[true,true,true,true]}
+PASS bench: Escape closes it, unpauses and gives the canvas focus {"open":false,"paused":false,"inert":[false,false,false,false],"focus":"game"}
+PASS bench: a key held when it opens is released in the game relocked=true pos 0,0,9.245 -> 0,0,9.245
+PASS bench: opened from the pause card, closing returns to it opened=true {"paused":true,"card":true}
+PASS bench: the first open asks with three 160 px pictures [{"band":"sprout","w":168,"h":168,"svg":true},{"band":"seedling","w":168,"h":168,"svg":true},{"band":"apprentice","w":168,"h":168,"svg":true}]
+PASS bench: choosing 8 to 10 lists the four spells Fire,Water,Frost,CO₂
+PASS bench: reopened on the same page load it does not ask again {"open":true,"band":"seedling","view":"list","pick":0}
+PASS bench: Change age shows the chooser again {"open":true,"band":"seedling","view":"chooser","pick":0} buttons=3
+PASS bench: after a reload it asks again; no storage key holds the band {"open":true,"band":null,"view":"chooser","pick":0} keys=
+PASS bench: Sprout lists exactly Water, Frost and CO2, each card at least 120 px Water,Frost,CO₂ [[150,150],[150,150],[150,150]]
+PASS bench: picking Water speaks the prompt and shows 2 H and 1 O said=["Make water! Copy the balls in the picture."] recipe={"H":2,"O":1}
+PASS bench: H, O then Make fizzles (atoms_off) with the Sprout reason and a crossed H row; atom cards at least 96 px {"n":1,"slot":2,"ok":false,"code":"atoms_off","diffs":[["H",1,2]],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"unknown"} {"reason":"Look again. Count the balls in the picture.","cross":true} cards=[["H",104,104],["O",104,104],["C",104,104],["N",104,104]]
+PASS bench: H then Make learns Water (done panel, Learning badge, xp 10) {"n":2,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} {"line":"You made Water!","badge":"Learning"} prog={"id":"water","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: the fizzle line was spoken too ["Make water! Copy the balls in the picture.","Look again. Count the balls in the picture.","You made Water!"]
+PASS bench: five more correct builds earn nothing (learned false, xp stays 10) true/false true/false true/false true/false true/false prog={"id":"water","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: the game stays frozen while it is open (gameTime, tick, casts, spell) gameTime 1.75->1.75 tick 59->59 casts 0->0 spell 1->1
+PASS bench: an Unknown spell still casts (the bench gates nothing) casts 0 -> 1
+PASS bench: after a reload the Water badge reads Learning prog={"id":"water","st":"learning","xp":10,"builds":0,"days":0,"predicted":false} badge=Learning
+PASS bench: with sound off nothing is spoken, the prompt is still on screen said=[] prompt=Make water! Copy the balls in the picture.
+PASS bench: Fire at Seedling shows the pans and a tilted beam {"pans":["C 1, H 4, O 2","C 1, H 2, O 3"],"level":"false"}
+PASS bench: an unbalanced Make fizzles with the conservation reason; fire stays unknown {"n":1,"slot":1,"ok":false,"code":"unbalanced","diffs":[["H",4,2],["O",2,3]],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"unknown"} reason=The scale is not level. Atoms are never made or lost, so both sides need the same atoms.
+PASS bench: two taps level the beam (C 1, H 4, O 4 on both pans) {"pans":["C 1, H 4, O 4","C 1, H 4, O 4"],"level":"true"}
+PASS bench: the balanced Make learns Fire {"n":2,"slot":1,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} prog={"id":"fire","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: Water at Seedling from tiles (H 2, O 1) is ok {"n":3,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"}
+PASS bench: Apprentice shows no recipe and focuses the text box {"recipe":0,"focus":"bench-input"}
+PASS bench: typing does not reach the game (spell, captionId, gameTime unchanged; no reset, no pause toggle) spell 1->1 cap 1->1 t 1.003->1.003 {"open":true,"pauseHidden":false,"value":"Br2 R 3 P"}
+PASS bench: N2 -> state_missing (reason shown), N2(g) -> wrong_state, N₂(l) -> ok and frost learning state_missing "Right atoms. Now add its state: (s), (l) or (g)." wrong_state {"n":3,"slot":3,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} prog={"id":"frost","st":"learning","xp":10,"builds":0,"days":0,"predicted":false}
+PASS bench: Apprentice gets atom counts only on the third wrong try ["Not yet. Which atoms does Water have, and how many?","Not yet. Which atoms does Water have, and how many?","Count again: H should be 2. You have 1."]
+PASS bench: Escape in the text box closes the bench {"open":false,"paused":false}
+PASS bench: keyboard only reaches Water and builds it (focus never leaves the bench) reached=true inside=true {"n":1,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"}
+PASS bench: Escape closes it and the canvas has focus {"open":false,"focus":"game"}
+PASS bench: every control is at least 48 px (Sprout 96/120), text at least 18 px (Sprout prompt 24), fits the screen; text size 2 doubles it  title@2=52 texts sprout:9/14 seedling:11/15 apprentice:11/6 sprout:9/14 seedling:11/15 apprentice:11/6
+PASS bench: every text has 4.5:1 contrast against its nearest opaque background 
+PASS bench: the done icon pops once (count 1); every bench animation runs once; with reduced motion none, and no transition on the beam {"a":{"icon":{"anim":"benchpop","count":"1","trans":"0s"},"beam":{"anim":"none","trans":"0.2s"},"others":["1"],"btn":"none"},"b":{"icon":{"anim":"none","count":"1","trans":"0s"},"beam":{"anim":"none","trans":"0s"},"others":[],"btn":"none"}}
+PASS bench: B and the button do nothing while another aria-modal dialog shows age=true open=true other=true open2=true
+PASS bench: #benchbtn is 64 px, labelled, opens the bench unlocked; locked it shows with pointer-events none {"w":72,"h":72,"label":"Formula Bench (B)","pe":"auto","hint":false,"vis":"visible"} opened=true locked=true {"locked":true,"pe":"none","w":72}
+PASS bench: the attention ring shows after the first cast; the pause card lists Formula Bench | B before=false after cast=true row=true
+PASS bench: learning a spell removes the ring for good {"n":1,"slot":2,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"} after=false after cast=false
+PASS bench: band seedling reaches the game with the bench closed {"v":1,"atBench":false,"open":false,"band":"seedling"}
+PASS bench: ?band=apprentice reaches the game within 2 s of the first state, without an open {"v":1,"atBench":false,"open":false,"band":"apprentice"} after 1438 ms
+PASS bench: at Sprout pick 1 is ignored and try 1 is not_for_band pick=undefined {"n":1,"slot":1,"ok":false,"code":"not_for_band","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":false,"stage":"unknown"}
+PASS bench: round 2: at 1-2-2-1 the beam is not level and is drawn tilted, no pan says more atoms, the mismatches are marked {"coefs":"1221","pans":["C 1, H 4, O 4","C 2, H 2, O 5"],"level":"false","tilt":"1","transform":"matrix(0.997564, 0.0697565, -0.0697565, 0.997564, 0, 0)","more":["",""],"marked":6}
+PASS bench: round 2: one click on a Seedling tile adds exactly one count=1
+PASS bench: round 2: #pause is not visible while the bench is open, and is back after closing a paused game opened from play: paused=true pause shown=false; from the pause card: before=true open=false after=true
+PASS bench: round 2: with ?band=sprout there is no Change age and the band stays sprout {"change":false,"ui":{"open":true,"band":"sprout","view":"list","pick":0}} {"v":1,"atBench":false,"open":false,"band":"sprout"}
+PASS bench: round 2: a double-clicked Make is judged once n 0 -> 1
+PASS bench: round 2: state slips do not count toward the third-try help 2nd miss: Not yet. Which atoms does Water have, and how many? | 3rd miss: Count again: H should be 2. You have 1.
+PASS bench: round 2: 0H2O(l) is not judged right {"n":6,"slot":2,"ok":false,"code":"parse","diffs":[],"other":0,"bad":"0","simplest":"","coef":0,"learned":false,"stage":"unknown"} reason=Use element symbols, numbers, + and an arrow.
+PASS no console errors 
+55/55 passed

@@ -1,0 +1,6 @@
+PASS N3 Seedling Frost: N tile tapped 7 times wraps to 2 and is right {"tiles":"H,O,C,N","cnt":"2","r":{"n":1,"slot":3,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"}}
+PASS N3 Seedling Frost all tiles at 4: fizzle with a non-empty reason {"code":"atoms_off","diffs":[["C",4,0],["H",4,0],["N",4,2],["O",4,0]],"reason":"Count again: C should be 0. You have 4.\nCount again: H should be 0. You have 4.\nCount again: N should be 2. You have 4.\nCount again: O should be 0. You have 4."}
+PASS I' Change age mid-build (no URL band) reaches Rust and shows the new list {"rust":"apprentice","ui":{"open":true,"band":"apprentice","view":"list","pick":0}}
+PASS I' Escape on the chooser closes the bench 
+RESULT 4/4
+exit 0

@@ -1,0 +1,18 @@
+Temporary #[test] zz_breaker_probe appended to crates/sim/src/bench.rs in the breaker worktree only
+(restored right after; never committed). cargo test -p realgame-sim --no-default-features --locked zz_breaker_probe -- --nocapture
+Selected lines (slot 1 Fire, 2 Water, 3 Frost, 4 CO2; all Apprentice unless noted):
+
+Zeros, all Parse bad="0":  N2O0(l)  CO2H0(g)  0N2(l)  00N2(l)  0/1N2(l)  0.00N2(l)  N₂O₀(l)  ₀N2(l)  "0 N2(l)"  N2()0(l)
+  Sprout 0H2O;  Fire 0CH4 + 2O2 -> CO2 + 2H2O;  CH4 + 2O2 => / = / ⟶ 0CO2 + 2H2O;  CH4 + 2O2 -> CO2 + 2H2O0
+Other rejects: 0.N2(l) Parse, .0N2(l) Parse, 0/0N2(l) Parse, 1/0CH4... Parse, trailing "+" or "->" Parse,
+  N2(l)(l) Parse, n2(l) Parse, N2000(l) AtomsOff [N 999 2], CH4 + O2 + O2 -> CO2 + H2O + H2O WrongSpecies,
+  C(H)4 / 2(O2) / CH4() in Fire WrongSpecies, 1000CH4 + 2000O2 -> ... Unbalanced (clamp at 999 never balances)
+Judged ok (single substance), each with simplest = the canonical formula:
+  N02(l)            ok  simplest "N2(l)"     <- leading-zero subscript "02" (digit 0 typed for letter O in "NO2")
+  H02O(l)           ok  simplest "H2O(l)"
+  H2O01(l)          ok  simplest "H2O(l)"
+  H2O0000000001(l)  ok  simplest "H2O(l)"
+  N2()(l) ()N2(l) N()N(l) H2O()(l) H2(O)(l)   ok (empty or redundant brackets)
+  (N)2(l) N(N)(l) C(O)2(g) C(O2)(g) CO(O)(g) N1N1(l)  ok (same atoms; fine chemically)
+  N2 (l)  N2(L)  "CO2(g) "  ok
+Fire ok: CH4 + 2O2 = CO2 + 2H2O;  → arrow;  0.5CH4 + O2 -> 0.5CO2 + H2O and ½ form (simplest shown)

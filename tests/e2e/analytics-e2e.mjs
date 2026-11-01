@@ -495,6 +495,45 @@ const parsed = (run) =>
       check('picker run: 0 console errors and 0 page errors', run.errors.length === 0, run.errors.slice(0, 3).join(' | '));
       await run.context.close();
     }
+
+    // 15. The age picker's band reaches the Formula Bench (I-028 test 29):
+    // "8 to 10" in the picker, then B, shows the Seedling list (4 spells) with
+    // no chooser; with DNT (no picker) the bench asks with its own chooser.
+    {
+      const benchOpen = async (p) => {
+        await p.evaluate(() => document.getElementById('game')?.focus());
+        await p.keyboard.press('KeyB');
+        for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(200)) {
+          const v = await p.evaluate(() => ({
+            open: !!document.getElementById('bench') && !document.getElementById('bench').hidden,
+            chooser: document.querySelectorAll('#bench .bench-band[data-band]').length,
+            cards: document.querySelectorAll('#bench .bench-spell').length,
+          }));
+          if (v.open && (v.chooser > 0 || v.cards > 0)) return v;
+        }
+        return p.evaluate(() => ({ open: !document.getElementById('bench')?.hidden, chooser: -1, cards: -1 }));
+      };
+      const run = await openRun(browser, origin2);
+      const p = run.page;
+      await p.goto(`${origin2}/?${QUERY}`);
+      await p.waitForSelector('#age', { state: 'visible', timeout: 60000 }).catch(() => undefined);
+      await p.click('#age button[data-band="seedling"]');
+      await firstState(p);
+      await sleep(1000);
+      const v = await benchOpen(p);
+      check('bench: a picker pick (8 to 10) opens the bench on the Seedling list, no chooser', v.open && v.chooser === 0 && v.cards === 4, JSON.stringify(v));
+      check('bench run: 0 console errors and 0 page errors', run.errors.length === 0, run.errors.slice(0, 3).join(' | '));
+      await run.context.close();
+      const dnt = await openRun(browser, origin2, {
+        init: () => Object.defineProperty(Navigator.prototype, 'doNotTrack', { configurable: true, get: () => '1' }),
+      });
+      await dnt.page.goto(`${origin2}/?${QUERY}`);
+      await firstState(dnt.page);
+      await sleep(1000);
+      const d = await benchOpen(dnt.page);
+      check('bench: with DNT (no picker) the bench asks with its chooser', d.open && d.chooser === 3, JSON.stringify(d));
+      await dnt.context.close();
+    }
   } catch (err) {
     check('run completed without an exception', false, String(err && err.stack ? err.stack : err));
   } finally {
