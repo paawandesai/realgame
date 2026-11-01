@@ -111,3 +111,14 @@ Level select, saving which levels are cleared (cleared lasts one page load; `?le
 - **F1** Sprout heat route for the gate before I-029 gates casts on learning.
 - **F2** Save cleared levels and a level-select screen (fold into I-034).
 - **F3** Band captions for level 1 (already I-021).
+
+## Refresh (wave 13 build)
+
+Base: loop/I-035 5b9d833 with origin/loop/I-028 fed49a9 merged (merge 74cb368); I-028 is not yet on origin/main, so the lanes build on top of it as the orchestrator directed. Line references re-read on that base:
+
+- `chem.rs`: Fire on water bodies 427-441 (unchanged meaning); Frost "set ice = 1" is at 506-512 (was ~520); `reseed` at 638 (was ~640). **`EventKind::Chilled` already exists** (Frost on a frozen water body, a steam vent, or a dry object), so the contract reuses it; **no event meant "CO2 did nothing"** (CO2 on anything not flammable emits `Smothered`), so `EventKind::NoChange` is added. Its level-1 caption reuses the Seedling CO2 line (one register row).
+- `main.rs`: `world::build` at 517 (was 513-516); `control` 752, its `tick` command 874; `reset` 970 (was 967-982); `publish` 1681 (was 1678); `on_ice` is computed in `motion::step` from the ice sheets `control` builds (`Kind::Puddle && frozen`), so a frozen `Stream` joins that list. Spell-impact captions are set in `projectiles` (`game.say(last.kind.caption())`), not in `react`: the level-2 caption lookup is made there, and in `react` for un-captioned events.
+- `world.rs`: `solid_obj` at 79, `build` at 462.
+- `bench.rs` (I-028): the pad's four meshes are spawned at Startup by `spawn_station` without a marker. To stay within the one-line guard, `main.rs` tags them (`BenchPad`) in a Startup system ordered after `spawn_station` (the meshes at the pad's x, z) and hides them in level 2; the one bench.rs line is the `atBench` guard in `run`.
+- `perf.mjs`: `pageUrl(base, tier)` at 105, unchanged.
+- `__gameState` key list: `I027_KEYS = ['progress', 'progRev', 'progSave']` is last (golden 1057); I-028 adds no `__gameState` keys (its view is `window.__benchState`).
