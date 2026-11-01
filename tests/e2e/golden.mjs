@@ -5651,4 +5651,14 @@ async function mastery({ page, st, cmd, until, frames, sleep, base, errors }) {
     check('mastery: G7 the __gameState key list is unchanged from main', keys.join() === MAIN_KEYS.join(),
       `got ${keys.length} keys; first difference at ${keys.findIndex((k, i) => k !== MAIN_KEYS[i])}`);
   });
+
+  // Teardown (not a check): leave the shared page as the next section expects
+  // it, on the default page with no save (as workedCasts W21 does).
+  await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
+  await page.goto(base);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && typeof window.__workState === 'string'));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
 }
