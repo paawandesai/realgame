@@ -145,3 +145,125 @@ canvas.hover-fire { cursor: pointer; }
   .icon { width: 22px; height: 22px; }
   #caption { bottom: 132px; font-size: calc(16px * var(--ui)); }
 }
+/* ------------------------------------------------------------------------
+   The Formula Bench (I-028, web/bench.js). Every text size is
+   calc(<px> * var(--ui)), at least 18 px (Sprout prompt 24 px); every control
+   at least 48 px (Sprout cards and buttons 96 to 160 px). One 300 ms pop on
+   the done icon and a 200 ms beam tilt, none under reduced motion; the
+   button's rings are static (GS-6, GS-28). */
+#benchbtn { position: fixed; top: 14px; right: 14px; z-index: 800; width: 72px; height: 72px; padding: 0; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; gap: 2px; background: #1d2a52; color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.45); border-radius: 16px; cursor: pointer; font: inherit; }
+#benchbtn:focus-visible { outline: 4px solid var(--on); outline-offset: 2px; }
+#benchbtn.locked { pointer-events: none; }
+#benchbtn.hint, #benchbtn.near { box-shadow: 0 0 0 4px var(--on); border-color: var(--on); animation: none; }
+#benchbtn .bench-flask { position: relative; width: 26px; height: 34px; }
+#benchbtn .bench-flask::before { content: ""; position: absolute; left: 9px; top: 0; width: 8px; height: 12px; background: #9fd4ff; border-radius: 2px; }
+#benchbtn .bench-flask::after { content: ""; position: absolute; left: 0; bottom: 0; width: 26px; height: 24px; background: #9fd4ff;
+  clip-path: polygon(34% 0, 66% 0, 100% 100%, 0 100%); border-radius: 0 0 6px 6px; }
+#benchbtn .bench-key { font-size: calc(18px * var(--ui)); font-weight: 800; line-height: 1; padding: 2px 5px; border: 2px solid #fff; border-radius: 6px; background: #1d2a52; }
+#bench { position: fixed; inset: 0; z-index: 900; background: rgba(8, 12, 30, 0.82); align-items: center; justify-content: center;
+  padding: 16px; box-sizing: border-box; font-size: calc(18px * var(--ui)); color: #fff; }
+#bench:not([hidden]) { display: flex; }
+#bench[hidden] { display: none; }
+#bench .bench-panel { background: #1d2a52; border-radius: 18px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); width: min(calc(860px * var(--ui)), 100%);
+  max-height: calc(100vh - 32px); overflow-y: auto; padding: 16px 20px 20px; box-sizing: border-box; }
+#bench .bench-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+#bench .bench-title { flex: 1; margin: 0; font-size: calc(26px * var(--ui)); color: var(--on); }
+#bench button { font: inherit; font-size: calc(18px * var(--ui)); min-width: 48px; min-height: 48px; border-radius: 12px; cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.5); background: #2c3d72; color: #fff; padding: 6px 14px; box-sizing: border-box; }
+#bench button:focus-visible, #bench input:focus-visible { outline: 5px solid var(--on); outline-offset: 3px; }
+#bench .bench-close { min-width: 96px; min-height: 64px; font-weight: 700; }
+#bench .bench-change { min-height: 48px; }
+#bench h2 { margin: 4px 0 12px; font-size: calc(24px * var(--ui)); }
+#bench p { margin: 8px 0; font-size: calc(18px * var(--ui)); line-height: 1.35; }
+/* Chooser: the age picker's three pictures. */
+#bench .bench-bands { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+#bench .bench-band { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; min-width: 168px; min-height: 168px;
+  background: #fff8e7; color: #1d2733; border-color: #fff; border-width: 3px; border-radius: 18px; }
+#bench .bench-band svg { width: 104px; height: 104px; display: block; }
+#bench .bench-band-label { font-size: calc(24px * var(--ui)); font-weight: 700; white-space: nowrap; }
+/* List: one card per spell, with a stage badge (shape and word). */
+#bench .bench-cards { display: flex; flex-wrap: wrap; gap: 14px; }
+#bench .bench-spell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 132px; min-height: 132px; background: #2c3d72; }
+#bench .band-sprout .bench-spell { min-width: 150px; min-height: 150px; }
+#bench .bench-spell-name { font-size: calc(22px * var(--ui)); font-weight: 700; }
+#bench .bench-spell .icon, #bench .bench-build-icon { width: calc(44px * var(--ui)); height: calc(44px * var(--ui)); }
+#bench .bench-stage { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: #0f1830; color: #fff; font-size: calc(18px * var(--ui)); }
+#bench .bench-stage-shape { width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; box-sizing: border-box; display: inline-block; }
+#bench .bench-stage[data-stage="learning"] .bench-stage-shape { background: linear-gradient(90deg, #fff 50%, transparent 50%); }
+#bench .bench-stage[data-stage="practised"] .bench-stage-shape { background: #fff; }
+#bench .bench-stage[data-stage="mastered"] .bench-stage-shape { border: 0; border-radius: 0; background: var(--on);
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+/* Build. */
+#bench .bench-back { margin-bottom: 8px; }
+#bench .bench-build-head { display: flex; align-items: center; gap: 12px; }
+#bench .bench-build-name { margin: 0; }
+#bench .bench-prompt-row { display: flex; align-items: center; gap: 12px; }
+#bench .bench-prompt { flex: 1; font-size: calc(20px * var(--ui)); }
+#bench .band-sprout .bench-prompt { font-size: calc(24px * var(--ui)); font-weight: 600; }
+#bench .bench-say { min-width: 64px; min-height: 64px; display: flex; align-items: center; justify-content: center; }
+#bench .bench-say-glyph { width: 28px; height: 24px; background: #fff; clip-path: polygon(0 30%, 30% 30%, 62% 0, 62% 100%, 30% 70%, 0 70%, 0 30%, 76% 22%, 84% 22%, 84% 78%, 76% 78%, 76% 22%); }
+#bench .bench-recipe { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; padding: 12px 16px; margin: 10px 0; background: #fff8e7; color: #1d2733; border-radius: 14px; }
+#bench .bench-formula { font-size: calc(32px * var(--ui)); font-weight: 700; }
+#bench .bench-group { display: inline-flex; gap: 6px; }
+#bench .bench-ball { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%;
+  font-size: calc(20px * var(--ui)); font-weight: 800; box-sizing: border-box; border: 2px solid #1d2733; }
+#bench .bench-ball.el-H { background-color: #ffffff; color: #1d2733; }
+#bench .bench-ball.el-O { background-color: #c0281b; color: #ffffff; }
+#bench .bench-ball.el-C { background-color: #3a3a3a; color: #ffffff; }
+#bench .bench-ball.el-N { background-color: #2a56c6; color: #ffffff; }
+#bench .bench-tray { display: flex; flex-wrap: wrap; gap: 6px; min-height: 64px; align-items: center; padding: 8px 12px; margin: 8px 0;
+  border: 3px dashed rgba(255, 255, 255, 0.6); border-radius: 14px; background: #16224a; }
+#bench .bench-atoms, #bench .bench-tiles { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+#bench .bench-atom { min-width: 104px; min-height: 104px; display: flex; align-items: center; justify-content: center; background: #2c3d72; }
+#bench .bench-atom .bench-ball { width: 64px; height: 64px; font-size: calc(28px * var(--ui)); }
+#bench .bench-tile { min-width: 80px; min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; position: relative; }
+#bench .bench-tile-count { font-size: calc(22px * var(--ui)); font-weight: 800; }
+#bench .bench-tick { position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; display: none; background: #6ee07a;
+  clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 86% 8%, 40% 70%); }
+#bench .bench-tile[data-match="true"] .bench-tick { display: block; }
+#bench .bench-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+#bench .bench-make { min-width: 120px; min-height: 64px; background: var(--on); color: #222; border-color: var(--on); font-weight: 800; }
+#bench .band-sprout .bench-make { min-width: 160px; min-height: 104px; font-size: calc(26px * var(--ui)); }
+#bench .band-sprout .bench-undo { min-width: 104px; min-height: 104px; }
+/* Seedling Fire: coefficient tiles and the balance scale (atom counts, not mass). */
+#bench .bench-equation { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: calc(24px * var(--ui)); }
+#bench .bench-term { display: inline-flex; align-items: center; gap: 4px; }
+#bench .bench-coef { min-width: 64px; min-height: 64px; font-size: calc(24px * var(--ui)); font-weight: 800; background: #fff8e7; color: #1d2733; }
+#bench .bench-mol { font-weight: 700; }
+#bench .bench-op { font-weight: 700; padding: 0 2px; }
+#bench .bench-scale { position: relative; padding: 8px 0 18px; margin: 6px 0; }
+#bench .bench-beam { display: flex; justify-content: space-between; gap: 16px; padding: 8px; border-bottom: 6px solid #fff8e7;
+  transform: rotate(calc(var(--tilt, 0) * 4deg)); transition: transform 200ms ease-out; }
+#bench .bench-pivot { width: 0; height: 0; margin: 0 auto; border-left: 18px solid transparent; border-right: 18px solid transparent; border-bottom: 22px solid #fff8e7; }
+#bench .bench-pan { flex: 1; background: #16224a; border-radius: 12px; padding: 6px 10px; text-align: center; }
+#bench .bench-pan-label, #bench .bench-pan-more, #bench .bench-level { font-size: calc(18px * var(--ui)); }
+#bench .bench-pan-count { font-size: calc(22px * var(--ui)); font-weight: 800; }
+#bench .bench-level { text-align: center; font-weight: 700; min-height: 1.3em; }
+#bench .bench-scale[data-level="true"] .bench-level::before { content: ""; display: inline-block; width: 18px; height: 18px; margin-right: 6px; background: #6ee07a;
+  clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 86% 8%, 40% 70%); }
+/* Apprentice: typed formula and its live preview. */
+#bench .bench-input { font: inherit; font-size: calc(26px * var(--ui)); min-height: 56px; width: 100%; box-sizing: border-box; padding: 6px 12px;
+  border-radius: 12px; border: 2px solid #fff; background: #fff8e7; color: #1d2733; }
+#bench .bench-preview { min-height: 1.4em; margin-top: 6px; font-size: calc(24px * var(--ui)); }
+/* Fizzle and done. */
+#bench .bench-fizzle { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; margin-top: 12px; padding: 10px 14px; background: #0f1830; border-radius: 14px; }
+#bench .bench-reason { flex: 1; white-space: pre-line; margin: 0; }
+#bench .bench-diffs { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; font-size: calc(18px * var(--ui)); }
+#bench .bench-diff { display: flex; align-items: center; gap: 14px; }
+#bench .bench-diff-have, #bench .bench-diff-want { display: inline-flex; gap: 4px; min-width: 60px; }
+#bench .bench-diff-want { opacity: 1; padding-left: 12px; border-left: 3px solid rgba(255, 255, 255, 0.5); }
+#bench .bench-mark { display: inline-block; width: 28px; height: 28px; flex: none; }
+#bench .bench-mark.tick { background: #6ee07a; clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 86% 8%, 40% 70%); }
+#bench .bench-mark.cross { background: #ff9c8a; clip-path: polygon(20% 0, 50% 30%, 80% 0, 100% 20%, 70% 50%, 100% 80%, 80% 100%, 50% 70%, 20% 100%, 0 80%, 30% 50%, 0 20%); }
+#bench .bench-mark.big { width: 48px; height: 48px; }
+#bench .bench-done { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+#bench .bench-done-icon { width: 160px; height: 160px; animation: benchpop 300ms ease-out 1; }
+#bench .bench-done-line { font-size: calc(26px * var(--ui)); font-weight: 700; }
+@keyframes benchpop { from { scale: 0.6; } to { scale: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #bench .bench-done-icon { animation: none; }
+  #bench .bench-beam { transition: none; }
+}
+#bench .bench-wait:focus { outline: none; }

@@ -10,6 +10,10 @@
 //! The game writes `window.__gameState`, a JSON string, every frame. The HUD
 //! draws from it and a test can read it through `window.__game.state()`.
 //!
+//! The Formula Bench (I-028, `src/bench.rs`, `web/bench.js`) has its own
+//! queue, `window.__gameIn.bench` (one command string each), and its own
+//! output, `window.__benchState`, written only when it changes.
+//!
 //! On native builds these are no-ops (the game reads Bevy's own mouse input).
 
 use bevy::prelude::*;
@@ -26,6 +30,8 @@ pub struct WebIn {
     /// Pointer position over the canvas (CSS pixels), when not locked.
     pub pointer: Option<(f32, f32)>,
     pub cmds: Vec<String>,
+    /// Formula Bench commands (`window.__gameIn.bench`), drained by `bench::run`.
+    pub bench: Vec<String>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -79,11 +85,30 @@ mod imp {
                 let _ = Reflect::set(&gi, &"cmds".into(), &Array::new());
             }
         }
+        input.bench.clear();
+        let bench = get(&gi, "bench");
+        if Array::is_array(&bench) {
+            let arr = Array::from(&bench);
+            if arr.length() > 0 {
+                for v in arr.iter() {
+                    if let Some(s) = v.as_string() {
+                        input.bench.push(s);
+                    }
+                }
+                let _ = Reflect::set(&gi, &"bench".into(), &Array::new());
+            }
+        }
     }
 
     pub fn publish(json: &str) {
         if let Some(win) = web_sys::window() {
             let _ = Reflect::set(&win, &"__gameState".into(), &JsValue::from_str(json));
+        }
+    }
+
+    pub fn publish_bench(json: &str) {
+        if let Some(win) = web_sys::window() {
+            let _ = Reflect::set(&win, &"__benchState".into(), &JsValue::from_str(json));
         }
     }
 }
@@ -95,8 +120,10 @@ mod imp {
         input.dx = 0.0;
         input.dy = 0.0;
         input.cmds.clear();
+        input.bench.clear();
     }
     pub fn publish(_json: &str) {}
+    pub fn publish_bench(_json: &str) {}
 }
 
-pub use imp::{poll, publish};
+pub use imp::{poll, publish, publish_bench};

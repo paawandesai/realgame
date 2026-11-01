@@ -5,6 +5,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod bench;
 pub mod formula;
 #[cfg(feature = "game")]
 pub mod game;

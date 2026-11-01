@@ -1,0 +1,11 @@
+LOCKED 00:05:48
+PASS F B and #benchbtn do nothing while the age picker shows {"shown":true,"openUnder":false,"btnClick":false}
+PASS F picker pick reaches Rust closed and the bench opens on Seedling list {"b0":"seedling","ui":{"open":true,"band":"seedling","view":"list","pick":0,"chooser":0,"cards":4}}
+PASS F after picker + bench, a click still locks the pointer 
+RESULT 3/3
+EXIT1 0
+FAIL J beam is drawn tilted whenever the scale is not level ([1,2,2,1]) {"sc":{"level":"false","tilt":"0","transform":"matrix(1, 0, 0, 1, 0, 0)","pans":["C 1, H 4, O 4","C 2, H 2, O 5"],"more":["",""],"mark":""},"reason":"The scale is not level. Atoms are never made or lost, so both sides need the same atoms."}
+FAIL J N2O0(l) three times: every fizzle has a non-empty reason [{"code":"atoms_off","diffs":[],"reason":"Not yet. Which atoms does Frost have, and how many?"},{"code":"atoms_off","diffs":[],"reason":"Not yet. Which atoms does Frost have, and how many?"},{"code":"atoms_off","diffs":[],"reason":""}]
+FAIL J 0N2(l) (zero molecules) is not judged ok {"r0":{"n":4,"slot":3,"ok":true,"code":"ok","diffs":[],"other":0,"bad":"","simplest":"","coef":0,"learned":true,"stage":"learning"},"shown":"N₂(l) is right! You are learning Frost."}
+RESULT 0/3
+EXIT2 1

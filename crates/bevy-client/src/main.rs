@@ -12,6 +12,7 @@
 //! that make a cast legible (fires left, the nearest fire's bearing, flight
 //! time).
 
+mod bench;
 mod bridge;
 mod chem;
 mod clock;
@@ -400,6 +401,8 @@ fn main() {
                 .chain(),
         )
         .add_systems(Last, report)
+        .add_systems(Update, bench::run.after(control).before(publish))
+        .add_systems(Startup, bench::spawn_station)
         .run();
 }
 

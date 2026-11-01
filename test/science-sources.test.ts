@@ -464,7 +464,7 @@ const relTo = (root: string, abs: string) => abs.slice(root.length + 1).split("\
 
 /** The spell data file (I-026). Only these keys of each `spells[]` entry are player text. */
 const SPELLS_JSON = "content/spells.json";
-const SPELL_TEXT_KEYS = ["name", "label", "hotbar_label", "cast_caption"] as const;
+const SPELL_TEXT_KEYS = ["name", "label", "hotbar_label", "cast_caption", "prompt_sprout", "prompt_seedling", "prompt_apprentice"] as const;
 
 /** Player text in content/spells.json: string values of SPELL_TEXT_KEYS in each `spells[]` entry, nothing else. */
 function spellsJsonTexts(src: string): string[] {
