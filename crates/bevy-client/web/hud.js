@@ -23,6 +23,13 @@
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const STORE_KEY = 'alchemist.settings.v1';
+// I-052: how far off to the side (degrees) the quest target must be before
+// the objective arrow shows in the block world.
+const OBJ_ARROW_DEG = 35;
+// The biome's name for the objective title, from story.rs (`__storyState`).
+const biomeName = () => {
+  try { return JSON.parse(window.__storyState || 'null')?.biomeName || 'Formula'; } catch { return 'Formula'; }
+};
 // Shown after 45 s with no progress (GS-24). Tied to the fire quest: a new
 // quest brings its own idle hint and slot.
 const IDLE_MS = 45000;
@@ -737,10 +744,27 @@ export function startHud() {
         finder.classList.toggle('right', right);
         finder.classList.toggle('left', !right);
       }
+      // I-052: in the block world the arrow points at the quest step's
+      // target (objBearing) while it is off to the side, and the objective
+      // shows the step's line and "n of 7".
+      const voxelMode = state.mode === 'voxel';
+      if (voxelMode) {
+        const b = state.objBearing;
+        const on = typeof b === 'number' && Math.abs(b) > OBJ_ARROW_DEG && !state.paused && !input.paused;
+        finder.classList.toggle('hidden', !on);
+        finder.classList.toggle('exit', false);
+        finder.classList.toggle('objective', true);
+        if (on) {
+          finder.classList.toggle('right', b > 0);
+          finder.classList.toggle('left', b <= 0);
+        }
+      }
       const objTitle = document.querySelector('#objective .title');
-      const titleText = state.level === 3 ? 'The Marsh' : state.level === 2 ? 'The Frozen Gate' : 'Save the Greenhouse';
+      const titleText = voxelMode ? biomeName()
+        : state.level === 3 ? 'The Marsh' : state.level === 2 ? 'The Frozen Gate' : 'Save the Greenhouse';
       if (objTitle && objTitle.textContent !== titleText) objTitle.textContent = titleText;
-      if (state.level === 3) setObjective(state.outcome === 'won' ? 'Marsh cleared!' : 'Put out the gas flames, cross the boardwalk, reach the lantern.', 0);
+      if (voxelMode) setObjective(state.quest >= 1 && state.quest <= 7 ? `${state.questLine} (${state.quest} of 7)` : state.questLine || '', 0);
+      else if (state.level === 3) setObjective(state.outcome === 'won' ? 'Marsh cleared!' : 'Put out the gas flames, cross the boardwalk, reach the lantern.', 0);
       else if (state.level === 2) setObjective(state.outcome === 'won' ? 'Gate opened!' : 'Cross the stream, melt the gate, reach the lantern.', 0);
       else if (state.outcome === 'won') setObjective('Greenhouse saved!', 0);
       else setObjective(`Fires to put out: ${state.firesLeft}`, state.firesLeft);

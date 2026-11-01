@@ -4865,6 +4865,9 @@ async function valleyStory({ page, st, cmd, until, frames, sleep, base, browser,
   // E17. The pack opens with Tab, pauses, the rest is inert, and Escape closes it.
   await page.keyboard.press('Tab');
   await poll(() => page.evaluate(() => !!document.getElementById('pack') && !document.getElementById('pack').hidden), 5000);
+  // As the bench's own check: the published state follows within 10 frames.
+  const f0 = (await st()).frame;
+  await poll(async () => { const x = await st(); return x.paused || x.frame >= f0 + 10; }, 5000);
   const open = await page.evaluate(() => ({
     open: !!document.getElementById('pack') && !document.getElementById('pack').hidden,
     modal: document.getElementById('pack')?.getAttribute('aria-modal') ?? null,
@@ -4874,7 +4877,8 @@ async function valleyStory({ page, st, cmd, until, frames, sleep, base, browser,
     inert: ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id).inert),
   }));
   await page.keyboard.press('Escape');
-  await frames(3);
+  const f1 = (await st()).frame;
+  await poll(async () => { const x = await st(); return !x.paused || x.frame >= f1 + 10; }, 5000);
   const shut = await page.evaluate(() => ({
     open: !!document.getElementById('pack') && !document.getElementById('pack').hidden,
     paused: window.__game.state().paused,

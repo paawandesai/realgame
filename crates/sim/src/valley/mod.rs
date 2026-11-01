@@ -63,6 +63,24 @@ impl Item {
         }
     }
 
+    /// What the pack shows for the item.
+    pub fn label(self) -> String {
+        match self {
+            Item::Pick => "Pick".into(),
+            Item::Torch => "Torch".into(),
+            Item::O2Flask => "O₂ flask".into(),
+            Item::H2Balloon => "H₂ balloon".into(),
+            Item::KilnSpark => "Kiln Spark".into(),
+            Item::Block(id) if id == mat::COAL_ORE => "Coal".into(),
+            Item::Block(_) => {
+                let k = self.key().replace('_', " ");
+                let mut c = k.chars();
+                c.next()
+                    .map_or(String::new(), |f| f.to_uppercase().chain(c).collect())
+            }
+        }
+    }
+
     /// The item for a key (`pick`, `coal_ore`, ...), for debug `give` and
     /// the page's commands.
     pub fn from_key(key: &str) -> Option<Item> {
@@ -432,6 +450,54 @@ const LINES: [[&str; 4]; 9] = [
     ],
 ];
 
+/// The intro's three cards per band (Sprout, Seedling, Apprentice, Adept),
+/// over the cold Kiln (spec section 8). No band reads as Seedling.
+pub const INTRO: [[&str; 3]; 4] = [
+    [
+        "The Great Kiln kept our valley warm.",
+        "Last night it went cold!",
+        "You are the apprentice. Learn magic chemistry and light the Kiln again!",
+    ],
+    [
+        "The Great Kiln kept our valley warm and made all our glass.",
+        "Last night it went cold.",
+        "You are the apprentice. Learn real chemistry at the Formula Bench, explore the valley, and relight the Kiln.",
+    ],
+    [
+        "The Great Kiln kept our valley warm and made all our glass.",
+        "Last night it went cold.",
+        "You are the apprentice. Learn real chemistry at the Formula Bench, explore the valley, and relight the Kiln. A flame hot enough to melt sand needs fuel and a lot of oxygen.",
+    ],
+    [
+        "The Great Kiln kept our valley warm and made all our glass.",
+        "Last night it went cold.",
+        "You are the apprentice. Learn real chemistry at the Formula Bench, explore the valley, and relight the Kiln. Glass needs about 1700 °C: fuel burning in pure oxygen gets there.",
+    ],
+];
+
+/// A biome's name for the objective title and the biome toast.
+pub fn biome_name(id: &str) -> &'static str {
+    match id {
+        "village" => "The Village",
+        "frozen" => "The Frozen Fields",
+        "marsh" => "The Marsh",
+        "cave" => "The Crystal Cave",
+        "kiln" => "The Kiln Terrace",
+        _ => "Formula",
+    }
+}
+
+/// The intro cards for `band` (`None`: Seedling).
+pub fn intro(band: Option<Tier>) -> [&'static str; 3] {
+    let k = match band {
+        Some(Tier::Sprout) => 0,
+        Some(Tier::Seedling) | None => 1,
+        Some(Tier::Apprentice) => 2,
+        Some(Tier::Adept) => 3,
+    };
+    INTRO[k]
+}
+
 /// The Invention Bench (section 6): builds a reaction from 1-3 pack items and
 /// asks `crate::reactions` whether it is real, exothermic and hot enough.
 pub mod invent {
@@ -774,6 +840,30 @@ mod tests {
 
     /// C6: every step has a line for all four bands and for no band, at most
     /// 90 characters.
+    #[test]
+    fn intro_has_three_cards_per_band_about_the_kiln() {
+        for b in [
+            None,
+            Some(Tier::Sprout),
+            Some(Tier::Seedling),
+            Some(Tier::Apprentice),
+            Some(Tier::Adept),
+        ] {
+            let cards = intro(b);
+            assert!(
+                cards
+                    .iter()
+                    .all(|c| !c.is_empty() && c.chars().count() <= 200),
+                "{b:?}"
+            );
+            assert!(cards[0].contains("Kiln"), "{b:?}");
+            assert!(!cards.iter().any(|c| c
+                .chars()
+                .any(|ch| ch == '"' || ch == '\\' || ch.is_control())));
+        }
+        assert_eq!(intro(None), intro(Some(Tier::Seedling)));
+    }
+
     #[test]
     fn quest_lines_exist_per_band() {
         let bands = [
