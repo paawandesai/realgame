@@ -183,20 +183,39 @@ impl Book {
     /// `settle`: it never touches `build_days`, `last_build_day` or `xp`, and
     /// does nothing on any other stage or state. (The strict rule would add
     /// `p.build_days >= DAYS_NEEDED` here.)
-    pub fn pass_trial(&mut self, _i: usize) -> Vec<Transition> {
-        Vec::new() // CONTRACT STUB (I-030)
+    pub fn pass_trial(&mut self, i: usize) -> Vec<Transition> {
+        self.op(i, |p, _| {
+            if p.stage == Stage::Practised && p.predicted {
+                p.stage = Stage::Mastered;
+                p.builds = BUILDS_NEEDED;
+            }
+        })
     }
 
-    pub fn sharp_ready(&self, _i: usize) -> bool {
-        false // CONTRACT STUB (I-030)
+    /// Keep it sharp is offered on a Mastered spell on a known local day
+    /// other than the day of its last build. Nothing counts down.
+    pub fn sharp_ready(&self, i: usize) -> bool {
+        self.spells.get(i).is_some_and(|p| {
+            p.stage == Stage::Mastered && self.day != 0 && self.day != p.last_build_day
+        })
     }
 
-    pub fn sharp(&mut self, _i: usize) -> Vec<Transition> {
-        Vec::new() // CONTRACT STUB (I-030)
+    /// A correct keep-it-sharp build: `+XP_SHARP` and today becomes the last
+    /// build day. Only when `sharp_ready`; a miss never calls it. Mastery
+    /// never fades, so there is no way down here.
+    pub fn sharp(&mut self, i: usize) -> Vec<Transition> {
+        if !self.sharp_ready(i) {
+            return Vec::new();
+        }
+        self.op(i, |p, day| {
+            add_xp(p, XP_SHARP);
+            p.last_build_day = day;
+        })
     }
 
+    /// Today's local day number (0 = unknown).
     pub fn day(&self) -> u32 {
-        0 // CONTRACT STUB (I-030)
+        self.day
     }
 
     /// Every spell back to the default. The only way down; only an explicit

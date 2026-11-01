@@ -291,41 +291,218 @@ pub struct Desk {
 }
 
 impl Desk {
-    // CONTRACT STUB (I-030): the desk methods do nothing yet.
+    /// Opens a trial. Master: Practised (`stage == 2`), learnable, and a
+    /// question exists for the band. Sharp: Mastered (`stage == 3`) and
+    /// `sharp_ready`. Refuses while one is open.
     pub fn start(
         &mut self,
-        _spell: usize,
-        _kind: Kind,
-        _stage: u8,
-        _learnable: bool,
-        _sharp_ready: bool,
-        _band: &str,
+        spell: usize,
+        kind: Kind,
+        stage: u8,
+        learnable: bool,
+        sharp_ready: bool,
+        band: &str,
     ) -> Result<(), Refuse> {
-        let _ = &self.t;
-        Err(Refuse::Stage)
+        if self.t.is_some() {
+            return Err(Refuse::Open);
+        }
+        match kind {
+            Kind::Master => {
+                if stage != 2 {
+                    return Err(Refuse::Stage);
+                }
+                if !learnable {
+                    return Err(Refuse::NotLearnable);
+                }
+                if question(spell, band).is_none() {
+                    return Err(Refuse::NoQuestion);
+                }
+            }
+            Kind::Sharp => {
+                if stage != 3 {
+                    return Err(Refuse::Stage);
+                }
+                if !learnable {
+                    return Err(Refuse::NotLearnable);
+                }
+                if !sharp_ready {
+                    return Err(Refuse::NotReady);
+                }
+            }
+        }
+        self.t = Some(Trial {
+            spell,
+            kind,
+            phase: Phase::Build,
+            built: 0,
+            asks: 0,
+            misses: 0,
+            right: None,
+            mastered: false,
+            band: band.to_string(),
+        });
+        Ok(())
     }
-    pub fn on_build(&mut self, _spell: usize, _correct: bool) -> Built {
-        Built::Ignored
+
+    /// A judged build for `spell`. Only counts in the build phase of that
+    /// spell's trial; a miss never lowers `built`.
+    pub fn on_build(&mut self, spell: usize, correct: bool) -> Built {
+        let Some(t) = self.t.as_mut() else {
+            return Built::Ignored;
+        };
+        if t.phase != Phase::Build || t.spell != spell {
+            return Built::Ignored;
+        }
+        if !correct {
+            t.misses = t.misses.saturating_add(1);
+            return Built::Miss;
+        }
+        match t.kind {
+            Kind::Sharp => {
+                t.phase = Phase::Done;
+                Built::SharpDone
+            }
+            Kind::Master => {
+                t.built = (t.built + 1).min(BUILDS);
+                if t.built >= BUILDS {
+                    t.phase = Phase::Ask;
+                    Built::Ask
+                } else {
+                    Built::Counted(t.built)
+                }
+            }
+        }
     }
-    pub fn on_answer(&mut self, _choice: &str) -> Option<bool> {
-        None
+
+    /// The player's answer (`"a"`, `"b"` or `"c"`), only while asking.
+    /// `Some(right)`, and the phase becomes Answered; anything else changes
+    /// nothing and is `None`.
+    pub fn on_answer(&mut self, choice: &str) -> Option<bool> {
+        let t = self.t.as_mut()?;
+        if t.phase != Phase::Ask || t.kind != Kind::Master {
+            return None;
+        }
+        let q = question(t.spell, &t.band)?;
+        let ch = q.choices.iter().find(|ch| ch.id == choice)?;
+        t.right = Some(ch.correct);
+        t.phase = Phase::Answered;
+        Some(ch.correct)
     }
+
+    /// "Ask me again" after a wrong answer: back to asking, choices moved.
     pub fn ask_again(&mut self) -> bool {
-        false
+        match self.t.as_mut() {
+            Some(t) if t.phase == Phase::Answered && t.right == Some(false) => {
+                t.phase = Phase::Ask;
+                t.asks = t.asks.wrapping_add(1);
+                t.right = None;
+                true
+            }
+            _ => false,
+        }
     }
-    pub fn finish(&mut self, _mastered: bool) {}
-    pub fn close(&mut self) {}
+
+    /// After a right answer: Done, recording whether the spell is Mastered.
+    pub fn finish(&mut self, mastered: bool) {
+        if let Some(t) = self.t.as_mut() {
+            if t.phase == Phase::Answered && t.right == Some(true) {
+                t.phase = Phase::Done;
+                t.mastered = mastered;
+            }
+        }
+    }
+
+    pub fn close(&mut self) {
+        self.t = None;
+    }
+
     pub fn open_spell(&self) -> Option<usize> {
-        None
+        self.t.as_ref().map(|t| t.spell)
     }
+
     pub fn phase(&self) -> Option<Phase> {
-        None
+        self.t.as_ref().map(|t| t.phase)
     }
+
     pub fn kind(&self) -> Option<Kind> {
-        None
+        self.t.as_ref().map(|t| t.kind)
     }
+
+    /// `"null"`, or the open trial for `window.__trialState.trial`. The
+    /// correct id and the `why` line stay `null` until the player answers.
     pub fn state_json(&self) -> String {
-        "null".to_string()
+        let Some(t) = self.t.as_ref() else {
+            return "null".to_string();
+        };
+        let kind = match t.kind {
+            Kind::Master => "master",
+            Kind::Sharp => "sharp",
+        };
+        let phase = match t.phase {
+            Phase::Build => "build",
+            Phase::Ask => "ask",
+            Phase::Answered => "answered",
+            Phase::Done => "done",
+        };
+        let right = match t.right {
+            None => "null",
+            Some(true) => "true",
+            Some(false) => "false",
+        };
+        let q = match (t.kind, t.phase, question(t.spell, &t.band)) {
+            (Kind::Master, p, Some(q)) if p != Phase::Build => {
+                let shown = matches!(p, Phase::Answered | Phase::Done);
+                let choices: Vec<String> = order(t.asks)
+                    .iter()
+                    .map(|&k| {
+                        let ch = &q.choices[k];
+                        format!(
+                            "{{\"id\":\"{}\",\"label\":\"{}\",\"icon\":\"{}\"}}",
+                            ch.id,
+                            esc(ch.label),
+                            ch.icon
+                        )
+                    })
+                    .collect();
+                let answer = if shown {
+                    q.choices
+                        .iter()
+                        .find(|ch| ch.correct)
+                        .map(|ch| format!("\"{}\"", ch.id))
+                        .unwrap_or_else(|| "null".into())
+                } else {
+                    "null".into()
+                };
+                let why = if shown {
+                    format!("\"{}\"", esc(q.why))
+                } else {
+                    "null".into()
+                };
+                format!(
+                    "{{\"id\":\"{}\",\"prompt\":\"{}\",\"choices\":[{}],\"answer\":{},\"why\":{}}}",
+                    q.id,
+                    esc(q.prompt),
+                    choices.join(","),
+                    answer,
+                    why
+                )
+            }
+            _ => "null".into(),
+        };
+        format!(
+            "{{\"spell\":{},\"slot\":{},\"kind\":\"{}\",\"phase\":\"{}\",\"built\":{},\"need\":{},\"misses\":{},\"asks\":{},\"right\":{},\"mastered\":{},\"q\":{}}}",
+            t.spell,
+            t.spell + 1,
+            kind,
+            phase,
+            t.built,
+            BUILDS,
+            t.misses,
+            t.asks,
+            right,
+            t.mastered,
+            q
+        )
     }
 }
 

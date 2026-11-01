@@ -18,13 +18,19 @@
 //
 // Test hook: window.__bench = { state(), ui(), open(), close(), cmd(s) },
 // plus fake(view) under ?debug only.
+//
+// I-030: a Practised card offers "Master it" and a Mastered card on a later
+// day offers "Keep it sharp" (window.__trialState, written by the game only
+// when it changes); while a trial is open, trial.js draws the body.
+
+import { renderTrial } from './trial.js';
 
 /** @typedef {{ side: number, coef: number, formula: string, atoms: Array<[string, number]>, state?: string | null }} RecipeTerm */
 /** @typedef {{ slot: number, id: string, name: string, formula: string, stage: string, prompt: string }} SpellCard */
 /** @typedef {{ n?: number, slot: number, ok?: boolean, code: string, diffs?: Array<[string, number, number]>, other?: number, bad?: string, simplest?: string, coef?: number, learned?: boolean, stage?: string }} Result */
 /** @typedef {{ v?: number, atBench?: boolean, open?: boolean, band?: string, spells?: SpellCard[], pick?: number, recipe?: RecipeTerm[], result?: Result }} View */
 /** @typedef {Record<string | number, { name: string, formula: string }>} Names */
-/** @typedef {{ band: string, spell: SpellCard, recipe: RecipeTerm[] | null, prompt?: string, onMake: (text: string) => void }} BuilderOpts */
+/** @typedef {{ band: string, spell: SpellCard, recipe: RecipeTerm[] | null, prompt?: string, unaided?: boolean, onMake: (text: string) => void }} BuilderOpts */
 
 const BANDS = ['sprout', 'seedling', 'apprentice'];
 // The four atom cards and tiles, with the CPK-style colours a drawing uses
@@ -336,6 +342,9 @@ function ball(doc, el) {
  * the modal handling, the focus trap or inert. `recipe` may be null (no
  * recipe card). `onMake(text)` gets the composed text, the same text the
  * bench sends in `try`. Every placeable piece carries `data-token`.
+ * `unaided` (I-030, default false) hides every help for a build from
+ * memory: no recipe or formula card, no tile ticks (`data-match` absent)
+ * and no balance scale; the recipe still orders the composed text.
  * @param {HTMLElement} root
  * @param {BuilderOpts} opts
  * @returns {{ destroy: () => void }}
@@ -347,6 +356,7 @@ export function mountBuilder(root, opts) {
   const spell = opts.spell || { slot: 0, id: '', name: '', formula: '', stage: 'unknown', prompt: '' };
   const make = (/** @type {string} */ text) => { try { opts.onMake(text); } catch { /* the caller's problem */ } };
   const reaction = !!recipe && recipe.some((t) => t.side === 1);
+  const unaided = opts.unaided === true;
 
   root.replaceChildren();
   const wrap = mk(doc, 'div', `bench-build band-${band}`);
@@ -371,7 +381,7 @@ export function mountBuilder(root, opts) {
 
   if (band === 'sprout') {
     // Recipe card: the balls the spell needs, grouped per element.
-    if (recipe) {
+    if (recipe && !unaided) {
       const card = mk(doc, 'div', 'bench-recipe');
       card.setAttribute('aria-label', 'Recipe');
       for (const t of recipe) {
@@ -497,12 +507,13 @@ export function mountBuilder(root, opts) {
     makeBtn.addEventListener('click', () => make(composeEquation(recipe, coefs)));
     const actions = mk(doc, 'div', 'bench-actions');
     actions.append(makeBtn);
-    wrap.append(scale, row, actions);
+    if (unaided) wrap.append(row, actions);
+    else wrap.append(scale, row, actions);
   } else if (band === 'seedling') {
     // One substance: the formula with subscripts, and a count tile per element.
     /** @type {Record<string, number>} */
     const want = {};
-    if (recipe) {
+    if (recipe && !unaided) {
       for (const t of recipe) for (const [el, n] of t.atoms) want[el] = (want[el] || 0) + n;
       const card = mk(doc, 'div', 'bench-recipe bench-formula', pretty(recipe.map((t) => t.formula).join(' + '), false));
       card.setAttribute('aria-label', 'Recipe');
@@ -525,7 +536,7 @@ export function mountBuilder(root, opts) {
       const draw = () => {
         num.textContent = String(counts[el]);
         b.setAttribute('aria-label', `${el}: ${counts[el]}`);
-        b.setAttribute('data-match', String(!!recipe && (counts[el] || 0) === (want[el] || 0) && (counts[el] || 0) > 0));
+        if (!unaided) b.setAttribute('data-match', String(!!recipe && (counts[el] || 0) === (want[el] || 0) && (counts[el] || 0) > 0));
       };
       const step = (/** @type {number} */ d) => { counts[el] = (((counts[el] || 0) + d) % 5 + 5) % 5; draw(); };
       draw();
@@ -595,6 +606,12 @@ export function startBench() {
   /** @type {View} */
   let rust = { v: 1, atBench: false, open: false };
   let rustJson = '';
+  // I-030: the trial state (`{ v, sharp, trial }`) and its last raw JSON.
+  /** @type {{ v?: number, sharp?: number[], trial?: any }} */
+  let trialSt = { v: 1, sharp: [], trial: null };
+  let trialJson = '';
+  /** @type {Record<string, any>} */
+  let trialMem = {};
   /** @type {View | null} */
   let fakeView = null;
   /** @type {string | null} */
@@ -608,8 +625,8 @@ export function startBench() {
     open: false,
     /** @type {string | null} */
     band: null,
-    /** @type {'chooser' | 'list' | 'build' | 'done' | 'fizzle'} */
-    view: /** @type {'chooser' | 'list' | 'build' | 'done' | 'fizzle'} */ ('chooser'),
+    /** @type {'chooser' | 'list' | 'build' | 'done' | 'fizzle' | 'trial'} */
+    view: /** @type {'chooser' | 'list' | 'build' | 'done' | 'fizzle' | 'trial'} */ ('chooser'),
     pick: 0,
   };
   let wasLocked = false;
@@ -735,6 +752,8 @@ export function startBench() {
     builderKey = '';
     listKey = '';
     feedback = null;
+    try { trialMem.builder?.destroy(); } catch { /* gone */ }
+    trialMem = {};
     body.replaceChildren();
   };
 
@@ -793,7 +812,8 @@ export function startBench() {
     const v = view();
     const spells = (v.band === ui.band || fakeView) ? v.spells || [] : [];
     noteNames(spells);
-    const keyNow = `list|${ui.band}|${JSON.stringify(spells)}`;
+    const sharpSlots = Array.isArray(trialSt.sharp) ? trialSt.sharp : [];
+    const keyNow = `list|${ui.band}|${JSON.stringify(spells)}|${sharpSlots.join(',')}`;
     if (ui.view === 'list' && listKey === keyNow) return;
     const had = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.('.bench-spell');
     const hadSlot = had ? had.getAttribute('data-slot') : null;
@@ -813,7 +833,29 @@ export function startBench() {
       icon.setAttribute('aria-hidden', 'true');
       card.append(icon, mk(document, 'span', 'bench-spell-name', pretty(s.name)), badge(s.stage));
       card.addEventListener('click', () => pickSpell(s.slot));
-      grid.append(card);
+      // I-030: "Master it" under a Practised card, "Keep it sharp" under a
+      // Mastered one when the game says it is ready; card and button share a
+      // wrapper so no button sits inside a button.
+      /** @type {HTMLElement | null} */
+      let extra = null;
+      if (s.stage === 'practised') {
+        extra = mk(document, 'button', 'trial-start');
+        extra.setAttribute('aria-label', `Master ${pretty(s.name)}`);
+        const star = mk(document, 'span', 'trial-start-star', '★');
+        star.setAttribute('aria-hidden', 'true');
+        extra.append(star, mk(document, 'span', '', 'Master it'));
+        extra.addEventListener('click', () => { wakeAudio(); push(`trial ${s.slot}`); });
+      } else if (s.stage === 'mastered' && sharpSlots.includes(s.slot)) {
+        extra = mk(document, 'button', 'trial-sharp', 'Keep it sharp');
+        extra.addEventListener('click', () => { wakeAudio(); push(`sharp ${s.slot}`); });
+      }
+      if (extra) {
+        extra.setAttribute('type', 'button');
+        extra.setAttribute('data-slot', String(s.slot));
+        const cw = mk(document, 'div', 'bench-cardwrap');
+        cw.append(card, extra);
+        grid.append(cw);
+      } else grid.append(card);
     }
     wrap.append(grid);
     body.append(wrap);
@@ -982,6 +1024,13 @@ export function startBench() {
     const v = view();
     noteNames(v.spells);
     if (!ui.band || ui.view === 'chooser') return;
+    // I-030: an open trial owns the body; when it ends, back to the list.
+    if (trialSt.trial && !fakeView) {
+      if (ui.view !== 'trial') { clearBody(); ui.view = 'trial'; }
+      renderTrial(body, /** @type {any} */ (trialSt), /** @type {any} */ (v), { push, band: ui.band, close: () => closeBench('click'), mem: trialMem });
+      return;
+    }
+    if (ui.view === 'trial') { listKey = ''; showList(); return; }
     const r = v.result;
     if (r && typeof r.n === 'number' && r.n > shownN && (ui.view === 'build' || ui.view === 'fizzle') && r.slot === ui.pick && (awaiting || fakeView)) {
       shownN = r.n;
@@ -1018,6 +1067,8 @@ export function startBench() {
     misses = {};
     awaiting = false;
     root.hidden = false;
+    ringOn = false;
+    btn.classList.remove('master');
     resolveBand();
     push('open');
     if (ui.band) { ui.view = 'list'; listKey = ''; showList(); } else showChooser();
@@ -1105,6 +1156,9 @@ export function startBench() {
   // ---- the per-frame poll: the published view and the button's classes ----
   const cls = { near: false, hint: false, locked: false };
   let hintDone = false;
+  let ringOn = false;
+  /** @type {Record<string, string>} */
+  const lastStage = {};
   const setCls = (/** @type {'near' | 'hint' | 'locked'} */ k, /** @type {boolean} */ on) => {
     if (cls[k] === on) return;
     cls[k] = on;
@@ -1113,10 +1167,32 @@ export function startBench() {
   const poll = () => {
     try {
       const js = w.__benchState;
+      let changed = false;
       if (typeof js === 'string' && js !== rustJson) {
         rustJson = js;
         try { rust = JSON.parse(js); } catch { /* keep the last good view */ }
-        sync();
+        changed = true;
+      }
+      const tj = w.__trialState;
+      if (typeof tj === 'string' && tj !== trialJson) {
+        trialJson = tj;
+        try { trialSt = JSON.parse(tj) || trialSt; } catch { /* keep the last good state */ }
+        changed = true;
+      }
+      if (changed) sync();
+      // I-030: the gold ring, from a spell turning Practised until the bench
+      // is next opened.
+      {
+        const gs = w.__gameState;
+        if (typeof gs === 'string') {
+          for (const m of gs.matchAll(/"id":"(fire|water|frost|co2)","st":"(\w+)"/g)) {
+            const id = m[1] || '';
+            const was = lastStage[id];
+            lastStage[id] = m[2] || '';
+            if (m[2] === 'practised' && was !== undefined && was !== 'practised' && !ui.open) ringOn = true;
+          }
+          if (btn.classList.contains('master') !== ringOn) btn.classList.toggle('master', ringOn);
+        }
       }
       setCls('near', !!rust.atBench);
       setCls('locked', !!document.pointerLockElement);
@@ -1140,6 +1216,7 @@ export function startBench() {
   /** @type {any} */
   const hook = {
     state: () => { try { return JSON.parse(w.__benchState); } catch { return null; } },
+    trial: () => { try { return JSON.parse(w.__trialState); } catch { return null; } },
     ui: () => ({ open: ui.open, band: ui.band, view: ui.view, pick: ui.pick }),
     open: () => openBench('api'),
     close: () => closeBench('api'),

@@ -72,7 +72,8 @@ export function startProgress(win = globalThis.window) {
     try { storage = win.localStorage; } catch { storage = null; }
     const D = win.Date || Date;
     const send = (/** @type {string} */ c) => { try { win.__game?.cmd(c); } catch { /* no game hook */ } };
-    send(`prog day ${localDay(new D())}`);
+    let sentDay = localDay(new D());
+    send(`prog day ${sentDay}`);
     const save = storage ? readSave(storage) : null;
     if (save) send(`prog load ${save}`);
     const saver = createSaver({
@@ -82,7 +83,15 @@ export function startProgress(win = globalThis.window) {
         return typeof raw === 'string' ? JSON.parse(raw) : raw;
       },
     });
-    const poll = () => saver.poll();
+    // The day is sent again once local midnight passes (I-030; I-027's
+    // should-fix), so keep-it-sharp and day counts see the new day.
+    const poll = () => {
+      try {
+        const today = localDay(new D());
+        if (today !== sentDay) { sentDay = today; send(`prog day ${today}`); }
+      } catch { /* no clock */ }
+      saver.poll();
+    };
     win.setInterval?.(poll, POLL_MS);
     win.document?.addEventListener?.('visibilitychange', () => {
       if (win.document.visibilityState === 'hidden') poll();

@@ -249,9 +249,66 @@ pub fn apply(
             let v = sim::judge(spells, slot, band, &text);
             record(st, book, spells, slot, v);
         }
-        // CONTRACT STUB (I-030): the trial words are parsed but do nothing.
-        Cmd::Trial(_) | Cmd::Sharp(_) | Cmd::Answer(_) | Cmd::Again | Cmd::EndTrial => {
-            return Err("CONTRACT STUB");
+        Cmd::Trial(slot) | Cmd::Sharp(slot) => {
+            if !st.open {
+                return Err("trial while closed");
+            }
+            let Some(band) = st.band else {
+                return Err("trial before a band");
+            };
+            let Some(d) = def_by_slot(spells, slot) else {
+                return Err("trial: no such slot");
+            };
+            let i = usize::from(d.slot) - 1;
+            let stage = stage_of(book, Some(i)) as u8;
+            let (kind, ready) = match cmd {
+                Cmd::Sharp(_) => (Kind::Sharp, book.sharp_ready(i)),
+                _ => (Kind::Master, false),
+            };
+            if st.trial.open_spell().is_some() {
+                return Err("trial: one is already open");
+            }
+            st.trial
+                .start(i, kind, stage, sim::learnable(d, band), ready, band.id())
+                .map_err(|_| "trial: refused")?;
+            st.pick = slot;
+            st.result = None;
+        }
+        Cmd::Answer(id) => {
+            if !st.open || st.band.is_none() {
+                return Err("answer while closed");
+            }
+            let Some(i) = st.trial.open_spell() else {
+                return Err("answer without a trial");
+            };
+            match st.trial.on_answer(&id) {
+                Some(true) => {
+                    book.predict(i, true);
+                    book.pass_trial(i);
+                    let mastered = book.get(i).map(|p| p.stage) == Some(Stage::Mastered);
+                    st.trial.finish(mastered);
+                }
+                Some(false) => {
+                    book.predict(i, false);
+                }
+                None => return Err("answer: not asking, or no such choice"),
+            }
+        }
+        Cmd::Again => {
+            if !st.open || st.band.is_none() {
+                return Err("again while closed");
+            }
+            if !st.trial.ask_again() {
+                return Err("again: nothing to ask again");
+            }
+        }
+        Cmd::EndTrial => {
+            if !st.open || st.band.is_none() {
+                return Err("endtrial while closed");
+            }
+            st.trial.close();
+            st.pick = 0;
+            st.result = None;
         }
     }
     Ok(())

@@ -136,13 +136,16 @@ export function createWorked({ doc, win, cmd, bench }) {
     });
   };
 
-  // "Water: Practised!" for 4 s (Sprout: pictures, the words a label).
-  const toast = (/** @type {number} */ i) => {
+  // "Water: Practised!" for 4 s (Sprout: pictures, the words a label);
+  // I-030: "Water: Mastered!" with a star when a trial masters it.
+  const toast = (/** @type {number} */ i, mastered = false) => {
     /** @type {any} */
     let t = doc.getElementById('worked-toast');
     if (!t) doc.body.append(t = el('div', '', '', { id: 'worked-toast', role: 'status' }));
-    const words = `${bench.pretty(names[i] || NAMES[i] || '')}: Practised!`;
-    const shape = el('span', 'worked-toast-shape', SHAPE.practised, H);
+    const words = mastered
+      ? `${bench.pretty(names[i] || NAMES[i] || '')}: Mastered!`
+      : `${bench.pretty(names[i] || NAMES[i] || '')}: Practised!`;
+    const shape = el('span', 'worked-toast-shape', mastered ? SHAPE.mastered : SHAPE.practised, H);
     if (sprout()) {
       t.replaceChildren(el('span', icon(IDS[i] || ''), '', H), shape);
       t.setAttribute('aria-label', words);
@@ -171,7 +174,10 @@ export function createWorked({ doc, win, cmd, bench }) {
       const stages = Array.isArray(ws.stages) ? ws.stages : null;
       if (stages) {
         badges(stages);
-        stages.forEach((s, i) => { if (s === 'practised' && prev && prev[i] === 'learning') toast(i); });
+        stages.forEach((s, i) => {
+          if (s === 'practised' && prev && prev[i] === 'learning') toast(i);
+          if (s === 'mastered' && prev && prev[i] === 'practised') toast(i, true);
+        });
         prev = stages.slice();
       }
       const work = ws.work || null;
