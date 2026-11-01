@@ -1,0 +1,9 @@
+l1 [{"r":1,"valid":true,"cpu":31,"p99":42.8,"tti":5951,"wl":true,"inv":[]},{"r":2,"valid":true,"cpu":34.4,"p99":53.2,"tti":5781.5,"wl":true,"inv":[]},{"r":3,"valid":true,"cpu":28.6,"p99":59.8,"tti":6080.3,"wl":true,"inv":[]},{"r":4,"valid":true,"cpu":29.3,"p99":46,"tti":5715,"wl":true,"inv":[]},{"r":5,"valid":true,"cpu":31.9,"p99":63.5,"tti":5917.1,"wl":true,"inv":[]}]
+l3 [{"r":1,"valid":true,"cpu":29.4,"p99":40.6,"tti":5997.1,"wl":true,"inv":[]},{"r":2,"valid":true,"cpu":31.7,"p99":47.6,"tti":5941.2,"wl":true,"inv":[]},{"r":3,"valid":true,"cpu":31,"p99":50.1,"tti":5840.5,"wl":true,"inv":[]},{"r":4,"valid":true,"cpu":29.3,"p99":48.2,"tti":6630.6,"wl":true,"inv":[]},{"r":5,"valid":true,"cpu":29.7,"p99":65.1,"tti":5933.3,"wl":true,"inv":[]}]
+cpu p50 median l1 31 l3 29.7 | pair diffs l3-l1 -1.6,-2.7,2.4,0,-2.2 median -1.6 | l3 lower in 3 of 5
+l1 range 28.6 - 34.4
+p99 median l1 53.2 l3 48.2
+tti median l1 5917.1 l3 5941.2
+gl l1 {"per_frame":2136.85,"draws":46.64,"cpu":7.4}
+gl l3 {"per_frame":1700.61,"draws":34.21,"cpu":7.4}
+wasm brotli main(d32a4ca) 3595538 I-037 3604536 delta MB 0.009

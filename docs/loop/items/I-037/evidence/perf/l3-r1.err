@@ -1,5 +1,0 @@
-[perf] sizing /home/claude/realgame/.claude/worktrees/w13-I-037/crates/bevy-client/web/pkg-out
-[perf] brotli total 3645235 B (3.645 MB), gzip 5184194 B
-[perf] low@4x: waiting for quiet machine (load1=2.18, own ~0, limit 2)
-[perf] low@4x: loading http://127.0.0.1:41811/?low&debug&level=3
-[perf] low@4x: interactive at 5997.1 ms (bound 75.9 ms, FIRST_FRAME t=5930)
