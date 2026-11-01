@@ -15,9 +15,10 @@ const CARD_S = 6;
 const SKIP_AFTER_S = 1;
 /** Sprout reads slower: the first card holds this long. */
 const SPROUT_FIRST_S = 3;
-/** A gap between frames longer than this (ms) is a stall (the first chunks
- * meshing at load): nothing new was on screen, so it does not count toward
- * a card's time or the 1 s before a key can skip. */
+/** A gap between frames counts for at most this long (ms) toward a card's
+ * time and the 1 s before a key can skip: a longer gap is a stall (the
+ * first chunks meshing at load), when nothing new was on screen. A slow
+ * machine still advances, by up to this much a frame. */
 const STALL_MS = 500;
 
 const parse = (/** @type {string | undefined} */ raw) => {
@@ -67,8 +68,8 @@ export function startStory() {
   let openedAt = 0;
   let cardAt = 0;
   let lastTick = performance.now();
-  /** The stall still going on since the last frame (ms), or 0. */
-  const stall = () => { const g = performance.now() - lastTick; return g > STALL_MS ? g : 0; };
+  /** The part of the gap since the last frame that does not count (ms). */
+  const stall = () => Math.max(0, performance.now() - lastTick - STALL_MS);
   let card = 0;
   let sprout = false;
   /** @type {Array<[HTMLElement, boolean]>} */
@@ -150,7 +151,7 @@ export function startStory() {
 
   const tick = () => {
     const now = performance.now();
-    if (open && now - lastTick > STALL_MS) { openedAt += now - lastTick; cardAt += now - lastTick; }
+    if (open && now - lastTick > STALL_MS) { const g = now - lastTick - STALL_MS; openedAt += g; cardAt += g; }
     lastTick = now;
     const s = parse(w.__gameState);
     if (s && s.mode === 'voxel') {
