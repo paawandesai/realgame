@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
 // I-035 level-2 section and the console-error check; also marsh (I-037),
-// spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
+// spellPhysics (I-051), spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -93,11 +93,12 @@ function check(name, ok, detail = '') {
   const frames = async (n) => { const f0 = (await st()).frame; await until((x) => x.frame >= f0 + n, 60000); };
   await sleep(2500);
   // ONLY=<section>[,<section>...]: those sections alone (each loads its own
-  // page), then the error check. frozenGate (I-035); marsh (I-037); spellProgress,
+  // page), then the error check. frozenGate (I-035); marsh (I-037); spellPhysics (I-051); spellProgress,
   // formulaBench and workedCasts (I-029).
   const onlyRuns = {
     frozenGate: () => frozenGate({ page, st, cmd, until, frames, sleep, base, logs }),
     marsh: () => marsh({ page, st, cmd, until, frames, sleep, base, logs }),
+    spellPhysics: () => spellPhysics({ page, st, cmd, until, frames, sleep, base, logs }),
     spellProgress: () => spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     formulaBench: () => formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     workedCasts: () => workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors }),
@@ -379,6 +380,8 @@ function check(name, ok, detail = '') {
   await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
 
   await marsh({ page, st, cmd, until, frames, sleep, base, logs });
+
+  await spellPhysics({ page, st, cmd, until, frames, sleep, base, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -5317,4 +5320,108 @@ async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted',
     s.level === 2 && s.nextOpen === true && direct.gateWall === false && direct.streamFrozen === true,
     `level=${s.level} nextOpen=${s.nextOpen} outcome=${s.outcome} ${JSON.stringify(direct)} pos=${s.pos}`);
+}
+
+async function spellPhysics({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- spellPhysics (I-051) --');
+  const load = async (url) => {
+    await page.goto(url);
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+  };
+  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
+  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
+  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
+  // The LAND lines logged since `n0`: { p: [x, y, z], from: [x, y, z], obj }.
+  const lands = (n0) => logs.slice(n0).map((l) => /LAND x=(-?[\d.]+) y=(-?[\d.]+) z=(-?[\d.]+) obj=(-?\d+) from=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)/.exec(l)).filter(Boolean)
+    .map((m) => ({ p: [+m[1], +m[2], +m[3]], obj: +m[4], from: [+m[5], +m[6], +m[7]] }));
+  const flat = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
+  // One cast (`cast` or `cast <hold>`) with `spell` (1 Fire .. 4 CO2) once
+  // the view aims as asked; returns the state after it landed and its LAND line.
+  const castNow = async (spell, line = 'cast') => {
+    await resume();
+    await cmd(`select ${spell}`);
+    const a = await until((x) => x.spell === spell - 1 && x.cooldown <= 0, 15000);
+    const n0 = logs.length;
+    await cmd(line);
+    const z = await until((x) => x.impacts > a.impacts, 15000);
+    await gameSecs(0.3);
+    const land = lands(n0).pop() || null;
+    return { z: await st(), land, landed: z.impacts > a.impacts };
+  };
+  const castAt = async (i, spell, line) => { await cmd(`face ${i}`); await frames(2); return castNow(spell, line); };
+
+  await load(base);
+  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
+  const bushes = s.objs.filter((o) => o.n === 'bush').map((o) => o.i);
+  const mid = bushes[6]; // (0, -5), burning from the start
+
+  // 7. Water from about 13 m falls short; the bush keeps burning.
+  await cmd('tp 3 8');
+  let r = await castAt(mid, 2);
+  const farDist = r.land ? flat(r.land.p, r.land.from) : NaN;
+  check('spellPhysics: Water from ~13 m arcs down short of the bush (lands within 9 m) and the bush keeps burning',
+    r.landed && r.land && farDist < 9 && r.z.objs[mid].burning === true,
+    `landed=${r.landed} land=${JSON.stringify(r.land)} dist=${farDist} burning=${r.z.objs[mid].burning}`);
+
+  // 8. Walk closer: from about 3.5 m it reaches and puts the bush out.
+  await cmd('tp 0 -1.5');
+  r = await castAt(mid, 2);
+  check('spellPhysics: from ~3.5 m the Water arc lands on the bush and puts it out',
+    r.landed && r.land && r.land.obj === mid && r.z.objs[mid].burning === false,
+    `land=${JSON.stringify(r.land)} burning=${r.z.objs[mid].burning} caption=${r.z.caption}`);
+  await cmd('face ' + mid);
+  await frames(2);
+
+  // 9. Reach grows with how long the button is held (open ground, view 40° up).
+  await cmd('tp 8 12');
+  await cmd('look 0 40');
+  await frames(2);
+  const tap = await castNow(2, 'cast');
+  const hold = await castNow(2, 'cast 0.8');
+  const dTap = tap.land ? flat(tap.land.p, tap.land.from) : NaN;
+  const dHold = hold.land ? flat(hold.land.p, hold.land.from) : NaN;
+  check('spellPhysics: a tapped jet lands 5.5-8.5 m away and a 0.8 s hold lands 9-13 m away, both on the ground',
+    dTap >= 5.5 && dTap <= 8.5 && dHold >= 9 && dHold <= 13 && dHold - dTap >= 3
+      && Math.abs(tap.land.p[1]) < 0.2 && Math.abs(hold.land.p[1]) < 0.2,
+    `tap ${dTap.toFixed(2)} m at y=${tap.land && tap.land.p[1]}, hold ${dHold.toFixed(2)} m at y=${hold.land && hold.land.p[1]}`);
+
+  // 10. Fire is a short cone: nothing from 5 m, the hedge lights from 1.8 m.
+  const hedge = idx(s, 'dry hedge');
+  await cmd('tp -16.1 6');
+  r = await castAt(hedge, 1);
+  const far5 = r.z.objs[hedge].burning;
+  await cmd('tp -19.3 6');
+  r = await castAt(hedge, 1);
+  check('spellPhysics: Fire is a short cone (no effect on the hedge from 5 m; lights it from 1.8 m)',
+    far5 === false && r.z.objs[hedge].burning === true, `from 5 m burning=${far5}; from 1.8 m burning=${r.z.objs[hedge].burning} caption=${r.z.caption}`);
+
+  // 11. Frost is a short cone too (level 2's stream).
+  await cmd('level 2');
+  s = await until((x) => x.level === 2, 10000);
+  const stream = idx(s, 'stream');
+  await cmd('tp 0 14');
+  r = await castAt(stream, 3);
+  const ice6 = r.z.objs[stream].ice;
+  await cmd('tp 0 10');
+  r = await castAt(stream, 3);
+  check('spellPhysics: Frost is a short cone (stream ice 0 from 6 m; a third frozen from 2 m)',
+    ice6 === 0 && Math.abs(r.z.objs[stream].ice - 0.34) < 0.01, `from 6 m ice=${ice6}; from 2 m ice=${r.z.objs[stream].ice}`);
+
+  // 12. CO2 is lobbed and settles: it fills the Marsh's dip from where the flames stop the walk.
+  await cmd('level 3');
+  s = await until((x) => x.level === 3 && x.ventsLit === 7, 10000);
+  await cmd('look 0 0');
+  await cmd('move 0 1 3');
+  await gameSecs(3.4);
+  const dip = idx(s, 'dip');
+  r = await castAt(dip, 4);
+  check('spellPhysics: a CO2 lob from the flame line settles into the dip (pool 0.5)',
+    r.landed && r.z.pools && r.z.pools[0] === 0.5, `pools=${JSON.stringify(r.z.pools)} land=${JSON.stringify(r.land)} pos=${r.z.pos}`);
+  await cmd('look 0 -15');
+  await frames(4);
+  await screenshot(page, 'i051-co2-dip.png');
 }

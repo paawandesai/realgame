@@ -12,6 +12,7 @@
 //! that make a cast legible (fires left, the nearest fire's bearing, flight
 //! time).
 
+mod ballistics;
 mod bench;
 mod bridge;
 mod chem;
