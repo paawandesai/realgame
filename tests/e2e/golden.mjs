@@ -2621,9 +2621,11 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
 
 // ---------------------------------------------------------------------------
 // A click under pointer lock does not turn the view (docs/loop/items/I-047/
-// spec.md, T1-T4). Headless Chromium follows each locked pointerdown and
-// pointerup with a pointermove of about (-VW/2, -VH/2); hud.js used to clamp
-// it to 200 px (a 10.9 degree turn per button event) instead of dropping it.
+// spec.md, T1-T4, T6, T7). Headless Chromium follows each locked pointerdown
+// and pointerup with one pointermove of minus the CDP (Playwright) mouse
+// position, as the first pointermove after the edge (often a frame or more
+// later); hud.js used to clamp it to 200 px (a 10.9 degree turn per button
+// event) instead of dropping it.
 // Sway is off for the section; sway and the pose are restored at the end.
 // ---------------------------------------------------------------------------
 async function lockedClickNoTurn({ page, st, cmd, until, frames, sleep, idx, lit, locked, base, browser, errors }) {
@@ -2686,6 +2688,7 @@ async function lockedClickNoTurn({ page, st, cmd, until, frames, sleep, idx, lit
   // T1. A real press + release with no mouse move does not turn the view.
   {
     let ok = false, note = '';
+    let recording = false;
     try {
       const p = await pose();
       const a = p.s;
@@ -2700,24 +2703,30 @@ async function lockedClickNoTurn({ page, st, cmd, until, frames, sleep, idx, lit
         window.__i047Rec = rec;
         for (const t of ['mousemove', 'pointerdown', 'pointerup']) window.addEventListener(t, rec, { capture: true });
       });
+      recording = true;
       await page.mouse.down();
       await page.mouse.up();
       await frames(20);
       const b = await st();
-      const seen = await page.evaluate(() => {
-        Event.prototype.stopImmediatePropagation = window.__i047Stop;
-        for (const t of ['mousemove', 'pointerdown', 'pointerup']) window.removeEventListener(t, window.__i047Rec, { capture: true });
-        return window.__i047;
-      });
+      const seen = await page.evaluate(() => window.__i047.slice());
       ok = lk && a.locked && p.ok && Math.abs(dYaw(a.yaw, b.yaw)) < 0.5 && Math.abs(b.pitch - a.pitch) < 0.5;
       note = `locked=${a.locked} still=${p.ok} mouse at ${mouseAt}; ${line(a, b)}; events: ${seen.join(' | ')}`;
     } catch (e) {
       note = `error: ${e && e.message}`;
+    } finally {
+      if (recording) {
+        await page.evaluate(() => {
+          Event.prototype.stopImmediatePropagation = window.__i047Stop;
+          for (const t of ['mousemove', 'pointerdown', 'pointerup']) window.removeEventListener(t, window.__i047Rec, { capture: true });
+        }).catch(() => {});
+      }
     }
     check('lock: a real press and release does not turn the view', ok, note);
   }
 
-  // T2. A synthetic edge plus the bogus move does not turn the view.
+  // T2. A synthetic edge plus a move of minus the window centre (where the
+  // bogus move lands when the CDP mouse is parked at the centre, as in the
+  // real-click check) does not turn the view.
   {
     let ok = false, note = '';
     try {
@@ -2775,6 +2784,64 @@ async function lockedClickNoTurn({ page, st, cmd, until, frames, sleep, idx, lit
       note = `error: ${e && e.message}`;
     }
     check('lock: a flick right after a click still turns the view', ok, note);
+  }
+
+  // T6. A real first move after a press, and after the release, still turns
+  // the view (synthetic: CDP moves cannot model a real move under lock).
+  {
+    let ok = false, note = '';
+    try {
+      const p = await pose();
+      const a = p.s;
+      await page.evaluate(() => {
+        const g = document.getElementById('game');
+        const btn = { button: 0, pointerType: 'mouse', bubbles: true, clientX: 489, clientY: 645 };
+        document.dispatchEvent(new PointerEvent('pointerdown', btn));
+        g.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: 30, movementY: 0 }));
+        document.dispatchEvent(new PointerEvent('pointerup', btn));
+        g.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: -150, movementY: -100 }));
+      });
+      await frames(10);
+      const b = await st();
+      // player.rs: yaw -= dx * LOOK_PER_PX * sens, pitch -= dy * LOOK_PER_PX * sens.
+      const k = (0.00095 * (Number.isFinite(a.sens) ? a.sens : 1) * 180) / Math.PI;
+      const eYaw = -(30 - 150) * k, ePitch = -(-100) * k;
+      const gy = dYaw(a.yaw, b.yaw), gp = b.pitch - a.pitch;
+      ok = lk && a.locked && p.ok && Math.abs(gy - eYaw) <= 0.5 && Math.abs(gp - ePitch) <= 0.5 && Math.abs(gy) >= 1;
+      note = `locked=${a.locked} still=${p.ok}; down, move (30,0), up, move (-150,-100); expected d yaw ${fmt(eYaw)} d pitch ${fmt(ePitch)}; ${line(a, b)}`;
+    } catch (e) {
+      note = `error: ${e && e.message}`;
+    }
+    check('lock: a real first move after a press still turns the view', ok, note);
+  }
+
+  // T7. After a moved CDP mouse (+P then -P), the bogus -P after a button
+  // event is dropped (break-1 case C and the real-click check, synthetic).
+  {
+    let ok = false, note = '';
+    try {
+      const p = await pose();
+      await sleep(500);
+      const mv = (x, y) => page.evaluate(([mx, my]) => {
+        document.getElementById('game').dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: mx, movementY: my }));
+      }, [x, y]);
+      await mv(420, 300);
+      await frames(2);
+      await mv(-420, -300);
+      await frames(2);
+      const a = await st();
+      await page.evaluate(() => {
+        document.dispatchEvent(new PointerEvent('pointerup', { button: 0, pointerType: 'mouse', bubbles: true, clientX: 489, clientY: 645 }));
+        document.getElementById('game').dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', movementX: -420, movementY: -300 }));
+      });
+      await frames(10);
+      const b = await st();
+      ok = lk && a.locked && p.ok && Math.abs(dYaw(a.yaw, b.yaw)) < 0.5 && Math.abs(b.pitch - a.pitch) < 0.5;
+      note = `locked=${a.locked} still=${p.ok}; moves (+420,+300), (-420,-300), then pointerup + move (-420,-300); ${line(a, b)}`;
+    } catch (e) {
+      note = `error: ${e && e.message}`;
+    }
+    check('lock: the bogus move after a moved CDP mouse is dropped', ok, note);
   }
   await cmd(`set sway ${swayOnEntry ? 'on' : 'off'}`);
   await fresh();

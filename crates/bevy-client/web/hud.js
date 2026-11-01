@@ -275,21 +275,74 @@ export function startHud() {
   };
   document.addEventListener('pointerlockchange', syncLock);
   // One event's movement: a number, and not one of the huge jumps some
-  // browsers report on the first event after the lock.
+  // browsers report on the first event after the lock. (Headless Chromium
+  // also follows each locked button edge with one move of minus the CDP
+  // mouse position; that one is dropped, not clamped: see dropBogus and
+  // docs/loop/items/I-047.)
   const delta = (v) => (Number.isFinite(v) ? Math.max(-200, Math.min(200, v)) : 0);
+  // The first locked move after a press, a release or a lock change is
+  // dropped when it is minus a known cursor position (within 2 px on both
+  // axes): the cursor where the lock was taken (lastPtr), the edge's own
+  // position (edgePos), the last down-right locked move (cdpPos, which is
+  // where a CDP mouse.move put the mouse) or the window centre. No timing:
+  // the bogus move comes with the next frame, however slow.
+  let lastPtr = null;
+  let edgePos = null;
+  let cdpPos = null;
+  let armPtr = false;
+  let armMouse = false;
+  const near0 = (c) => Math.abs(c[0]) <= 2 && Math.abs(c[1]) <= 2;
+  const onEdge = (e) => {
+    if (e.type === 'pointerlockchange') {
+      edgePos = lastPtr;
+      cdpPos = null;
+    } else {
+      if (!input.locked) lastPtr = [e.clientX, e.clientY];
+      edgePos = [e.clientX, e.clientY];
+    }
+    armPtr = true;
+    armMouse = true;
+  };
+  window.addEventListener('pointerdown', onEdge, { capture: true });
+  window.addEventListener('pointerup', onEdge, { capture: true });
+  document.addEventListener('pointerlockchange', onEdge);
+  // One raw locked unit (a coalesced part, or an event with no parts):
+  // returns true when it is to be dropped. `stream` is 'ptr' or 'mouse'.
+  const dropBogus = (u, stream) => {
+    const mx = Number.isFinite(u.movementX) ? u.movementX : 0;
+    const my = Number.isFinite(u.movementY) ? u.movementY : 0;
+    if (mx === 0 && my === 0) return false;
+    let drop = false;
+    if (stream === 'ptr' ? armPtr : armMouse) {
+      const w = [window.innerWidth / 2, window.innerHeight / 2];
+      for (const c of [edgePos, lastPtr, cdpPos, w]) {
+        if (c && !near0(c) && Math.abs(mx + c[0]) <= 2 && Math.abs(my + c[1]) <= 2) { drop = true; break; }
+      }
+      if (stream === 'ptr') armPtr = false; else armMouse = false;
+    }
+    if (mx >= 0 && my >= 0) cdpPos = [mx, my];
+    return drop;
+  };
   // An event's movement, including the moves the browser merged into it
   // (with a button held, Chrome merges pointer moves to one per frame, and
   // the merged event's own movementX can hold only the last of them, which
   // made aiming while holding fire turn far too slowly). When the parts
-  // are there, their sum is used (clamped like a single event).
+  // are there, their sum is used (clamped like a single event). Under lock,
+  // a part (or the event) that dropBogus picks out counts for nothing.
   const movement = (e) => {
     const parts = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+    const locked = input.locked;
     if (parts.length > 1) {
       let sx = 0;
       let sy = 0;
-      for (const c of parts) { sx += delta(c.movementX); sy += delta(c.movementY); }
+      for (const c of parts) {
+        if (locked && dropBogus(c, 'ptr')) continue;
+        sx += delta(c.movementX);
+        sy += delta(c.movementY);
+      }
       return [delta(sx), delta(sy)];
     }
+    if (locked && dropBogus(e, 'ptr')) return [0, 0];
     return [delta(e.movementX), delta(e.movementY)];
   };
   // Set once pointermove has reported movement while locked.
@@ -319,6 +372,7 @@ export function startHud() {
       input.dy += dy;
       return;
     }
+    lastPtr = [e.clientX, e.clientY];
     if (drag) {
       // Drag-to-look: works with no pointer lock at all.
       input.dx += dx;
@@ -339,7 +393,8 @@ export function startHud() {
   // mousemove deltas count only until pointermove has reported any movement
   // (never both, so nothing is counted twice).
   document.addEventListener('mousemove', (e) => {
-    if (!input.locked || moveWorks) return;
+    if (!input.locked) return;
+    if (dropBogus(e, 'mouse') || moveWorks) return;
     input.dx += delta(e.movementX);
     input.dy += delta(e.movementY);
   });

@@ -1,0 +1,45 @@
+PASS boots objs=14 burning=3
+PASS three fires at start 
+PASS a click over a target locks the pointer and does not cast hover was 6, locked=true, casts 0 -> 0
+PASS streams: fireInView is a boolean, the last state key fireInView=true (boolean) last keys fxWater,fireInView,progress,progRev,progSave
+PASS streams: no arrow while aiming at a fire (the nearest fire off screen) target 0 aimObj=0 nearFire=6 fireOff=true fireInView=true finder=false
+PASS streams: the arrow shows exactly when no fire is in view (sweep) all 24 yaws agree
+PASS streams: the sweep both hides the arrow for a fire in view and shows it fireOff&&fireInView at 8 yaws, finder shown at 11 yaws
+PASS streams: behind the greenhouse the finder follows the rule (occlusion recorded) aimObj=-1 nearFire=6 fireOff=false fireInView=true finder=false
+PASS streams: the Water stream stands out against the sky along its length try 1: 10/10 caught@3 streams=1 runs 20:29 30:42 40:56 50:70 60:81 70:96 80:109 90:121 100:129 110:137
+PASS streams: the Frost stream stands out against the sky along its length try 1: 10/10 caught@3 streams=1 runs 20:28 30:41 40:54 50:70 60:80 70:95 80:109 90:121 100:128 110:135
+PASS streams: the CO2 stream stands out against the sky along its length try 1: 10/10 caught@3 streams=1 runs 20:28 30:41 40:54 50:70 60:80 70:96 80:109 90:121 100:128 110:135
+PASS streams: the Water stream stands out against the ground try 1: pose -4,14 10/10 kept (0 skipped) caught@1 streams=1 runs 20:39 30:51 40:63 50:78 60:90 70:103 80:112 90:121 100:129 110:137
+PASS streams: the Frost stream stands out against the ground try 1: pose -4,14 10/10 kept (0 skipped) caught@1 streams=1 runs 20:40 30:50 40:62 50:78 60:88 70:102 80:112 90:121 100:109 110:108
+PASS streams: the CO2 stream stands out against the ground try 1: pose -4,14 10/10 kept (0 skipped) caught@1 streams=1 runs 20:40 30:49 40:63 50:78 60:88 70:102 80:112 90:121 100:109 110:108
+PASS streams: a slow click (0.35 s) casts once span 0.250 max_dt 0.185 casts +1
+PASS streams: holding repeats, first after half a second casts +7; first repeat 0.513 s after the click (need >= 0.250)
+PASS streams: Frost and CO2 streams do not flash the screen Frost far (tp 0 5.5 -> lit[0]): flash 0.5% mist 0.0% | Frost near (tp 0 0 -> lit[2]): flash 6.6% mist 0.6% | CO2 far (tp 0 5.5 -> lit[0]): flash 0.4% mist 0.0% | CO2 near (tp 0 0 -> lit[2]): flash 5.4% mist 1.0%
+PASS streams: Frost and CO2 mist covers under 15% of the view Frost far (tp 0 5.5 -> lit[0]): flash 0.5% mist 0.0% | Frost near (tp 0 0 -> lit[2]): flash 6.6% mist 0.6% | CO2 far (tp 0 5.5 -> lit[0]): flash 0.4% mist 0.0% | CO2 near (tp 0 0 -> lit[2]): flash 5.4% mist 1.0%
+PASS streams: pickHint follows banner > idle > note > locked > start {"banner":["",""],"idle":"Look for a fire. Press 2 for Water, aim at the fire and click.","note":"N","aim":"Aim at a fire and click.","aimDone":"","start":"Click to look around. Esc shows the controls and point-and-click mode.","started":""}
+PASS streams: the point-and-click note shows within 2 frames hint "Point and click: click a glowing target to cast at it. Drag to look."
+PASS cast: Water is the spell selected on boot first state spell=1 water slot sel=true
+  pointer lock for I-019: true
+PASS cast: one synthetic click casts once and puts the fire out locked=true clicks 0 -> 1, casts 0 -> 1, impacts 0 -> 1, burning=false, ext 0 -> 1, hitKind=out, firesLeft 3 -> 2, frames 1
+PASS cast: a real click casts exactly once casts 1 -> 2 -> 2 (20 frames on), lit[1] burning=false
+PASS cast: holding the button keeps casting casts +3 over 1.594 game s (1799 ms wall)
+PASS cast: a click casts and shows a stream within 2 frames cast after 1 frames, stream after 1 frames (aim 0, cooldown 0)
+PASS cast: Water and CO2 land within 0.25 s of game time from 18 m Water: pose (-4, 14) dist 19.47 m, g_i - g_c = 0.000 s, d = 0.2500, 0 frames cast->impact; CO2: pose (-4, 14) dist 19.47 m, g_i - g_c = 0.000 s, d = 0.2500, 0 frames cast->impact
+PASS cast: a Water stream shows for 3 frames or more from the cast cast row 0, longest stream run 3 frames from row 0; rows [[131,1,1,1,24],[132,1,1,1,24],[133,1,1,1,16],[134,1,0,1,6],[135,1,0,1,0],[136,1,0,1,0],[137,1,0,1,0],[138,1,0,1,0],[139,1,0,1,0]]
+PASS cast: the Water splash has 20 particles or more fxWater at impact 24
+PASS cast: the Water stream shows on screen (blue pixels) before 2911/2911 noise 0 after 54794 need 5676 caught@1 streams=1
+PASS cast: the objective shows one number of fires to put out text "Fires to put out: 3" firesLeft=3 pips=3
+PASS cast: the counter follows the fires that spread burning=5 ext=0 firesLeft=5 text "Fires to put out: 5" pips=5
+PASS cast: putting out a counted fire lowers the number by one target 0: 5 -> 4 (firesLeft 4, burning 4, ext 1)
+PASS cast: a fire behind the player shows the arrow on its side fireOff=true nearFire=6 bearing=-122.2 finder={"vis":true,"right":false,"left":true,"w":72}
+PASS cast: turning toward the arrow brings the fire into view 3 steps, consistent=true, bearing=-97.7 fireOff=true fireInView=true hid: another fire in view [-114L -105.9L -97.7-]
+PASS cast: pausing hides the arrow finder={"vis":false,"right":false,"left":true,"w":0} paused=true
+PASS cast: Esc pauses and frees the mouse under automation locked before=true pause shown=true paused=true locked=false lockElement null=true
+PASS cast: P pauses and P again resumes; the pause card lists Esc or P relocked=true P: shown=true paused=true locked=false; P again: paused=false; row=true
+PASS cast: the crosshair adds a fire ring only on a burning target locked=true bush 5: true, fire 0: true (on fire), shadow {"withFire":"rgba(0, 0, 0, 0.75) 0px 0px 0px 2px, rgb(255, 122, 26) 0px 0px 0px 5px, rgba(0, 0, 0, 0.6) 0px 0px 0px 6px","without":"none"}
+PASS cast: the locked hint says to aim at a fire hint "Aim at a fire and click."
+PASS cast: point mode marks a fire under the cursor apart from a bush fire: hover=6 [hover hover-fire]; bush: hover=5 [hover]
+PASS cast: nothing shows under the lose banner outcome=lost locked=false hint "" finder={"vis":false,"right":false,"left":true,"w":0} nudge=false
+PASS cast: nothing shows under the win banner outcome=won hint "" finder={"vis":false,"right":false,"left":true,"w":0} nudge=false
+PASS cast: the stream and splash do not flash the screen worst frame-to-frame change: Water 2.2%, CO2 1.9%
+43/43 passed

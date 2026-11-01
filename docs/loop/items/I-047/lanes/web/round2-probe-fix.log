@@ -1,0 +1,87 @@
+
+== round1 mouse never moved: move, 500 ms, press, 150 ms, release: locked true->true dyaw=0.00 dpitch=0.00 PASS
+pointerdown ts=8813.5 client=(0,0) locked=true edgePos=0,0 lastPtr=0,0
+pointerup ts=9419.7 client=(0,0) locked=true edgePos=0,0 lastPtr=0,0
+
+== round1 mouse 640,360: move, 500 ms, press, 150 ms, release: locked true->true dyaw=0.00 dpitch=0.00 PASS
+  pointermove ts=9525.1 m=(640,360) -> kept (armed, no match)
+  mousemove   ts=9525.1 m=(640,360) -> kept (armed, no match)
+  pointermove ts=10047.0 m=(-640,-360) -> kept (not armed)
+  mousemove   ts=10047.0 m=(-640,-360) -> kept (not armed)
+pointerdown ts=10553.5 client=(0,0) locked=true edgePos=0,0 lastPtr=0,0
+  pointermove ts=10921.1 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+  mousemove   ts=10921.1 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+pointerup ts=11124.6 client=(0,0) locked=true edgePos=0,0 lastPtr=0,0
+  pointermove ts=11474.8 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+  mousemove   ts=11474.8 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+
+== round1 mouse 100,100: move, 500 ms, press, 150 ms, release: locked true->true dyaw=0.00 dpitch=0.00 PASS
+  pointermove ts=9299.6 m=(100,100) -> kept (armed, no match)
+  mousemove   ts=9299.6 m=(100,100) -> kept (armed, no match)
+  pointermove ts=9699.6 m=(-100,-100) -> kept (not armed)
+  mousemove   ts=9699.6 m=(-100,-100) -> kept (not armed)
+pointerdown ts=10204.7 client=(0,0) locked=true edgePos=0,0 lastPtr=null
+  pointermove ts=10712.6 m=(-100,-100) -> DROPPED (matches cdpPos 100,100)
+  mousemove   ts=10712.6 m=(-100,-100) -> DROPPED (matches cdpPos 100,100)
+pointerup ts=11046.9 client=(0,0) locked=true edgePos=0,0 lastPtr=null
+  pointermove ts=11312.4 m=(-100,-100) -> DROPPED (matches cdpPos 100,100)
+  mousemove   ts=11312.4 m=(-100,-100) -> DROPPED (matches cdpPos 100,100)
+
+== lock via #resume: {"yaw":0,"pitch":-2.86,"locked":true,"frame":22,"paused":false}
+pointerdown ts=6520.6 client=(489.6400146484375,645.8900146484375) locked=false edgePos=489.6,645.9 lastPtr=489.6,645.9
+pointerup ts=6520.6 client=(489.6400146484375,645.8900146484375) locked=false edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=7452.3 m=(-489,-645) -> DROPPED (matches edgePos 489.6,645.9)
+  mousemove   ts=7452.3 m=(-489,-645) -> DROPPED (matches edgePos 489.6,645.9)
+pointerlockchange ts=7452.0 locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+
+== break-1 A: press+release at the #resume lock point: locked true->true dyaw=0.00 dpitch=0.00 PASS
+pointerdown ts=13504.0 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=13926.2 m=(-489,-645) -> DROPPED (matches edgePos 489.6,645.9)
+  mousemove   ts=13926.2 m=(-489,-645) -> DROPPED (matches edgePos 489.6,645.9)
+pointerup ts=14091.7 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=14560.7 m=(-489,-645) -> DROPPED (matches edgePos 489.6,645.9)
+  mousemove   ts=14560.7 m=(-489,-645) -> DROPPED (matches edgePos 489.6,645.9)
+
+== break-1 C: move +450 px, 2 frames, press+release: locked true->true dyaw=0.00 dpitch=0.00 PASS
+  pointermove ts=25627.3 m=(939,645) -> kept (not armed)
+  mousemove   ts=25627.3 m=(939,645) -> kept (not armed)
+  pointermove ts=26105.8 m=(-939,-645) -> kept (not armed)
+  mousemove   ts=26105.8 m=(-939,-645) -> kept (not armed)
+pointerdown ts=27473.0 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=27939.4 m=(-939,-645) -> DROPPED (matches cdpPos 939,645)
+  mousemove   ts=27939.4 m=(-939,-645) -> DROPPED (matches cdpPos 939,645)
+pointerup ts=28050.0 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=28593.4 m=(-939,-645) -> DROPPED (matches cdpPos 939,645)
+  mousemove   ts=28593.4 m=(-939,-645) -> DROPPED (matches cdpPos 939,645)
+
+== golden real click: move to centre, 2 frames, click: locked true->true dyaw=-10.89 dpitch=-10.89 FAIL
+  pointermove ts=39584.2 m=(640,360) -> kept (not armed)
+  mousemove   ts=39584.2 m=(640,360) -> kept (not armed)
+  pointermove ts=40076.7 m=(-640,-360) -> kept (not armed)
+  mousemove   ts=40076.7 m=(-640,-360) -> kept (not armed)
+  pointermove ts=41872.3 m=(640,360) -> kept (not armed)
+  mousemove   ts=41872.3 m=(640,360) -> kept (not armed)
+pointerdown ts=41872.3 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+pointerup ts=41872.3 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=42375.1 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+  mousemove   ts=42375.1 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+
+== golden real click again (mouse already at centre): locked true->true dyaw=0.00 dpitch=0.00 PASS
+  pointermove ts=55657.9 m=(640,360) -> kept (not armed)
+  mousemove   ts=55657.9 m=(640,360) -> kept (not armed)
+  pointermove ts=55658.0 m=(-640,-360) -> kept (not armed)
+  mousemove   ts=55658.0 m=(-640,-360) -> kept (not armed)
+pointerdown ts=55658.1 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=55658.1 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+  mousemove   ts=55658.1 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+pointerup ts=55658.1 client=(489.6400146484375,645.8900146484375) locked=true edgePos=489.6,645.9 lastPtr=489.6,645.9
+  pointermove ts=56056.3 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+  mousemove   ts=56056.3 m=(-640,-360) -> DROPPED (matches cdpPos 640,360)
+
+PASS round1 mouse never moved: move, 500 ms, press, 150 ms, release: dyaw=0.00 dpitch=0.00
+PASS round1 mouse 640,360: move, 500 ms, press, 150 ms, release: dyaw=0.00 dpitch=0.00
+PASS round1 mouse 100,100: move, 500 ms, press, 150 ms, release: dyaw=0.00 dpitch=0.00
+PASS break-1 A: press+release at the #resume lock point: dyaw=0.00 dpitch=0.00
+PASS break-1 C: move +450 px, 2 frames, press+release: dyaw=0.00 dpitch=0.00
+FAIL golden real click: move to centre, 2 frames, click: dyaw=-10.89 dpitch=-10.89
+PASS golden real click again (mouse already at centre): dyaw=0.00 dpitch=0.00
