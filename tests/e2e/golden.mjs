@@ -5056,12 +5056,14 @@ async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
   await screenshot(page, 'l2-05-won.png');
   // I-049 (I-035 break 1, should-fix 3): the win stops the walk, so the
   // scripted walk (still 1 s or more to run) does not carry the camera into
-  // the lantern: 1 s of game time later the camera is still >= 1.2 m away.
+  // the lantern (ball 0.28 m, plinth 0.4 m half width; without the stop the
+  // walk ends at the plinth, 0.75 m): 1 s of game time later the camera is
+  // still >= 1.0 m away and has not moved.
   const wonPos = s.pos;
   s = await gameSecs(1);
   const camD = Math.hypot(s.cam[0] - 0, s.cam[2] - (-17));
-  check('frozen gate: reaching the lantern stops the walk (camera stays >= 1.2 m from the lantern)',
-    s.outcome === 'won' && camD >= 1.2 && Math.abs(s.pos[2] - wonPos[2]) < 0.3,
+  check('frozen gate: reaching the lantern stops the walk (camera stays >= 1.0 m from the lantern)',
+    s.outcome === 'won' && camD >= 1.0 && Math.abs(s.pos[2] - wonPos[2]) < 0.3,
     `won at ${wonPos}, 1 s later pos=${s.pos} cam=${s.cam} distance ${camD.toFixed(2)} m`);
 
   // 12. The way back: a fresh courtyard, exit still open. (First stop the

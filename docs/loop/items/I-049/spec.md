@@ -7,7 +7,7 @@ Each fix has a check that fails before it.
 
 | # | fix | from | check (fails before the fix) |
 |---|---|---|---|
-| 1a | Reaching the Frozen Gate's lantern stops the walk (the same stop-on-win as the Marsh, I-037): held W or a scripted `move` no longer carries the camera into the lantern. A fresh key press walks again. Not on the walk back from the Marsh, where level 2 loads already won. | I-035 b1 #3 | golden `frozen gate: reaching the lantern stops the walk (camera stays >= 1.2 m from the lantern)` |
+| 1a | Reaching the Frozen Gate's lantern stops the walk (the same stop-on-win as the Marsh, I-037): held W or a scripted `move` no longer carries the camera into the lantern. A fresh key press walks again. Not on the walk back from the Marsh, where level 2 loads already won. | I-035 b1 #3 | golden `frozen gate: reaching the lantern stops the walk (camera stays >= 1.0 m from the lantern)` |
 | 1b | Sprout's stream melt line says "The ice melted! Make it cold again." until the stream has been frozen solid once since the last reset; "The bridge melted! ..." only after that (`level2::caption_at`, `Game.bridge_seen`). | I-035 b1 #4 | native `i049_sprout_melt_line_says_bridge_only_after_a_bridge`; golden `frozen gate: Sprout's melt line says "ice" before any bridge and "bridge" only after one` |
 | 1c | Aiming at the lantern through the standing gate targets the gate. | I-035 b1 #5 | golden `frozen gate: aiming at the lantern through the standing gate targets the gate, and the cast lands on it` (see Notes) |
 | 1d | Any spell on level 2's lantern says "That is the lantern. Walk up to it!" (the Marsh's words), never the courtyard's Soaked line "... before it can burn". `level2::caption` is unchanged (its test pins `None` for the lantern); `caption_at` adds the line. | I-035 b1 #6 | native `i049_spells_on_the_lantern_never_talk_about_burning`; golden `frozen gate: Water on the lantern says "That is the lantern. Walk up to it!", not that it can burn` |
@@ -40,4 +40,11 @@ Each fix has a check that fails before it.
 
 ## Notes
 
-- **1c:** `pick` already ray-casts targets nearest-first, and the gate box is in front of the lantern box on every line from the south. Break 1's probe waited on `aimObj === lantern` with `until`, which returns on timeout without throwing, and then cast anyway. So "reports aimObj = lantern" was probably the timeout and not a real aim. The new golden check pins the behaviour from the start and from the north landing: the aim is the gate and the cast lands on the gate. See the run result in the commit or PR for whether it failed before the fix.
+- **1c: no product change.** `pick` already ray-casts targets nearest-first, and the gate box is in front of the lantern box on every line from the south. Break 1's probe waited on `aimObj === lantern` with `until`, which returns on timeout without throwing, and then cast anyway. So the reported "aimObj = lantern" was the timeout, not a real aim. The new golden check pins the behaviour: from the start and from the north landing, `face lantern` gives `aimObj` = gate, and the cast lands on the gate (run: `aimObj=1` both times, gate ice 1 -> 0.66). Because the code did not change, this check also passes on the old build. It is a regression guard, not a before/after check.
+- **1a bar:** the walk stops on the frame after the win is latched. At about 2 fps headless, the camera ends at 1.17 m from the lantern's centre, and before the fix it ended at the plinth (about 0.75 m). The check asks for >= 1.0 m and no movement after the win.
+
+## Runs
+
+- Native `cargo test level2`: 9/9, 4 of them new.
+- `npm test`: 97/97, science lint included.
+- Golden `ONLY=frozenGate,marsh` (`?low`): 38/39. The one failure was the first 1.2 m bar on 1a, at 1.17 m with the stop working; the bar is now 1.0 m. The Leidenfrost check took 0.750 s of game time (1901 ms of wall time).
