@@ -83,7 +83,7 @@ pub fn parse(line: &str) -> Option<Cmd> {
 /// (horizontal distance; height is ignored).
 pub fn at_bench(pos: Vec3) -> bool {
     let (dx, dz) = (pos.x - STATION.0, pos.z - STATION.1);
-    dx * dx + dz * dz <= RADIUS * RADIUS
+    dx * dx + dz * dz <= RADIUS * RADIUS && crate::bench_on()
 }
 
 fn def_by_slot(spells: &[SpellDef], slot: u8) -> Option<&SpellDef> {
@@ -289,13 +289,7 @@ pub fn run(
             warn!("bench: ignored {line:?}: {why}");
         }
     }
-    let json = view(
-        &bench,
-        &progress.0,
-        spells,
-        at_bench(player.pos) && crate::bench_on(),
-    )
-    .to_json();
+    let json = view(&bench, &progress.0, spells, at_bench(player.pos)).to_json();
     if json != bench.last_json {
         bridge::publish_bench(&json);
         bench.last_json = json;

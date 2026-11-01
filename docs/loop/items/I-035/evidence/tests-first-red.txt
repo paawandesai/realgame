@@ -1,3 +1,15 @@
+# I-035 acceptance tests on the contract stubs (commit dcf70b9's parent state), native cargo test --locked
+test result: FAILED. 74 passed; 7 failed
+failing (all 7 new I-035 tests):
+  chem::tests::i035_frost_and_co2_do_not_change_an_ice_wall
+  chem::tests::i035_reach_goal_never_wins_or_reseeds_by_itself
+  chem::tests::i035_stream_freezes_in_three_frost_casts_and_melts_back
+  level2::tests::i035_caption_strings_are_safe_player_text
+  level2::tests::i035_caption_table_is_exact_per_band
+  level2::tests::i035_melting_the_bridge_under_the_player_moves_them_to_a_landing
+  level2::tests::i035_the_stream_and_the_gate_block_the_walk_until_changed
+passing guard: chem::tests::i035_a_fires_world_with_no_bushes_still_wins_at_once (level 1 rule unchanged)
+
+## raw panics
 thread 'level2::tests::i035_the_stream_and_the_gate_block_the_walk_until_changed' (9881) panicked at src/level2.rs:729:9:
 thread 'chem::tests::i035_reach_goal_never_wins_or_reseeds_by_itself' (9845) panicked at src/chem.rs:1324:13:
-test result: FAILED. 74 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.28s
