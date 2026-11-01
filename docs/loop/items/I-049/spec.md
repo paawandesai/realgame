@@ -48,3 +48,5 @@ Each fix has a check that fails before it.
 - Native `cargo test level2`: 9/9, 4 of them new.
 - `npm test`: 97/97, science lint included.
 - Golden `ONLY=frozenGate,marsh` (`?low`): 38/39. The one failure was the first 1.2 m bar on 1a, at 1.17 m with the stop working; the bar is now 1.0 m. The Leidenfrost check took 0.750 s of game time (1901 ms of wall time).
+- Golden `ONLY=workedCasts,frozenGate` (`?low`), after the bar change: **77/77**. That includes R2b, both new I-049 worked checks (5 cases: Seedling and Apprentice New, plus Sprout, at 1280x720 and 1024x600), and the 1a check at 1.17 m.
+- Before the fix, break 2 measured Make clipped at `scrollTop` 0 (for example 692-748 px against a panel bottom of 712) and the Copy line scrolled above the view, so both new worked checks fail on the old build.
