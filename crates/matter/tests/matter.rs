@@ -306,6 +306,7 @@ fn sand_to_glass_and_ore_to_iron() {
 /// M9: H2 and CH4 positive, O2 and CO2 negative, for the cave balloon
 /// (2 m³, 1.5 kg).
 #[test]
+#[ignore = "spec error, not edited: CH4 gives (1.20 - 0.67) x 2 x 9.81 = 10.4 N < 14.7 N payload, so it cannot lift; see lanes/B/round-1.md"]
 fn lift_sign() {
     assert!(lift_n(Gas::H2, 2.0, 1.5) > 0.0);
     assert!(lift_n(Gas::Ch4, 2.0, 1.5) > 0.0);

@@ -49,3 +49,29 @@ fn generated_m5_water_and_frost_only_flicker_vents() {
 fn fixture_m7_fire_spreads_through_wood_and_water_puts_it_out() {
     check_fire_spreads_through_wood_and_water_puts_it_out(fixture_world());
 }
+
+/// Tuning guard (not in the spec's list): with the gap closed, two CO2 casts
+/// are not enough, so the hollow really takes three (spec 5.5, level 3's
+/// "fills in three casts").
+#[test]
+fn fixture_two_co2_casts_leave_a_vent_burning() {
+    use realgame_matter::{EmitKind, World};
+    use realgame_voxel::{mat, Cell};
+    let mut vox = fixture_world();
+    vox.set(GAP, Cell::new(mat::STONE));
+    let h = hollow(&vox);
+    let mut m = World::new(1);
+    let mut ev = Vec::new();
+    step_n(&mut m, &mut vox, 2, &mut ev);
+    for _ in 0..2 {
+        emit(&mut m, h.hit, [0, 1, 0], EmitKind::Co2);
+        step_n(&mut m, &mut vox, steps(0.5), &mut ev);
+    }
+    step_n(&mut m, &mut vox, steps(4.0), &mut ev);
+    let lit = h
+        .vents
+        .iter()
+        .filter(|&&v| vox.get(v).has(Cell::BURNING))
+        .count();
+    assert!(lit >= 1, "two casts leave at least one vent burning");
+}
