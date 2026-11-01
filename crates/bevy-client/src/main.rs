@@ -12,6 +12,7 @@
 //! that make a cast legible (fires left, the nearest fire's bearing, flight
 //! time).
 
+mod ballistics;
 mod bench;
 mod blockchem;
 mod bridge;
@@ -27,6 +28,7 @@ mod player;
 mod progress;
 mod spells;
 mod story;
+mod voxel_cast;
 mod voxel_view;
 mod worked;
 mod world;
