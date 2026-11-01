@@ -111,8 +111,10 @@ Reasons:
 - **B4 (every age can play):** must hold. Predictions for the first paired panel run (same seed, merge base vs this artifact, no `debug`):
   - Every persona still lands a cast within 30 s.
   - A 6-year-old with no band known casts instantly, as today. At `band=sprout`, the first Water cast is a 4-input copy build (H, H, O, Make).
+  - (critic r3) On the built site the age picker sets the band, so for real players the **first click of the game** at a known band opens a copy build. The panel run must use a page where the band is known (the picker or `?band=`) for at least the 6-year-old and the 13-year-old; a band-less panel page would measure today's game, not this item.
   - No persona reports "stuck in a box", "the view jumped" or "the mouse stopped working".
   - Median clarity drops by at most 1 against the paired base. If it drops by more, the critic decides; the loop does not tune routes on its own.
+- **B5 (fun):** must hold (critic r3). Mastery needs 2 days, so in a first session **every** cast of a learnable spell is a build; the fun risk is the 10th Water build, not the first. Prediction for the paired run: median fun drops by at most 1, and no persona's fun drops by 2 or more. If either fails, or the 13-year-old answers "quiz" to the GS-30 question, the critic decides between merging with a follow-up and the pre-agreed fallback in Out of scope (charged casts); the loop does not tune routes on its own.
 - **B11 (more than a shooter):** enabling. Before mastery, every cast at a known band uses the spell's chemistry (GS-30).
 - **B1:** stays green. Golden's page passes `debug`, so it is in instant mode (Open decision 2), and no existing check is edited.
 - **B2, B3:** no regression. While the overlay is closed it costs one string compare per frame. `worked.js` is under 12 KB unminified.
@@ -378,7 +380,7 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
 **W5. No stuck keys.** Hold `KeyW`, click to open the builder, release `KeyW` while it is open, then cancel with a right press. In the next 500 ms `pos` moves less than 0.01 m.
 
 **W6. Wrong builds fizzle kindly.**
-- With Water Learning, a wrong Seedling build gives `casts` +0, `wrong` +1 and `work.view.result.ok === false`. `.worked-reason` shows exactly "Count again: H should be 2. You have 1." with a ✗. Water `xp` is unchanged.
+- With Water Learning, a wrong Seedling build gives `casts` +0, `wrong` +1 and `work.view.result.ok === false`. `.worked-reason` shows exactly "Count again: H should be 2. You have 1." with a ✗. (critic r3: the contract step confirms this literal against `bench.js` `reasonFor` for that verdict before the lanes start and corrects the spec if it differs; after that it is frozen.) Water `xp` is unchanged.
 - A second wrong build sets `work.help === true` and shows `.worked-copy`.
 - A correct build then gives `casts` +1, and Water `xp` is still unchanged (helped).
 
@@ -387,6 +389,7 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
 - Within 2 frames of the Make press: `casts` +1, `work === null`, `paused === false` and `#worked` gone.
 - The impact lands on that object (`hitKind` `out`).
 - Water `xp` +10 and `done` +1.
+- (critic r3) For the 30 frames after the accepted cast, `casts` stays at exactly +1 and `work` stays `null`: one Make press never casts twice and the held path does not reopen the builder.
 
 **W8. Practised.** From Water Learning (10 XP), two correct worked casts make Water `practised` (30 XP) in `stages`. `#worked-toast` appears and contains "Practised", and `routes[1]` is still `'worked'`.
 
@@ -406,7 +409,7 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
 **W12. Pause and lock rules.**
 - With the builder open, press Escape: the pause card shows, `work === null` within 2 frames, `casts` +0 and Water `xp` unchanged.
 - `#resume`: the builder does not reopen, and `gameTime` did not advance while the builder was open.
-- The overlay never called `requestPointerLock` or `exitPointerLock`: both are wrapped on the canvas and the document, calls are counted while the builder is open, and the count must be 0.
+- The overlay never called `requestPointerLock` or `exitPointerLock`: both are wrapped on the canvas and the document, and calls are counted over a full W7-style worked cast (from the opening press to 30 frames after the accepted cast) and over a W5-style right-press cancel. The count must be 0. (critic r3: the window does not include the Escape press, because `hud.js`'s own pause path may release the lock there, which is not the overlay's doing.)
 
 **W13. Point mode and taps.** In point mode (`#pointmode`), `tap` at a burning target's screen fraction opens the builder. It is clickable with the real cursor (`page.click` on pieces). A correct build casts at the tapped object, even with the crosshair on another object.
 
@@ -432,6 +435,7 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
   - the CPU frame in which `#worked` first shows is at most 50 ms (`window.__cpuFrames`, GS-5);
   - at 1366 × 768, the panel's top is at least 24 px below the crosshair, its bottom is inside the viewport, and every piece and Make measure at least 64 × 64 px at Sprout and 44 × 44 px otherwise.
 - **Input-count tripwire.** Water at Sprout is exactly 4 inputs. `estS = 1.0 + inputs * perInput[band]` (Sprout 1.5 s, Seedling 0.9 s, Apprentice 0.35 s per character; fixed planning constants, not a sourced claim) must be at most 10 for every row.
+- **Level-1 chore tripwire (critic r3).** `N1` is the number of casts (`casts` delta) the existing golden level-1 completion makes, which the tester reads from the same run's log. Pass when `N1 * estS(Water, sprout) <= 60` and `N1 * estS(Water, seedling) <= 60`. A failure means a 5-year-old's level 1 would hold more than a minute of building, and it wakes the critic (B5 rule) rather than being tuned away.
 - Each row prints `WORKEDTTC {json}`. The tester copies the table into `docs/loop/items/I-029/evidence/ttc.md`.
 
 **W19. Robust when `worked.js` is missing.** In a new no-`debug` context with `page.route('**/worked.js', 404)` and `&band=seedling`:
@@ -500,6 +504,7 @@ These go in a new function `workedCasts({ page, st, cmd, until, frames, sleep, b
 - Shuffled layouts, an XP pop or XP totals (I-039), crafting settings (I-031) and hotbar saving (I-032).
 - A player setting to turn worked casts off: `cast=instant` is debug-only. If teachers ask for one, it becomes a GS-26 assist item.
 - A compact one-press Sprout mode (a panel-driven follow-up).
+- (critic r3) **Charged casts**, the pre-agreed fallback if the B5 rule or the level-1 chore tripwire fails: one correct build loads a few casts of that spell (for example 3) before the next build. It bends `target.md`'s "every cast is a worked cast", so it needs Paawan's yes and is its own item; it is not built here.
 - Native builder UI: native stays instant.
 - New analytics events.
 
@@ -609,7 +614,7 @@ On the stub, the built site loads and every route is instant.
 |---|---|---|
 | contract (first, small) | `crates/bevy-client/src/worked.rs` (stub); the `main.rs` stub wiring; `bridge.rs` `publish_work`; `web/worked.js` (stub); `boot.js` (one line); `build-web.sh` (line 21); `hud.js` hook 1 | Native `cargo build`, the wasm build (`CARGO_TARGET_DIR=/home/claude/bevy-target PATH=/home/claude/bevy-target/tools/bin:$PATH bash crates/bevy-client/build-web.sh`) and `cargo clippy --target wasm32-unknown-unknown -D warnings` all pass. Full golden passes on the stub, unchanged. |
 | rust | `crates/bevy-client/src/worked.rs`; `main.rs`, only the Lane-hygiene hunks beyond the stub | Unit tests 1-6 first (red on the stub), then the bodies. Then `main.rs`: the paused and look lines, the select guards, the extraction, `work ready`/`submit`/`cancel`/`castmode`, `judge`, `work_view`, the routes, the gate, `instant_cast` on Mastered and the publish. It must not touch `Settings`, `reset`, `debug_only`, `publish`, `bench.rs`, `crates/sim/**`, `progress.rs`, `bridge.rs` (beyond the contract), `web/**` or tests. |
-| web | `web/worked.js`; `hud.js` hooks 2-5; `style.css` (append only); `test/bevy-worked.test.ts`; the `workedCasts` function and its call line in `golden.mjs`; Not-claims rows in `content/science-sources.md`; `docs/loop/items/I-029/evidence/**` | Node tests 8-13 first, then `worked.js`, the hooks and the CSS. Golden W1-W21 are written against the stub (W2 and W20 pass on it), then recorded. It must not touch `bench.js`, `boot.js` or `build-web.sh` beyond the contract, `index.html`, `age.js`, `analytics.js`, `progress.js`, `hud.js`'s lock block (`:176-225`, `:258-296`), the panel harness, or any existing golden check. |
+| web | `web/worked.js`; `hud.js` hooks 2-5; `style.css` (append only); `test/bevy-worked.test.ts`; the `workedCasts` function and its call line in `golden.mjs`; Not-claims rows in `content/science-sources.md`; `docs/loop/items/I-029/evidence/**` | Node tests 8-13 first, then `worked.js`, the hooks and the CSS. Golden W1-W21 are written against the stub, then recorded. (critic r3) On the stub these pass as guards and are not evidence of the feature: W2, W11, W19, W20, W21 and W10's first two bullets. Every other W check, including W10's last two bullets, must be seen red on the stub. It must not touch `bench.js`, `boot.js` or `build-web.sh` beyond the contract, `index.html`, `age.js`, `analytics.js`, `progress.js`, `hud.js`'s lock block (`:176-225`, `:258-296`), the panel harness, or any existing golden check. |
 
 **Seam:** the `__workState` JSON (including the `BenchView` in `work.view`) and the `work …` command strings. W3-W19 need both lanes. The shared build runs the full golden (`BASE_URL= QUERY=?low node tests/e2e/golden.mjs`, with the Chromium lock held in the same bash command) plus perf pairs.
 
