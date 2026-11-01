@@ -36,6 +36,11 @@ const SMOTHER_S: f32 = 25.0;
 /// Heat one Fire spell adds, °C. One hit lights a dry bush at room
 /// temperature; a frost-chilled one (−196 °C) needs to warm up first.
 const FIRE_HEAT: f32 = 300.0;
+/// Ice one Frost cast adds to a level-2 stream (gameplay tuning, P-020):
+/// three casts freeze it solid (0.34, 0.68, then capped at 1).
+pub const STREAM_FREEZE: f32 = 0.34;
+/// Ice one Fire hit removes from an ice wall or a frozen stream.
+const ICE_MELT: f32 = 0.34;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -53,6 +58,11 @@ pub enum Kind {
     LabBench,
     /// The greenhouse's wooden frame: if it catches fire, the level is lost.
     Greenhouse,
+    /// Level 2: a stream too deep to wade. Solid for movement while liquid
+    /// (`ice < 1`); Frost freezes it a third at a time into a bridge.
+    Stream,
+    /// Level 2: the lantern on its plinth, the goal. Inert.
+    Lantern,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,6 +111,10 @@ pub enum EventKind {
     Melting,
     /// Water froze into ice.
     Froze,
+    /// Level 2: Frost added ice to the stream, but it is not solid yet.
+    Freezing,
+    /// CO2 on ice or a stream: nothing changed (it is no fire to smother).
+    NoChange,
     /// Water boiled off as steam.
     Steam,
     /// Foam now covers it: no oxygen, so it cannot burn.
@@ -201,6 +215,12 @@ impl EventKind {
             EventKind::Froze => {
                 "Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s)."
             }
+            EventKind::Freezing => {
+                "Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts."
+            }
+            EventKind::NoChange => {
+                "CO₂ keeps oxygen away. That does not melt ice or freeze water here."
+            }
             EventKind::Steam => "Hot water boils at 100 °C and turns into steam: H₂O(l) → H₂O(g).",
             EventKind::Smothered => {
                 "A CO₂ blanket covers it: no oxygen can reach it, so it cannot burn."
@@ -266,6 +286,8 @@ impl Obj {
             Kind::Puddle => (0.0, 0.0, false, AMBIENT_C),
             Kind::SteamVent => (0.0, 0.0, false, 110.0),
             Kind::LabBench => (0.0, 0.0, false, AMBIENT_C),
+            Kind::Stream => (0.0, 0.0, false, AMBIENT_C),
+            Kind::Lantern => (0.0, 0.0, false, AMBIENT_C),
         };
         Obj {
             kind,
@@ -296,7 +318,7 @@ impl Obj {
     }
 
     pub fn is_water(&self) -> bool {
-        matches!(self.kind, Kind::IceWall | Kind::Puddle)
+        matches!(self.kind, Kind::IceWall | Kind::Puddle | Kind::Stream)
     }
 
     pub fn frozen(&self) -> bool {
@@ -327,6 +349,19 @@ pub struct World {
     /// The outcome once the level is won or lost. Latched: nothing changes
     /// it again (only a fresh World, on reset).
     pub ended: Option<Outcome>,
+    /// How this level is won.
+    pub goal: Goal,
+}
+
+/// How a level is won.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Goal {
+    /// Level 1: put out `GOAL_FIRES` fires (the reseed keeps it winnable).
+    #[default]
+    Fires,
+    /// Level 2: reach a place. Never won by the rules on their own; the game
+    /// calls [`World::reach`]. No reseed.
+    Reach,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -341,6 +376,10 @@ pub const GOAL_FIRES: u32 = 3;
 
 impl World {
     pub fn new(objs: Vec<Obj>) -> Self {
+        World::with_goal(objs, Goal::Fires)
+    }
+
+    pub fn with_goal(objs: Vec<Obj>, goal: Goal) -> Self {
         let neighbours = (0..objs.len())
             .map(|i| {
                 (0..objs.len())
@@ -354,6 +393,14 @@ impl World {
             extinguished: 0,
             ticks: 0,
             ended: None,
+            goal,
+        }
+    }
+
+    /// The player reached the goal (level 2's lantern): latches `Won`.
+    pub fn reach(&mut self) {
+        if self.ended.is_none() {
+            self.ended = Some(Outcome::Won);
         }
     }
 
@@ -1145,5 +1192,163 @@ mod tests {
         use electrolysis::tubes;
         let [h2, o2] = tubes();
         assert!(h2.gas.h - o2.gas.h >= 0.2);
+    }
+
+    // ---- I-035 (level 2, the Frozen Gate): acceptance tests 1 and 2 ----
+
+    fn level2_world() -> World {
+        World::with_goal(
+            vec![
+                Obj::new(Kind::Stream, [0.0, 6.0], [24.0, 2.0]),
+                Obj::new(Kind::IceWall, [0.0, -8.0], [2.0, 0.5]),
+                Obj::new(Kind::Lantern, [0.0, -17.0], [0.4, 0.4]),
+            ],
+            Goal::Reach,
+        )
+    }
+
+    fn kinds(ev: &[Event]) -> Vec<EventKind> {
+        ev.iter().map(|e| e.kind).collect()
+    }
+
+    #[test]
+    fn i035_stream_freezes_in_three_frost_casts_and_melts_back() {
+        let solid = |w: &World| crate::world::solid_obj(&w.objs[0]);
+        let mut w = level2_world();
+        assert!(w.objs[0].is_water());
+        assert_eq!(w.objs[0].ice, 0.0);
+        assert!(solid(&w), "a liquid stream is too deep to wade");
+        // Wrong chemistry on the liquid stream never changes its ice.
+        for (spell, want) in [
+            (Spell::Fire, EventKind::Steam),
+            (Spell::Water, EventKind::Soaked),
+            (Spell::Foam, EventKind::NoChange),
+        ] {
+            let mut ev = Vec::new();
+            w.apply(0, spell, &mut ev);
+            assert_eq!(kinds(&ev), vec![want], "{spell:?} on the liquid stream");
+            assert_eq!(w.objs[0].ice, 0.0, "{spell:?} must not change the stream's ice");
+            assert!(solid(&w));
+        }
+        // Three Frost casts: 0.34, 0.68, then capped at 1.0.
+        for (ice, want) in [
+            (0.34, EventKind::Freezing),
+            (0.68, EventKind::Freezing),
+            (1.0, EventKind::Froze),
+        ] {
+            let mut ev = Vec::new();
+            w.apply(0, Spell::Frost, &mut ev);
+            assert_eq!(kinds(&ev), vec![want]);
+            assert!((w.objs[0].ice - ice).abs() < 1e-5, "ice {} want {ice}", w.objs[0].ice);
+            assert_eq!(solid(&w), ice < 1.0, "solid while ice < 1 (ice {ice})");
+        }
+        assert_eq!(w.objs[0].ice, 1.0);
+        assert!(w.objs[0].frozen());
+        // Frost on the frozen stream only chills it.
+        let mut ev = Vec::new();
+        w.apply(0, Spell::Frost, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Chilled]);
+        assert_eq!(w.objs[0].ice, 1.0);
+        // Water and CO2 on the frozen stream change nothing either.
+        for spell in [Spell::Water, Spell::Foam] {
+            let mut ev = Vec::new();
+            w.apply(0, spell, &mut ev);
+            assert_eq!(w.objs[0].ice, 1.0, "{spell:?} on the bridge");
+        }
+        // Fire melts it back, 0.34 a hit, solid again from the first hit.
+        for (ice, want) in [
+            (0.66, EventKind::Melting),
+            (0.32, EventKind::Melting),
+            (0.0, EventKind::Melted),
+        ] {
+            let mut ev = Vec::new();
+            w.apply(0, Spell::Fire, &mut ev);
+            assert_eq!(kinds(&ev), vec![want]);
+            assert!((w.objs[0].ice - ice).abs() < 1e-5, "ice {} want {ice}", w.objs[0].ice);
+            assert!(solid(&w), "solid again from the first Fire hit (ice {ice})");
+            assert_eq!(w.objs[0].kind, Kind::Stream, "a stream stays a stream");
+        }
+        // ...and Frost freezes it again: the level cannot be soft-locked.
+        for _ in 0..3 {
+            w.apply(0, Spell::Frost, &mut Vec::new());
+        }
+        assert!(!solid(&w));
+    }
+
+    #[test]
+    fn i035_frost_and_co2_do_not_change_an_ice_wall() {
+        let mut w = level2_world();
+        let mut ev = Vec::new();
+        w.apply(1, Spell::Frost, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Chilled]);
+        assert!(w.objs[1].wall);
+        assert_eq!(w.objs[1].ice, 1.0);
+        // A partly melted wall is chilled, not refrozen (it does not take the
+        // water-body "set ice = 1" path).
+        w.apply(1, Spell::Fire, &mut Vec::new());
+        assert!((w.objs[1].ice - 0.66).abs() < 1e-5);
+        let mut ev = Vec::new();
+        w.apply(1, Spell::Frost, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Chilled]);
+        assert!((w.objs[1].ice - 0.66).abs() < 1e-5);
+        assert!(w.objs[1].wall);
+        // CO2 and Water: nothing changes.
+        for (spell, want) in [
+            (Spell::Foam, EventKind::NoChange),
+            (Spell::Water, EventKind::Soaked),
+        ] {
+            let before = w.objs[1].clone();
+            let mut ev = Vec::new();
+            w.apply(1, spell, &mut ev);
+            assert_eq!(kinds(&ev), vec![want]);
+            assert_eq!(w.objs[1].ice, before.ice);
+            assert_eq!(w.objs[1].wall, before.wall);
+        }
+        // Fire still melts it in 3 hits in all (existing rule).
+        w.apply(1, Spell::Fire, &mut Vec::new());
+        let mut ev = Vec::new();
+        w.apply(1, Spell::Fire, &mut ev);
+        assert_eq!(kinds(&ev), vec![EventKind::Melted]);
+        assert!(!w.objs[1].wall);
+        assert!(!crate::world::solid_obj(&w.objs[1]));
+    }
+
+    #[test]
+    fn i035_reach_goal_never_wins_or_reseeds_by_itself() {
+        let mut w = level2_world();
+        assert_eq!(World::new(vec![]).goal, Goal::Fires);
+        assert_eq!(w.goal, Goal::Reach);
+        let mut ev = Vec::new();
+        for _ in 0..20_000 {
+            w.step(&mut ev);
+            assert_eq!(w.outcome(), Outcome::Playing);
+        }
+        assert!(
+            !ev.iter().any(|e| e.kind == EventKind::Reseeded),
+            "no reseed under Goal::Reach"
+        );
+        assert_eq!(w.ended, None);
+        assert_eq!(w.extinguished, 0);
+        w.reach();
+        assert_eq!(w.outcome(), Outcome::Won);
+        assert_eq!(w.ended, Some(Outcome::Won));
+        let before = w.objs.clone();
+        let mut ev = Vec::new();
+        for s in Spell::ALL {
+            w.apply(0, s, &mut ev);
+            w.apply(1, s, &mut ev);
+        }
+        assert!(ev.is_empty(), "apply after the win does nothing");
+        assert_eq!(w.objs, before);
+        w.reach();
+        assert_eq!(w.outcome(), Outcome::Won, "still latched");
+    }
+
+    #[test]
+    fn i035_a_fires_world_with_no_bushes_still_wins_at_once() {
+        // Level 1's rule is unchanged: with no bush to reseed, it is won.
+        let mut w = World::new(vec![Obj::new(Kind::Puddle, [0.0, 0.0], [1.0, 1.0])]);
+        w.step(&mut Vec::new());
+        assert_eq!(w.outcome(), Outcome::Won);
     }
 }

@@ -34,7 +34,7 @@ The band is `BenchState.band`; when it is `None` (no picker, no bench yet: golde
 
 | event (level 2 only) | Sprout 4-7 | Seedling 8-10 | Apprentice 11-15 (and None) | Adept 16+ |
 |---|---|---|---|---|
-| Freezing (stream, ice < 1) | `Cold! The water is turning to ice.` | `See the drops skate? Liquid nitrogen boils so fast it rides on a cushion of gas.` | `Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts.` | `Film boiling (Leidenfrost): a layer of N₂ gas insulates each 77 K drop and slows the heat flow. Freezing water must lose 6.01 kJ/mol.` |
+| Freezing (stream, ice < 1) | `Cold! The water is turning to ice.` | `See the drops skate? Liquid nitrogen makes a cushion of its own gas and rides on it.` | `Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts.` | `Film boiling (Leidenfrost): a layer of N₂ gas insulates each 77 K drop and slows the heat flow. Freezing water must lose 6.01 kJ/mol.` |
 | Froze (stream solid) | `Ice bridge! Now walk across.` | `The water froze into solid ice. A solid keeps its shape, so it holds you up.` | C-016 (reused) | `Frozen: H₂O(l) → H₂O(s) at 0 °C (273 K). Liquid nitrogen at 77 K is 196 K colder, so heat kept flowing out.` |
 | Melting (gate) | `Hot! The ice is melting.` | `Heat is melting the ice into water.` | C-015 (reused, `Melting... it takes a lot of heat to turn ice into water.`) | `Ice stays at 0 °C while it melts: the heat (6.01 kJ/mol) breaks up the solid instead of warming it.` |
 | Melted (gate) | `The ice door melted! Go through.` | `The ice melted: solid ice became liquid water.` | C-014 (reused) | `Melted at 0 °C (273 K): H₂O(s) → H₂O(l). Same molecules, new state.` |

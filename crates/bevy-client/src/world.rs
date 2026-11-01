@@ -20,7 +20,39 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 pub const HALF: f32 = 24.0;
-const WALL_H: f32 = 3.6;
+pub(crate) const WALL_H: f32 = 3.6;
+
+/// Every entity a level spawns (I-035): switching levels despawns them all
+/// (children go with their parent). The camera, lights, viewmodel, particle
+/// pool and the Formula Bench pad are not tagged.
+#[derive(Component)]
+pub struct LevelRoot;
+
+/// Centre (x, z) of the arch in the middle of the south wall: level 1's exit
+/// to the Frozen Gate, and level 2's way back (`level2::BACK_ARCH`).
+pub const EXIT_ARCH: (f32, f32) = (0.0, 22.6);
+/// Walking this close (feet to the arch's centre, horizontal) goes through.
+pub const ARCH_REACH: f32 = 1.4;
+
+/// The arch's door panel; it shows `ArchMats::open` while the way is open.
+#[derive(Component)]
+pub struct ArchDoor;
+
+/// The door panel's two looks: closed (dark stone) and open (static ice-blue
+/// glow, no flashing).
+#[derive(Resource, Clone)]
+pub struct ArchMats {
+    pub closed: Handle<StandardMaterial>,
+    pub open: Handle<StandardMaterial>,
+}
+
+/// The closed door's solid box (level 1, before the win).
+pub fn exit_door() -> Aabb {
+    Aabb::new(
+        Vec3::new(EXIT_ARCH.0, 1.5, EXIT_ARCH.1 + 0.4),
+        Vec3::new(1.5, 1.5, 0.2),
+    )
+}
 
 /// An axis-aligned box.
 #[derive(Clone, Copy, Debug)]
@@ -76,7 +108,7 @@ impl Colliders {
     }
 }
 
-fn solid_obj(o: &Obj) -> bool {
+pub(crate) fn solid_obj(o: &Obj) -> bool {
     match o.kind {
         Kind::IceWall => o.wall,
         Kind::Puddle => false,
@@ -183,14 +215,14 @@ pub struct Kit {
     pub foam: Handle<StandardMaterial>,
 }
 
-fn flat(mut m: Mesh) -> Mesh {
+pub(crate) fn flat(mut m: Mesh) -> Mesh {
     m.duplicate_vertices();
     m.compute_flat_normals();
     m
 }
 
 /// Tiny deterministic hash for procedural textures.
-fn hash(x: u32, y: u32) -> f32 {
+pub(crate) fn hash(x: u32, y: u32) -> f32 {
     let mut h = x.wrapping_mul(0x27d4_eb2d) ^ y.wrapping_mul(0x1656_67b1) ^ 0x9e37_79b9;
     h ^= h >> 15;
     h = h.wrapping_mul(0x85eb_ca6b);
@@ -199,7 +231,7 @@ fn hash(x: u32, y: u32) -> f32 {
 }
 
 /// A small repeating greyscale texture (the material's colour tints it).
-fn texture(images: &mut Assets<Image>, size: u32, f: impl Fn(u32, u32) -> f32) -> Handle<Image> {
+pub(crate) fn texture(images: &mut Assets<Image>, size: u32, f: impl Fn(u32, u32) -> f32) -> Handle<Image> {
     let mut data = Vec::with_capacity((size * size * 4) as usize);
     for y in 0..size {
         for x in 0..size {
@@ -228,7 +260,7 @@ fn texture(images: &mut Assets<Image>, size: u32, f: impl Fn(u32, u32) -> f32) -
 
 /// Stone blocks: two courses per tile, offset every other course, with soft
 /// mortar lines and a little per-block brightness variation.
-fn stone_texture(images: &mut Assets<Image>) -> Handle<Image> {
+pub(crate) fn stone_texture(images: &mut Assets<Image>) -> Handle<Image> {
     texture(images, 64, |x, y| {
         let row = y / 32;
         let shift = if row % 2 == 1 { 16 } else { 0 };
@@ -243,14 +275,14 @@ fn stone_texture(images: &mut Assets<Image>) -> Handle<Image> {
 }
 
 /// Grass: soft blotches and speckles so the ground is never one flat colour.
-fn grass_texture(images: &mut Assets<Image>) -> Handle<Image> {
+pub(crate) fn grass_texture(images: &mut Assets<Image>) -> Handle<Image> {
     texture(images, 64, |x, y| {
         let blotch = hash(x / 16, y / 16) * 0.5 + hash(x / 8, y / 8) * 0.5;
         0.84 + 0.12 * blotch + 0.05 * hash(x, y)
     })
 }
 
-fn textured(
+pub(crate) fn textured(
     materials: &mut Assets<StandardMaterial>,
     c: Color,
     tex: &Handle<Image>,
@@ -266,7 +298,7 @@ fn textured(
     })
 }
 
-fn toon(materials: &mut Assets<StandardMaterial>, c: Color) -> Handle<StandardMaterial> {
+pub(crate) fn toon(materials: &mut Assets<StandardMaterial>, c: Color) -> Handle<StandardMaterial> {
     materials.add(StandardMaterial {
         base_color: c,
         perceptual_roughness: 0.9,
@@ -275,7 +307,7 @@ fn toon(materials: &mut Assets<StandardMaterial>, c: Color) -> Handle<StandardMa
     })
 }
 
-fn glow(materials: &mut Assets<StandardMaterial>, c: Color, k: f32) -> Handle<StandardMaterial> {
+pub(crate) fn glow(materials: &mut Assets<StandardMaterial>, c: Color, k: f32) -> Handle<StandardMaterial> {
     let l = c.to_linear();
     materials.add(StandardMaterial {
         base_color: c,
@@ -311,7 +343,7 @@ pub fn make_kit(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMateri
     }
 }
 
-fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color) -> StateMats {
+pub(crate) fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color) -> StateMats {
     StateMats {
         normal: toon(materials, base),
         // A heating bush looks scorched, not lit: no emissive below ignition.
@@ -341,26 +373,26 @@ fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color)
     }
 }
 
-struct Builder<'a, 'w, 's> {
-    commands: &'a mut Commands<'w, 's>,
-    kit: Kit,
-    colliders: Vec<Collider>,
+pub(crate) struct Builder<'a, 'w, 's> {
+    pub commands: &'a mut Commands<'w, 's>,
+    pub kit: Kit,
+    pub colliders: Vec<Collider>,
 }
 
 impl Builder<'_, '_, '_> {
-    fn piece(
+    pub(crate) fn piece(
         &mut self,
         mesh: &Handle<Mesh>,
         mat: &Handle<StandardMaterial>,
         t: Transform,
     ) -> Entity {
         self.commands
-            .spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat.clone()), t))
+            .spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat.clone()), t, LevelRoot))
             .id()
     }
 
     /// A solid box: drawn and collided.
-    fn block(&mut self, center: Vec3, size: Vec3, mat: &Handle<StandardMaterial>) -> Entity {
+    pub(crate) fn block(&mut self, center: Vec3, size: Vec3, mat: &Handle<StandardMaterial>) -> Entity {
         self.colliders.push(Collider {
             aabb: Aabb::new(center, size * 0.5),
             obj: None,
@@ -373,7 +405,7 @@ impl Builder<'_, '_, '_> {
         )
     }
 
-    fn tree(
+    pub(crate) fn tree(
         &mut self,
         x: f32,
         z: f32,
@@ -411,7 +443,7 @@ impl Builder<'_, '_, '_> {
     }
 
     /// Hidden flame meshes for a burning object.
-    fn flames(&mut self, spots: &[(Vec3, f32)]) -> Vec<Entity> {
+    pub(crate) fn flames(&mut self, spots: &[(Vec3, f32)]) -> Vec<Entity> {
         let (cone, flame, core) = (
             self.kit.cone.clone(),
             self.kit.flame.clone(),
@@ -428,6 +460,7 @@ impl Builder<'_, '_, '_> {
                     Visibility::Hidden,
                     NotShadowCaster,
                     NotShadowReceiver,
+                    LevelRoot,
                 ))
                 .with_children(|c| {
                     c.spawn((
@@ -444,7 +477,7 @@ impl Builder<'_, '_, '_> {
         out
     }
 
-    fn foam_blob(&mut self, p: Vec3, s: Vec3) -> Entity {
+    pub(crate) fn foam_blob(&mut self, p: Vec3, s: Vec3) -> Entity {
         let (ball, foam) = (self.kit.ball.clone(), self.kit.foam.clone());
         self.commands
             .spawn((
@@ -453,9 +486,52 @@ impl Builder<'_, '_, '_> {
                 Transform::from_translation(p).with_scale(s),
                 Visibility::Hidden,
                 NotShadowCaster,
+                LevelRoot,
             ))
             .id()
     }
+}
+
+/// An arch at [`EXIT_ARCH`] in front of the south wall: two solid posts, a
+/// lintel and a door panel ([`ArchDoor`]) that glows while the way is open
+/// (`main.rs` swaps its material and adds [`exit_door`] while it is shut).
+/// Inserts [`ArchMats`]. Returns the door panel.
+pub(crate) fn arch(
+    b: &mut Builder,
+    materials: &mut Assets<StandardMaterial>,
+    stone: &Handle<StandardMaterial>,
+) -> Entity {
+    let (x, z) = EXIT_ARCH;
+    let mats = ArchMats {
+        closed: toon(materials, Color::srgb(0.22, 0.24, 0.32)),
+        open: glow(materials, Color::srgb(0.55, 0.85, 1.0), 2.5),
+    };
+    let cube = b.kit.cube.clone();
+    for dx in [-1.75f32, 1.75] {
+        b.block(
+            Vec3::new(x + dx, 1.75, z + 0.4),
+            Vec3::new(0.5, 3.5, 0.7),
+            stone,
+        );
+    }
+    b.piece(
+        &cube,
+        stone,
+        Transform::from_xyz(x, 3.7, z + 0.4).with_scale(Vec3::new(4.0, 0.5, 0.8)),
+    );
+    let door = b
+        .commands
+        .spawn((
+            Mesh3d(cube),
+            MeshMaterial3d(mats.closed.clone()),
+            Transform::from_xyz(x, 1.5, z + 0.5).with_scale(Vec3::new(3.0, 3.0, 0.12)),
+            NotShadowCaster,
+            ArchDoor,
+            LevelRoot,
+        ))
+        .id();
+    b.commands.insert_resource(mats);
+    door
 }
 
 /// Spawns the courtyard. Returns the colliders and the chemistry objects.
@@ -627,6 +703,7 @@ pub fn build(
             MeshMaterial3d(glass.clone()),
             Transform::from_translation(c).with_scale(s),
             NotShadowCaster,
+            LevelRoot,
         ));
     };
     pane(
@@ -674,6 +751,7 @@ pub fn build(
                 .with_rotation(Quat::from_rotation_x(slope * sign))
                 .with_scale(Vec3::new(gx1 - gx0 + 0.2, 0.08, len)),
             NotShadowCaster,
+            LevelRoot,
         ));
     }
     // Frame: posts and beams.
@@ -786,6 +864,9 @@ pub fn build(
         &stone_dark,
         Transform::from_xyz(20.75, WALL_H + 0.1, 6.0).with_scale(Vec3::new(6.5, 0.2, 7.2)),
     );
+
+    // The exit arch to the Frozen Gate (I-035): shut until the greenhouse is saved.
+    arch(&mut b, materials, &stone_dark);
 
     // --- Chemistry objects -------------------------------------------------
     let mut objs: Vec<Obj> = Vec::new();
@@ -976,6 +1057,7 @@ pub fn build(
                 Transform::from_xyz(x - 0.6, 0.03, z).with_scale(Vec3::new(4.2, 0.04, 6.4)),
                 Visibility::Hidden,
                 NotShadowCaster,
+                LevelRoot,
             ))
             .id();
         let aabb = Aabb::new(Vec3::new(x, h / 2.0, z), Vec3::new(0.45, h / 2.0, hz));
@@ -1014,6 +1096,7 @@ pub fn build(
                 MeshMaterial3d(kit.water.clone()),
                 Transform::from_xyz(x, 0.03, z).with_scale(Vec3::new(2.0 * r, 0.04, 2.0 * r * 0.8)),
                 NotShadowCaster,
+                LevelRoot,
             ))
             .id();
         add(

@@ -1,0 +1,3 @@
+thread 'level2::tests::i035_the_stream_and_the_gate_block_the_walk_until_changed' (9881) panicked at src/level2.rs:729:9:
+thread 'chem::tests::i035_reach_goal_never_wins_or_reseeds_by_itself' (9845) panicked at src/chem.rs:1324:13:
+test result: FAILED. 74 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.28s

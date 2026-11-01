@@ -9,7 +9,8 @@
 //   bash crates/bevy-client/build-web.sh        # builds web/pkg-out
 //   node tests/e2e/golden.mjs                   # serves web/pkg-out itself
 //
-// Env: BASE_URL (test a running server instead), QUERY (for example `?low`,
+// Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
+// I-035 level-2 section and the console-error check), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -90,6 +91,16 @@ function check(name, ok, detail = '') {
   const tickNow = async () => (await st()).tick;
   const frames = async (n) => { const f0 = (await st()).frame; await until((x) => x.frame >= f0 + n, 60000); };
   await sleep(2500);
+  if (process.env.ONLY === 'frozenGate') {
+    // The I-035 section alone (it reloads the page itself), then the error check.
+    await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
+    check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+    const failed = results.filter((r) => !r.ok);
+    console.log(`\n${results.length - failed.length}/${results.length} passed`);
+    await browser.close();
+    if (server) server.close();
+    process.exit(failed.length ? 1 : 0);
+  }
   let s = await st();
   check('boots', s && s.objs.length > 10, `objs=${s.objs.length} burning=${s.burning}`);
   check('three fires at start', s.burning === 3);
@@ -349,6 +360,8 @@ function check(name, ok, detail = '') {
   await spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
   await formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors });
+
+  await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -1055,8 +1068,10 @@ async function clockAndBudget({ page, st, cmd, until, frames, sleep, logs }) {
   const I025_KEYS = ['fireInView'];
   // I-027 appends its progress keys after them (its Contract).
   const I027_KEYS = ['progress', 'progRev', 'progSave'];
-  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length
-    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS].every((k, i) => keys[i] === k);
+  // I-035 appends its level keys after them (its acceptance test 14).
+  const I035_KEYS = ['level', 'exitOpen', 'capIcon', 'fxBeads'];
+  const keysOk = keys.length === BASE_KEYS.length + 2 + I019_KEYS.length + I025_KEYS.length + I027_KEYS.length + I035_KEYS.length
+    && [...BASE_KEYS, 'gameTime', 'dt', ...I019_KEYS, ...I025_KEYS, ...I027_KEYS, ...I035_KEYS].every((k, i) => keys[i] === k);
   const objKeysOk = s0.objs.every((o) => Object.keys(o).join() === OBJ_KEYS.join());
 
   // 4. Game time keeps up with the wall clock, and stops while paused. The
@@ -3602,4 +3617,217 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await page.keyboard.press('Escape');
     await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Level 2, the Frozen Gate (docs/loop/items/I-035/spec.md, acceptance tests
+// 5-13, 16 (entity count) and 18; test 14 is in the key-order check above
+// and 15 is the closing console-error check). Drives the state bridge only.
+// ---------------------------------------------------------------------------
+async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- frozen gate (I-035) --');
+  const FREEZING = {
+    sprout: 'Cold! The water is turning to ice.',
+    seedling: 'See the drops skate? Liquid nitrogen makes a cushion of its own gas and rides on it.',
+    apprentice: 'Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts.',
+    adept: 'Film boiling (Leidenfrost): a layer of N₂ gas insulates each 77 K drop and slows the heat flow. Freezing water must lose 6.01 kJ/mol.',
+  };
+  const load = async (extra = []) => {
+    await page.goto(base + extra.map((e) => `&${e}`).join(''));
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+  };
+  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
+  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
+  const castAt = async (i, spell) => {
+    await resume();
+    await cmd(`face ${i}`);
+    await cmd(`select ${spell}`);
+    const a = await until((x) => x.spell === spell - 1 && x.aimObj === i && x.cooldown <= 0, 15000);
+    await cmd('cast');
+    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
+    if (!(z.impacts > a.impacts)) console.log(`  castAt(${i}, ${spell}) did not land: aim=${a.aimObj} spell=${a.spell}`);
+    return z;
+  };
+  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
+  // The next STATS line logged after this call (skipping one that may span the change).
+  const statsAfter = async () => {
+    const n0 = logs.length;
+    let seen = 0, line = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 30000 && seen < 2; await sleep(200)) {
+      const fresh = logs.slice(n0).filter((l) => /STATS /.test(l));
+      seen = fresh.length;
+      line = fresh[fresh.length - 1] || null;
+    }
+    const num = (re) => { const m = line && re.exec(line); return m ? +m[1] : NaN; };
+    return { entities: num(/entities=(\d+)/), mem: num(/wasm_mem_mb=([\d.]+)/) };
+  };
+  const banner = () => page.evaluate(() => {
+    const b = document.getElementById('banner');
+    return { shown: !b.classList.contains('hidden'), big: b.querySelector('.big').textContent, small: b.querySelector('.small').textContent };
+  });
+  const pushBand = async (id) => {
+    await page.evaluate((c) => { window.__gameIn = window.__gameIn || {}; (window.__gameIn.bench = window.__gameIn.bench || []).push(c); }, `band ${id}`);
+    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(150)) {
+      const b = await page.evaluate(() => { try { return JSON.parse(window.__benchState).band; } catch { return null; } });
+      if (b === id) return true;
+    }
+    return false;
+  };
+
+  // A fresh page: level 1, no band picked.
+  await load();
+  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
+  const first = await statsAfter();
+
+  // 5. The exit stays shut before the win.
+  await cmd('tp 0 21.8');
+  await gameSecs(0.5);
+  s = await st();
+  check('frozen gate: the exit stays shut before the win (level 1, exitOpen false)', s.level === 1 && s.exitOpen === false && s.burning > 0,
+    `level=${s.level} exitOpen=${s.exitOpen} burning=${s.burning} pos=${s.pos}`);
+
+  // 6. Reach level 2 by playing: win level 1 the usual way, then walk into the arch.
+  await cmd('tp 0 5.5');
+  const lit = s.objs.filter((o) => o.burning).map((o) => o.i);
+  for (const i of lit) await castAt(i, 2);
+  s = await until((x) => x.outcome === 'won', 10000);
+  const b1 = await banner();
+  check('frozen gate: the level-1 win opens the arch and the banner points to it',
+    s.outcome === 'won' && s.exitOpen === true && b1.shown && b1.big === 'You saved the greenhouse!' && /glowing arch/.test(b1.small),
+    `outcome=${s.outcome} exitOpen=${s.exitOpen} banner=${JSON.stringify(b1)}`);
+  await cmd('tp 0 21.8');
+  const t6 = Date.now();
+  s = await until((x) => x.level === 2, 5000);
+  const names = s.objs.map((o) => o.n);
+  check('frozen gate: walking into the open arch loads level 2 within 5 s',
+    s.level === 2 && Date.now() - t6 <= 5500 && ['stream', 'ice gate', 'lantern'].every((n) => names.includes(n))
+      && s.burning === 0 && s.outcome === 'playing' && /^The Frozen Gate/.test(s.caption),
+    `level=${s.level} after ${Date.now() - t6} ms objs=${names.join(',')} burning=${s.burning} outcome=${s.outcome} caption=${s.caption}`);
+  const stream = idx(s, 'stream'), gate = idx(s, 'ice gate');
+  await frames(3);
+  await screenshot(page, 'l2-01-arrive.png');
+
+  // 7. The liquid stream blocks the walk.
+  await cmd('look 0 0');
+  await cmd('move 0 1 3');
+  await gameSecs(3.4);
+  s = await st();
+  check('frozen gate: the liquid stream blocks the walk (stopped on the south bank, z > 8.2)', s.pos[2] > 8.2 && s.pos[2] < 9.5 && s.objs[stream].ice === 0,
+    `pos=${s.pos} ice=${s.objs[stream].ice}`);
+
+  // 8. Wrong chemistry fails kindly.
+  const wrong = [];
+  for (const sp of [1, 2, 4]) { const z = await castAt(stream, sp); wrong.push(`stream ${sp}: ice=${z.objs[stream].ice} "${z.caption}"`); }
+  const iceAfterWrong = (await st()).objs[stream].ice;
+  for (const sp of [3, 2, 4]) { const z = await castAt(gate, sp); wrong.push(`gate ${sp}: wall=${z.objs[gate].wall} "${z.caption}"`); }
+  s = await st();
+  check('frozen gate: Fire, Water and CO2 leave the stream liquid; Frost, Water and CO2 leave the gate standing',
+    iceAfterWrong === 0 && s.objs[stream].ice === 0 && s.objs[gate].wall === true && s.objs[gate].ice === 1, wrong.join(' | '));
+
+  // 9, 11 (no band) and 13. Freeze a bridge: 0.34, 0.68, 1.00; beads on the first hit.
+  const ices = [];
+  let z = await castAt(stream, 3);
+  ices.push(z.objs[stream].ice);
+  const beads = z.fxBeads;
+  const noBandLine = z.caption;
+  const t13 = Date.now();
+  const gone = await until((x) => x.fxBeads === 0, 4000);
+  const goneMs = Date.now() - t13;
+  check('frozen gate: Leidenfrost beads after a Frost hit on the liquid stream (>= 4, then 0 within 2 s)',
+    beads >= 4 && gone.fxBeads === 0 && goneMs <= 2000, `beads=${beads} then ${gone.fxBeads} after ${goneMs} ms`);
+  check('frozen gate: with no band the Apprentice Freezing line shows', noBandLine === FREEZING.apprentice && z.capIcon === '',
+    `caption="${noBandLine}" capIcon="${z.capIcon}"`);
+  for (let k = 0; k < 2; k++) { z = await castAt(stream, 3); ices.push(z.objs[stream].ice); }
+  s = await st();
+  check('frozen gate: three Frost casts freeze the stream 0.34 / 0.68 / 1.00',
+    ices.join() === '0.34,0.68,1' && s.objs[stream].frozen, `ice ${ices.join(' / ')} frozen=${s.objs[stream].frozen} "${s.caption}"`);
+  await cmd('look 0 -20');
+  await frames(3);
+  await screenshot(page, 'l2-02-bridge-frozen.png');
+  await cmd('look 0 0');
+  await cmd('move 0 0.4 6');
+  let sawIce = false;
+  const t9 = (await st()).gameTime;
+  for (let x = await st(); x.gameTime < t9 + 6.3; x = await st()) {
+    sawIce = sawIce || x.onIce;
+    s = x;
+    if (Date.now() - t13 > 120000) break;
+    await sleep(60);
+  }
+  check('frozen gate: the player crosses the frozen stream (z < 3), on ice while on it', s.pos[2] < 3 && sawIce, `pos=${s.pos} onIce seen=${sawIce}`);
+
+  // 10. Melt the gate, reach the lantern.
+  const walls = [];
+  for (let k = 0; k < 3; k++) {
+    z = await castAt(gate, 1);
+    walls.push(`${z.objs[gate].ice}/${z.objs[gate].wall}`);
+    if (k === 1) { await frames(1); await screenshot(page, 'l2-03-gate-melting.png'); }
+  }
+  s = await st();
+  const wallGone = s.objs[gate].wall === false;
+  await cmd('tp 0 -11');
+  await cmd('look 0 -4');
+  await frames(4);
+  await screenshot(page, 'l2-04-lantern.png');
+  await cmd('move 0 1 4');
+  s = await until((x) => x.outcome === 'won', 30000);
+  const b2 = await banner();
+  check('frozen gate: Fire melts the gate in 3 hits and walking to the lantern wins',
+    wallGone && s.outcome === 'won' && b2.shown && b2.big === 'You opened the Frozen Gate!',
+    `gate ${walls.join(' ')} outcome=${s.outcome} pos=${s.pos} banner=${JSON.stringify(b2)}`);
+  await screenshot(page, 'l2-05-won.png');
+
+  // 12. The way back: a fresh courtyard, exit still open.
+  await cmd('tp 0 21.8');
+  s = await until((x) => x.level === 1, 5000);
+  s = await until((x) => x.level === 1 && x.burning === 3, 5000);
+  check('frozen gate: the back arch returns to a fresh courtyard with the exit open',
+    s.level === 1 && s.burning === 3 && s.exitOpen === true && s.outcome === 'playing',
+    `level=${s.level} burning=${s.burning} exitOpen=${s.exitOpen} outcome=${s.outcome}`);
+
+  // 11. Captions per band, each on a fresh level 2.
+  const per = [];
+  let bandsOk = true;
+  for (const id of ['sprout', 'seedling', 'apprentice', 'adept']) {
+    const pushed = await pushBand(id);
+    await cmd('level 2');
+    let x = await until((q) => q.level === 2 && q.objs[stream] && q.objs[stream].ice === 0 && q.casts === 0, 10000);
+    await cmd('tp 0 10');
+    await until((q) => Math.abs(q.pos[2] - 10) < 0.5, 10000);
+    x = await castAt(stream, 3);
+    const icon = id === 'sprout' ? 'freeze' : '';
+    const ok = pushed && x.caption === FREEZING[id] && x.capIcon === icon;
+    bandsOk = bandsOk && ok;
+    per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
+  }
+  check('frozen gate: each band sees its own Freezing line; Sprout shows the freeze picture', bandsOk, per.join(' | '));
+
+  // 18 and 16 (entities). Switching levels 10 times leaks nothing.
+  await cmd('level 1');
+  await until((q) => q.level === 1 && q.burning === 3, 10000);
+  let l2 = null, mem2 = NaN, last = null;
+  for (let k = 1; k <= 10; k++) {
+    await cmd('level 2');
+    await until((q) => q.level === 2, 10000);
+    if (k === 1) { await gameSecs(0.3); l2 = await statsAfter(); }
+    await cmd('level 1');
+    await until((q) => q.level === 1 && q.burning === 3, 10000);
+    if (k === 2) mem2 = (await statsAfter()).mem;
+    if (k === 10) last = await statsAfter();
+  }
+  check('frozen gate: level 2 has no more entities than level 1', l2.entities <= first.entities,
+    `level 1 ${first.entities}, level 2 ${l2.entities}`);
+  check('frozen gate: 10 level switches leave entities exact and WASM memory flat (± 2 %)',
+    last.entities === first.entities && Math.abs(last.mem - mem2) <= 0.02 * mem2,
+    `entities ${first.entities} -> ${last.entities}; wasm MB after switch 2 ${mem2}, after 10 ${last.mem}`);
+
+  // ?level=2 loads level 2 directly (teachers and tests).
+  await load(['level=2']);
+  s = await until((x) => x.level === 2, 10000);
+  check('frozen gate: ?level=2 opens the Frozen Gate directly', s.level === 2 && idx(s, 'stream') >= 0 && /^The Frozen Gate/.test(s.caption),
+    `level=${s.level} caption=${s.caption}`);
 }
