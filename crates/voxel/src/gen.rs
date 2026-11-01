@@ -435,10 +435,11 @@ fn plant_trees(w: &mut World, seed: u64, cols: &[Column]) {
             }
             // Keep the village plaza, paths and every stamp clear.
             let plaza = (100..158).contains(&x) && (176..228).contains(&z);
+            let riverbank = (CANYON_Z.0 - 8..CANYON_Z.1 + 6).contains(&z);
             let near_stamp = stamp::ALL.iter().any(|s| {
                 x >= s.min[0] - 3 && x < s.max[0] + 3 && z >= s.min[2] - 3 && z < s.max[2] + 3
             });
-            if plaza || near_stamp {
+            if plaza || riverbank || near_stamp {
                 continue;
             }
             let trunk = 4 + (h >> 24) as i32 % 2;

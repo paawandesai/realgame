@@ -27,6 +27,7 @@ mod player;
 mod progress;
 mod spells;
 mod story;
+mod voxel_tex;
 mod voxel_view;
 mod worked;
 mod world;
@@ -128,6 +129,83 @@ pub(crate) enum PlayerEvent {
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MatterEvent(pub realgame_matter::MatterEvent);
 
+/// The player's pack in voxel mode (spec section 6): the voxel view adds
+/// what a dig gathers and takes what a click places; Lane C's story owns
+/// the pack UI, crafting and the `pack` state key.
+#[derive(Resource, Debug, Clone, Default)]
+pub(crate) struct Pack(pub realgame_sim::valley::Pack);
+
+/// A spell landed in the block world (voxel mode only): where, the face it
+/// hit (zero when it hit nothing), and which spell. Sent by `projectiles`
+/// after the flight delay; Lane B's `blockchem` turns it into one
+/// `matter::Emit` (`blockchem::on_impact`, spec section 5.6). I-051 owns
+/// when and where a spell lands.
+#[allow(dead_code)]
+#[derive(Message, Debug, Clone, Copy, PartialEq)]
+pub(crate) struct SpellLanded {
+    pub spell: Spell,
+    pub pos: Vec3,
+    pub normal: [i8; 3],
+}
+
+/// What `control` needs in voxel mode (one parameter, so the system stays
+/// under Bevy's limit).
+#[derive(bevy::ecs::system::SystemParam)]
+struct VoxCtl<'w, 's> {
+    mode: Res<'w, Mode>,
+    keys: Option<ResMut<'w, voxel_view::Keys>>,
+    world: Option<ResMut<'w, voxel_view::VoxWorld>>,
+    walk: Option<ResMut<'w, voxel_view::Walk>>,
+    probes: Local<'s, u32>,
+}
+
+impl VoxCtl<'_, '_> {
+    fn on(&self) -> bool {
+        *self.mode == Mode::Voxel
+    }
+}
+
+/// What `aim_and_cast` needs in voxel mode.
+#[derive(bevy::ecs::system::SystemParam)]
+struct VoxAim<'w> {
+    mode: Res<'w, Mode>,
+    keys: Option<Res<'w, voxel_view::Keys>>,
+    world: Option<Res<'w, voxel_view::VoxWorld>>,
+}
+
+impl VoxAim<'_> {
+    /// The aim along a ray in the block world: the first solid or liquid
+    /// block (spells target water too), or a point far along the ray.
+    fn pick(&self, origin: Vec3, dir: Vec3) -> Aim {
+        let hit = self.world.as_ref().and_then(|w| {
+            realgame_voxel::raycast(
+                &w.0,
+                origin.to_array(),
+                dir.to_array(),
+                voxel_view::SPELL_RANGE,
+                realgame_voxel::RayMode::Fluids,
+            )
+        });
+        match hit {
+            Some(h) => Aim {
+                point: origin + dir * h.t,
+                obj: None,
+                assisted: false,
+                normal: h.normal,
+            },
+            None => Aim {
+                point: origin + dir * voxel_view::SPELL_RANGE,
+                ..Aim::default()
+            },
+        }
+    }
+
+    /// A tool (the Pick or a block, keys 5-9) is in hand: clicks are not casts.
+    fn tool(&self) -> bool {
+        *self.mode == Mode::Voxel && self.keys.as_ref().is_some_and(|k| k.hot >= 5)
+    }
+}
+
 /// The voxel-mode state keys, each plugin's values (spec section 8).
 #[derive(bevy::ecs::system::SystemParam)]
 struct ModeKeys<'w> {
@@ -171,7 +249,10 @@ impl ModeKeys<'_> {
             m.matter_ms,
             m.gas_co2_max,
             s.ending,
-        )
+        ) + &v
+            .probe
+            .as_ref()
+            .map_or(String::new(), |p| format!(",\"probe\":{p}"))
     }
 }
 
@@ -308,6 +389,8 @@ struct Aim {
     point: Vec3,
     obj: Option<usize>,
     assisted: bool,
+    /// The face hit in the block world (voxel mode; zero otherwise).
+    normal: [i8; 3],
 }
 
 /// Spell progress (I-027), saved in this browser by `web/progress.js`.
@@ -470,6 +553,8 @@ struct Projectile {
     dur: f32,
     obj: Option<usize>,
     epoch: u32,
+    /// The block face it lands on (voxel mode).
+    normal: [i8; 3],
 }
 
 /// The visible jet of every cast (I-025): a constant-width rod from the hand
@@ -661,9 +746,10 @@ fn main() {
         .init_resource::<story::Keys>()
         .add_message::<PlayerEvent>()
         .add_message::<MatterEvent>()
+        .add_message::<SpellLanded>()
         .add_systems(Startup, setup)
         .add_systems(First, frame_start)
-        .add_systems(FixedUpdate, chem_tick)
+        .add_systems(FixedUpdate, chem_tick.run_if(is_classic))
         .add_systems(
             Update,
             (
@@ -671,8 +757,8 @@ fn main() {
                 levels.run_if(is_classic),
                 aim_and_cast,
                 projectiles,
-                react,
-                sync_visuals,
+                react.run_if(is_classic),
+                sync_visuals.run_if(is_classic),
                 level_visuals.run_if(is_classic),
                 level3_visuals.run_if(is_classic),
                 viewmodel,
@@ -686,8 +772,10 @@ fn main() {
         .add_systems(Startup, bench::spawn_station)
         .add_systems(Startup, tag_bench_pad.after(bench::spawn_station));
     // Voxel mode: the block world's view, chemistry and story (spec section
-    // 3.3). Until their Mode branches land (Lane A, spec section 9), the
-    // shared systems still run on the courtyard's resources.
+    // 3.3). The courtyard is still built (its `Chem` and `Colliders` stay as
+    // inert resources the shared systems read) but `voxel_view` removes its
+    // entities, and the courtyard's chemistry, reactions and visuals do not
+    // run (spec section 9).
     if game_mode == Mode::Voxel {
         app.add_plugins((voxel_view::plugin, blockchem::plugin, story::plugin));
     }
@@ -793,8 +881,10 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     settings: Res<Settings>,
     mut game: ResMut<Game>,
+    mode: Res<Mode>,
 ) {
     info!("STARTUP t={:.0}ms", now_ms());
+    let voxel = *mode == Mode::Voxel;
     let _ = spells::book();
     assert_eq!(
         Spell::ALL.map(Spell::spell_id),
@@ -891,7 +981,7 @@ fn setup(
         Projection::Perspective(PerspectiveProjection {
             fov: settings.fov_y().to_radians(),
             near: 0.05,
-            far: 250.0,
+            far: if voxel { 400.0 } else { 250.0 },
             ..default()
         }),
         Transform::from_xyz(0.0, player::EYE, 18.0),
@@ -899,9 +989,21 @@ fn setup(
             color: Color::srgb(0.7, 0.85, 1.0),
             directional_light_color: Color::NONE,
             directional_light_exponent: 8.0,
-            falloff: FogFalloff::Linear {
-                start: 35.0,
-                end: 110.0,
+            // Voxel mode (spec section 5.9): fog from 120 m to the 6-chunk
+            // view distance at `?low`, from 180 m to 8 chunks otherwise.
+            falloff: match (voxel, settings.low) {
+                (true, true) => FogFalloff::Linear {
+                    start: 120.0,
+                    end: 192.0,
+                },
+                (true, false) => FogFalloff::Linear {
+                    start: 180.0,
+                    end: 256.0,
+                },
+                _ => FogFalloff::Linear {
+                    start: 35.0,
+                    end: 110.0,
+                },
             },
         },
         FpsCam,
@@ -1056,6 +1158,7 @@ fn control(
         With<PrimaryWindow>,
     >,
     mouse: Res<ButtonInput<MouseButton>>,
+    mut vx: VoxCtl,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     bridge::poll(&mut web);
@@ -1103,6 +1206,27 @@ fn control(
     {
         if keys.just_pressed(key) && !game.work.is_open() {
             game.spell = k;
+            if let Some(v) = vx.keys.as_mut() {
+                v.hot = k as u8 + 1;
+            }
+        }
+    }
+    // Voxel mode (spec section 5.9): key 5 is the Pick, keys 6-9 the four
+    // pack slots bound in the pack.
+    if let Some(v) = vx.keys.as_mut() {
+        for (k, key) in [
+            KeyCode::Digit5,
+            KeyCode::Digit6,
+            KeyCode::Digit7,
+            KeyCode::Digit8,
+            KeyCode::Digit9,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if keys.just_pressed(key) && !game.work.is_open() {
+                v.hot = k as u8 + 5;
+            }
         }
     }
     // On the web the wheel arrives as a `select` command from hud.js.
@@ -1111,10 +1235,21 @@ fn control(
         && scroll.delta.y != 0.0
         && !game.work.is_open()
     {
-        let step = if scroll.delta.y < 0.0 { 1 } else { 3 };
-        game.spell = (game.spell + step) % 4;
+        if let Some(v) = vx.keys.as_mut() {
+            // Voxel mode: the wheel cycles all nine hotbar slots.
+            let step = if scroll.delta.y < 0.0 { 1 } else { 8 };
+            v.hot = (v.hot.clamp(1, 9) - 1 + step) % 9 + 1;
+            if v.hot <= 4 {
+                game.spell = usize::from(v.hot) - 1;
+            }
+        } else {
+            let step = if scroll.delta.y < 0.0 { 1 } else { 3 };
+            game.spell = (game.spell + step) % 4;
+        }
     }
-    if keys.just_pressed(KeyCode::KeyR) {
+    // A reset restarts the courtyard; the block world has no reset (its
+    // "Play again" reloads the page).
+    if keys.just_pressed(KeyCode::KeyR) && !vx.on() {
         reset(&mut chem, &mut game, &mut player, level.n);
     }
 
@@ -1133,15 +1268,36 @@ fn control(
         // Test commands that move the player or the clock need `?debug`.
         let debug_only = matches!(
             name,
-            Some("look" | "turn" | "face" | "tp" | "move" | "tick" | "level")
+            Some("look" | "turn" | "face" | "tp" | "move" | "tick" | "level" | "setcell" | "probe")
         );
         if debug_only && !settings.debug {
             warn!("command {c:?} needs ?debug");
             continue;
         }
+        // Voxel mode's own debug commands: tp x y z, face x y z, setcell,
+        // probe (spec section 8).
+        if vx.on() && matches!(name, Some("tp" | "face" | "setcell" | "probe")) {
+            if let (Some(w), Some(k)) = (vx.world.as_mut(), vx.keys.as_mut()) {
+                voxel_view::debug_cmd(&a, &mut w.0, &mut player, k, &mut vx.probes);
+            }
+            continue;
+        }
+        if vx.on() && matches!(name, Some("tick" | "reset")) {
+            warn!("command {c:?} is for the classic courtyard");
+            continue;
+        }
         match name {
             Some("select") => {
-                if !game.work.is_open() {
+                if game.work.is_open() {
+                    continue;
+                }
+                if let Some(v) = vx.keys.as_mut() {
+                    // Voxel mode: 1-9 (the wheel sends these too).
+                    v.hot = (f(1) as u8).clamp(1, 9);
+                    if v.hot <= 4 {
+                        game.spell = usize::from(v.hot) - 1;
+                    }
+                } else {
                     game.spell = (f(1) as usize).clamp(1, 4) - 1;
                 }
             }
@@ -1275,7 +1431,23 @@ fn control(
         player.vel.x = 0.0;
         player.vel.z = 0.0;
     }
-    if !game.paused {
+    if !game.paused && vx.on() {
+        // The block world: solid and ice blocks around the player, with a
+        // one-block step up (spec section 3.1).
+        if let (Some(w), Some(walk)) = (vx.world.as_ref(), vx.walk.as_mut()) {
+            voxel_view::walk(
+                &mut player,
+                walk,
+                &w.0,
+                player::MoveInput {
+                    wish,
+                    sprint: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
+                    jump: keys.pressed(KeyCode::Space),
+                },
+                dt,
+            );
+        }
+    } else if !game.paused {
         // Built once per frame; the player substeps against them.
         let ice: Vec<world::Aabb> = (0..chem.targets.len())
             .filter(|&i| {
@@ -1313,7 +1485,8 @@ fn control(
         );
     }
     if let Ok((mut t, mut proj)) = cam.single_mut() {
-        t.translation = player.eye();
+        let lag = vx.walk.as_ref().map_or(0.0, |w| w.lag);
+        t.translation = player.eye() + Vec3::Y * lag;
         t.rotation = player.rotation();
         game.cam = t.translation;
         let fov = settings.fov_y().to_radians();
@@ -1598,6 +1771,7 @@ fn pick(chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32
             point,
             obj: hit,
             assisted: false,
+            normal: [0; 3],
         };
     }
     let mut best: Option<(f32, usize, Vec3)> = None;
@@ -1628,11 +1802,13 @@ fn pick(chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32
             point: c,
             obj: Some(i),
             assisted: true,
+            normal: [0; 3],
         },
         None => Aim {
             point,
             obj: None,
             assisted: false,
+            normal: [0; 3],
         },
     }
 }
@@ -1654,13 +1830,23 @@ fn aim_and_cast(
     window: Single<&Window, With<PrimaryWindow>>,
     cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
     mut wk: WorkCtx,
-    level: Res<Level>,
+    (level, vx): (Res<Level>, VoxAim),
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     game.cooldown -= dt;
     game.caption_age += dt;
     game.recoil = (game.recoil - dt * 6.0).max(0.0);
     let eye = player.eye();
+    let voxel = *vx.mode == Mode::Voxel;
+    // Voxel mode picks with the block raycast (spec section 9); there is
+    // no aim assist on blocks.
+    let pick = |chem: &Chem, colliders: &Colliders, origin: Vec3, dir: Vec3, assist: f32| {
+        if voxel {
+            vx.pick(origin, dir)
+        } else {
+            pick(chem, colliders, origin, dir, assist)
+        }
+    };
     game.aim = pick(&chem, &colliders, eye, player.forward(), settings.assist);
 
     // Pointer free: what is under the cursor (kids can just click things).
@@ -1685,7 +1871,7 @@ fn aim_and_cast(
 
     // The nearest fire, for the HUD's arrow: its bearing and elevation from
     // the view centre, and whether that is off screen at the live FOV.
-    let near = (0..chem.targets.len())
+    let near = (0..if voxel { 0 } else { chem.targets.len() })
         .filter(|&i| chem.world.objs[i].burning)
         .map(|i| (i, chem.bounds(i).center()))
         .min_by(|a, b| {
@@ -1737,7 +1923,7 @@ fn aim_and_cast(
             * ((fov_y.to_radians() / 2.0).tan() * aspect)
                 .atan()
                 .to_degrees();
-        let v: Vec<(f32, f32)> = (0..chem.targets.len())
+        let v: Vec<(f32, f32)> = (0..if voxel { 0 } else { chem.targets.len() })
             .filter(|&i| chem.world.objs[i].burning)
             .map(|i| {
                 let c = chem.bounds(i).center();
@@ -1852,6 +2038,7 @@ fn aim_and_cast(
     };
     game.was_down = firing && game.locked && !game.paused;
     if casts.is_empty()
+        && !vx.tool()
         && game.locked
         && !game.paused
         && firing
@@ -1953,6 +2140,7 @@ fn aim_and_cast(
                 dur,
                 obj: aim.obj,
                 epoch: game.epoch,
+                normal: aim.normal,
             },
         ));
     }
@@ -2087,6 +2275,7 @@ fn projectiles(
     mut q: Moving<Projectile, Stream>,
     mut streams: Moving<Stream, Projectile>,
     (level, bench, settings): (Res<Level>, Option<Res<bench::BenchState>>, Res<Settings>),
+    (mut landed, mode): (MessageWriter<SpellLanded>, Res<Mode>),
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     if fx.epoch != game.epoch {
@@ -2199,6 +2388,19 @@ fn projectiles(
         }
         if p.spell == Spell::Fire {
             fx.burst(P::Spark, p.to, 6, 5.0, 0.07);
+        }
+        // The block world: the landing goes to the matter sim (Lane B's
+        // `blockchem::on_impact` reads this message).
+        if *mode == Mode::Voxel {
+            info!(
+                "IMPACT voxel=1 spell={:?} at={:.1?} face={:?}",
+                p.spell, p.to, p.normal
+            );
+            landed.write(SpellLanded {
+                spell: p.spell,
+                pos: p.to,
+                normal: p.normal,
+            });
         }
         if let Some(i) = p.obj {
             let mut ev = Vec::new();
@@ -2548,6 +2750,10 @@ fn publish(
     keys: ModeKeys,
 ) {
     *frame += 1;
+    // Voxel mode (spec section 8): no courtyard objects, level 0, and the
+    // courtyard's fire counts read as none (the block world's burning count
+    // is Lane B's to supply).
+    let voxel = *keys.mode == Mode::Voxel;
     // The frame in which the latest impact landed.
     if last_hit.0 != game.impacts {
         *last_hit = (game.impacts, *frame);
@@ -2561,6 +2767,7 @@ fn publish(
     let objs: Vec<String> = w
         .objs
         .iter()
+        .take(if voxel { 0 } else { usize::MAX })
         .enumerate()
         .map(|(i, o)| {
             format!(
@@ -2583,9 +2790,9 @@ fn publish(
         opt(game.aim.obj),
         game.aim.assisted,
         opt(game.hover),
-        w.extinguished,
+        if voxel { 0 } else { w.extinguished },
         chem::GOAL_FIRES,
-        w.burning(),
+        if voxel { 0 } else { w.burning() },
         risk.0,
         risk.1,
         esc(&game.caption),
@@ -2619,7 +2826,11 @@ fn publish(
         game.game_time,
         game.dt,
         game.clicks,
-        cues::fires_left(chem::GOAL_FIRES, w.extinguished, w.burning() as u32),
+        if voxel {
+            0
+        } else {
+            cues::fires_left(chem::GOAL_FIRES, w.extinguished, w.burning() as u32)
+        },
         game.near_fire,
         game.fire_bearing,
         game.fire_elev,
@@ -2630,11 +2841,11 @@ fn publish(
         prog.0.state_json(),
         prog.0.rev(),
         esc(&prog.0.encode()),
-        level.n,
-        level.exit_open(w),
+        if voxel { 0 } else { level.n },
+        level.exit_open(w) && !voxel,
         game.cap_icon,
         fx.bead_live,
-        level.next_open(w),
+        level.next_open(w) && !voxel,
         level3::pools(w)
             .iter()
             .map(|p| format!("{p:.3}"))

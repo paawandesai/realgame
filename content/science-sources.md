@@ -203,6 +203,12 @@ The single register of every science claim the first-person 3D client shows the 
 | `New spell: copy it. Learn it at the Formula Bench (B) to earn XP.` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast panel line for a spell the player has not learned yet (I-029). |
 | `${bench.pretty(names[i] \|\| NAMES[i] \|\| '')}: Practised!` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast toast when a spell reaches Practised, e.g. "Water: Practised!" (I-029). |
 | `Copy: ${bench.pretty(card ? card.formula : '')}` | crates/bevy-client/web/worked.js | UI instruction; states no science. The answer to copy in a worked cast; the formula comes from content/spells.json (I-026 rows). Not flagged by the lint; listed for the review. |
+| `This old runestone will not budge. Try chemistry.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction when the Pick hits a protected block (spec section 4). Flagged by sentence shape; it states no science. |
+| `Welcome to the valley! Walk with WASD. Press 5 for the Pick and hold the mouse button to dig.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction (controls) at the start. Flagged by sentence shape; it states no science. |
+| `Welcome to the valley! Press 5 for the Pick and hold the mouse button to dig.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction (controls) after a `?biome=` start. Flagged by sentence shape; it states no science. |
+| `Pack full. Drop or use something first.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction when a dig finds the pack full (spec section 6). Flagged by sentence shape; it states no science. |
+| `Nothing on this key. Press Tab to open your pack.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction (an empty hotbar key 6-9). Flagged by sentence shape; it states no science. |
+| `Nothing can be built here.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction when placing in a protected box. Flagged by sentence shape; it states no science. |
 
 ## Sources
 

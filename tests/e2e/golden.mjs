@@ -4822,11 +4822,13 @@ async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser,
     return Date.now();
   };
   // `probe x y z` writes the cell into the next state (spec section 8).
+  // Each probe has a sequence number `n`, so a repeated probe of the same
+  // cell is never answered by the last one.
   const probe = async (x, y, z) => {
-    const f0 = (await st()).frame;
+    const n0 = ((await st()).probe || { n: 0 }).n;
     await cmd(`probe ${x} ${y} ${z}`);
-    const s = await until((v) => v.frame > f0 && v.probe && v.probe.at && v.probe.at.join() === [x, y, z].join(), 15000);
-    return s.probe && s.probe.at && s.probe.at.join() === [x, y, z].join() ? s.probe : null;
+    const s = await until((v) => v.probe && v.probe.n > n0, 15000);
+    return s.probe && s.probe.n > n0 && s.probe.at.join() === [x, y, z].join() ? s.probe : null;
   };
   const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
   const lockNow = async () => {
@@ -4933,14 +4935,16 @@ async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser,
     await key('6');
     s = await until((x) => x.hot === 6, 10000);
     const hot6 = s.hot === 6;
-    await cmd('face 128.5 35.5 203.5');
+    // Aim at the top of the ground block under the hole: the new block goes on that face.
+    await cmd('face 128.5 34.9 203.4');
     await frames(2);
     const before = packN(await st(), 'dirt');
-    if (locked && await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) {
-      await page.mouse.down(); await sleep(60); await page.mouse.up();
-    } else {
-      await cmd('cast');
-    }
+    // A locked left press reaches the game as one `fire` (web/hud.js). It is
+    // sent directly here: under pointer lock, headless Chromium gives a
+    // synthetic press a movement delta that turns the view about 11 degrees
+    // before the click lands, which would aim the block at the wrong face.
+    // Without the lock, a click is a `cast` at the crosshair.
+    await cmd(locked ? 'fire' : 'cast');
     s = await until((x) => packN(x, 'dirt') < before, 10000);
     const back = await probe(128, 35, 203);
     check('voxel: the Pick digs a dirt block into the pack and placing puts it back',
