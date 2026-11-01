@@ -706,6 +706,9 @@ export function startHud() {
         finder.classList.toggle('right', right);
         finder.classList.toggle('left', !right);
       }
+      const objTitle = document.querySelector('#objective .title');
+      const titleText = state.level === 2 ? 'The Frozen Gate' : 'Save the Greenhouse';
+      if (objTitle && objTitle.textContent !== titleText) objTitle.textContent = titleText;
       if (state.level === 2) setObjective(state.outcome === 'won' ? 'Gate opened!' : 'Cross the stream, melt the gate, reach the lantern.', 0);
       else if (state.outcome === 'won') setObjective('Greenhouse saved!', 0);
       else setObjective(`Fires to put out: ${state.firesLeft}`, state.firesLeft);

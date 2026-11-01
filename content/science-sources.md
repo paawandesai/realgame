@@ -130,6 +130,7 @@ The single register of every science claim the first-person 3D client shows the 
 | `You opened the Frozen Gate!` | crates/bevy-client/web/hud.js | Level 2 win banner. Flagged by sentence shape; it states no science (the subtitle is C-072). |
 | `The Frozen Gate. Cross the stream, melt the gate, reach the lantern.` | crates/bevy-client/src/main.rs | Level 2 arrival caption: the objective. Flagged by sentence shape; it states no science. |
 | `Cross the stream, melt the gate, reach the lantern.` | crates/bevy-client/web/hud.js | Level 2 objective line. Flagged by sentence shape; it states no science. |
+| `The Frozen Gate` | crates/bevy-client/web/hud.js | Level 2 objective title (the level's name). Flagged by the keyword `Frozen`; it states no science. |
 | `Gate opened!` | crates/bevy-client/web/hud.js | Level 2 objective line after the win. A game status; it states no science. |
 | `freeze` | crates/bevy-client/src/level2.rs, crates/bevy-client/web/hud.js | Machine key (I-035): the `capIcon` value that picks the Sprout snowflake picture. Never shown as text; flagged by the keyword. |
 | `melt` | crates/bevy-client/src/level2.rs, crates/bevy-client/web/hud.js | Machine key (I-035): the `capIcon` value that picks the Sprout flame-on-a-drop picture. Never shown as text; flagged by the keyword. |

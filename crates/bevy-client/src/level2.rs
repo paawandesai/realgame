@@ -282,9 +282,10 @@ pub struct IceCrust {
     pub north: bool,
 }
 
-/// The stream's water material (its texture scrolls slowly: ripples).
-#[derive(Resource, Clone)]
-pub struct Ripple(pub Handle<StandardMaterial>);
+/// Marks the stream's water (its material's texture scrolls slowly:
+/// ripples). A component, not a resource, so it goes with the level.
+#[derive(Component)]
+pub struct Ripple;
 
 /// Spawns the valley. Every entity carries [`LevelRoot`].
 pub fn build(
@@ -335,7 +336,6 @@ pub fn build(
         reflectance: 0.6,
         ..default()
     });
-    commands.insert_resource(Ripple(water.clone()));
 
     let mut b = Builder {
         commands,
@@ -534,6 +534,7 @@ pub fn build(
             z1 - z0,
         )),
         NotShadowCaster,
+        Ripple,
         LevelRoot,
     ));
     for north in [false, true] {
@@ -621,7 +622,7 @@ pub fn sync<F: bevy::ecs::query::QueryFilter>(
     t: f32,
     still: bool,
     crusts: &mut Query<(&mut Transform, &mut Visibility, &IceCrust), F>,
-    ripple: Option<&Ripple>,
+    ripple: Option<&Handle<StandardMaterial>>,
     materials: &mut Assets<StandardMaterial>,
 ) {
     let Some(o) = chem
@@ -653,7 +654,7 @@ pub fn sync<F: bevy::ecs::query::QueryFilter>(
     }
     if let Some(r) = ripple {
         if !still && o.ice < 1.0 {
-            if let Some(mut m) = materials.get_mut(&r.0) {
+            if let Some(mut m) = materials.get_mut(r) {
                 m.uv_transform = Affine2::from_scale_angle_translation(
                     Vec2::new(12.0, 1.0),
                     0.0,

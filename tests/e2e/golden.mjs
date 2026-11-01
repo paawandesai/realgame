@@ -3781,7 +3781,10 @@ async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
     `gate ${walls.join(' ')} outcome=${s.outcome} pos=${s.pos} banner=${JSON.stringify(b2)}`);
   await screenshot(page, 'l2-05-won.png');
 
-  // 12. The way back: a fresh courtyard, exit still open.
+  // 12. The way back: a fresh courtyard, exit still open. (First stop the
+  // scripted walk from test 10, which would carry the player off the arch.)
+  await cmd('move 0 0 0');
+  await frames(2);
   await cmd('tp 0 21.8');
   s = await until((x) => x.level === 1, 5000);
   s = await until((x) => x.level === 1 && x.burning === 3, 5000);

@@ -1130,11 +1130,11 @@ fn level_visuals(
     level: Res<Level>,
     chem: Res<Chem>,
     arch: Option<Res<ArchMats>>,
-    ripple: Option<Res<level2::Ripple>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut doors: Query<&mut MeshMaterial3d<StandardMaterial>, With<ArchDoor>>,
     mut pads: Query<&mut Visibility, (With<BenchPad>, Without<level2::IceCrust>)>,
     mut crusts: Query<(&mut Transform, &mut Visibility, &level2::IceCrust), Without<BenchPad>>,
+    ripple: Query<&MeshMaterial3d<StandardMaterial>, (With<level2::Ripple>, Without<ArchDoor>)>,
 ) {
     if let Some(arch) = arch {
         let want = if level.exit_open(&chem.world) {
@@ -1164,7 +1164,7 @@ fn level_visuals(
             time.elapsed_secs(),
             !settings.sway || game.paused,
             &mut crusts,
-            ripple.as_deref(),
+            ripple.iter().next().map(|m| &m.0),
             &mut materials,
         );
     }
