@@ -4411,23 +4411,28 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await withinMs(async () => page.evaluate(() => !document.getElementById('pause').classList.contains('hidden')), 5000);
     await page.evaluate(() => document.getElementById('pointmode').click());
     await until((q) => !q.paused && !q.locked, 8000);
-    await cmd('tp 0 5.5');
-    await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - 5.5) < 0.5, 10000);
     const lit = await burningTarget();
     // Aim the crosshair at one fire, then find another one under the cursor.
-    // (Round 2: each probe waits 2 game frames for the hover, not 450 ms:
-    // at 1.5-3 fps headless a wall-time wait can end before the frame that
-    // reads the new cursor; break 1 found no fire this way.)
+    // (Round 2, a setup fix: the three fires sit at (-13.5, -3), (13.5, -3)
+    // and (0, -5), about 58 degrees apart seen from z = 5.5, so no two share
+    // the 90-degree view there (break 1's "no second fire"); from z = 18 they
+    // are 33 degrees apart. Each probe waits 2 game frames for the hover, not
+    // 450 ms, which can end before the frame that reads the new cursor.)
     let found = null;
-    for (const aimAt of lit) {
-      await cmd(`face ${aimAt}`);
-      await until((q) => q.aimObj === aimAt, 10000);
-      for (const fy of [0.5, 0.42, 0.58, 0.35, 0.65]) {
-        for (const fx of [0.3, 0.7, 0.2, 0.8, 0.4, 0.6, 0.12, 0.88]) {
-          await page.mouse.move(fx * vw, fy * vh);
-          await frames(2);
-          const x = await st();
-          if (lit.includes(x.hover) && x.hover !== aimAt) { found = { target: x.hover, aimAt, fx, fy }; break; }
+    for (const z of [18, 5.5]) {
+      await cmd(`tp 0 ${z}`);
+      await until((q) => Math.abs(q.pos[0]) < 0.5 && Math.abs(q.pos[2] - z) < 0.5, 10000);
+      for (const aimAt of lit) {
+        await cmd(`face ${aimAt}`);
+        await until((q) => q.aimObj === aimAt, 10000);
+        for (const fy of [0.5, 0.45, 0.55]) {
+          for (const fx of [0.82, 0.18, 0.78, 0.22, 0.86, 0.14, 0.7, 0.3]) {
+            await page.mouse.move(fx * vw, fy * vh);
+            await frames(2);
+            const x = await st();
+            if (lit.includes(x.hover) && x.hover !== aimAt) { found = { target: x.hover, aimAt, fx, fy, z }; break; }
+          }
+          if (found) break;
         }
         if (found) break;
       }
@@ -4610,8 +4615,11 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
       await page.setViewportSize({ width: vw, height: vh });
       await load(['debug', `band=${c.band}`]);
       await worked();
-      await page.evaluate((ui) => document.documentElement.style.setProperty('--ui', String(ui)), c.ui);
       await freshAt(c.slot);
+      // Text size after the lock: at 200 % the hotbar wraps over the canvas
+      // centre, where ensureLocked clicks (locked presses go to the canvas).
+      await page.evaluate((ui) => document.documentElement.style.setProperty('--ui', String(ui)), c.ui);
+      await frames(2);
       const ws0 = await ws();
       const c0 = (await st()).casts;
       const w = await openBuilder();
