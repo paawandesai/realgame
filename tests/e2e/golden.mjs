@@ -5349,9 +5349,12 @@ async function mastery({ page, st, cmd, until, frames, sleep, base, errors }) {
     return v;
   };
   const trialWhen = (pred, ms = 15000) => withinMs(async () => { const t = await trial(); return t && pred(t) ? t : null; }, ms);
+  // The bench panel scrolls on a short screen: bring the element into view
+  // first, so a real click can reach it.
   const center = (sel, i = 0) => page.evaluate(([sel, i]) => {
     const el = document.querySelectorAll(sel)[i];
     if (!el) return null;
+    el.scrollIntoView({ block: 'nearest' });
     const r = el.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
   }, [sel, i]);

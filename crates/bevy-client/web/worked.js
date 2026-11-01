@@ -31,6 +31,7 @@ export function createWorked({ doc, win, cmd, bench }) {
   /** @type {View | null} */ let view = null;
   /** @type {Record<number, string>} */ const names = {};
   let openId = 0, band = '', lastN = 0, cancelSent = 0, vx = 0, vy = 0, timer = 0;
+  /** @type {number[]} */ const pendingMastered = [];
   // The mousemove fallback moves the cursor until hud.js forwards a real move.
   let moveWorks = false;
 
@@ -176,10 +177,12 @@ export function createWorked({ doc, win, cmd, bench }) {
         badges(stages);
         stages.forEach((s, i) => {
           if (s === 'practised' && prev && prev[i] === 'learning') toast(i);
-          if (s === 'mastered' && prev && prev[i] === 'practised') toast(i, true);
+          // Mastery happens inside the bench: the toast waits until it closes.
+          if (s === 'mastered' && prev && prev[i] === 'practised') pendingMastered.push(i);
         });
         prev = stages.slice();
       }
+      api.flush();
       const work = ws.work || null;
       if (!work) { if (panel) close(); return; }
       if (work.id !== openId) {
@@ -191,6 +194,16 @@ export function createWorked({ doc, win, cmd, bench }) {
       let benchOpen = false;
       try { benchOpen = !!w.__bench.ui().open; } catch { /* no bench */ }
       if (benchOpen && cancelSent !== openId) { cancelSent = openId; send(`work cancel ${openId}`); }
+    },
+    // Shows a held Mastered toast once the bench is closed (called per frame).
+    flush() {
+      if (!pendingMastered.length) return;
+      let benchOpen = false;
+      try { benchOpen = !!w.__bench.ui().open; } catch { /* no bench */ }
+      if (benchOpen) return;
+      const i = pendingMastered.shift();
+      pendingMastered.length = 0;
+      if (i !== undefined) toast(i, true);
     },
     isOpen() { return !!panel; },
     /** @param {number} dx @param {number} dy @param {boolean} [fallback] */
@@ -269,6 +282,7 @@ export function startWorked() {
       try { ws = JSON.parse(now); } catch { ws = null; }
       api.update(ws);
     } else if (api.isOpen()) api.update(ws);
+    else api.flush();
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
