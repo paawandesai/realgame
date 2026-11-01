@@ -35,7 +35,8 @@
 // state change until both their wall-clock timeout and 8 game frames have
 // passed, so a slow software GPU no longer drops a cast the game would fire
 // on its next frame; a step with no new frames gives up at 10x its timeout.
-// Flags: --bars k=v,... overrides thresholds (b3_brotli_mb, b3_tti_ms,
+// Flags: --query k=v[&k=v] adds parameters to the page URL (I-035: `--query
+// level=2` measures level 2 with a stream-and-gate workload). --bars k=v,... overrides thresholds (b3_brotli_mb, b3_tti_ms,
 // b2_cpu_p50_ms, b2_mac_p5_fps). --self-test runs the unit tests of the pure
 // helpers (no browser, no build) and lints docs/loop/mac-perf.md.
 //
@@ -102,7 +103,14 @@ function rerunPlan(run, attempt, maxReruns = 2) {
 
 // The workload's tp/move/look/turn/face commands work only with `?debug`
 // (it gates nothing else), like golden.mjs.
-function pageUrl(base, tier) { return base + (tier === 'low' ? '?low&debug' : '?debug'); }
+function pageUrl(base, tier, query = '') {
+  const extra = String(query || '').replace(/^[?&]+/, '');
+  return base + (tier === 'low' ? '?low&debug' : '?debug') + (extra ? `&${extra}` : '');
+}
+// `--query level=2` (I-035) measures level 2, the Frozen Gate: nothing burns
+// there, so the workload casts at the stream and the gate instead of fires
+// and does not require a burning object.
+function isLevel2(query) { return /(^|&)level=2(&|$)/.test(String(query || '').replace(/^[?&]+/, '')); }
 
 function contextOptions(isMac, { vw, vh, dpr }) {
   return isMac
@@ -313,13 +321,17 @@ function lintMacRecipe(text) {
 
 // ---- arguments ----------------------------------------------------------
 const argv = process.argv.slice(2);
-let mac = false, selfTest = false;
+let mac = false, selfTest = false, QUERY = '';
 const barOverrides = {};
 const positional = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--mac') mac = true;
   else if (a === '--self-test') selfTest = true;
+  else if (a === '--query' || a.startsWith('--query=')) {
+    QUERY = a === '--query' ? argv[++i] : a.slice(8);
+    if (!QUERY || !/^[A-Za-z0-9_=&.-]+$/.test(QUERY)) die('--query needs k=v[&k=v...] (letters, digits, _ = & . -)');
+  }
   else if (a === '--bars' || a.startsWith('--bars=')) {
     const v = a === '--bars' ? argv[++i] : a.slice(7);
     if (!v) die('--bars needs k=v,...');
@@ -333,7 +345,7 @@ for (let i = 0; i < argv.length; i++) {
   else positional.push(a);
 }
 if (selfTest) process.exit(await runSelfTest());
-if (positional.length > 1) die('usage: node tests/e2e/perf.mjs [--mac] [--bars k=v,...] [WEB_DIR]');
+if (positional.length > 1) die('usage: node tests/e2e/perf.mjs [--mac] [--bars k=v,...] [--query k=v] [WEB_DIR]');
 const webDir = resolve(positional[0] || join(here, '../../crates/bevy-client/web/pkg-out'));
 const BARS = { b3_brotli_mb: 15, b3_tti_ms: 8000, b2_cpu_p50_ms: 16, b2_mac_p5_fps: 55 };
 for (const k of Object.keys(barOverrides)) if (!(k in BARS)) die(`unknown bar ${k} (known: ${Object.keys(BARS).join(', ')})`);
@@ -535,7 +547,7 @@ function pageHook(makeTti, glCount, parseStartup) {
 // (outside requestAnimationFrame, so it is not counted as frame CPU except
 // for what the game itself does with the commands). Deterministic: the same
 // command list in the same order every run.
-function pageWorkload(noCast, timedOut) {
+function pageWorkload(noCast, timedOut, level2 = false) {
   const W = (window.__work = { sampling: false, casts: { 1: 0, 2: 0, 3: 0, 4: 0 }, castsTotal: 0, burningMax: 0, yaw: 0, steps: 0, resets: 0,
     vis: { samples: 0, hidden: 0, unfocused: 0, hidden_events: 0 } });
   // A hidden or background window throttles rAF: count it during sampling.
@@ -550,7 +562,7 @@ function pageWorkload(noCast, timedOut) {
   const cmd = (c) => window.__game.cmd(c);
   let s0 = st();
   const idx = (name) => (s0.objs.find((o) => o.n === name) || {}).i;
-  const burningAny = (s) => (s.objs.find((o) => o.burning && o.n === 'bush') || s.objs.find((o) => o.burning) || {}).i;
+  const burningAny = (s) => (level2 ? idx('ice gate') : (s.objs.find((o) => o.burning && o.n === 'bush') || s.objs.find((o) => o.burning) || {}).i);
   // Step list: each step issues commands, then waits until pred(state) or
   // its timeout (in ms of wall time).
   // Each spell step teleports to the same spot, faces the target, selects
@@ -561,8 +573,8 @@ function pageWorkload(noCast, timedOut) {
   const spellAt = (spell, target) => steps.push({
     go: (s) => {
       W.c0 = s.casts; W.f0 = s.frame;
-      const t = target(s) ?? idx('dry hedge');
-      cmd('tp 0 5.5'); cmd(`face ${t}`); cmd(`select ${spell}`);
+      const t = target(s) ?? idx(level2 ? 'stream' : 'dry hedge');
+      cmd(level2 ? 'tp 0 10' : 'tp 0 5.5'); cmd(`face ${t}`); cmd(`select ${spell}`);
       if (!noCast) cmd('cast');
     },
     until: (s) => (noCast ? s.frame > W.f0 + 1 : s.casts > W.c0),
@@ -570,11 +582,11 @@ function pageWorkload(noCast, timedOut) {
     done: (s) => { if (W.sampling && s.casts > W.c0 && s.spell === spell - 1) W.casts[spell]++; },
   });
   const motion = (...cs) => steps.push({ go: (s) => { W.f0 = s.frame; cs.forEach(cmd); }, until: (s) => s.frame > W.f0, ms: 4000 });
-  spellAt(1, () => idx('dry hedge'));
+  spellAt(1, () => idx(level2 ? 'stream' : 'dry hedge'));
   motion('move 0 1 0.5', 'turn 400 0');
   spellAt(2, burningAny);
   motion('look 90 10', 'move 1 0 0.4');
-  spellAt(3, (s) => burningAny(s) ?? idx('puddle'));
+  spellAt(3, (s) => (level2 ? idx('stream') : burningAny(s) ?? idx('puddle')));
   motion('turn -400 50', 'move 0 -1 0.4');
   spellAt(4, burningAny);
   motion('look -90 -5');
@@ -788,7 +800,7 @@ async function runOne(browser, base, cfg, collect) {
   const isMac = cfg === 'mac';
   const [tier, thr] = isMac ? ['default', '1x'] : cfg.split('@');
   const rate = isMac ? null : parseInt(thr, 10);
-  const url = pageUrl(base, tier);
+  const url = pageUrl(base, tier, QUERY);
   const context = await browser.newContext(contextOptions(isMac, { vw: MAC_VW, vh: MAC_VH, dpr: MAC_DPR }));
   const page = await context.newPage();
   const out = { config: cfg, url, tti_ms: null, tti_bound_ms: null, tti_raf_tick_ms: null, first_frame_log_ms: null, frames: 0,
@@ -870,7 +882,7 @@ async function runOne(browser, base, cfg, collect) {
       log(`${cfg}: interactive at ${out.tti_ms} ms (bound ${out.tti_bound_ms} ms, FIRST_FRAME t=${out.first_frame_log_ms})`);
       if (BLANK_CANVAS) await page.evaluate(() => document.querySelectorAll('canvas').forEach((c) => { c.style.filter = 'brightness(0)'; }));
       if (isMac) await page.bringToFront();
-      await page.evaluate(`(${pageWorkload})(${JSON.stringify(NO_CAST)}, ${stepTimedOut})`);
+      await page.evaluate(`(${pageWorkload})(${JSON.stringify(NO_CAST)}, ${stepTimedOut}, ${JSON.stringify(isLevel2(QUERY))})`);
       const warm = isMac ? 5 : WARMUP_S, sample = isMac ? MAC_SAMPLE_S : SAMPLE_S;
       await sleep(warm * 1000);
       const a = await page.evaluate(() => {
@@ -907,7 +919,7 @@ async function runOne(browser, base, cfg, collect) {
       out.frame_interval_ms = { p50: r2(pct(iv, 0.5)), p95: r2(pct(iv, 0.95)) };
       out.cpuframe_log_p50_ms = cpuframeLog;
       out.workload = { casts: work.casts, burning_max: work.burningMax, yaw_deg: r2(work.yaw), steps: work.steps, resets: work.resets };
-      out.workload_ok = [1, 2, 3, 4].every((s) => work.casts[s] >= 1) && work.burningMax >= 1 && work.yaw >= 90;
+      out.workload_ok = [1, 2, 3, 4].every((s) => work.casts[s] >= 1) && (work.burningMax >= 1 || isLevel2(QUERY)) && work.yaw >= 90;
       out.visibility = work.vis;
       // The old stamp (start of the first tick that saw the state), for comparison.
       out.tti_raf_tick_ms = r2(await page.evaluate(() => window.__perf.ttiRaf).catch(() => null));
@@ -1023,6 +1035,8 @@ async function runSelfTest() {
 
   t('page URL always carries debug (the workload commands need it), low adds ?low', () => {
     eq([pageUrl('http://h/', 'default'), pageUrl('http://h/', 'low')], ['http://h/?debug', 'http://h/?low&debug']);
+    eq([pageUrl('http://h/', 'low', 'level=2'), pageUrl('http://h/', 'default', '?level=2'), pageUrl('http://h/', 'low', '')], ['http://h/?low&debug&level=2', 'http://h/?debug&level=2', 'http://h/?low&debug']);
+    eq([isLevel2('level=2'), isLevel2('a=1&level=2'), isLevel2('level=20'), isLevel2('')], [true, true, false, false]);
   });
 
   // 3. Invalid reasons.

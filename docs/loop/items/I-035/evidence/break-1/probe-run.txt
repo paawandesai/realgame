@@ -1,0 +1,47 @@
+P1 ?level=2 no debug: {"level":2,"caption":"The Frozen Gate. Cross the stream, melt the gate, reach the lantern.","names":["stream","ice gate","lantern"],"outcome":"playing","burning":0,"exitOpen":true}
+P1b level 1 without debug -> level 2
+P1c ?low&level=3 level 1 burning 3
+P1c ?low&level=abc level 1 burning 3
+P1c ?low&level= level 1 burning 3
+P2 walk into liquid stream: pos [0,0,8.35]
+P2b jump spam into stream: pos [0,0,8.35]
+P2c diagonal at gap edge: pos [2.05,0,8.35]
+P2d rocks east: pos [12,0,10.15]
+P2e east wall corner: pos [23.6,0,10.15]
+P2f gate blocks: pos [0,0,-7.15]
+P2g gate edge: pos [3.776,0,-7.05]
+P2h ridge east corner: pos [23.6,0,-7.05]
+P3 sprout frost1: 0.34 Cold! The water is turning to ice. freeze beads 4
+P3 sprout fire on 1/3 ice: 0 The bridge melted! Make it cold again. melt
+P3 sprout fire on liquid: 0 Hot water is still water. Try cold! wrong
+P3 sprout co2 stream: That is a gas. Try cold or heat. wrong
+P3 sprout water stream: More water! Try cold or heat. wrong
+P3 sprout lantern spell 1 : Hot! The ice is melting. | icon melt
+P3 sprout lantern spell 2 : More water! Try cold or heat. | icon wrong
+P3 sprout lantern spell 3 : Brrr! Cold makes ice colder. Try heat! | icon wrong
+P3 sprout lantern spell 4 : That is a gas. Try cold or heat. | icon wrong
+P3 seedling water lantern: Adding water does not change its state. Heat melts ice, cold freezes water.
+P3 adept fire liquid: Heat cannot freeze water. To make a solid, take heat away.
+P4 frozen: 1 true Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+P4 slide sideways on ice: pos [-14.883,0,6] onIce true
+P4 fire on bridge under player: ice 0.66 pos [-2,0,8.4] from [-14.883,0,6] caption The ice melted back into liquid water. Freeze it again to cross.
+P4 after push, try walking -z: pos [-2,0,8.35]
+P4 after push, walk +z: pos [-2,0,18.35]
+P5 middle of bridge, fire: pos [0,0,3.6] ice 0.66
+P6 gate: {"i":1,"n":"ice gate","burning":false,"temp":5,"wet":0,"ice":0,"wall":false,"frozen":false,"smothered":0,"fuel":0} The ice melted at 0 °C: H₂O(s) → H₂O(l). Now it is a puddle.
+P6 frost on melted gate: {"i":1,"n":"ice gate","burning":false,"temp":-196,"wet":0,"ice":1,"wall":false,"frozen":true,"smothered":0,"fuel":0} Frozen! Liquid nitrogen at −196 °C (77 K) froze the water: H₂O(l) → H₂O(s).
+P6 lantern reached: outcome won pos [0,0,-15.973] caption You opened the Frozen Gate! Freeze to cross, melt to open: water changed state both ways.
+P6 banner {"hidden":false,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the arch to go back."}
+P6 cast after win: ice 1
+P6 R in level 2 -> level 2 outcome playing pos [0,0,18] stream ice 0 gate wall true The Frozen Gate. Cross the stream, melt the gate, reach the lantern.
+P7 bench atBench in level 2 at pad: false
+P7 hint in level 2 while locked: "Aim at a fire and click." locked true
+P7 back arch -> level 1 burning 3 exitOpen false pos [0,0,18]
+P7 bench atBench in level 1 at pad: true
+P8 holding back 6 s from z=19 after win: switches 1 now level 2 pos [0,0,18]
+P9 level switch mid-cast: level 2 objs 3 errors 0
+P9b level switch with water held: level 2 streams 0 errors 0
+P10 L1 ["INFO src/main.rs:2064 STATS fps=3.1 fps_p50=3.1 fps_p5=2.9 avg_ms=323.46 p50_ms=319.20 p95_ms=344.70 worst_ms=344.7 update_ms_p50=1.10 update_ms_p95=1.30 entities=633 burning=3 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=25.0 heap_peak_mb=27.2 biggest_alloc_mb=4.0 winit_events=1
+P10 L2 ["CPUFRAME n=13 p50_ms=5.60 p95_ms=9.40 max_ms=11.00","INFO src/main.rs:2064 STATS fps=3.2 fps_p50=3.3 fps_p5=2.9 avg_ms=317.30 p50_ms=305.40 p95_ms=349.80 worst_ms=349.8 update_ms_p50=1.00 update_ms_p95=1.30 entities=458 burning=0 extinguished=0 wasm_mem_mb=33.6 heap_live_mb=24.8 heap_peak_mb=27.1 biggest_alloc_mb=4.0 winit_events=1
+console errors: 0 []
+panics: []
