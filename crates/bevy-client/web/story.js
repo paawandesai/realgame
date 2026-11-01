@@ -15,6 +15,10 @@ const CARD_S = 6;
 const SKIP_AFTER_S = 1;
 /** Sprout reads slower: the first card holds this long. */
 const SPROUT_FIRST_S = 3;
+/** A gap between frames longer than this (ms) is a stall (the first chunks
+ * meshing at load): nothing new was on screen, so it does not count toward
+ * a card's time or the 1 s before a key can skip. */
+const STALL_MS = 500;
 
 const parse = (/** @type {string | undefined} */ raw) => {
   try { return raw ? JSON.parse(raw) : null; } catch { return null; }
@@ -62,6 +66,9 @@ export function startStory() {
   let done = false;
   let openedAt = 0;
   let cardAt = 0;
+  let lastTick = performance.now();
+  /** The stall still going on since the last frame (ms), or 0. */
+  const stall = () => { const g = performance.now() - lastTick; return g > STALL_MS ? g : 0; };
   let card = 0;
   let sprout = false;
   /** @type {Array<[HTMLElement, boolean]>} */
@@ -111,12 +118,27 @@ export function startStory() {
   };
 
   // Any key or click skips, once the intro has shown for a moment; until
-  // then, and while it shows, nothing reaches the game.
+  // then, and while it shows, nothing reaches the game. The key that skips
+  // also reaches the game (W starts walking, 5 takes the Pick); a click
+  // that skips does not (it would lock the pointer or cast).
   const skip = (/** @type {Event} */ e) => {
     if (!open) return;
+    const ready = (performance.now() - openedAt - stall()) / 1000 >= SKIP_AFTER_S;
     e.stopImmediatePropagation();
+    if (ready && e.type === 'keydown') {
+      // The event is aimed at the intro (the game was inert), so after
+      // closing it the key is sent again to the game's canvas.
+      finish();
+      const k = /** @type {KeyboardEvent} */ (e);
+      document.getElementById('game')?.dispatchEvent(new KeyboardEvent('keydown', {
+        key: k.key, code: k.code, location: k.location, repeat: k.repeat, bubbles: true, cancelable: true,
+        shiftKey: k.shiftKey, ctrlKey: k.ctrlKey, altKey: k.altKey, metaKey: k.metaKey,
+      }));
+      e.preventDefault();
+      return;
+    }
     if (e.type === 'keydown' || e.type === 'pointerdown') e.preventDefault();
-    if ((performance.now() - openedAt) / 1000 >= SKIP_AFTER_S) finish();
+    if (ready) finish();
   };
   for (const t of ['keydown', 'keypress', 'keyup', 'pointerdown', 'click']) window.addEventListener(t, skip, true);
   play1.addEventListener('click', finish);
@@ -127,6 +149,9 @@ export function startStory() {
   let lastPack = -1;
 
   const tick = () => {
+    const now = performance.now();
+    if (open && now - lastTick > STALL_MS) { openedAt += now - lastTick; cardAt += now - lastTick; }
+    lastTick = now;
     const s = parse(w.__gameState);
     if (s && s.mode === 'voxel') {
       if (!sfx && !sfxLoading) {
