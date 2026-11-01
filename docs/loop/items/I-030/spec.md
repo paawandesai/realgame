@@ -1,4 +1,291 @@
-# I-030: Mastery trial (3 builds from memory on 2 days, plus 1 predict question) and keep-it-sharp
+# I-030: Mastery trial (3 builds from memory + 1 predict question, one sitting) and keep-it-sharp
+
+## Revision (wave 14, on main)
+
+**based_on:** origin/main 4b079e0 (merge of PR #52, I-037; I-028, I-029, I-035 and I-037 have merged). Every name below was read from that tree. **Where this revision and the older text below disagree, this revision wins.** The older text (revision 2) stays as background: its question wording and science verdicts are reused here, and its machinery (`crates/sim/src/mastery.rs`, `content/predict.json`, 22 questions, an `asked` save field, `TrialCard` strips, 2-day pips) is **dropped**.
+
+### Facts on main this revision relies on
+
+- **`progress.rs` (I-027)** already has everything mastery needs except a trial path: `Stage::{Unknown, Learning, Practised, Mastered}`, `XP_UNAIDED_BUILD = 20`, `XP_PREDICT = 20`, `PRACTISED_XP = 30`, `BUILDS_NEEDED = 3`, `DAYS_NEEDED = 2`, `Book::unaided_build(i)` (Learning/Practised only, counts builds and distinct days, needs `day != 0`), `Book::predict(i, correct)`, and `settle()` which masters only with `builds >= 3 && build_days >= 2 && predicted`. Test `t03_two_day_rule` pins that 3 builds on one day plus a correct prediction do **not** master. Nothing on main calls `unaided_build` or `predict` yet (grep: only `apply_cmd`'s debug words), so today **no player can ever reach Mastered** except through `prog load`.
+- The save is `p1|id:stage:xp:builds:build_days:last_build_day:predicted` (7 fields, `decode` rejects any other count). `progress.js` sends `prog day <localDay>` once at boot only (I-027 should-fix: it is never re-sent after midnight).
+- **`worked.rs` (I-029)**: `route(stage, learnable, mode, ready)` returns `Instant` for `stage == 3` (Mastered), so mastery flips a spell to instant casts on the next frame with no new code. `main.rs` calls `instant_cast(sp)` (+2 XP) on a Mastered instant cast. `__workState` carries `stages[]`; `worked.js` draws the hotbar badge `span.stage[data-stage]` with ★ for `mastered` and shows a "Water: Practised!" toast on learning → practised.
+- **`bench.rs` / `bench.js` (I-028)**: `BenchState { open, band, pick, result, n, last_json }`; commands `band|open|pick|try|close` on `__gameIn.bench`; `record()` learns only on Unknown; `view()` publishes `recipe` for Sprout/Seedling while `pick != 0`. The bench exists in level 1 only (`bench_on()`). In `bench.js`, cards are `.bench-spell[data-slot]` buttons with a stage badge; `mountBuilder(root, { band, spell, recipe, prompt, onMake })` has **no unaided option**: Sprout always draws the recipe card when given a recipe, Seedling single-substance draws a formula card and tile ticks (`data-match`), Seedling Fire draws the balance scale. `composeSprout` works with `recipe: null` (alphabetical order: `H2O`, `CO2`, `N2`). `speak()` is not exported.
+- **Spells by band** (`content/spells.json` `tier_min`): Fire is Seedling+; Water, Frost and CO₂ are Sprout+. At Sprout, Fire is not learnable and always casts instantly (the Sprout rule), so it has no trial.
+- How a player reaches Practised in one session today: learn at the bench (+10) and 2 correct worked casts (+10 each) = 30 XP. That takes about two minutes.
+
+### Decision for Paawan: mastery in one session, spacing becomes the keep-it-sharp bonus
+
+`target.md` says mastery is "3 unaided correct builds spread over 2 days + 1 predict question". Kept literally, **nobody sees a Mastered spell in their first session or in a single class period**; the star and instant cast (the whole payoff of I-029) would be invisible on day one. This revision changes that, plainly:
+
+- **Default shipped by this item:** a **Mastery trial** at the Formula Bench, done in one sitting: build the spell **3 times from memory** (no recipe), then answer **1 "what happens?" question**. Passing it marks the spell Mastered **today**.
+- **The 2-day spacing moves into keep-it-sharp:** on any later day, a Mastered spell offers "Keep it sharp": one build from memory for a small XP bonus. Skipping it, or missing it, costs nothing. Mastery never fades.
+- I-027's slow path (`settle` with `build_days >= 2`) stays in `progress.rs` unchanged, and `t03_two_day_rule` keeps passing. The trial is a second, explicit path (`Book::pass_trial`), not a weaker `settle`.
+- **If Paawan wants the literal rule back**, it is a one-line change: `pass_trial` also requires `build_days >= DAYS_NEEDED` (and the trial UI shows "Come back tomorrow for your star"). The cost is that day one never shows a star. Recorded in the PR body as a decision to confirm.
+
+### Smallest version (what a player sees)
+
+1. In level 1, a spell turns Practised (the existing toast). The bench button `#benchbtn` gets a gold ring (`.master` class) until the bench is next opened.
+2. At the bench, each **Practised** card has a **"Master it ★"** button under it (`.trial-start[data-slot]`, ≥ 64 px high; ≥ 96 px at Sprout). Learning, Unknown and Mastered cards have none.
+3. **Build phase.** The trial view shows the spell icon, the title `Master ${name}`, three star pips (`.trial-pip[data-on]`) and a band line (Contract strings). Below it is `mountBuilder` with the new **`unaided: true`** option: no recipe card, no formula card, no tile ticks and no balance scale. The coefficient tiles for Seedling Fire still show the four formulas, because the Seedling skill is balancing. A correct Make fills one pip with a pop and clears the builder ("Again!", then "Last one!"). A wrong Make shows the bench's normal kind reason (and, at Sprout, its picture diff). **The pips never go down, and there is no limit or timer.** Misses teach; they never cost.
+4. **Question phase** (after the 3rd pip). There is one question per spell per band (11 in all; Adept reads Apprentice):
+   - **Sprout:** a spoken prompt with a speaker button, and 3 **picture cards** (`.trial-choice`, ≥ 160 × 160 px, a picture plus a short label).
+   - **Seedling / Apprentice:** a prompt and 3 full-width text buttons (≥ 48 px).
+   - **Right:** a tick, the `why` line, and then mastery (step 5).
+   - **Wrong:** a cross, `Not quite. It is this one:` with the right card marked (`[data-correct="true"]`), the `why` line, and **"Ask me again"** (`.trial-again`). This re-asks the same question with the choices in a new order. A 5-year-old always wins; the why-screen is the teaching.
+5. **Mastered.** A big star over the spell icon (one scale-up; none under reduced motion), `${name} mastered! One click casts it now.`, the bench's rising tone, and the buttons "Back to the game" and "All spells". On closing the bench, the hotbar slot shows ★ (I-029's badge), `worked.js` shows a `${name}: Mastered!` toast with ★, and the **next click casts instantly** (I-029's route), with no builder.
+6. **Keep it sharp** (a later local day only). A Mastered card shows **"Keep it sharp"** (`.trial-sharp`) when `Book::sharp_ready(i)`. It is one unaided build. Correct: `Still sharp! +10 XP.` Wrong: the kind reason, plus `Not this time. ${name} stays mastered.` and "Try again". When it is not ready, nothing is shown: no countdown.
+7. **"All spells"** (`.trial-back`) on every phase leaves the trial (`endtrial`). Close, Escape and `B` behave as they do in the bench today. A trial left halfway keeps only what it already earned (the XP for each counted build); there is no partial mastery state.
+
+### 1. Rules (`progress.rs`, the one owner)
+
+- New constant `XP_SHARP: u32 = 10`.
+- New `Book::pass_trial(i) -> Vec<Transition>`: on **Practised with `predicted == true`**, it sets `stage = Mastered` and `builds = BUILDS_NEEDED`, bumps `rev`, and returns `[Mastered]`. Any other stage or state: nothing, `[]`, and no rev bump. It never touches `build_days`, `last_build_day` or `xp`, and never lowers anything.
+- New `Book::sharp_ready(i) -> bool`: `stage == Mastered && day != 0 && day != last_build_day`.
+- New `Book::sharp(i) -> Vec<Transition>`: when `sharp_ready`, it adds `XP_SHARP` (saturating), sets `last_build_day = day`, bumps `rev`, and returns `[]`. Otherwise it does nothing.
+- New `Book::day() -> u32` (read-only).
+- `apply_cmd` gains the debug-gated words `trial <i>` → `pass_trial` and `sharp <i>` → `sharp`. Existing words and errors are unchanged.
+- **The save format does not change** (7 fields). `state_json` does not change. No new `__gameState` key, so **no golden key-order pins move.**
+- Why the trial calls the existing methods: each counted trial build calls `unaided_build(i)` (+20 XP, `builds`, days and `last_build_day` move when the day is known). A right answer calls `predict(i, true)` (+20) and then `pass_trial(i)`. A wrong answer calls `predict(i, false)`, which is a no-op. A full trial from Practised (30 XP) therefore ends at 30 + 60 + 20 = **110 XP** when the day is known, and at 50 XP when it is not (`unaided_build` refuses on `day == 0`; `pass_trial` does not need the day).
+
+### 2. Trial desk and question bank (`crates/bevy-client/src/trial.rs`, new, pure)
+
+Pure Rust, no Bevy, no crate imports: it must compile alone with `rustc --edition 2021 --test src/trial.rs` (the same rule as `chem.rs`/`worked.rs`). The science lint already scans client `.rs` strings, so the question text is registered from here.
+
+```rust
+pub const BUILDS: u8 = 3;
+pub struct Choice { pub id: &'static str /* "a"|"b"|"c" */, pub label: &'static str, pub icon: &'static str /* "" unless Sprout */, pub correct: bool }
+pub struct Question { pub id: &'static str, pub spell: usize /* 0 fire,1 water,2 frost,3 co2 */, pub band: &'static str /* sprout|seedling|apprentice */, pub prompt: &'static str, pub choices: [Choice; 3], pub why: &'static str }
+pub const QUESTIONS: [Question; 11];
+pub const ICONS: [&str; N];              // every Sprout picture id (section 3)
+pub fn question(spell: usize, band: &str) -> Option<&'static Question>; // "adept" reads "apprentice"; fire+sprout and unknown bands -> None
+pub fn order(asks: u8) -> [usize; 3];    // display order: [0,1,2] rotated left by asks % 3
+#[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Kind { Master, Sharp }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Phase { Build, Ask, Answered, Done }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Refuse { Open, Stage, NotLearnable, NotReady, NoQuestion }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Built { Ignored, Miss, Counted(u8), Ask, SharpDone }
+#[derive(Default)] pub struct Desk { /* private: Option<Trial{spell, kind, phase, built, asks, misses, right: Option<bool>, answer, mastered, band}> */ }
+impl Desk {
+  pub fn start(&mut self, spell: usize, kind: Kind, stage: u8, learnable: bool, sharp_ready: bool, band: &str) -> Result<(), Refuse>;
+  //  Master: stage == 2 (Practised), learnable, question(spell, band).is_some(); Sharp: stage == 3 and sharp_ready. Refuses while one is open.
+  pub fn on_build(&mut self, spell: usize, correct: bool) -> Built;
+  //  Only in Build for that spell. Master: correct -> Counted(n) for n = 1, 2; the 3rd -> Ask (phase Ask). Wrong -> Miss (misses += 1; built unchanged).
+  //  Sharp: correct -> SharpDone (phase Done); wrong -> Miss (stays in Build so "Try again" is just another Make).
+  pub fn on_answer(&mut self, choice: &str) -> Option<bool>; // Only in Ask; Some(right), phase Answered. Unknown id or wrong phase -> None, nothing changes.
+  pub fn ask_again(&mut self) -> bool;    // Only in Answered after a wrong answer: phase Ask, asks += 1.
+  pub fn finish(&mut self, mastered: bool); // Answered (right) -> Done with mastered.
+  pub fn close(&mut self);
+  pub fn open_spell(&self) -> Option<usize>;
+  pub fn phase(&self) -> Option<Phase>;
+  pub fn state_json(&self) -> String;     // "null" or the object below
+}
+```
+
+`state_json` (the `trial` field of `__trialState`):
+`{"spell":1,"slot":2,"kind":"master"|"sharp","phase":"build"|"ask"|"answered"|"done","built":0..3,"need":3,"misses":n,"asks":n,"right":null|true|false,"mastered":bool,"q":null|{"id":"water_sprout","prompt":"…","choices":[{"id":"a","label":"…","icon":"…"},…],"answer":null|"a","why":null|"…"}}`.
+- `choices` are in `order(asks)` display order.
+- `answer` (the correct id) and `why` are `null` until the phase is `answered` or `done`, so the right choice is never in the page before the player answers.
+- `q` is `null` in the build phase and for `sharp`.
+- Strings are JSON-escaped by a small local escaper. The text rules in test R4 also forbid `"` and `\`.
+
+### 3. The 11 questions (exact text; reused from revision 2, variant 1 of each)
+
+`✓` marks the correct choice. The ids drop the `_1` suffix. Verdicts and sources are as revision 2 section 4, including its `simplified` notes.
+
+| id | band | prompt | choices (Sprout icon) | why |
+|---|---|---|---|---|
+| water_sprout | sprout | `Lots of water goes on a campfire. What happens?` | a ✓ `The fire goes out` (fire_out); b `The fire gets bigger` (fire_big); c `The fire turns to ice` (ice) | `Water soaks up the fire's heat. The wood cools down and stops burning.` |
+| frost_sprout | sprout | `A balloon goes into liquid nitrogen. What happens?` | a `It gets bigger` (balloon_big); b `It catches fire` (fire); c ✓ `It gets small` (balloon_small) | `The air inside gets very cold. Cold air takes up less space.` |
+| co2_sprout | sprout | `CO₂ is poured into a jar with a candle in it. What happens?` | a `The flame gets bigger` (fire_big); b ✓ `The flame goes out` (candle_out); c `The candle turns to ice` (ice) | `CO₂ is heavier than air. It fills the jar and keeps oxygen away from the flame.` |
+| fire_seedling | seedling | revision 2 `fire_seedling_1` (pot lid, drops of water) | as there | as there |
+| water_seedling | seedling | revision 2 `water_seedling_2` (water on hot coals) | as there | as there |
+| frost_seedling | seedling | revision 2 `frost_seedling_1` (shrunk balloon warms) | as there | as there |
+| co2_seedling | seedling | revision 2 `co2_seedling_1` (three candles in a box) | as there | as there |
+| fire_apprentice | apprentice | revision 2 `fire_apprentice_1` (drops in a cold beaker) | as there | as there |
+| water_apprentice | apprentice | revision 2 `water_apprentice_1` (paper cup over a candle) | as there | as there |
+| frost_apprentice | apprentice | revision 2 `frost_apprentice_1` (white fog) | as there | as there |
+| co2_apprentice | apprentice | revision 2 `co2_apprentice_2` (extinguisher puts out a fire) | as there | as there |
+
+- **Correct positions:** the shipped positions vary (a, c, b at Sprout and as listed in revision 2 elsewhere), so "always pick a" never works.
+- **Why `water_seedling_2` replaces `water_seedling_1`:** the wet-log stem needs a `simplified` caveat that a child cannot see.
+- **Why `co2_apprentice_2` replaces `co2_apprentice_1`:** it states the extinguishing mechanism that the CO₂ spell itself uses.
+- **`frost_apprentice` and [S22]:** its `why` gains the register's existing [S22] (Michigan Tech: the white cloud is condensed water vapour) alongside S1 and S10.
+- **`ICONS`** (Sprout pictures, drawn as small flat inline SVGs in `trial.js`, each with ≥ 2 distinct shapes, plus a text label): `fire`, `fire_out`, `fire_big`, `ice`, `balloon_big`, `balloon_small`, `candle_out`. The scene line above the prompt reuses `fire` and the existing `.icon water/frost/foam` hotbar icons, so no further pictures are needed.
+
+### 4. Glue (`bench.rs`, I-028's file; `bridge.rs`; `main.rs` one line)
+
+- `BenchState` gains `pub trial: trial::Desk`. `main.rs` gains only `mod trial;`.
+- New bench words (parsed by `bench::parse`, which gains `Cmd::Trial(u8)`, `Cmd::Sharp(u8)`, `Cmd::Answer(String)`, `Cmd::Again` and `Cmd::EndTrial`; all are ignored with `warn!` while the bench is closed or no band is set):
+  - `trial <slot>`: `desk.start(i, Master, stage, learnable(def, band), false, band.id())`. On `Ok`: `pick = slot` and `result = None`, so `view()` keeps publishing `recipe` for the JS composer. On `Err`: warn, nothing changes.
+  - `sharp <slot>`: the same, with `Sharp` and `book.sharp_ready(i)`.
+  - `try <slot> <text>` **while `desk.phase() == Some(Build)` and `open_spell() == Some(slot-1)`**:
+    1. `v = judge(..)`; `n += 1`; `result = Some(ResultView { learned: false, .. })`. It **never calls `record`/`learn`**.
+    2. Then `match desk.on_build(i, v.ok)`: `Counted(_)` | `Ask` → `book.unaided_build(i)`; `SharpDone` → `book.sharp(i)`; `Miss` | `Ignored` → nothing.
+    3. A `try` for another slot while a trial is open is ignored. With no trial open, `try` is I-028's path, unchanged.
+  - `answer <id>`: `r = desk.on_answer(id)`. `Some(true)`: `book.predict(i, true)`, then `book.pass_trial(i)`, then `desk.finish(book.get(i).stage == Mastered)`. `Some(false)`: `book.predict(i, false)`. `None`: warn.
+  - `again`: `desk.ask_again()`. `endtrial`, `open`, `pick`, `close` and `band`: `desk.close()` (after their existing effect).
+- **`window.__trialState`** (new bridge setter `publish_trial`, written only on change, like `__benchState`): `{"v":1,"sharp":[<slots of Mastered, learnable spells with sharp_ready>],"trial":<desk.state_json()>}`. `sharp` is `[]` while no band is set.
+- Nothing in `worked.rs` or `chem.rs` changes, and no `hud.js` edit is made.
+
+### 5. Web (`web/trial.js` new; hooks in `bench.js`, `worked.js`, `progress.js`)
+
+- **`bench.js` (I-028's file, additive):**
+  1. `mountBuilder` accepts `opts.unaided` (default false). When true: no `.bench-recipe` and no `.bench-formula` card, no `data-match` ticks (the attribute is absent), and no `.bench-scale` for a reaction (the coefficient tiles and `→`/`+` row stay). Composition still uses `recipe` when given. Without the option, the output is byte-for-byte as today (test N1).
+  2. `export` `speak` and `rise` (the trial reuses them).
+  3. `showList` adds `.trial-start` under each Practised card and `.trial-sharp` under each Mastered card whose slot is in `__trialState.sharp`. Each card and its button sit in a `.bench-cardwrap`, so no button is nested in a button.
+  4. `ui().view` gains `'trial'`. While `__trialState.trial` is non-null and the bench is open, `renderTrial` from `trial.js` owns `body`. The poll reads `__trialState` the way it reads `__benchState`.
+  5. `#benchbtn.master`: on when any `progress[].st` is `practised` and the bench has not been opened since that spell turned practised. It is off once opened.
+- **`trial.js`** exports `renderTrial(body, trialState, benchView, ctx)` and the pure helpers `lineFor(band, built, kind, spellName)`, `pipStates(built)` and `PICTURES` (one SVG string per `ICONS` id). It sends `trial`/`sharp`/`try`/`answer`/`again`/`endtrial` through `ctx.push`, and remounts `mountBuilder(mount, { band, spell, recipe, prompt: line, unaided: true, onMake })` with a fresh builder after each counted build. Keys: the bench's capture handler already stops game keys. Digit keys do **not** pick choices; Tab, Enter and Space do.
+- **`worked.js` (I-029's file):** besides the Practised toast, a practised → mastered change shows a toast with ★ and `${name}: Mastered!` (at Sprout: icon plus ★, words as `aria-label`). The existing toast text is unchanged.
+- **`progress.js` (I-027's file):** the poll re-sends `prog day <localDay>` when the local day differs from the last one sent (the I-027 midnight should-fix). Boot is unchanged (still sends day, then save).
+- **`build-web.sh:21`** adds `web/trial.js`. **`style.css`**: trial view, pips, choice cards, `.master` ring, and reduced-motion rules.
+
+### Contract strings (exact; `${name}` is `pretty(spell.name)`; all are Not-claims rows unless marked)
+
+| key | text |
+|---|---|
+| start button | `Master it` (with a ★ glyph, `aria-label` `Master ${name}`) |
+| sharp button | `Keep it sharp` |
+| title | `Master ${name}` / `Keep ${name} sharp` |
+| line sprout | `Make ${name} from memory!` (spoken) |
+| line seedling | `Build ${name} from memory. No recipe this time.` |
+| line seedling fire | `Balance ${name} without the scale.` |
+| line apprentice | `Write ${name} from memory.` |
+| after build 1 / 2 | `Again!` / `Last one!` |
+| question lead | `What happens?` (Sprout header above the pictures; spoken with the prompt) |
+| wrong | `Not quite. It is this one:` |
+| ask again | `Ask me again` |
+| mastered | `${name} mastered! One click casts it now.` |
+| sharp right | `Still sharp! +10 XP.` |
+| sharp wrong | `Not this time. ${name} stays mastered.` |
+| try again | `Try again` |
+| back | `All spells` |
+| toast | `${name}: Mastered!` |
+
+### Acceptance tests (each fails on main 4b079e0)
+
+**Rust: `progress.rs`** (new tests only; t01 to t10 untouched. `rustc --edition 2021 --test src/progress.rs` and `cargo test`):
+- **R1 `t20_pass_trial`:** from Practised water with `predicted`:
+  - `pass_trial(1)` returns `[Mastered]`, `builds == 3`, rev +1, and `xp`, `build_days` and `last_build_day` are unchanged.
+  - It returns `[]` with no change and no rev bump on: Practised without `predicted`, Learning with `predicted`, Unknown, and Mastered. Index 9 never panics.
+  - A save round-trips after `pass_trial`.
+- **R2 `t21_sharp`:** Mastered water with `last_build_day 20755`:
+  - `sharp_ready` is false on day 0, false on 20755 and true on 20756.
+  - `sharp(1)` on 20756 gives `[]`, `xp + 10`, `last_build_day = 20756` and the stage stays Mastered. Then `sharp_ready` is false and a second `sharp` changes nothing (rev unchanged).
+  - `sharp` on Practised changes nothing.
+- **R3 `t22_trial_cmds_and_never_fades`:** `trial`/`sharp` are refused without debug and reach their ops with debug. A seeded random walk over all 9 ops, plus 200 days with no play, never lowers a stage or XP. Once Mastered, a spell stays Mastered.
+
+**Rust: `trial.rs`** (`rustc --edition 2021 --test src/trial.rs` and `cargo test`):
+- **R4 bank:**
+  - 11 questions with unique ids.
+  - `question(s, b)` is `Some` exactly for (water, frost, co2) × sprout and all 4 spells × (seedling, apprentice); `question(0, "sprout")` is `None`; `"adept"` returns the Apprentice question.
+  - Each has exactly 1 correct choice, with ids a/b/c once each.
+  - Sprout choices have an icon in `ICONS`, and the others have `""`.
+  - Text is 1 to 220 chars with no `"`, `\` or control characters.
+  - Correct ids are not all the same letter.
+- **R5 desk, master path:**
+  - `start` refuses: stage ≠ 2 (`Stage`), not learnable, fire at sprout (`NoQuestion`), and a second start (`Open`).
+  - 2 correct builds give `Counted(1)`, `Counted(2)`; a wrong one gives `Miss` with `built` still 2; the next correct gives `Ask`.
+  - `on_build` in Ask is `Ignored`. `on_answer("z")` is `None`.
+  - A wrong answer gives `Some(false)` and phase Answered. `ask_again` gives Ask and `order(1) != order(0)`. The right answer gives `Some(true)`. `finish(true)` gives Done with `mastered`.
+  - `state_json` has `answer: null` and `why: null` before answering and the correct id after. It parses as JSON (checked with a tiny hand parser or by string shape).
+- **R6 desk, sharp path:** start needs stage 3 and `sharp_ready`; a wrong build is `Miss` and stays in Build; a correct one is `SharpDone`; `q` is null.
+
+**Rust: `bench.rs` glue** (`cargo test`, test-only `Book` and spells from `spells::book()`):
+- **R7:** a band-sprout bench with Practised water (`prog load`-equivalent `decode`) and day 20755:
+  - Run `open`, `trial 2`, then `try 2 H2O` ×3, then `answer <correct>`. Result: Mastered, `predicted`, `builds 3`, `xp 110`, `learn` never called (`result.learned == false` each time), and `__trialState` JSON phase `done` with `mastered: true`.
+  - With `try 2 HO` in between: the xp math is the same and `misses 1`.
+  - `trial 1` (fire at sprout) is refused, and so is `trial 2` on Learning water.
+  - `pick 0`/`close` mid-trial closes it: the stage stays Practised, and the counted builds' XP stays.
+
+**Node (`npm test`):**
+- **N1 `test/bench.test.ts` (new cases):** `mountBuilder` with `unaided: true`:
+  - Sprout water with a recipe gives no `.bench-recipe`; HHO + Make still sends `H2O`.
+  - Seedling water gives no `.bench-formula` and no `data-match`.
+  - Seedling Fire gives coefficient tiles but no `.bench-scale`, and Make sends the composed equation.
+  - Without `unaided`, the DOM matches the existing 11b expectations.
+- **N2 `test/trial.test.ts` (new):**
+  - `PICTURES` has an SVG for every id in `trial.rs`'s `ICONS` (parsed from the file), with ≥ 2 shapes each.
+  - `lineFor` gives each Contract line exactly.
+  - `pipStates(2)` is `[true,true,false]`.
+  - `renderTrial` on the shim: a build state mounts an unaided builder. An ask state at Sprout renders 3 `.trial-choice` with SVGs. An answered-wrong state marks `[data-correct="true"]` on the right one and shows `.trial-again`. A done state with `mastered` renders `.trial-done[data-mastered="true"]`.
+  - A click sends `answer b` through `ctx.push`. Digit keys send nothing.
+- **N3 `test/bevy-progress.test.ts` (new case):** with a fake window whose `Date` advances past local midnight, the poll sends a second `prog day` with the new day, exactly once. Boot order is unchanged.
+- **N4 `test/bevy-worked.test.ts` (new case):** `stages` going practised → mastered shows the `${name}: Mastered!` toast with ★. Learning → practised still shows the old toast text exactly.
+- **N5:** `build-web.sh` copies `web/trial.js`. The science lint passes with the new strings registered.
+
+**Golden: new section `mastery`** (after `marsh`; `ONLY=mastery`; loads `?debug&cast=worked`; drives the bench through `window.__bench` and real clicks on `#bench` buttons):
+- **G1, one session, no day change:**
+  - Start fresh (`prog clear`, `prog day 20755`), level 1, band sprout.
+  - Learn water at the bench (a normal build), then make 2 correct worked casts through the builder. `progress[1].st === 'practised'` and `#benchbtn` has `.master`.
+  - Open the bench: `.master` is off, and the water card has `.trial-start`; frost (Unknown) and the other cards have none.
+- **G2:** click `.trial-start`:
+  - `__trialState.trial.phase === 'build'` and `#bench .bench-recipe` is absent.
+  - Click H, H, O, Make: `built 1` and one pip on. Click H, O, Make: `misses 1`, `built 1`, and a reason is visible.
+  - Two more correct builds give phase `ask`, 3 `.trial-choice`, each ≥ 160 px with an `svg`, and `q.answer === null`.
+- **G3:** click a wrong choice:
+  - `right === false`, `.trial-why` visible, the right card marked.
+  - Click `.trial-again`: the choice order differs.
+  - Click the right one: `.trial-done[data-mastered="true"]`, `progress[1]` is `mastered`/`xp 110`/`builds 3`/`predicted true`, and `progSave` is stored within 2 s.
+- **G4:**
+  - Close the bench: slot 2 `span.stage[data-stage="mastered"]` shows ★, the `#worked-toast` text contains `Mastered!`, and `__workState.routes[1] === 'instant'`.
+  - `select 2` + `cast`: `casts +1`, no `#worked` overlay opens, and `xp` +2.
+  - Reload: still mastered.
+- **G5, keep it sharp:**
+  - On day 20755 there is no `.trial-sharp`. After `prog day 20756` there is.
+  - A wrong build: stage mastered, the "stays mastered" line shows.
+  - A correct build: `xp +10` and `Still sharp!`. Then `.trial-sharp` is gone.
+  - `prog day 20999`: still mastered.
+- **G6, bands:**
+  - `band seedling` with a Practised fire (`prog load`): the trial builder shows `.bench-coef` tiles and no `.bench-scale`, and the question shows 3 text buttons.
+  - `band apprentice`: the typed builder, and the question text matches `fire_apprentice`.
+- **G7:** no console errors and no panics. The `__gameState` key list is unchanged from main (no pins moved). 3/3 runs on `ONLY=mastery`, and the full golden passes, apart from the three known wall-time flakes.
+
+### Lanes (max 3; one owner per file)
+
+Contract step first (on the item branch): `trial.rs` with the exact bank and stubbed desk methods (they return `Ignored`/`Err(Stage)`/`"null"`), the `progress.rs` signatures returning `[]`, `mod trial;`, `bridge::publish_trial`, and the `trial.js` export stubs. The tests above are committed red.
+
+| lane | files |
+|---|---|
+| rust | `crates/bevy-client/src/progress.rs`, `src/trial.rs`, `src/bench.rs`, `src/bridge.rs`, `src/main.rs` (`mod trial;` only) |
+| web | `crates/bevy-client/web/trial.js`, `web/bench.js`, `web/worked.js`, `web/progress.js`, `web/style.css`, `crates/bevy-client/build-web.sh` |
+| content+tests | `content/science-sources.md` (C rows for each ✓ label, `why` and fact-stating stem; Not-claims rows for distractors, question-only stems and the Contract strings; P-024 `XP_SHARP` 10 [S0]), `test/trial.test.ts`, new cases in `test/bench.test.ts`, `test/bevy-progress.test.ts`, `test/bevy-worked.test.ts`, and the golden `mastery` section plus its `ONLY` entry |
+
+`crates/sim`, `chem.rs`, `worked.rs`, `hud.js` (the pointer-lock block above all), `main.rs` beyond one line, and `content/spells.json` do not change. No existing test or golden check is edited. The only golden edit outside the new section is the `onlyRuns` map entry.
+
+### Out of scope
+
+- The literal 2-day rule for mastery (see the decision above; a one-line switch).
+- More than one question per spell and band, and question rotation by an `asked` count.
+- Adept questions.
+- Trials outside level 1 (the bench is level 1 only).
+- Mastery gates at level exits (I-034).
+- Analytics `spell_mastered` events (none exist on main).
+- Two-tab last-writer-wins (I-027 should-fix; still open).
+- An XP cap on keep-it-sharp (it can be earned once per local day).
+- A teacher-panel "next day" step (B9 scoring, revision 2's reserved follow-up).
+
+### Self-critique (Spec-critic, wave 14) and fixes applied
+
+**As a 6-year-old (Sprout).**
+- *"Do it again? I just did it."* Three identical builds in a row could feel like a chore. **Fix applied:** each correct build fills a star pip with a pop and changes the line ("Again!", "Last one!"). A build is 3 taps plus Make, so the whole build phase is under a minute. I kept 3 because the backlog row asks for 3, and the pips make it a countdown rather than a test.
+- *"I forgot the balls."* With no picture, a 5-year-old may miss. **Fix applied:** misses never reset the pips, there is no limit, and the existing Sprout picture diff shows what was wrong. The next Make can be right.
+- *"I can't read the question."* **Fix applied:** the prompt is spoken, with a speaker button; choices are big pictures with a short label; digit keys do nothing, so a stray key press is never an answer.
+- *"I got it wrong, so no star?"* **Fix applied:** wrong shows the right picture and why, then "Ask me again". The star is always reachable today. Rigour is traded for winnability on purpose; the Sprout band is about seeing and copying.
+- *"Where do I go?"* **Fix applied:** the gold ring on the bench button after Practised, and the "Master it ★" button on the card.
+
+**As a 13-year-old (Apprentice).**
+- *"Ask me again with the answer just shown is a free pass."* True. **Accepted:** the payoff is a convenience (instant cast), not a grade, and the typed builds from memory are the real check. The order shuffle stops pure position memory. More variants per band are out of scope.
+- *"Why wait for tomorrow to get my star?"* Fixed by the decision: the star comes today, and coming back tomorrow earns keep-it-sharp XP.
+- *"Is there any reason to master?"* Yes: instant casts in level 2 and level 3 (no builder pause in the Frozen Gate or Marsh), and +2 XP per instant cast. **Fix applied:** the mastered line says it ("One click casts it now").
+- *"Fire's scale gave it away before."* **Fixed:** `unaided` hides the scale; the tiles still show the formulas, so the test is balancing, which is the Seedling and Apprentice skill.
+
+**Spec-level fixes from this pass.**
+- No new save field and no `__gameState` key, so no pinned golden edits.
+- The answer id and `why` are kept out of `__trialState` until the player answers.
+- `try` during a trial can never call `learn`, and R7 asserts it.
+- Every acceptance test names a case that is red on 4b079e0: `pass_trial`, `sharp*`, `trial.rs`, `unaided`, `trial.js`, the re-sent day and the Mastered toast do not exist there.
+
+## Revision 2 (background; superseded where the wave 14 revision differs)
 
 **based_on:** origin/main c4832d2e86c2408443124960b130fc6208a89aab (2026-10-30, merge of PR #31, roadmap v2). Code was read with `git show c4832d2:<path>`. The primary checkout (661b9ba) has no `crates/bevy-client/src`, so builders branch from the real origin/main.
 
