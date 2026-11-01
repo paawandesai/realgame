@@ -55,8 +55,13 @@ pub const HELP_AFTER: u8 = 2;
 /// (Unknown, Learning, Practised, Mastered); `learnable` is `None` while no
 /// band is known.
 pub fn route(stage: u8, learnable: Option<bool>, mode: CastMode, ready: bool) -> Route {
-    let _ = (stage, learnable, mode, ready);
-    Route::Instant
+    // Rows 1-4 of the table: instant mode or no overlay, Mastered, no band,
+    // and a spell the band cannot learn (the Sprout rule) all cast at once.
+    if mode == CastMode::Worked && ready && stage < 3 && learnable == Some(true) {
+        Route::Worked
+    } else {
+        Route::Instant
+    }
 }
 
 /// The open worked cast.
@@ -97,26 +102,54 @@ impl Desk {
     /// Opens a worked cast, unless one is open, the route is not `Worked`
     /// or `spell` is not 0..4. True when it opened.
     pub fn request(&mut self, id: u32, spell: usize, route: Route) -> bool {
-        let _ = (id, spell, route);
-        false
+        if self.work.is_some() || route != Route::Worked || spell >= 4 {
+            return false;
+        }
+        self.work = Some(Work {
+            id,
+            spell,
+            route,
+            wrong: 0,
+        });
+        self.view.clear();
+        true
     }
 
     /// Judged build for worked cast `id`.
     pub fn submit(&mut self, id: u32, correct: bool) -> Submit {
-        let _ = (id, correct);
-        Submit::Stale
+        let Some(w) = self.work.as_mut().filter(|w| w.id == id) else {
+            return Submit::Stale;
+        };
+        if !correct {
+            w.wrong = w.wrong.saturating_add(1);
+            return Submit::Wrong { help: w.help() };
+        }
+        let cast = Submit::Cast {
+            spell: w.spell,
+            earns: !w.help(),
+        };
+        self.work = None;
+        self.view.clear();
+        cast
     }
 
     /// The `BenchView` JSON for the open worked cast (trusted: from
     /// `BenchView::to_json`, emitted verbatim). Ignored while closed.
     pub fn set_view(&mut self, json: &str) {
-        let _ = json;
+        if self.work.is_some() {
+            self.view = json.to_string();
+        }
     }
 
     /// Closes worked cast `id` with no cast. True when it closed.
     pub fn cancel(&mut self, id: u32) -> bool {
-        let _ = id;
-        false
+        if self.work.as_ref().is_some_and(|w| w.id == id) {
+            self.work = None;
+            self.view.clear();
+            true
+        } else {
+            false
+        }
     }
 
     pub fn is_open(&self) -> bool {
@@ -129,7 +162,232 @@ impl Desk {
 
     /// `null`, or `{"id":..,"spell":..,"route":..,"wrong":..,"help":..,"view":..}`.
     pub fn state_json(&self) -> String {
-        let _ = &self.view;
-        "null".to_string()
+        let Some(w) = &self.work else {
+            return "null".to_string();
+        };
+        let view = if self.view.is_empty() {
+            "null"
+        } else {
+            &self.view
+        };
+        format!(
+            "{{\"id\":{},\"spell\":{},\"route\":\"{}\",\"wrong\":{},\"help\":{},\"view\":{view}}}",
+            w.id,
+            w.spell,
+            w.route.as_str(),
+            w.wrong,
+            w.help()
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // 1. Route table: 4 stages x 3 learnable x 3 (mode, ready) = 36 cases.
+    #[test]
+    fn route_table() {
+        let mut n = 0;
+        for stage in 0..=3u8 {
+            for learnable in [None, Some(false), Some(true)] {
+                for (mode, ready) in [
+                    (CastMode::Worked, true),
+                    (CastMode::Worked, false),
+                    (CastMode::Instant, true),
+                ] {
+                    let want = if mode == CastMode::Instant || !ready {
+                        Route::Instant // row 1
+                    } else if stage == 3 {
+                        Route::Instant // row 2: Mastered
+                    } else if learnable.is_none() {
+                        Route::Instant // row 3: no band
+                    } else if learnable == Some(false) {
+                        Route::Instant // row 4: the Sprout rule
+                    } else {
+                        Route::Worked // row 5
+                    };
+                    assert_eq!(
+                        route(stage, learnable, mode, ready),
+                        want,
+                        "stage {stage} learnable {learnable:?} mode {mode:?} ready {ready}"
+                    );
+                    n += 1;
+                }
+            }
+        }
+        assert_eq!(n, 36);
+        assert_eq!(
+            route(0, Some(false), CastMode::Worked, true),
+            Route::Instant
+        );
+        assert_eq!(route(1, Some(true), CastMode::Worked, true), Route::Worked);
+        assert_eq!(route(3, Some(true), CastMode::Worked, true), Route::Instant);
+        assert_eq!(Route::Instant.as_str(), "instant");
+        assert_eq!(Route::Worked.as_str(), "worked");
+    }
+
+    // 2. Mode.
+    #[test]
+    fn mode() {
+        assert_eq!(mode_from(true, None, true), CastMode::Instant);
+        assert_eq!(mode_from(true, Some("worked"), true), CastMode::Worked);
+        assert_eq!(mode_from(false, None, true), CastMode::Worked);
+        assert_eq!(mode_from(false, Some("instant"), true), CastMode::Worked);
+        for debug in [false, true] {
+            for cast in [None, Some("worked")] {
+                assert_eq!(mode_from(debug, cast, false), CastMode::Instant);
+            }
+        }
+    }
+
+    // 3. Open and close.
+    #[test]
+    fn open_and_close() {
+        let mut d = Desk::default();
+        assert!(!d.is_open());
+        assert!(d.request(1, 1, Route::Worked));
+        let w = d.open().expect("open").clone();
+        assert_eq!((w.id, w.spell, w.wrong), (1, 1, 0));
+        assert!(!w.help());
+        assert!(!d.request(2, 1, Route::Worked));
+        assert_eq!(d.open().map(|w| w.id), Some(1));
+        let mut e = Desk::default();
+        assert!(!e.request(3, 1, Route::Instant));
+        assert!(!e.request(3, 4, Route::Worked));
+        assert!(!e.request(3, 9, Route::Worked));
+        assert!(!e.is_open());
+        assert!(d.cancel(1));
+        assert!(!d.is_open());
+        assert!(!d.cancel(7));
+        assert!(d.request(5, 2, Route::Worked));
+        assert_eq!(d.open().map(|w| w.id), Some(5));
+    }
+
+    // 4. Submit.
+    #[test]
+    fn submit() {
+        let mut d = Desk::default();
+        assert!(d.request(1, 1, Route::Worked));
+        assert_eq!(d.submit(1, false), Submit::Wrong { help: false });
+        assert_eq!(d.submit(1, false), Submit::Wrong { help: true });
+        assert!(d.is_open());
+        assert_eq!(
+            d.submit(1, true),
+            Submit::Cast {
+                spell: 1,
+                earns: false
+            }
+        );
+        assert!(!d.is_open());
+        assert!(d.request(2, 3, Route::Worked));
+        assert_eq!(
+            d.submit(2, true),
+            Submit::Cast {
+                spell: 3,
+                earns: true
+            }
+        );
+        assert!(d.request(3, 0, Route::Worked));
+        assert_eq!(d.submit(3, false), Submit::Wrong { help: false });
+        assert_eq!(
+            d.submit(3, true),
+            Submit::Cast {
+                spell: 0,
+                earns: true
+            }
+        );
+        assert!(d.request(4, 2, Route::Worked));
+        assert_eq!(d.submit(9, true), Submit::Stale);
+        assert_eq!(d.open().map(|w| (w.id, w.wrong)), Some((4, 0)));
+        let mut closed = Desk::default();
+        assert_eq!(closed.submit(1, true), Submit::Stale);
+    }
+
+    // 5. state_json.
+    #[test]
+    fn state_json() {
+        let mut d = Desk::default();
+        assert_eq!(d.state_json(), "null");
+        d.set_view(r#"{"v":1}"#);
+        assert_eq!(d.state_json(), "null");
+        assert!(d.request(1, 1, Route::Worked));
+        assert_eq!(
+            d.state_json(),
+            r#"{"id":1,"spell":1,"route":"worked","wrong":0,"help":false,"view":null}"#
+        );
+        d.set_view(r#"{"v":1,"open":true}"#);
+        assert_eq!(
+            d.state_json(),
+            r#"{"id":1,"spell":1,"route":"worked","wrong":0,"help":false,"view":{"v":1,"open":true}}"#
+        );
+        d.submit(1, false);
+        d.submit(1, false);
+        assert!(d.state_json().contains(r#""wrong":2,"help":true"#));
+        assert!(d.cancel(1));
+        assert_eq!(d.state_json(), "null");
+        assert!(d.request(2, 1, Route::Worked));
+        assert!(d.state_json().ends_with(r#""view":null}"#));
+    }
+
+    // 6. No panic: random operations keep is_open() in step with a model.
+    #[test]
+    fn no_panic() {
+        for seed in 0..20u64 {
+            let mut x = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let mut next = move || {
+                x = x
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                (x >> 33) as u32
+            };
+            let mut d = Desk::default();
+            let mut model: Option<u32> = None;
+            for _ in 0..50_000 {
+                let op = next() % 4;
+                let id = next() % 8;
+                match op {
+                    0 => {
+                        let spell = (next() % 6) as usize;
+                        let r = if next() % 2 == 0 {
+                            Route::Worked
+                        } else {
+                            Route::Instant
+                        };
+                        let ok = d.request(id, spell, r);
+                        let want = model.is_none() && spell < 4 && r == Route::Worked;
+                        assert_eq!(ok, want);
+                        if ok {
+                            model = Some(id);
+                        }
+                    }
+                    1 => {
+                        let correct = next() % 2 == 0;
+                        let s = d.submit(id, correct);
+                        match (model, s) {
+                            (Some(m), Submit::Cast { .. }) => {
+                                assert!(m == id && correct);
+                                model = None;
+                            }
+                            (Some(m), Submit::Wrong { .. }) => assert!(m == id && !correct),
+                            (Some(m), Submit::Stale) => assert_ne!(m, id),
+                            (None, s) => assert_eq!(s, Submit::Stale),
+                        }
+                    }
+                    2 => {
+                        let ok = d.cancel(id);
+                        assert_eq!(ok, model == Some(id));
+                        if ok {
+                            model = None;
+                        }
+                    }
+                    _ => d.set_view(r#"{"v":1}"#),
+                }
+                assert_eq!(d.is_open(), model.is_some());
+                let _ = d.state_json();
+            }
+        }
     }
 }
