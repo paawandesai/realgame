@@ -5523,7 +5523,9 @@ async function mastery({ page, st, cmd, until, frames, sleep, base, errors }) {
       const b = document.querySelectorAll('.slot')[1]?.querySelector('span.stage');
       return b && b.getAttribute('data-stage') === 'mastered' ? b.textContent : null;
     }), 5000);
-    const toast = await page.evaluate(() => { const t = document.getElementById('worked-toast'); return t && !t.hidden ? `${t.textContent} ${t.getAttribute('aria-label') || ''}` : null; });
+    // The held toast shows on the first frame after the bench closes (a frame
+    // can take 0.8 s on the software GPU), and stays 4 s.
+    const toast = await withinMs(() => page.evaluate(() => { const t = document.getElementById('worked-toast'); return t && !t.hidden ? `${t.textContent} ${t.getAttribute('aria-label') || ''}` : null; }), 3000);
     const w = await ws();
     check('mastery: G4 the hotbar shows a star, the toast says Mastered!, the route is instant',
       badge === '★' && !!toast && toast.includes('Mastered!') && toast.includes('★') && !!w && w.routes[1] === 'instant',
