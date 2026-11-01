@@ -46,6 +46,7 @@
 2. **0:15 The dip.**
    - At z 8..12 the boardwalk sinks into a shallow **dip**. Three marsh-gas vents (x −1, 0, 1, z 10) send bubbles up through the water and burn as blue flames across the planks.
    - While a flame burns it is solid (too hot to pass). Bubbles rise visibly: methane (16 g/mol) is lighter than air.
+   - (critic) Flame colliders cover the full boardwalk width between the rails in both the dip and the hollow (no gap a player can walk through; the hollow's x ±1.5 vents need colliders wide enough to close the middle). Flames are low (tops under 0.6 m above the planks), and the haze at pool 1.0 just covers the flame tops: it stays far below head height, so the player crosses with their head in clear air.
 3. **Wrong chemistry fails kindly.**
    - Water on a vent: the flame shrinks to 40 % for 1.5 s and grows back. It never goes out.
    - Frost does the same.
@@ -78,10 +79,10 @@ The band comes from `BenchState.band`. `None` shows the Apprentice line.
 | event (level 3) | Sprout 4-7 (icon) | Seedling 8-10 | Apprentice 11-15 (and None) | Adept 16+ |
 |---|---|---|---|---|
 | Flicker(Water) | `The fire is on a gas. Water can't stop it. Try CO₂!` (wrong) | `The flame burns gas that bubbles up through the water. Water cannot soak a gas, so the flame grows back.` | `Marsh gas is methane (CH₄). It keeps bubbling up through the water, so a splash only knocks the flame down for a moment.` | `Gas fires are fed from below: water cools the flame but does not cut off the fuel or the oxygen, so the CH₄ keeps burning.` |
-| Flicker(Frost) | `Brrr! The fire came back. Try CO₂!` (wrong) | `The cold shrank the flame, but the gas keeps coming up and burning.` | `Liquid nitrogen boils into N₂ gas, which is about as heavy as air, so it drifts away and the methane keeps burning.` | `N₂ (28 g/mol) is nearly as dense as air (29 g/mol): it mixes away instead of pooling, and the CH₄ flame recovers.` |
+| Flicker(Frost) | `Brrr! The fire came back. Try CO₂!` (wrong) | `The cold shrank the flame, but the gas keeps coming up and burning.` | `Liquid nitrogen boils into N₂ gas. Once it warms up, N₂ is about as heavy as air, so it mixes away and the methane keeps burning.` (critic: freshly boiled N₂ is very cold and denser than air for a moment) | `At air temperature N₂ (28 g/mol) is nearly as dense as air (29 g/mol): the cold boil-off warms, mixes away instead of pooling, and the CH₄ flame recovers.` (critic) |
 | Fire on a burning vent | `It is already burning!` (wrong) | `That gas is already burning. Fire cannot put out fire.` (Seedling to Adept) | ← | ← |
 | Filling (pool < 1) | `The gas sinks down low. More!` (gas) | `CO₂ is heavier than air, so it sinks and fills the hollow from the bottom.` | `CO₂ (44 g/mol) is denser than air (29 g/mol), so it pools low, like an invisible pond.` | `At the same temperature and pressure, gas density goes with molar mass: CO₂ is about 1.5 times as dense as air, so it settles in low places.` |
-| Pooled (pool = 1, flames out) | `All the fires went out!` (gas) | `The CO₂ covered the flames. No oxygen, no fire.` | `The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.` | `Smothered: pooled CO₂ cut off the oxygen to every flame at once. Pooled CO₂ is dangerous for people too, which is why the boardwalk is high.` |
+| Pooled (pool = 1, flames out) | `All the fires went out!` (gas) | `The CO₂ covered the flames. No oxygen, no fire.` | `The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.` | `Smothered: pooled CO₂ cut off the oxygen to every flame at once. A deep pool of CO₂ is dangerous for people to breathe too.` (critic: the old ending said the boardwalk is high, but it sinks into the dip) |
 | Fizzle(NoOxygen) on a smothered vent | `No air down there, no fire.` (wrong) | `Fire needs oxygen, and the CO₂ keeps it away.` (Seedling to Adept) | ← | ← |
 | Spilled (S1 only) | `It rolled away! Find a low spot.` (wrong) | `No hollow here: the CO₂ spills away downhill.` (Seedling to Adept) | ← | ← |
 
@@ -94,7 +95,7 @@ The band comes from `BenchState.band`. `None` shows the Apprentice line.
   - Not counted toward `Goal::Fires`. Level 3 uses `Goal::Reach`.
   - Solid for movement while burning (`world::solid_obj`).
 - `Kind::Hollow`: inert floor object; picking box only, never solid.
-- `Obj.co2: f32` (0..1) on Hollow objects. A vent belongs to the Hollow whose footprint contains its `pos` (pure helper `hollow_of(i)`, computed in `World::with_goal`).
+- `Obj.co2: f32` (0..1) on Hollow objects. (critic) If any existing chem test builds `Obj` with a struct literal, adding a field would force editing that test: then keep the fill outside `Obj` (for example `World.pools: Vec<f32>` indexed by hollow) instead. The contract step checks and records which. A vent belongs to the Hollow whose footprint contains its `pos` (pure helper `hollow_of(i)`, computed in `World::with_goal`).
 - **Water or Frost on a burning vent:**
   - `Flicker(spell)`, with the flame scale set to 0.4 and back over `FLICKER_S = 1.5` s.
   - `burning` stays true, and `extinguished` does not change.
@@ -151,7 +152,8 @@ The band comes from `BenchState.band`. `None` shows the Apprentice line.
      - `ventsLit === 7`, `outcome === 'playing'`
      - a caption starting "The Marsh".
 8. `?level=3` without `debug` loads level 3.
-9. Flames block: `move 0 1 3` from START leaves z > 12.2.
+   - (critic) On a fresh `?level=3` load (no saved progress), CO2 can be selected and cast, the same way Frost and Fire are castable in level 2 on dff8336. Level 3 adds no unlock gate of its own; if a progress gate exists, the contract step records how level 3 grants CO2 without touching I-029's files.
+9. Flames block: `move 0 1 3` from START leaves z > 10 (the flame line). (critic: was z > 12.2, which depends on collider size; the contract step confirms 3 s of walking covers more than 8 m so the check would fail with no flames.)
 10. Water on a dip vent: in the next frame `ventsLit === 7`, `pools[0] === 0`, and the caption is the Apprentice Flicker(Water) line.
 11. Frost on a dip vent gives the same result with the Frost line. Fire on a dip vent leaves `ventsLit === 7`.
 12. Dip fills:
@@ -160,7 +162,7 @@ The band comes from `BenchState.band`. `None` shows the Apprentice line.
     - After 5 s, `ventsLit` is still 4.
 13. Fire on a smothered dip vent: `ventsLit === 4`, and the caption is the NoOxygen line.
 14. Hollow needs three casts:
-    - `pools[1]` goes 0.34 / 0.68 / 1.00.
+    - `pools[1]` goes 0.34 / 0.68 / 1.00, compared within 1e-3 (critic: f32 values do not serialise to exactly 0.34 or 0.68; 0.5 and 1 are exact).
     - `ventsLit` is 4 after the second cast and 0 after the third.
     - A scripted `move` then crosses both, to z < −12.
 15. Win: walking to the lantern gives `outcome === 'won'` and the banner "You cleared the Marsh!". A further `move 0 1 2` leaves `pos` unchanged (the walk stops).
@@ -170,6 +172,8 @@ The band comes from `BenchState.band`. `None` shows the Apprentice line.
     - `I037_KEYS = ['nextOpen', 'pools', 'ventsLit']` is appended after `I035_KEYS`.
     - The `objs` keys are unchanged.
     - No console errors, no panics, 3/3 runs.
+
+(critic) If I-029 merges first and appends its own keys after `I035_KEYS`, rebase and append `I037_KEYS` after whatever is last, and size the tail `slice(-N)` to match. Never reorder I-029's keys.
 
 **Pinned golden edits (allowed, must be listed in the PR):** the key-order check at golden 1072-1074 (add `I037_KEYS`), and the tail checks at 1347 and 2689 (they take `slice(-10)` and include the three new keys). These are the same edits I-035 made for its keys. No other existing check changes.
 
@@ -193,6 +197,7 @@ The band comes from `BenchState.band`. `None` shows the Apprentice line.
 - **Marsh gas is methane made in wetlands.** **New [S27]**: a USGS, NOAA or EPA page that says microbes in waterlogged soils without oxygen make methane.
 - **Water is a poor choice on gas fires.** **New [S28]**: OSHA's extinguisher-classes page (Class B covers flammable gases; it says which agents fit and that water does not), or NFPA. Verdict: **simplified** for the Flicker lines. Real water spray can put out a small gas flame. The point that matters is true: water does not remove the gaseous fuel. If no fetched source supports a line, the builder rewords it to what the source says before merging.
 - **Simplified verdicts:**
+  - (critic) Frost failing: a large, sustained nitrogen flood can inert a space and put out a fire, and cold boil-off sinks briefly. The game's single cast is too small and warms and mixes away. Verdict simplified; the Frost lines say "once it warms" so they stay true.
   - The pool rising in fixed steps and never draining.
   - All flames going out at exactly full.
   - A 40 % flicker that always recovers.
