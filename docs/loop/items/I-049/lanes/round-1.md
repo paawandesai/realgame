@@ -44,6 +44,13 @@ exist on main, so on main they do not compile (no separate red run was made for 
 - `tests/e2e/golden.mjs`, the new I-049 worked check only: with `SHOTS` set it saves two screenshots per case
   (`-open` as the panel opened, `-top` scrolled to the top) and then puts the scroll back where it opened, so
   the checks still measure the open state. Without `SHOTS` it does nothing. No check's condition changed.
+- **The `revisit` state key moved to the end and is pinned.** The first full golden run (aborted after 56
+  checks) failed `clock: state JSON keeps the base keys in order, appends gameTime and dt, and parses every
+  frame` with `last=revisit,pools,ventsLit`: c03de7a put the new key between `nextOpen` and `pools`. It is now
+  the last key, pinned as I-035/I-037 pinned theirs: `I049_KEYS = ['revisit']` in that check, and `,revisit`
+  appended to the two exact key tails (`streams: fireInView is a boolean, the last state key`, and the I-027
+  fresh-progress tail). Allowed by the rules (pinning a new state key) and listed in the spec. The section runs
+  had not covered those checks.
 - `cargo fmt` on `level2.rs` and `main.rs` (the previous commits were not formatted; `cargo fmt --check` failed).
 
 ## Evidence

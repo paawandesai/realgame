@@ -22,6 +22,7 @@ Each fix has a check that fails before it.
 
 - **Harness fix (4):** the Leidenfrost check's 2 s bar is now game time, not wall time. It was failing at 2.1-2.2 s of wall time on a loaded host. The bar is the same; the check now measures what its name says.
 - **New state key:** `revisit` (bool), true while level 2 was entered from the Marsh. It is cleared by R and by every level change.
+  It is the last key of the state JSON, pinned the way I-035 and I-037 pinned theirs: `I049_KEYS` in the clock key-order check, and `,revisit` at the end of the two key-tail checks (`streams: fireInView is a boolean, the last state key`, and the I-027 fresh-progress tail). Round 1 moved it there after the full golden caught it between `nextOpen` and `pools`.
 - No existing check was edited. The existing marsh check `back from the Marsh ... (!banner.shown || big === 'You opened the Frozen Gate!')` still holds: the banner is now hidden.
 
 ## Science register
