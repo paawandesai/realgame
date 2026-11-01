@@ -5,19 +5,22 @@
 //!
 //! The jet's launch speed is √(g·R): R is how far it would carry on flat
 //! ground at the best angle (45°). R grows with how long the button has been
-//! held, so a tap reaches about 6 m and a held jet about 10 m.
+//! held: a click reaches about 6.5 m, a 0.8 s charge about 12 m and a full
+//! 1.5 s charge 17.5 m. Water and CO2 charge while the button is down and
+//! fly when it is released.
 
 use bevy::prelude::*;
 
 /// Gravity, m/s² (standard gravity is 9.80665 m/s²).
 pub const G: f32 = 9.81;
 
-/// Water's flat-ground reach for a tap and for a full hold, metres, and the
-/// hold that gives the full reach, seconds (gameplay tuning).
-pub const WATER_REACH: (f32, f32) = (6.0, 10.0);
-/// CO2's lob: reach for a tap and for a full hold, metres (gameplay tuning).
-pub const CO2_REACH: (f32, f32) = (5.0, 7.0);
-pub const FULL_HOLD_S: f32 = 0.8;
+/// Water's flat-ground reach for a click and for a full charge, metres
+/// (gameplay tuning).
+pub const WATER_REACH: (f32, f32) = (6.5, 17.5);
+/// CO2's lob: reach for a click and for a full charge, metres.
+pub const CO2_REACH: (f32, f32) = (5.0, 9.0);
+/// The charge (seconds held) that gives the full reach.
+pub const FULL_HOLD_S: f32 = 1.5;
 /// Fire's flame cone: range (m) and half-angle (degrees) (gameplay tuning).
 pub const FIRE_CONE: (f32, f32) = (2.5, 18.0);
 /// Frost's spray cone: range (m) and half-angle (degrees).
@@ -244,10 +247,14 @@ mod tests {
             assert!(r >= last);
             last = r;
         }
-        assert_eq!(motion(1, 0.0), Motion::Arc { reach: 6.0 });
-        assert_eq!(motion(1, 0.8), Motion::Arc { reach: 10.0 });
+        assert_eq!(motion(1, 0.0), Motion::Arc { reach: 6.5 });
+        assert_eq!(motion(1, FULL_HOLD_S), Motion::Arc { reach: 17.5 });
+        match motion(1, 0.8) {
+            Motion::Arc { reach } => assert!((11.5..=13.0).contains(&reach), "0.8 s: {reach}"),
+            m => panic!("water is an arc, got {m:?}"),
+        }
         assert_eq!(motion(3, 0.0), Motion::Arc { reach: 5.0 });
-        assert_eq!(motion(3, 0.8), Motion::Arc { reach: 7.0 });
+        assert_eq!(motion(3, FULL_HOLD_S), Motion::Arc { reach: 9.0 });
         match motion(0, 0.8) {
             Motion::Cone { range, half } => {
                 assert_eq!(range, 2.5);

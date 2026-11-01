@@ -314,6 +314,9 @@ struct Game {
     was_down: bool,
     /// I-051: the debug `cast <hold>` command's hold time for the next cast.
     cast_hold: Option<f32>,
+    /// I-051: Water or CO2 charging (seconds held) since a locked press; the
+    /// release casts it with that reach. `None` while not charging.
+    charge: Option<f32>,
     /// The open worked cast, if any (I-029); a reset closes it.
     work: worked::Desk,
     /// Where the click that opened it aimed: the accepted cast lands there.
@@ -1776,6 +1779,13 @@ fn aim_and_cast(
     game.clicks += fires_in;
     // I-025: a new click restarts the hold timer.
     let clicked = fires_in > 0;
+    // I-051: Water and CO2 charge while held and fly on release, so a press
+    // starts a charge instead of casting (one press, one cast).
+    let arc_spell = matches!(Spell::ALL[game.spell], Spell::Water | Spell::Foam);
+    if arc_spell && game.locked && !game.paused && clicked {
+        game.charge = Some(0.0);
+        incoming.retain(|c| c != "fire");
+    }
     #[cfg(target_arch = "wasm32")]
     let firing = {
         let _ = &mouse;
@@ -1837,10 +1847,29 @@ fn aim_and_cast(
         cues::held_secs(game.held, firing && game.locked, game.was_down, clicked, dt)
     };
     game.was_down = firing && game.locked && !game.paused;
+    // I-051: a charging Water or CO2 grows while the button is down and is
+    // cast when it is released (or dropped if the spell was switched).
+    if !arc_spell {
+        game.charge = None;
+    }
+    if let Some(c) = game.charge {
+        if game.paused {
+            // Kept while paused (the worked builder); resumes after.
+        } else if firing && game.locked {
+            game.charge = Some(c + dt);
+        } else {
+            game.charge = None;
+            if !grace {
+                game.cast_hold = Some(c);
+                casts.push(game.aim);
+            }
+        }
+    }
     if casts.is_empty()
         && game.locked
         && !game.paused
         && firing
+        && !arc_spell
         && game.cooldown <= 0.0
         && !grace
         && cues::hold_repeats(game.held)
@@ -1987,9 +2016,9 @@ struct ArcDot;
 /// Dots in the arc preview.
 const ARC_DOTS: usize = 24;
 
-/// I-051: while the button is held (pointer locked) with Water or CO2, a
-/// faint dotted arc shows the path the next cast will fly, ending where it
-/// would land, so aiming an arc can be learnt. Hidden otherwise.
+/// I-051: while Water or CO2 is charging (button held, pointer locked), a
+/// faint dotted arc shows the path the release will fly, growing with the
+/// charge and ending where it would land, so aiming an arc can be learnt.
 #[allow(clippy::too_many_arguments)]
 fn arc_preview(
     mut commands: Commands,
@@ -2024,8 +2053,10 @@ fn arc_preview(
         return;
     }
     let spell = Spell::ALL[game.spell];
-    let show =
-        game.was_down && game.locked && !game.paused && matches!(spell, Spell::Water | Spell::Foam);
+    let show = game.charge.is_some()
+        && game.locked
+        && !game.paused
+        && matches!(spell, Spell::Water | Spell::Foam);
     if !show {
         for (_, mut v, _) in &mut dots {
             if *v != Visibility::Hidden {
@@ -2043,7 +2074,7 @@ fn arc_preview(
         player.forward(),
         &game.aim,
         spell,
-        game.held,
+        game.charge.unwrap_or(0.0),
         settings.assist,
     );
     for (k, (mut t, mut v, mut m)) in dots.iter_mut().enumerate() {

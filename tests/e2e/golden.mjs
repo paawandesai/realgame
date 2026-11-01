@@ -5384,10 +5384,40 @@ async function spellPhysics({ page, st, cmd, until, frames, sleep, base, logs })
   const hold = await castNow(2, 'cast 0.8');
   const dTap = tap.land ? flat(tap.land.p, tap.land.from) : NaN;
   const dHold = hold.land ? flat(hold.land.p, hold.land.from) : NaN;
-  check('spellPhysics: a tapped jet lands 5.5-8.5 m away and a 0.8 s hold lands 9-13 m away, both on the ground',
-    dTap >= 5.5 && dTap <= 8.5 && dHold >= 9 && dHold <= 13 && dHold - dTap >= 3
+  check('spellPhysics: a tapped jet lands 6-9.5 m away and a 0.8 s hold lands 11-16 m away, both on the ground',
+    dTap >= 6 && dTap <= 9.5 && dHold >= 11 && dHold <= 16 && dHold - dTap >= 3
       && Math.abs(tap.land.p[1]) < 0.2 && Math.abs(hold.land.p[1]) < 0.2,
     `tap ${dTap.toFixed(2)} m at y=${tap.land && tap.land.p[1]}, hold ${dHold.toFixed(2)} m at y=${hold.land && hold.land.p[1]}`);
+
+  // 9b. A real held press (pointer down, held, up) charges the jet: it
+  // reaches farther than a quick click, and one press is one cast.
+  await page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  await until((x) => x.locked, 5000);
+  const press = async (ms) => {
+    await cmd('select 2');
+    const a = await until((x) => x.spell === 1 && x.cooldown <= 0, 10000);
+    const n0 = logs.length;
+    await page.mouse.move(640, 360);
+    await page.mouse.down();
+    await sleep(ms);
+    const mid = await st();
+    await page.mouse.up();
+    const z = await until((x) => x.impacts > a.impacts, 15000);
+    await gameSecs(0.6);
+    const l = lands(n0);
+    return { land: l[l.length - 1] || null, n: l.length, castsDuring: mid.casts - a.casts, casts: (await st()).casts - a.casts, landed: z.impacts > a.impacts };
+  };
+  await cmd('tp 8 12');
+  await cmd('look 0 40');
+  await frames(2);
+  const click = await press(60);
+  const held = await press(1300);
+  const dClick = click.land ? flat(click.land.p, click.land.from) : NaN;
+  const dHeld = held.land ? flat(held.land.p, held.land.from) : NaN;
+  check('spellPhysics: a real held press charges the jet (held 1.3 s lands 4+ m farther than a click; one cast per press, cast on release)',
+    click.landed && held.landed && dHeld - dClick >= 4 && click.casts === 1 && held.casts === 1 && held.castsDuring === 0,
+    `click ${dClick.toFixed(2)} m (casts ${click.casts}), held ${dHeld.toFixed(2)} m (casts ${held.casts}, ${held.castsDuring} while held)`);
+  await page.evaluate(() => { delete document.pointerLockElement; });
 
   // 10. Fire is a short cone: nothing from 5 m, the hedge lights from 1.8 m.
   const hedge = idx(s, 'dry hedge');
