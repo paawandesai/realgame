@@ -19,6 +19,7 @@ mod clock;
 mod cues;
 mod feel;
 mod fx;
+mod level2;
 mod motion;
 mod player;
 mod progress;
@@ -50,7 +51,38 @@ use chem::{EventKind, Kind, Outcome, Spell};
 use fx::{Fx, P};
 use player::Player;
 use realgame_sim::bench as simbench;
-use world::{Chem, Colliders, Kit};
+use world::{ArchDoor, ArchMats, Chem, Colliders, Kit, LevelRoot};
+
+/// Which level is loaded (I-035): 1, the courtyard, or 2, the Frozen Gate.
+/// `cleared1` lasts the page load: once the courtyard is saved its exit stays
+/// open. `pending` asks `levels` to switch on this frame.
+#[derive(Resource, Debug, Clone, Default)]
+struct Level {
+    n: u8,
+    cleared1: bool,
+    pending: Option<u8>,
+}
+
+impl Level {
+    /// The way out of this level is open: level 1's exit after the win (or
+    /// once cleared), level 2's back arch always.
+    fn exit_open(&self, w: &chem::World) -> bool {
+        self.n == 2 || self.cleared1 || w.outcome() == Outcome::Won
+    }
+}
+
+/// The Formula Bench pad's meshes (spawned by `bench::spawn_station`), tagged
+/// here so level 2 can hide them; the pad itself is never despawned.
+#[derive(Component)]
+struct BenchPad;
+
+/// False in level 2: the bench pad is hidden there, so `atBench` stays false
+/// (the one guard in `bench::run`).
+static BENCH_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+pub(crate) fn bench_on() -> bool {
+    BENCH_ON.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 /// Counts live heap bytes and the largest single allocation, so STATS can
 /// tell a leak (live bytes keep rising) from a one-off peak.
@@ -269,10 +301,14 @@ struct Game {
     work: worked::Desk,
     /// Where the click that opened it aimed: the accepted cast lands there.
     work_aim: Aim,
+    /// The Sprout picture for the current caption (I-035): "", "freeze",
+    /// "melt" or "wrong". Cleared by every new caption.
+    cap_icon: &'static str,
 }
 
 impl Game {
     fn say(&mut self, s: &str) {
+        self.cap_icon = "";
         self.caption = s.to_string();
         self.caption_id += 1;
         self.caption_age = 0.0;
@@ -466,6 +502,11 @@ fn main() {
         .init_resource::<Progress>()
         .init_resource::<WebIn>()
         .init_resource::<Player>()
+        .insert_resource(Level {
+            n: 1,
+            cleared1: false,
+            pending: (param("level").as_deref() == Some("2")).then_some(2),
+        })
         .add_systems(Startup, setup)
         .add_systems(First, frame_start)
         .add_systems(FixedUpdate, chem_tick)
@@ -473,10 +514,12 @@ fn main() {
             Update,
             (
                 control,
+                levels,
                 aim_and_cast,
                 projectiles,
                 react,
                 sync_visuals,
+                level_visuals,
                 viewmodel,
                 fx::update_fx,
                 publish,
@@ -486,6 +529,7 @@ fn main() {
         .add_systems(Last, report)
         .add_systems(Update, bench::run.after(control).before(publish))
         .add_systems(Startup, bench::spawn_station)
+        .add_systems(Startup, tag_bench_pad.after(bench::spawn_station))
         .run();
 }
 
@@ -845,6 +889,7 @@ fn control(
     colliders: Res<Colliders>,
     mut cam: Query<(&mut Transform, &mut Projection), With<FpsCam>>,
     mut prog: ResMut<Progress>,
+    mut level: ResMut<Level>,
     #[cfg(not(target_arch = "wasm32"))] mut cursor: Single<
         &mut bevy::window::CursorOptions,
         With<PrimaryWindow>,
@@ -909,7 +954,7 @@ fn control(
         game.spell = (game.spell + step) % 4;
     }
     if keys.just_pressed(KeyCode::KeyR) {
-        reset(&mut chem, &mut game, &mut player);
+        reset(&mut chem, &mut game, &mut player, level.n);
     }
 
     let mut cmd_move = None;
@@ -927,7 +972,7 @@ fn control(
         // Test commands that move the player or the clock need `?debug`.
         let debug_only = matches!(
             name,
-            Some("look" | "turn" | "face" | "tp" | "move" | "tick")
+            Some("look" | "turn" | "face" | "tp" | "move" | "tick" | "level")
         );
         if debug_only && !settings.debug {
             warn!("command {c:?} needs ?debug");
@@ -975,7 +1020,13 @@ fn control(
                 }
                 game.events.extend(ev);
             }
-            Some("reset") => reset(&mut chem, &mut game, &mut player),
+            Some("reset") => reset(&mut chem, &mut game, &mut player, level.n),
+            // I-035: load a level (debug only; `?level=2` is the player's way).
+            Some("level") => match a.get(1).copied() {
+                Some("1") => level.pending = Some(1),
+                Some("2") => level.pending = Some(2),
+                _ => warn!("{c:?}: level 1 or level 2"),
+            },
             // Settings from the pause menu (not debug-only).
             Some("set") => {
                 let num = || a.get(2).and_then(|s| s.parse::<f32>().ok());
@@ -1037,12 +1088,23 @@ fn control(
         let ice: Vec<world::Aabb> = (0..chem.targets.len())
             .filter(|&i| {
                 let o = &chem.world.objs[i];
-                o.kind == Kind::Puddle && o.frozen()
+                (o.kind == Kind::Puddle && o.frozen()) || (o.kind == Kind::Stream && o.ice >= 1.0)
             })
             .map(|i| chem.bounds(i))
             .collect();
         let ice = player::boxes(&ice);
-        let solids = player::boxes(colliders.solid(&chem.world));
+        let mut solids = player::boxes(colliders.solid(&chem.world));
+        // Level 1's exit arch is shut (solid) until the courtyard is saved.
+        if level.n == 1 && !level.exit_open(&chem.world) {
+            solids.extend(player::boxes([&world::exit_door()]));
+        }
+        // Level 2: a bridge that melts under the player moves them to a bank.
+        if level.n == 2 {
+            if let Some(p) = level2::bank_push(player.pos, &chem.world) {
+                player.pos = p;
+                player.vel = Vec3::ZERO;
+            }
+        }
         player.step(
             player::MoveInput {
                 wish,
@@ -1067,7 +1129,7 @@ fn control(
     }
 }
 
-fn reset(chem: &mut Chem, game: &mut Game, player: &mut Player) {
+fn reset(chem: &mut Chem, game: &mut Game, player: &mut Player, level: u8) {
     chem.world = chem.initial.clone();
     for t in &mut chem.targets {
         t.last = None;
@@ -1081,7 +1143,131 @@ fn reset(chem: &mut Chem, game: &mut Game, player: &mut Player) {
         epoch: game.epoch.wrapping_add(1),
         ..default()
     };
-    game.say("Save the Greenhouse! Put out 3 fires before they spread.");
+    if level == 2 {
+        player.pos = level2::START;
+        game.say("The Frozen Gate. Cross the stream, melt the gate, reach the lantern.");
+    } else {
+        game.say("Save the Greenhouse! Put out 3 fires before they spread.");
+    }
+}
+
+/// Startup, after `bench::spawn_station`: tags the bench pad's meshes (the
+/// meshes centred on the pad that no level owns) so level 2 can hide them.
+type UnownedMeshes<'w, 's> =
+    Query<'w, 's, (Entity, &'static Transform), (With<Mesh3d>, Without<LevelRoot>)>;
+
+fn tag_bench_pad(mut commands: Commands, q: UnownedMeshes) {
+    let (x, z) = bench::STATION;
+    for (e, t) in &q {
+        if (t.translation.x - x).abs() < 1e-3 && (t.translation.z - z).abs() < 1e-3 {
+            commands.entity(e).insert(BenchPad);
+        }
+    }
+}
+
+/// I-035: walking into an open arch or up to the lantern, and loading a
+/// level (`level.pending`, from a trigger, the `level` command or
+/// `?level=2`): despawns every `LevelRoot` entity, builds the other level,
+/// swaps `Colliders` and `Chem`, and starts it fresh (as a reset does).
+#[allow(clippy::too_many_arguments)]
+fn levels(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+    mut level: ResMut<Level>,
+    mut chem: ResMut<Chem>,
+    mut colliders: ResMut<Colliders>,
+    mut game: ResMut<Game>,
+    mut player: ResMut<Player>,
+    kit: Res<Kit>,
+    roots: Query<Entity, With<LevelRoot>>,
+) {
+    if level.n == 1 && chem.world.outcome() == Outcome::Won {
+        level.cleared1 = true;
+    }
+    if level.pending.is_none() && !game.paused {
+        let dist = |p: (f32, f32)| Vec2::new(player.pos.x - p.0, player.pos.z - p.1).length();
+        if level.n == 1 {
+            if level.exit_open(&chem.world) && dist(world::EXIT_ARCH) < world::ARCH_REACH {
+                level.pending = Some(2);
+            }
+        } else if dist(level2::BACK_ARCH) < world::ARCH_REACH {
+            level.pending = Some(1);
+        } else if dist(level2::LANTERN) < level2::LANTERN_REACH
+            && chem.world.outcome() == Outcome::Playing
+        {
+            chem.world.reach();
+        }
+    }
+    let Some(n) = level.pending.take() else {
+        return;
+    };
+    for e in &roots {
+        commands.entity(e).despawn();
+    }
+    let (c, ch) = if n == 2 {
+        level2::build(&mut commands, &kit, &mut materials, &mut images)
+    } else {
+        let (_, c, ch) = world::build(&mut commands, &mut meshes, &mut materials, &mut images);
+        (c, ch)
+    };
+    *colliders = c;
+    *chem = ch;
+    level.n = n;
+    BENCH_ON.store(n == 1, std::sync::atomic::Ordering::Relaxed);
+    reset(&mut chem, &mut game, &mut player, n);
+    info!("LEVEL {n}");
+}
+
+/// I-035: the arch door's look (glowing while open), the bench pad shown only
+/// in level 1, and level 2's ice crusts and ripples.
+#[allow(clippy::too_many_arguments)]
+fn level_visuals(
+    time: Res<Time>,
+    settings: Res<Settings>,
+    game: Res<Game>,
+    level: Res<Level>,
+    chem: Res<Chem>,
+    arch: Option<Res<ArchMats>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut doors: Query<&mut MeshMaterial3d<StandardMaterial>, With<ArchDoor>>,
+    mut pads: Query<&mut Visibility, (With<BenchPad>, Without<level2::IceCrust>)>,
+    mut crusts: Query<(&mut Transform, &mut Visibility, &level2::IceCrust), Without<BenchPad>>,
+    ripple: Query<&MeshMaterial3d<StandardMaterial>, (With<level2::Ripple>, Without<ArchDoor>)>,
+) {
+    if let Some(arch) = arch {
+        let want = if level.exit_open(&chem.world) {
+            &arch.open
+        } else {
+            &arch.closed
+        };
+        for mut m in &mut doors {
+            if m.0 != *want {
+                m.0 = want.clone();
+            }
+        }
+    }
+    let pad = if level.n == 1 {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    for mut v in &mut pads {
+        if *v != pad {
+            *v = pad;
+        }
+    }
+    if level.n == 2 {
+        level2::sync(
+            &chem,
+            time.elapsed_secs(),
+            !settings.sway || game.paused,
+            &mut crusts,
+            ripple.iter().next().map(|m| &m.0),
+            &mut materials,
+        );
+    }
 }
 
 /// Best target along a ray: what it hits, or (with assist) the target
@@ -1152,6 +1338,7 @@ fn aim_and_cast(
     window: Single<&Window, With<PrimaryWindow>>,
     cam: Query<(&Camera, &GlobalTransform), With<FpsCam>>,
     mut wk: WorkCtx,
+    level: Res<Level>,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     game.cooldown -= dt;
@@ -1209,6 +1396,24 @@ fn aim_and_cast(
         }
         None => (-1, 0.0, 0.0, false),
     };
+    // I-035: with the courtyard saved, the finder's bearing is the open exit arch.
+    if near.is_none()
+        && level.n == 1
+        && chem.world.outcome() == Outcome::Won
+        && level.exit_open(&chem.world)
+    {
+        let c = Vec3::new(world::EXIT_ARCH.0, 1.5, world::EXIT_ARCH.1);
+        let bearing = cues::bearing_deg(eye.x, eye.z, player.yaw, c.x, c.z);
+        let horiz = (c.xz() - eye.xz()).length();
+        let elev = (c.y - eye.y).atan2(horiz).to_degrees() - player.pitch.to_degrees();
+        let hfov = 2.0
+            * ((fov_y.to_radians() / 2.0).tan() * aspect)
+                .atan()
+                .to_degrees();
+        game.fire_bearing = bearing;
+        game.fire_elev = elev;
+        game.fire_off = cues::off_screen(bearing, elev, hfov, fov_y);
+    }
     // I-025: is any fire in view (or aimed at)? Then the arrow hides. Same
     // bearing, elevation and hfov as the finder above.
     {
@@ -1552,6 +1757,7 @@ fn projectiles(
     cam: Query<&Camera, With<FpsCam>>,
     mut q: Moving<Projectile, Stream>,
     mut streams: Moving<Stream, Projectile>,
+    (level, bench, settings): (Res<Level>, Option<Res<bench::BenchState>>, Res<Settings>),
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     if fx.epoch != game.epoch {
@@ -1667,11 +1873,34 @@ fn projectiles(
         }
         if let Some(i) = p.obj {
             let mut ev = Vec::new();
+            // The kind before the spell (a melted gate becomes a puddle).
+            let kind = chem.world.objs[i].kind;
             chem.world.apply(i, p.spell, &mut ev);
             game.hit_kind = Some(chem::hit_kind(&ev));
-            // Spell results always get a caption.
+            // Spell results always get a caption; level 2 has its own lines
+            // per band (I-035), with the Sprout picture.
             if let Some(last) = ev.last() {
-                game.say(last.kind.caption());
+                let band = bench.as_ref().and_then(|b| b.band);
+                match (level.n == 2)
+                    .then(|| level2::caption(last.kind, kind, band))
+                    .flatten()
+                {
+                    Some((line, icon)) => {
+                        game.say(line);
+                        game.cap_icon = icon;
+                    }
+                    None => game.say(last.kind.caption()),
+                }
+            }
+            // Liquid nitrogen beads skating on the stream (Leidenfrost).
+            if kind == Kind::Stream
+                && ev
+                    .iter()
+                    .any(|e| matches!(e.kind, EventKind::Freezing | EventKind::Froze))
+            {
+                let (z0, z1) = level2::STREAM_Z;
+                let at = Vec3::new(p.to.x, 0.08, p.to.z.clamp(z0 + 0.3, z1 - 0.3));
+                fx.spawn_beads(at, if settings.low { 4 } else { 6 });
             }
             for e in &ev {
                 info!("IMPACT obj={} {:?} -> {:?}", e.obj, p.spell, e.kind);
@@ -1686,7 +1915,7 @@ fn projectiles(
 }
 
 /// Turns chemistry events into particles and captions.
-fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>) {
+fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>, level: Res<Level>) {
     let events = std::mem::take(&mut game.events);
     for e in events {
         let captioned = e.obj & (1 << 30) != 0;
@@ -1702,7 +1931,9 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>) {
                 fx.burst(P::Water, top, 16, 3.0, 0.2);
                 fx.burst(P::Steam, top, 10, 1.5, 0.5);
             }
-            EventKind::Froze | EventKind::Chilled => fx.burst(P::Frost, top, 20, 2.0, 0.4),
+            EventKind::Froze | EventKind::Chilled | EventKind::Freezing => {
+                fx.burst(P::Frost, top, 20, 2.0, 0.4)
+            }
             EventKind::Steam | EventKind::Fizzle(chem::Fizzle::Wet) => {
                 fx.burst(P::Steam, top, 14, 1.5, 0.5)
             }
@@ -1736,6 +1967,13 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>) {
         }
     }
     match chem.world.outcome() {
+        Outcome::Won if level.n == 2 => {
+            if !game.caption.starts_with("You opened") {
+                game.say(
+                    "You opened the Frozen Gate! Freeze to cross, melt to open: water changed state both ways.",
+                );
+            }
+        }
         Outcome::Won if !game.caption.starts_with("You saved") => {
             game.say(
                 "You saved the greenhouse! Water, frost and CO₂ each stop fire in their own way.",
@@ -1956,6 +2194,7 @@ fn publish(
     fx: Res<Fx>,
     streams: StreamsAndBeams,
     prog: Res<Progress>,
+    level: Res<Level>,
 ) {
     *frame += 1;
     // The frame in which the latest impact landed.
@@ -1982,7 +2221,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\"}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\",\"level\":{},\"exitOpen\":{},\"capIcon\":\"{}\",\"fxBeads\":{}}}",
         *frame,
         w.ticks,
         game.locked,
@@ -2039,7 +2278,11 @@ fn publish(
         game.fire_in_view,
         prog.0.state_json(),
         prog.0.rev(),
-        esc(&prog.0.encode())
+        esc(&prog.0.encode()),
+        level.n,
+        level.exit_open(w),
+        game.cap_icon,
+        fx.bead_live
     );
     bridge::publish(&json);
 }

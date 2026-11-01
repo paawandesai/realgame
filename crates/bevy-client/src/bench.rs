@@ -83,7 +83,7 @@ pub fn parse(line: &str) -> Option<Cmd> {
 /// (horizontal distance; height is ignored).
 pub fn at_bench(pos: Vec3) -> bool {
     let (dx, dz) = (pos.x - STATION.0, pos.z - STATION.1);
-    dx * dx + dz * dz <= RADIUS * RADIUS
+    dx * dx + dz * dz <= RADIUS * RADIUS && crate::bench_on()
 }
 
 fn def_by_slot(spells: &[SpellDef], slot: u8) -> Option<&SpellDef> {

@@ -14,9 +14,12 @@ pub enum P {
     Foam,
     Water,
     Spark,
+    /// Level 2 (I-035): a liquid nitrogen bead skating on the stream on its
+    /// own vapour (the Leidenfrost effect), shrinking as it boils away.
+    Bead,
 }
 
-const KINDS: [P; 7] = [
+const KINDS: [P; 8] = [
     P::Fire,
     P::Smoke,
     P::Steam,
@@ -24,6 +27,7 @@ const KINDS: [P; 7] = [
     P::Foam,
     P::Water,
     P::Spark,
+    P::Bead,
 ];
 
 #[derive(Component)]
@@ -51,6 +55,8 @@ pub struct Fx {
     pub epoch: u32,
     /// Live `Water` particles after this frame's update (`fxWater`).
     pub water_live: u32,
+    /// Live `Bead` particles after this frame's update (`fxBeads`, I-035).
+    pub bead_live: u32,
 }
 
 impl Fx {
@@ -73,6 +79,19 @@ impl Fx {
         if self.pending.len() < 256 {
             self.pending.push((k, pos, vel, size, life));
         }
+    }
+
+    /// `n` liquid nitrogen beads skating out across the water from `pos`
+    /// for under a second (I-035: 4 at `?low`, 6 otherwise), in white mist.
+    pub fn spawn_beads(&mut self, pos: Vec3, n: usize) {
+        for k in 0..n {
+            let a = std::f32::consts::TAU * (k as f32 + self.rand() * 0.6) / n as f32;
+            let speed = 2.2 + self.rand() * 1.4;
+            let v = Vec3::new(a.cos() * speed, 0.0, a.sin() * speed);
+            let life = 0.6 + self.rand() * 0.2;
+            self.emit(P::Bead, pos, v, 0.16, life);
+        }
+        self.burst(P::Frost, pos + Vec3::Y * 0.2, 10, 1.0, 0.45);
     }
 
     /// A burst at an impact point.
@@ -109,12 +128,13 @@ pub fn setup_fx(
                 P::Foam => (Color::srgb(0.98, 0.98, 1.0), 0.15, false),
                 P::Water => (Color::srgb(0.3, 0.6, 1.0), 0.4, false),
                 P::Spark => (Color::srgb(1.0, 0.9, 0.5), 10.0, false),
+                P::Bead => (Color::srgb(0.97, 0.99, 1.0), 1.2, false),
             };
             let l = c.to_linear();
             materials.add(StandardMaterial {
                 base_color: c,
                 emissive: LinearRgba::rgb(l.red * e, l.green * e, l.blue * e),
-                unlit: matches!(k, P::Fire | P::Spark | P::Steam | P::Frost),
+                unlit: matches!(k, P::Fire | P::Spark | P::Steam | P::Frost | P::Bead),
                 alpha_mode: if blend {
                     AlphaMode::Blend
                 } else {
@@ -157,6 +177,7 @@ pub fn setup_fx(
         clear: false,
         epoch: 0,
         water_live: 0,
+        bead_live: 0,
     });
 }
 
@@ -195,7 +216,7 @@ pub fn update_fx(
                 size,
                 grow: match k {
                     P::Smoke | P::Steam | P::Frost => 2.2,
-                    P::Fire => 0.2,
+                    P::Fire | P::Bead => 0.2,
                     _ => 0.6,
                 },
                 gravity: match k {
@@ -203,6 +224,7 @@ pub fn update_fx(
                     P::Fire => 2.5,
                     P::Smoke | P::Steam => 1.2,
                     P::Frost => -0.6,
+                    P::Bead => 0.0,
                 },
                 kind: k,
             };
@@ -212,6 +234,7 @@ pub fn update_fx(
         }
     }
     let mut water = 0;
+    let mut beads = 0;
     for (mut p, mut t, mut vis, _) in &mut q {
         if p.life <= 0.0 {
             continue;
@@ -223,6 +246,9 @@ pub fn update_fx(
         }
         if p.kind == P::Water {
             water += 1;
+        }
+        if p.kind == P::Bead {
+            beads += 1;
         }
         let g = p.gravity;
         p.vel.y += g * dt;
@@ -236,4 +262,5 @@ pub fn update_fx(
         t.scale = Vec3::splat(p.size * (1.0 + (p.grow - 1.0) * a) * (1.0 - a * a).max(0.05));
     }
     fx.water_live = water;
+    fx.bead_live = beads;
 }

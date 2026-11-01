@@ -1,0 +1,336 @@
+{
+  "schema": "perf/1",
+  "mode": "cloud",
+  "based_on": "1ac36acac3f920513cf145ffd587bfe699182bdc",
+  "web_dir": "/home/claude/realgame/.claude/worktrees/w13-I-035/crates/bevy-client/web/pkg-out",
+  "base_url": null,
+  "env": {
+    "node": "v22.22.0",
+    "chromium": "153.0.8010.12",
+    "playwright": "1.63.0",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cpus": 4,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "gpu": "software",
+    "sample_s": 20,
+    "warmup_s": 3,
+    "runs": 1,
+    "only": [
+      "low@1x"
+    ],
+    "no_cast": false,
+    "min_frames": 30,
+    "max_sample_s": 150,
+    "device_scale_factor": 1,
+    "skip_throttle": false,
+    "blank_canvas": false,
+    "gl_count": true,
+    "allow_load": false
+  },
+  "size": {
+    "files": [
+      {
+        "path": "bench.js",
+        "raw": 45641,
+        "gzip": 12995,
+        "brotli": 11560
+      },
+      {
+        "path": "bevy-client.js",
+        "raw": 106727,
+        "gzip": 14806,
+        "brotli": 12460
+      },
+      {
+        "path": "bevy-client_bg.wasm",
+        "raw": 17893576,
+        "gzip": 5119162,
+        "brotli": 3587637
+      },
+      {
+        "path": "boot.js",
+        "raw": 2103,
+        "gzip": 1113,
+        "brotli": 902
+      },
+      {
+        "path": "favicon.svg",
+        "raw": 297,
+        "gzip": 210,
+        "brotli": 197
+      },
+      {
+        "path": "hud.js",
+        "raw": 35411,
+        "gzip": 12099,
+        "brotli": 10653
+      },
+      {
+        "path": "index.html",
+        "raw": 6781,
+        "gzip": 2119,
+        "brotli": 1684
+      },
+      {
+        "path": "progress.js",
+        "raw": 3187,
+        "gzip": 1422,
+        "brotli": 1213
+      },
+      {
+        "path": "style.css",
+        "raw": 26582,
+        "gzip": 6574,
+        "brotli": 5682
+      }
+    ],
+    "gzip_tool": "gzip -9n",
+    "brotli_params": "node:zlib quality 11, BROTLI_MODE_GENERIC, lgwin 24",
+    "raw_total_bytes": 18120305,
+    "gzip_total_bytes": 5170500,
+    "brotli_total_bytes": 3631988,
+    "gzip_total_mb": 5.17,
+    "brotli_total_mb": 3.632,
+    "requested": [
+      "bench.js",
+      "bevy-client.js",
+      "bevy-client_bg.wasm",
+      "boot.js",
+      "hud.js",
+      "index.html",
+      "progress.js",
+      "style.css"
+    ],
+    "missing_from_dir": [],
+    "requested_brotli_bytes": 3631791,
+    "requested_brotli_mb": 3.632,
+    "unrequested": [
+      "favicon.svg"
+    ],
+    "body_mismatch": [],
+    "body_unverified": [],
+    "served_lengths": {
+      "bench.js": [
+        45641
+      ],
+      "bevy-client.js": [
+        106727
+      ],
+      "bevy-client_bg.wasm": [
+        17893576
+      ],
+      "boot.js": [
+        2103
+      ],
+      "hud.js": [
+        35411
+      ],
+      "index.html": [
+        6781
+      ],
+      "progress.js": [
+        3187
+      ],
+      "style.css": [
+        26582
+      ]
+    },
+    "served_refetched": [
+      "bevy-client_bg.wasm"
+    ]
+  },
+  "runs": {
+    "low@1x": {
+      "config": "low@1x",
+      "url": "http://127.0.0.1:40621/?low&debug&level=2",
+      "tti_ms": 2467.5,
+      "tti_bound_ms": 22.8,
+      "tti_raf_tick_ms": 2794.7,
+      "first_frame_log_ms": 2446,
+      "frames": 46,
+      "cpu_ms": {
+        "p50": 7.1,
+        "p95": 10.9,
+        "p99": 15.5,
+        "max": 15.5,
+        "p50_ci95": [
+          6.4,
+          7.5
+        ]
+      },
+      "frame_interval_ms": {
+        "p50": 450,
+        "p95": 633.4
+      },
+      "cpuframe_log_p50_ms": 5.5,
+      "console_errors": {
+        "count": 0,
+        "first": []
+      },
+      "panics": 0,
+      "workload_ok": true,
+      "workload": {
+        "casts": {
+          "1": 3,
+          "2": 3,
+          "3": 3,
+          "4": 3
+        },
+        "burning_max": 0,
+        "yaw_deg": 1431.24,
+        "steps": 29,
+        "resets": 0
+      },
+      "device_pixel_ratio": 1,
+      "visibility": {
+        "samples": 25,
+        "hidden": 0,
+        "unfocused": 0,
+        "hidden_events": 0
+      },
+      "canvas": {
+        "w": 1280,
+        "h": 720,
+        "luma_mean": 168.64,
+        "luma_stddev": 29.79,
+        "distinct_colors": 641,
+        "blank": false
+      },
+      "throttle_applied": true,
+      "throttle_verified": true,
+      "throttle_calibration": {
+        "rate": 1,
+        "iterations": 126811146,
+        "pairs_ms": [
+          [
+            161.6,
+            168.2
+          ],
+          [
+            150.6,
+            160
+          ],
+          [
+            161.9,
+            163.2
+          ],
+          [
+            159,
+            162.6
+          ],
+          [
+            169.1,
+            162.9
+          ]
+        ],
+        "ratio": 0.98,
+        "ok": true
+      },
+      "valid": false,
+      "invalid_reasons": [
+        "GL call counting on (diagnostic hook)"
+      ],
+      "throttle_rate": 1,
+      "contexts": [
+        "webgl2"
+      ],
+      "sample_s": 20.9,
+      "gl_calls": {
+        "frames": 46,
+        "per_frame": 1334.96,
+        "draws_per_frame": 25.74,
+        "top": {
+          "texParameteri": 247.04,
+          "bindSampler": 140.22,
+          "disable": 129.39,
+          "activeTexture": 124.57,
+          "bindTexture": 124.57,
+          "bindBuffer": 117.17,
+          "enableVertexAttribArray": 55.57,
+          "vertexAttribPointer": 55.57,
+          "vertexAttribDivisor": 55.57,
+          "bindBufferRange": 47.41
+        }
+      },
+      "load_avg": {
+        "start": [
+          1.85,
+          2.49,
+          3.29
+        ],
+        "end": [
+          2.58,
+          2.61,
+          3.31
+        ]
+      },
+      "load_own_estimate": {
+        "start": 0,
+        "end": 1.34
+      },
+      "busy_procs": {
+        "start": [],
+        "end": []
+      },
+      "load_gate": {
+        "limit": 2,
+        "ok": true,
+        "allowed": false,
+        "load1_busy": null,
+        "others": {
+          "start": 1.85,
+          "end": 1.24
+        }
+      },
+      "boot_ms": 45,
+      "wasm_response_end_ms": 162.2,
+      "startup_log_ms": 528,
+      "tti_phases": {
+        "fetch_ms": 162.2,
+        "compile_init_ms": 365.8,
+        "first_frame_ms": 1918,
+        "to_interactive_ms": 21.5
+      },
+      "quiet_wait": {
+        "waited_s": 0,
+        "quiet": true
+      }
+    }
+  },
+  "bars": {
+    "b3_brotli_mb": 15,
+    "b3_tti_ms": 8000,
+    "b2_cpu_p50_ms": 16,
+    "b2_mac_p5_fps": 55
+  },
+  "verdict": {
+    "B3": {
+      "size": {
+        "value": 3.632,
+        "threshold": 15,
+        "pass": true
+      },
+      "tti": {
+        "value": null,
+        "threshold": 8000,
+        "pass": null,
+        "skipped": true
+      },
+      "tti_low_4x_ms": null
+    },
+    "B2": {
+      "cpu": {
+        "value": null,
+        "threshold": 16,
+        "pass": null,
+        "skipped": true
+      },
+      "mac": "not measured here; see docs/loop/mac-perf.md"
+    }
+  },
+  "partial": true,
+  "valid": false,
+  "pass": false,
+  "elapsed_s": 93.3,
+  "reruns": []
+}

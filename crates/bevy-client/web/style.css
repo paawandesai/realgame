@@ -46,6 +46,14 @@ canvas.hover-fire { cursor: pointer; }
 #firefinder .ff-flame { width: 28px; height: 36px; background: radial-gradient(circle at 50% 70%, #ffe36a, var(--fire) 55%, #b02a00);
   clip-path: polygon(50% 0, 72% 30%, 92% 55%, 85% 85%, 50% 100%, 15% 85%, 8% 55%, 30% 35%, 40% 18%); }
 @keyframes ffpulse { from { scale: 1; } to { scale: 1.1; } }
+/* I-035: pointing at the open exit arch, the flame becomes an ice-blue arch. */
+#firefinder.exit .ff-flame { background: linear-gradient(#e8f8ff, #8fd4ff); border-radius: 14px 14px 2px 2px; clip-path: none; }
+/* I-035: the Sprout picture beside a level-2 caption (GS-17, GS-20). Static. */
+#capicon { position: absolute; bottom: calc(170px * var(--ui)); left: 50%; transform: translateX(-50%); width: calc(72px * var(--ui)); height: calc(72px * var(--ui));
+  background: var(--panel) no-repeat center / 70%; border-radius: 50%; pointer-events: none; }
+#capicon[data-icon="freeze"] { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24' stroke='%23bdeaff' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M0-10V10M-8.7-5L8.7 5M-8.7 5L8.7-5M-3-8L0-5L3-8M-3 8L0 5L3 8'/%3E%3C/svg%3E"); }
+#capicon[data-icon="melt"] { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C9 6 7 8 7 11a5 5 0 0 0 10 0c0-3-2-5-5-9z' fill='%23ff8a2a'/%3E%3Cpath d='M12 15c-2 3-3 4-3 5.5a3 3 0 0 0 6 0c0-1.5-1-2.5-3-5.5z' fill='%235fb4ff'/%3E%3C/svg%3E"); }
+#capicon[data-icon="wrong"] { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' stroke='%23ff6b6b' stroke-width='3.4' stroke-linecap='round'%3E%3Cpath d='M6 6L18 18M18 6L6 18'/%3E%3C/svg%3E"); }
 #warning { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(170, 30, 20, 0.88); padding: 8px 16px; border-radius: 12px; text-align: center; font-weight: 700; font-size: calc(18px * var(--ui)); max-width: calc(100vw - 28px); box-sizing: border-box; animation: pulse 1s ease-in-out infinite alternate; }
 #warning .meter { margin: 6px auto 0; height: 8px; width: 260px; max-width: 100%; background: rgba(255,255,255,0.25); border-radius: 4px; overflow: hidden; }
 #warning .fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffd34a, #ff5a1a); }
