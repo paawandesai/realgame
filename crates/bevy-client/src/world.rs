@@ -117,6 +117,10 @@ pub(crate) fn solid_obj(o: &Obj) -> bool {
         // Level 3: a burning gas vent is too hot to pass; the floor is never solid.
         Kind::GasVent => o.burning,
         Kind::Hollow => false,
+        // Level 4: the crate blocks the doorway until the balloon lifts it;
+        // the balloon floats over head height and never blocks.
+        Kind::Crate => !o.lifted,
+        Kind::Balloon => false,
         _ => true,
     }
 }

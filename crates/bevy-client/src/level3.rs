@@ -245,13 +245,31 @@ pub fn layout() -> Layout {
 }
 
 /// I-036: the arch in the north wall to the Crystal Lab, shut until the
-/// lantern is reached (the same place as level 2's north arch).
+/// lantern is reached (the same place as level 2's north arch, so its closed
+/// door is `level2::next_door()`).
 pub const NEXT_ARCH: (f32, f32) = (0.0, -22.6);
+/// Where the player arrives back from the Crystal Lab (feet), facing +z: in
+/// front of the north arch, out of its reach.
+pub const ARRIVE_NORTH: Vec3 = Vec3::new(0.0, 0.0, -20.4);
 
 /// I-036: the Marsh as the player left it, for the walk back from the
-/// Crystal Lab. Contract stub.
+/// Crystal Lab: both hollows filled with the game's own CO2 rule (so every
+/// flame is out and the haze shows), and the lantern counts as reached (the
+/// win is latched, so it cannot be won again).
 pub fn solved(w: &mut chem::World) {
-    let _ = w;
+    let mut ev = Vec::new();
+    for h in 0..w.objs.len() {
+        if w.objs[h].kind != Kind::Hollow {
+            continue;
+        }
+        for _ in 0..8 {
+            if w.objs[h].co2 >= 1.0 {
+                break;
+            }
+            w.apply(h, Spell::Foam, &mut ev);
+        }
+    }
+    w.reach();
 }
 
 /// Each hollow's CO2 fill, dip first (`pools`); empty outside level 3.
@@ -503,6 +521,40 @@ pub fn build(
                 .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4))
                 .with_scale(Vec3::new(0.6, 0.6, 0.5)),
         );
+    }
+
+    // I-036: the way on, the north arch to the Crystal Lab (solid posts and
+    // lintel; the door panel glows once the lantern is reached), with a
+    // crystal on its lintel.
+    {
+        let (x, z) = NEXT_ARCH;
+        for dx in [-1.75f32, 1.75] {
+            b.block(
+                Vec3::new(x + dx, 1.75, z - 0.4),
+                Vec3::new(0.5, 3.5, 0.7),
+                &rock,
+            );
+        }
+        b.piece(
+            &cube,
+            &rock,
+            Transform::from_xyz(x, 3.7, z - 0.4).with_scale(Vec3::new(4.0, 0.5, 0.8)),
+        );
+        let crystal = world::glow(materials, Color::srgb(0.62, 0.45, 1.0), 2.2);
+        b.piece(
+            &cone,
+            &crystal,
+            Transform::from_xyz(x, 4.3, z - 0.4).with_scale(Vec3::new(0.4, 0.8, 0.4)),
+        );
+        let closed = world::toon(materials, Color::srgb(0.22, 0.24, 0.32));
+        b.commands.spawn((
+            Mesh3d(cube.clone()),
+            MeshMaterial3d(closed),
+            Transform::from_xyz(x, 1.5, z - 0.5).with_scale(Vec3::new(3.0, 3.0, 0.12)),
+            NotShadowCaster,
+            crate::level2::NextDoor,
+            LevelRoot,
+        ));
     }
 
     // The boardwalk: planks from the arch to the clearing, darker in the low

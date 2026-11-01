@@ -55,8 +55,9 @@ use player::Player;
 use realgame_sim::bench as simbench;
 use world::{ArchDoor, ArchMats, Chem, Colliders, Kit, LevelRoot};
 
-/// Which level is loaded (I-035): 1, the courtyard, 2, the Frozen Gate, or
-/// 3, the Marsh (I-037). `cleared1` and `cleared2` last the page load: once a
+/// Which level is loaded (I-035): 1, the courtyard, 2, the Frozen Gate, 3,
+/// the Marsh (I-037), or 4, the Crystal Lab (I-036). `cleared1`, `cleared2`
+/// and `cleared3` last the page load: once a
 /// level is won its way on stays open. `pending` asks `levels` to switch on
 /// this frame.
 #[derive(Resource, Debug, Clone, Default)]
@@ -64,6 +65,7 @@ struct Level {
     n: u8,
     cleared1: bool,
     cleared2: bool,
+    cleared3: bool,
     pending: Option<u8>,
 }
 
@@ -76,11 +78,13 @@ impl Level {
 
     /// I-037: the way on to the next level is open (`nextOpen`): level 1's
     /// exit (the old rule), level 2's north arch once its lantern is reached
-    /// (or once cleared); level 3 has no way on yet.
+    /// (or once cleared), and (I-036) level 3's the same way; level 4 has no
+    /// way on yet.
     fn next_open(&self, w: &chem::World) -> bool {
         match self.n {
             1 => self.exit_open(w),
             2 => self.cleared2 || w.outcome() == Outcome::Won,
+            3 => self.cleared3 || w.outcome() == Outcome::Won,
             _ => false,
         }
     }
@@ -523,9 +527,11 @@ fn main() {
             n: 1,
             cleared1: false,
             cleared2: false,
+            cleared3: false,
             pending: match param("level").as_deref() {
                 Some("2") => Some(2),
                 Some("3") => Some(3),
+                Some("4") => Some(4),
                 _ => None,
             },
         })
@@ -543,6 +549,7 @@ fn main() {
                 sync_visuals,
                 level_visuals,
                 level3_visuals,
+                level4_visuals,
                 viewmodel,
                 fx::update_fx,
                 publish,
@@ -1049,7 +1056,8 @@ fn control(
                 Some("1") => level.pending = Some(1),
                 Some("2") => level.pending = Some(2),
                 Some("3") => level.pending = Some(3),
-                _ => warn!("{c:?}: level 1, 2 or 3"),
+                Some("4") => level.pending = Some(4),
+                _ => warn!("{c:?}: level 1, 2, 3 or 4"),
             },
             // Settings from the pause menu (not debug-only).
             Some("set") => {
@@ -1109,8 +1117,9 @@ fn control(
     }
     // I-037: reaching the Marsh's lantern stops the walk, so held keys do
     // not carry the player into it. A fresh press of a movement key walks
-    // again (to the arch); a scripted `move` does not.
-    let won3 = level.n == 3 && chem.world.outcome() == Outcome::Won;
+    // again (to the arch); a scripted `move` does not. I-036: the same at
+    // the Crystal Lab's lantern.
+    let won3 = level.n >= 3 && chem.world.outcome() == Outcome::Won;
     if !won3 {
         *win_stop = None;
     } else if win_stop.is_none() {
@@ -1154,6 +1163,10 @@ fn control(
         }
         // I-037: level 2's north arch is shut until its lantern is reached.
         if level.n == 2 && !level.next_open(&chem.world) {
+            solids.extend(player::boxes([&level2::next_door()]));
+        }
+        // I-036: the Marsh's north arch (the same place) until its lantern.
+        if level.n == 3 && !level.next_open(&chem.world) {
             solids.extend(player::boxes([&level2::next_door()]));
         }
         // Level 2: a bridge that melts under the player moves them to a bank.
@@ -1201,7 +1214,12 @@ fn reset(chem: &mut Chem, game: &mut Game, player: &mut Player, level: u8) {
         epoch: game.epoch.wrapping_add(1),
         ..default()
     };
-    if level == 3 {
+    if level == 4 {
+        player.pos = level4::START;
+        game.say(
+            "The Crystal Lab. Split water to fill the balloon, lift the crate, reach the lantern.",
+        );
+    } else if level == 3 {
         player.pos = level3::START;
         game.say("The Marsh. Put out the gas flames, cross the boardwalk, reach the lantern.");
     } else if level == 2 {
@@ -1250,6 +1268,9 @@ fn levels(
     if level.n == 2 && chem.world.outcome() == Outcome::Won {
         level.cleared2 = true;
     }
+    if level.n == 3 && chem.world.outcome() == Outcome::Won {
+        level.cleared3 = true;
+    }
     if level.pending.is_none() && !game.paused {
         let dist = |p: (f32, f32)| Vec2::new(player.pos.x - p.0, player.pos.z - p.1).length();
         let playing = chem.world.outcome() == Outcome::Playing;
@@ -1270,10 +1291,21 @@ fn levels(
                     chem.world.reach();
                 }
             }
-            _ => {
+            3 => {
                 if dist(level3::BACK_ARCH) < world::ARCH_REACH {
                     level.pending = Some(2);
+                } else if level.next_open(&chem.world)
+                    && dist(level3::NEXT_ARCH) < world::ARCH_REACH
+                {
+                    level.pending = Some(4);
                 } else if dist(level3::LANTERN) < level3::LANTERN_REACH && playing {
+                    chem.world.reach();
+                }
+            }
+            _ => {
+                if dist(level4::BACK_ARCH) < world::ARCH_REACH {
+                    level.pending = Some(3);
+                } else if dist(level4::LANTERN) < level4::LANTERN_REACH && playing {
                     chem.world.reach();
                 }
             }
@@ -1288,6 +1320,7 @@ fn levels(
     let (c, ch) = match n {
         2 => level2::build(&mut commands, &kit, &mut materials, &mut images),
         3 => level3::build(&mut commands, &kit, &mut materials, &mut images),
+        4 => level4::build(&mut commands, &kit, &mut materials, &mut images),
         _ => {
             let (_, c, ch) = world::build(&mut commands, &mut meshes, &mut materials, &mut images);
             (c, ch)
@@ -1310,6 +1343,15 @@ fn levels(
         player.pos = level2::ARRIVE_NORTH;
         player.yaw = std::f32::consts::PI;
         game.say("Back at the Frozen Gate. The stream is frozen and the gate is open.");
+    }
+    // I-036: back from the Crystal Lab, the Marsh as it was left (both
+    // hollows full of CO2, the lantern reached), at its north arch.
+    if n == 3 && from == 4 {
+        level3::solved(&mut chem.world);
+        level.cleared3 = true;
+        player.pos = level3::ARRIVE_NORTH;
+        player.yaw = std::f32::consts::PI;
+        game.say("Back in the Marsh. The hollows are full of CO₂, so the gas flames stay out.");
     }
     info!("LEVEL {n}");
 }
@@ -1398,7 +1440,8 @@ type HazeParts = (
 );
 
 /// I-037: level 3's flames, haze and bubbles (`level3::sync`), and in level 2
-/// after the win the finder's bearing toward the open north arch (as level 1's
+/// (and, I-036, level 3) after the win the finder's bearing toward the open
+/// north arch (as level 1's
 /// toward its exit arch; `aim_and_cast` leaves it unset there, since nothing
 /// burns).
 #[allow(clippy::too_many_arguments)]
@@ -1430,8 +1473,12 @@ fn level3_visuals(
             &mut fx,
         );
     }
-    if level.n == 2 && chem.world.outcome() == Outcome::Won && level.next_open(&chem.world) {
+    if (level.n == 2 || level.n == 3)
+        && chem.world.outcome() == Outcome::Won
+        && level.next_open(&chem.world)
+    {
         let eye = player.eye();
+        // The north arch is in the same place in levels 2 and 3.
         let c = Vec3::new(level2::NEXT_ARCH.0, 1.5, level2::NEXT_ARCH.1);
         let aspect = settings.aspect.max(0.1);
         let fov_y = feel::vfov_for(settings.hfov, aspect);
@@ -1446,6 +1493,66 @@ fn level3_visuals(
         game.fire_elev = elev;
         game.fire_off = cues::off_screen(bearing, elev, hfov, fov_y);
     }
+}
+
+type CrateParts = (&'static mut Transform, &'static mut level4::CrateBody);
+type BalloonParts = (&'static mut Transform, &'static level4::BalloonBody);
+type TubeParts = (
+    &'static mut Transform,
+    &'static mut Visibility,
+    &'static level4::TubeGas,
+);
+
+/// I-036: level 4's crate ride, balloon and tube columns (`level4::sync`).
+fn level4_visuals(
+    time: Res<Time>,
+    settings: Res<Settings>,
+    game: Res<Game>,
+    level: Res<Level>,
+    mut chem: ResMut<Chem>,
+    mut fx: ResMut<Fx>,
+    mut crates: Query<
+        CrateParts,
+        (
+            Without<level4::BalloonBody>,
+            Without<level4::TubeGas>,
+            Without<fx::Particle>,
+        ),
+    >,
+    mut balloons: Query<
+        BalloonParts,
+        (
+            Without<level4::CrateBody>,
+            Without<level4::TubeGas>,
+            Without<fx::Particle>,
+        ),
+    >,
+    mut tubes: Query<
+        TubeParts,
+        (
+            Without<level4::CrateBody>,
+            Without<level4::BalloonBody>,
+            Without<fx::Particle>,
+        ),
+    >,
+) {
+    if level.n != 4 {
+        return;
+    }
+    let dt = if game.paused {
+        0.0
+    } else {
+        clock::frame_dt(time.delta_secs())
+    };
+    level4::sync(
+        &mut chem,
+        dt,
+        settings.low,
+        &mut crates,
+        &mut balloons,
+        &mut tubes,
+        &mut fx,
+    );
 }
 
 /// Best target along a ray: what it hits, or (with assist) the target
@@ -2075,6 +2182,7 @@ fn projectiles(
                 let line = match level.n {
                     2 => level2::caption(last.kind, kind, band),
                     3 => level3::caption(last.kind, kind, band),
+                    4 => level4::caption(last.kind, kind, band),
                     _ => None,
                 };
                 match line {
@@ -2139,6 +2247,12 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>, level: Res
                 fx.burst(P::Smoke, top, 8, 1.0, 0.4);
             }
             EventKind::Flicker(Spell::Water) => fx.burst(P::Steam, top, 10, 1.5, 0.45),
+            // I-036: the hydrogen pop (a flash, then a puff of water vapour).
+            EventKind::Popped => {
+                let c = chem.bounds(i).center();
+                fx.burst(P::Fire, c, 24, 3.5, 0.25);
+                fx.burst(P::Steam, c, 12, 1.5, 0.5);
+            }
             _ => {}
         }
         if e.kind == EventKind::Reseeded {
@@ -2167,6 +2281,13 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>, level: Res
         }
     }
     match chem.world.outcome() {
+        Outcome::Won if level.n == 4 => {
+            if !game.caption.starts_with("You lit up") {
+                game.say(
+                    "You lit up the Crystal Lab! Electricity split water into hydrogen and oxygen, and hydrogen lifted the crate.",
+                );
+            }
+        }
         Outcome::Won if level.n == 3 => {
             if !game.caption.starts_with("You cleared") {
                 game.say(
@@ -2433,7 +2554,7 @@ fn publish(
     let opt = |o: Option<usize>| o.map_or(-1, |v| v as i64);
     let risk = w.greenhouse_risk().unwrap_or((chem::AMBIENT_C, false));
     let json = format!(
-        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\",\"level\":{},\"exitOpen\":{},\"capIcon\":\"{}\",\"fxBeads\":{},\"nextOpen\":{},\"pools\":[{}],\"ventsLit\":{}}}",
+        "{{\"frame\":{},\"tick\":{},\"locked\":{},\"paused\":{},\"spell\":{},\"spellName\":\"{}\",\"formula\":\"{}\",\"aimObj\":{},\"assisted\":{},\"hover\":{},\"extinguished\":{},\"goal\":{},\"burning\":{},\"ghTemp\":{:.0},\"ghDanger\":{},\"outcome\":\"{outcome}\",\"caption\":\"{}\",\"captionId\":{},\"casts\":{},\"impacts\":{},\"pos\":[{:.3},{:.3},{:.3}],\"yaw\":{:.2},\"pitch\":{:.2},\"onIce\":{},\"low\":{},\"sens\":{},\"assist\":{},\"fov\":{:.2},\"sway\":{},\"cam\":[{:.3},{:.3},{:.3}],\"vm\":[{:.4},{:.4},{:.4}],\"cooldown\":{:.3},\"cooldownMax\":{},\"hitKind\":\"{}\",\"hitX\":{:.4},\"hitY\":{:.4},\"hitFrame\":{},\"objs\":[{}],\"gameTime\":{:.3},\"dt\":{:.4},\"clicks\":{},\"firesLeft\":{},\"nearFire\":{},\"fireBearing\":{:.1},\"fireElev\":{:.1},\"fireOff\":{},\"streams\":{},\"fxWater\":{},\"fireInView\":{},\"progress\":{},\"progRev\":{},\"progSave\":\"{}\",\"level\":{},\"exitOpen\":{},\"capIcon\":\"{}\",\"fxBeads\":{},\"nextOpen\":{},\"pools\":[{}],\"ventsLit\":{},\"balloon\":{:.3},\"crateUp\":{},\"tubes\":[{:.5},{:.5}]}}",
         *frame,
         w.ticks,
         game.locked,
@@ -2501,7 +2622,11 @@ fn publish(
             .map(|p| format!("{p:.3}"))
             .collect::<Vec<_>>()
             .join(","),
-        level3::vents_lit(w)
+        level3::vents_lit(w),
+        level4::balloon(w),
+        level4::crate_up(w),
+        level4::tubes(w)[0],
+        level4::tubes(w)[1]
     );
     bridge::publish(&json);
 }
