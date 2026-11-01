@@ -94,6 +94,17 @@ pub fn craft(pack: &mut Pack, id: &str) -> Result<(), CraftError> {
     Err(CraftError::UnknownRecipe)
 }
 
+/// Material ids from `content/materials.json` (the same rows as
+/// `realgame_voxel::mat`, which this crate cannot depend on; the client's
+/// `story` tests that they match), plus the Furnace, appended as row 27.
+pub mod mat {
+    pub const DIRT: u8 = 1;
+    pub const STONE: u8 = 4;
+    pub const WOOD: u8 = 7;
+    pub const COAL_ORE: u8 = 15;
+    pub const FURNACE: u8 = 27;
+}
+
 /// A quest step: 0 the intro, 1-7 the steps in section 7, 8 the ending.
 pub type Step = u8;
 /// Steps after the intro.
@@ -142,6 +153,13 @@ impl Quest {
     pub fn on(&mut self, event: QuestEvent) -> Option<Step> {
         let _ = event;
         None
+    }
+
+    /// A quest already at `step` (the `quest <n>` debug command and
+    /// `?biome=` seeding). Stub.
+    pub fn at(step: Step) -> Quest {
+        let _ = step;
+        Quest { step: 0 }
     }
 
     /// The current step (0-8).
@@ -198,6 +216,59 @@ pub fn usable(def: &SpellDef, band: Tier, stage: u8) -> bool {
     false
 }
 
+/// Paawan's partial mastery (2026-11-01): in one run, a spell becomes
+/// Practised after [`PRACTISE_CASTS`] correct worked casts, which shortens
+/// its worked cast to a one-step confirm. Full Mastered stays the 2-day rule
+/// (I-030). Biome gates need the previous biome's spell Practised.
+pub mod practice {
+    /// Correct worked casts in a run that make a spell Practised.
+    pub const PRACTISE_CASTS: u8 = 3;
+    /// Spells in `Spell::ALL` order: Fire, Water, Frost, CO2.
+    pub const SPELLS: usize = 4;
+
+    /// Correct worked casts per spell in this run (not saved).
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct RunPractice {
+        pub casts: [u8; SPELLS],
+    }
+
+    impl RunPractice {
+        /// Counts one correct worked cast of `spell`; returns true the moment
+        /// it becomes Practised in this run. Stub.
+        pub fn record(&mut self, spell: usize) -> bool {
+            let _ = spell;
+            false
+        }
+
+        /// Practised in this run. Stub.
+        pub fn practised(&self, spell: usize) -> bool {
+            let _ = spell;
+            false
+        }
+
+        /// The stage the worked-cast route should use: the saved stage, raised
+        /// to Practised (2) once practised in this run; never lowered, never
+        /// raised to Mastered (3). Stub.
+        pub fn stage(&self, spell: usize, saved: u8) -> u8 {
+            let _ = spell;
+            saved
+        }
+    }
+
+    /// The spell a biome's gate needs Practised (the previous biome's spell),
+    /// or `None` for an ungated biome. Stub.
+    pub fn gate_spell(biome: &str) -> Option<usize> {
+        let _ = biome;
+        None
+    }
+
+    /// Whether the way into `biome` is open for this run. Stub.
+    pub fn biome_open(biome: &str, run: &RunPractice) -> bool {
+        let _ = (biome, run);
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,25 +313,122 @@ mod tests {
 
     /// C1: 64 stack limit, leftover on full, `take` is all-or-nothing.
     #[test]
-    #[ignore = "Lane C (Sun night): body with Pack"]
     fn pack_stacks_and_overflows() {
-        todo!("C1")
+        let dirt = Item::Block(mat::DIRT);
+        let mut p = Pack::default();
+        // 64 stack limit: 100 dirt fills one slot and starts a second.
+        assert_eq!(p.add(dirt, 100), 0);
+        assert_eq!(p.count(dirt), 100);
+        assert_eq!(p.slots[0], Some(Stack { item: dirt, n: 64 }));
+        assert_eq!(p.slots[1], Some(Stack { item: dirt, n: 36 }));
+        // Tools and keys are 1 per slot.
+        assert_eq!(p.add(Item::Pick, 1), 0);
+        assert_eq!(p.add(Item::Pick, 1), 0);
+        assert_eq!(p.count(Item::Pick), 2);
+        assert_eq!(p.slots.iter().flatten().filter(|s| s.item == Item::Pick).count(), 2);
+        // Fill every slot, then the leftover comes back.
+        let stone = Item::Block(mat::STONE);
+        let free = p.slots.iter().filter(|s| s.is_none()).count() as u16;
+        assert_eq!(p.add(stone, free * STACK_MAX + 10), 10, "leftover on full");
+        assert!(p.slots.iter().all(Option::is_some));
+        assert_eq!(p.add(Item::Torch, 3), 3, "a full pack takes nothing new");
+        // `take` is all or nothing.
+        let before = p.clone();
+        assert!(!p.take(dirt, 101), "more than there is");
+        assert_eq!(p, before, "a failed take changes nothing");
+        assert!(p.take(dirt, 70));
+        assert_eq!(p.count(dirt), 30);
+        assert!(p.take(dirt, 30));
+        assert_eq!(p.count(dirt), 0);
+        assert!(p.slots.iter().all(|s| s.is_none_or(|s| s.item != dirt)), "emptied slots are freed");
+        // JSON: one entry per filled slot.
+        let mut q = Pack::default();
+        q.add(Item::Block(mat::COAL_ORE), 2);
+        q.add(Item::KilnSpark, 1);
+        assert_eq!(q.to_json(), r#"[{"item":"coal_ore","n":2},{"item":"kiln_spark","n":1}]"#);
     }
 
     /// C2: `craft("torch")` fails with `NotEnough{coal}` and leaves the pack
     /// unchanged; with both it gives 4 torches.
     #[test]
-    #[ignore = "Lane C (Sun night): body with craft"]
     fn torch_needs_wood_and_coal() {
-        todo!("C2")
+        let (wood, coal) = (Item::Block(mat::WOOD), Item::Block(mat::COAL_ORE));
+        let mut p = Pack::default();
+        p.add(wood, 1);
+        let before = p.clone();
+        assert_eq!(
+            craft(&mut p, "torch"),
+            Err(CraftError::NotEnough { item: coal, have: 0, need: 1 })
+        );
+        assert_eq!(p, before, "a refused craft leaves the pack unchanged");
+        p.add(coal, 1);
+        assert_eq!(craft(&mut p, "torch"), Ok(()));
+        assert_eq!(p.count(Item::Torch), 4);
+        assert_eq!((p.count(wood), p.count(coal)), (0, 0));
+        assert_eq!(craft(&mut p, "nonsense"), Err(CraftError::UnknownRecipe));
+        // The furnace: 8 stone.
+        let r = RECIPES.iter().find(|r| r.id == "furnace").expect("furnace recipe");
+        assert_eq!(r.needs, &[(Item::Block(mat::STONE), 8)]);
+        assert_eq!(r.gives, (Item::Block(mat::FURNACE), 1));
+        for r in RECIPES {
+            assert!(!r.source.is_empty(), "{} has a source", r.id);
+        }
     }
 
     /// C3: events out of order do not skip steps; repeating an event does not
     /// complete a step twice.
     #[test]
-    #[ignore = "Lane C (Sun night): body with the quest table"]
     fn quest_advances_only_in_order() {
-        todo!("C3")
+        use QuestEvent as E;
+        let coal = Item::Block(mat::COAL_ORE);
+        let chain = [
+            E::IntroDone,
+            E::WorkshopOut { by_water: true },
+            E::CrossedFord,
+            E::GateMelted,
+            E::Holding { item: coal, total: 1 },
+            E::CrossedHollow,
+            E::Holding { item: Item::KilnSpark, total: 1 },
+            E::Invented { relights: true },
+        ];
+        let mut q = Quest::new();
+        // Out of order: a later event does nothing at the intro.
+        for e in &chain[1..] {
+            assert_eq!(q.on(*e), None, "{e:?} before the intro");
+        }
+        assert_eq!(q.step(), 0);
+        for (k, e) in chain.iter().enumerate() {
+            // Every later event is ignored before this one.
+            for later in &chain[k + 1..] {
+                assert_eq!(q.on(*later), None, "{later:?} at step {k}");
+            }
+            assert_eq!(q.on(*e), Some(k as Step), "{e:?} completes step {k}");
+            assert_eq!(q.step(), k as Step + 1);
+            // Repeating it does not complete a step twice.
+            assert_eq!(q.on(*e), None, "{e:?} again");
+            assert_eq!(q.step(), k as Step + 1);
+        }
+        assert_eq!(q.step(), 8, "the ending");
+        // The workshop counts only when water put a fire out; a fizzled
+        // invention does not finish.
+        let mut q = Quest::new();
+        q.on(E::IntroDone);
+        assert_eq!(q.on(E::WorkshopOut { by_water: false }), None);
+        assert_eq!(q.on(E::Holding { item: coal, total: 0 }), None);
+        let mut q = Quest::new();
+        for e in &chain[..7] {
+            q.on(*e);
+        }
+        assert_eq!(q.step(), 7);
+        assert_eq!(q.on(E::Invented { relights: false }), None);
+        assert_eq!(q.step(), 7);
+        // Holding the wrong item at the coal step does nothing.
+        let mut q = Quest::new();
+        for e in &chain[..4] {
+            q.on(*e);
+        }
+        assert_eq!(q.on(E::Holding { item: Item::Block(mat::DIRT), total: 5 }), None);
+        assert_eq!(q.step(), 4);
     }
 
     /// C4: `{Coal, O2Flask}` -> `carbon_combustion`, relights; `{H2Balloon,
@@ -278,16 +446,83 @@ mod tests {
     /// C5: Fire at Sprout is usable while unknown; Frost at Seedling is usable
     /// only from Learning.
     #[test]
-    #[ignore = "Lane C (Sun night): body with usable"]
     fn usable_follows_band() {
-        todo!("C5")
+        let book = crate::spellbook::SpellBook::load(&crate::reactions::ReactionBook::load());
+        let def = |id: &str| book.by_id(id).expect(id).clone();
+        let (fire, frost) = (def("fire"), def("frost"));
+        assert!(usable(&fire, Tier::Sprout, 0), "Fire at Sprout: usable while unknown");
+        assert!(!usable(&frost, Tier::Seedling, 0), "Frost at Seedling: not while unknown");
+        for stage in 1..=3 {
+            assert!(usable(&frost, Tier::Seedling, stage), "Frost at Seedling, stage {stage}");
+        }
     }
 
     /// C6: every step has a line for all four bands and for no band, at most
     /// 90 characters.
     #[test]
-    #[ignore = "Lane C (Sun night): body with the quest lines"]
     fn quest_lines_exist_per_band() {
-        todo!("C6")
+        let bands = [None, Some(Tier::Sprout), Some(Tier::Seedling), Some(Tier::Apprentice), Some(Tier::Adept)];
+        for step in 1..=STEPS {
+            let q = Quest::at(step);
+            for b in bands {
+                let line = q.line(b);
+                assert!(!line.is_empty(), "step {step} {b:?}");
+                assert!(line.chars().count() <= 90, "step {step} {b:?}: {} chars", line.chars().count());
+                assert!(!line.chars().any(|c| c == '"' || c == '\\' || c.is_control()), "{line:?}");
+            }
+            assert_eq!(q.line(None), q.line(Some(Tier::Seedling)), "no band reads as Seedling");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Paawan's partial mastery (coordinator, 2026-11-01).
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn three_correct_worked_casts_make_a_spell_practised_in_the_run() {
+        use practice::*;
+        let mut run = RunPractice::default();
+        assert!(!run.practised(1));
+        assert!(!run.record(1));
+        assert!(!run.record(1));
+        assert!(!run.practised(1), "two casts are not enough");
+        assert!(run.record(1), "the third makes Water Practised");
+        assert!(run.practised(1));
+        assert!(!run.record(1), "it becomes Practised once");
+        assert!(!run.practised(2), "other spells are separate");
+        // The route stage: raised to Practised, never lowered, never Mastered.
+        assert_eq!(run.stage(1, 1), 2, "Learning -> Practised in this run");
+        assert_eq!(run.stage(1, 3), 3, "Mastered stays Mastered");
+        assert_eq!(run.stage(2, 1), 1, "an unpractised spell keeps its stage");
+        assert_eq!(run.stage(1, 0), 2);
+        assert_eq!(PRACTISE_CASTS, 3);
+        // Out-of-range spells are ignored.
+        assert!(!run.record(9));
+        assert!(!run.practised(9));
+    }
+
+    #[test]
+    fn biome_gates_need_the_previous_biomes_spell_practised() {
+        use practice::*;
+        // Village (Water) -> Frozen Fields (Frost) -> Marsh (CO2) -> Cave.
+        assert_eq!(gate_spell("village"), None);
+        assert_eq!(gate_spell("kiln"), None);
+        assert_eq!(gate_spell("frozen"), Some(1), "Water");
+        assert_eq!(gate_spell("marsh"), Some(2), "Frost");
+        assert_eq!(gate_spell("cave"), Some(3), "CO2");
+        let mut run = RunPractice::default();
+        assert!(biome_open("village", &run));
+        assert!(!biome_open("frozen", &run));
+        for _ in 0..3 {
+            run.record(1);
+        }
+        assert!(biome_open("frozen", &run));
+        assert!(!biome_open("marsh", &run), "Frost not practised yet");
+        for _ in 0..3 {
+            run.record(2);
+        }
+        assert!(biome_open("marsh", &run));
+        assert!(!biome_open("cave", &run));
+        assert!(biome_open("nowhere", &run), "an unknown biome is not gated");
     }
 }
