@@ -1,0 +1,5 @@
+PASS J beam is drawn tilted whenever the scale is not level ([1,2,2,1]) {"sc":{"level":"false","tilt":"1","transform":"matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 0, 0)","pans":["C 1, H 4, O 4","C 2, H 2, O 5"],"more":["",""],"mark":""},"reason":"The scale is not level. Atoms are never made or lost, so both sides need the same atoms."}
+PASS J N2O0(l) three times: every fizzle has a non-empty reason [{"code":"parse","diffs":[],"reason":"Use element symbols, numbers, + and an arrow."},{"code":"parse","diffs":[],"reason":"Use element symbols, numbers, + and an arrow."},{"code":"parse","diffs":[],"reason":"Use element symbols, numbers, + and an arrow."}]
+PASS J 0N2(l) (zero molecules) is not judged ok {"r0":{"n":4,"slot":3,"ok":false,"code":"parse","diffs":[],"other":0,"bad":"0","simplest":"","coef":0,"learned":false,"stage":"unknown"},"shown":"Use element symbols, numbers, + and an arrow."}
+RESULT 3/3
+exit 0
