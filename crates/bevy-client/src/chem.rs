@@ -438,7 +438,10 @@ impl World {
     }
 
     fn live_outcome(&self) -> Outcome {
-        if self
+        if self.goal == Goal::Reach {
+            // Won only through `reach`, which latches.
+            Outcome::Playing
+        } else if self
             .objs
             .iter()
             .any(|o| o.kind == Kind::Greenhouse && o.burning)
@@ -473,11 +476,20 @@ impl World {
             Spell::Fire => {
                 if o.is_water() {
                     if o.ice > 0.0 {
-                        o.ice = (o.ice - if o.wall { 0.34 } else { 0.5 }).max(0.0);
+                        let step = if o.wall || o.kind == Kind::Stream {
+                            ICE_MELT
+                        } else {
+                            0.5
+                        };
+                        o.ice = (o.ice - step).max(0.0);
                         o.temp = 0.0;
-                        if o.ice <= 0.0 {
-                            o.wall = false;
-                            o.kind = Kind::Puddle;
+                        if o.ice <= 1e-4 {
+                            o.ice = 0.0;
+                            // A stream stays a stream; a wall slumps into a puddle.
+                            if o.kind == Kind::IceWall {
+                                o.wall = false;
+                                o.kind = Kind::Puddle;
+                            }
                             o.temp = 5.0;
                             ev(EventKind::Melted);
                         } else {
@@ -550,7 +562,22 @@ impl World {
                     return;
                 }
                 o.temp = LN2_C;
-                if o.is_water() {
+                if o.kind == Kind::IceWall {
+                    // Cold does not rebuild a wall: it only chills the ice.
+                    ev(EventKind::Chilled);
+                } else if o.kind == Kind::Stream {
+                    if o.ice < 1.0 {
+                        o.ice = (o.ice + STREAM_FREEZE).min(1.0);
+                        if o.ice > 1.0 - 1e-4 {
+                            o.ice = 1.0;
+                            ev(EventKind::Froze);
+                        } else {
+                            ev(EventKind::Freezing);
+                        }
+                    } else {
+                        ev(EventKind::Chilled);
+                    }
+                } else if o.is_water() {
                     if o.ice < 1.0 {
                         o.ice = 1.0;
                         ev(EventKind::Froze);
@@ -568,6 +595,10 @@ impl World {
                 }
             }
             Spell::Foam => {
+                if matches!(o.kind, Kind::Stream | Kind::IceWall) {
+                    ev(EventKind::NoChange);
+                    return;
+                }
                 if !o.flammable() {
                     ev(EventKind::Smothered);
                     return;
@@ -683,7 +714,7 @@ impl World {
     /// fuel and that no spell has put out catches fire. With no such bush,
     /// the greenhouse is safe and the level is won.
     fn reseed(&mut self, events: &mut Vec<Event>) {
-        if self.burning() > 0 || self.extinguished >= GOAL_FIRES {
+        if self.goal == Goal::Reach || self.burning() > 0 || self.extinguished >= GOAL_FIRES {
             return;
         }
         let gh = self
@@ -1227,7 +1258,10 @@ mod tests {
             let mut ev = Vec::new();
             w.apply(0, spell, &mut ev);
             assert_eq!(kinds(&ev), vec![want], "{spell:?} on the liquid stream");
-            assert_eq!(w.objs[0].ice, 0.0, "{spell:?} must not change the stream's ice");
+            assert_eq!(
+                w.objs[0].ice, 0.0,
+                "{spell:?} must not change the stream's ice"
+            );
             assert!(solid(&w));
         }
         // Three Frost casts: 0.34, 0.68, then capped at 1.0.
@@ -1239,7 +1273,11 @@ mod tests {
             let mut ev = Vec::new();
             w.apply(0, Spell::Frost, &mut ev);
             assert_eq!(kinds(&ev), vec![want]);
-            assert!((w.objs[0].ice - ice).abs() < 1e-5, "ice {} want {ice}", w.objs[0].ice);
+            assert!(
+                (w.objs[0].ice - ice).abs() < 1e-5,
+                "ice {} want {ice}",
+                w.objs[0].ice
+            );
             assert_eq!(solid(&w), ice < 1.0, "solid while ice < 1 (ice {ice})");
         }
         assert_eq!(w.objs[0].ice, 1.0);
@@ -1264,7 +1302,11 @@ mod tests {
             let mut ev = Vec::new();
             w.apply(0, Spell::Fire, &mut ev);
             assert_eq!(kinds(&ev), vec![want]);
-            assert!((w.objs[0].ice - ice).abs() < 1e-5, "ice {} want {ice}", w.objs[0].ice);
+            assert!(
+                (w.objs[0].ice - ice).abs() < 1e-5,
+                "ice {} want {ice}",
+                w.objs[0].ice
+            );
             assert!(solid(&w), "solid again from the first Fire hit (ice {ice})");
             assert_eq!(w.objs[0].kind, Kind::Stream, "a stream stays a stream");
         }

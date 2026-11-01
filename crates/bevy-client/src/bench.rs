@@ -289,7 +289,13 @@ pub fn run(
             warn!("bench: ignored {line:?}: {why}");
         }
     }
-    let json = view(&bench, &progress.0, spells, at_bench(player.pos)).to_json();
+    let json = view(
+        &bench,
+        &progress.0,
+        spells,
+        at_bench(player.pos) && crate::bench_on(),
+    )
+    .to_json();
     if json != bench.last_json {
         bridge::publish_bench(&json);
         bench.last_json = json;

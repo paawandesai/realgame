@@ -140,11 +140,7 @@ pub fn layout() -> Layout {
     });
     // The lantern's plinth.
     let (lx, lz) = LANTERN;
-    solid(
-        &mut c,
-        Vec3::new(lx, 0.5, lz),
-        Vec3::new(0.4, 0.5, 0.4),
-    );
+    solid(&mut c, Vec3::new(lx, 0.5, lz), Vec3::new(0.4, 0.5, 0.4));
     let objs = vec![
         Obj::new(Kind::Stream, [0.0, zc], [h, (z1 - z0) / 2.0]),
         Obj::new(Kind::IceWall, [0.0, RIDGE_Z], [GATE_HALF_X, 0.5]),
@@ -173,8 +169,21 @@ pub fn layout() -> Layout {
 /// it, the bank landing to move them to: the nearer one, x clamped to the
 /// landing. `None` while the stream is frozen or the player is clear of it.
 pub fn bank_push(pos: Vec3, w: &chem::World) -> Option<Vec3> {
-    let _ = (pos, w);
-    None
+    let o = w.objs.iter().find(|o| o.kind == Kind::Stream)?;
+    if !world::solid_obj(o) {
+        return None;
+    }
+    let (z0, z1) = STREAM_Z;
+    let r = crate::player::RADIUS;
+    let inside = pos.z > z0 - r && pos.z < z1 + r && pos.y < STREAM_H;
+    inside.then(|| {
+        let z = if pos.z >= (z0 + z1) / 2.0 {
+            LANDING_SOUTH
+        } else {
+            LANDING_NORTH
+        };
+        Vec3::new(pos.x.clamp(-LANDING_X, LANDING_X), 0.0, z)
+    })
 }
 
 /// Level 2's caption for an event on `obj`, at the player's band (`None`
@@ -186,8 +195,85 @@ pub fn caption(
     obj: Kind,
     band: Option<Tier>,
 ) -> Option<(&'static str, &'static str)> {
-    let _ = (kind, obj, band);
-    None
+    use EventKind as E;
+    // 0 Sprout, 1 Seedling, 2 Apprentice (and no band), 3 Adept.
+    let k = match band {
+        Some(Tier::Sprout) => 0,
+        Some(Tier::Seedling) => 1,
+        Some(Tier::Apprentice) | None => 2,
+        Some(Tier::Adept) => 3,
+    };
+    let pick = |lines: [&'static str; 4], icon: &'static str| {
+        Some((lines[k], if k == 0 { icon } else { "" }))
+    };
+    // Sprout's line, then the one line every older band shares.
+    let two = |sprout: &'static str, rest: &'static str, icon: &'static str| {
+        pick([sprout, rest, rest, rest], icon)
+    };
+    match (kind, obj) {
+        (E::Freezing, Kind::Stream) => pick(
+            [
+                "Cold! The water is turning to ice.",
+                "See the drops skate? Liquid nitrogen makes a cushion of its own gas and rides on it.",
+                E::Freezing.caption(),
+                "Film boiling (Leidenfrost): a layer of N₂ gas insulates each 77 K drop and slows the heat flow. Freezing water must lose 6.01 kJ/mol.",
+            ],
+            "freeze",
+        ),
+        (E::Froze, Kind::Stream) => pick(
+            [
+                "Ice bridge! Now walk across.",
+                "The water froze into solid ice. A solid keeps its shape, so it holds you up.",
+                E::Froze.caption(),
+                "Frozen: H₂O(l) → H₂O(s) at 0 °C (273 K). Liquid nitrogen at 77 K is 196 K colder, so heat kept flowing out.",
+            ],
+            "freeze",
+        ),
+        (E::Melting, Kind::IceWall) => pick(
+            [
+                "Hot! The ice is melting.",
+                "Heat is melting the ice into water.",
+                E::Melting.caption(),
+                "Ice stays at 0 °C while it melts: the heat (6.01 kJ/mol) breaks up the solid instead of warming it.",
+            ],
+            "melt",
+        ),
+        (E::Melted, Kind::IceWall) => pick(
+            [
+                "The ice door melted! Go through.",
+                "The ice melted: solid ice became liquid water.",
+                E::Melted.caption(),
+                "Melted at 0 °C (273 K): H₂O(s) → H₂O(l). Same molecules, new state.",
+            ],
+            "melt",
+        ),
+        (E::Melting | E::Melted, Kind::Stream) => two(
+            "The bridge melted! Make it cold again.",
+            "The ice melted back into liquid water. Freeze it again to cross.",
+            "melt",
+        ),
+        (E::Chilled, Kind::Stream | Kind::IceWall) => two(
+            "Brrr! Cold makes ice colder. Try heat!",
+            "Cold cannot melt ice. Ice needs heat to turn into water.",
+            "wrong",
+        ),
+        (E::Steam, Kind::Stream) => two(
+            "Hot water is still water. Try cold!",
+            "Heat cannot freeze water. To make a solid, take heat away.",
+            "wrong",
+        ),
+        (E::Soaked, Kind::Stream | Kind::IceWall) => two(
+            "More water! Try cold or heat.",
+            "Adding water does not change its state. Heat melts ice, cold freezes water.",
+            "wrong",
+        ),
+        (E::NoChange, Kind::Stream | Kind::IceWall) => two(
+            "That is a gas. Try cold or heat.",
+            E::NoChange.caption(),
+            "wrong",
+        ),
+        _ => None,
+    }
 }
 
 /// The two ice crusts that grow from the banks inward as the stream freezes.
@@ -265,13 +351,21 @@ pub fn build(
     b.piece(
         &cube,
         &snow,
-        Transform::from_xyz(0.0, -0.25, 0.0).with_scale(Vec3::new(2.0 * h + 2.0, 0.5, 2.0 * h + 2.0)),
+        Transform::from_xyz(0.0, -0.25, 0.0).with_scale(Vec3::new(
+            2.0 * h + 2.0,
+            0.5,
+            2.0 * h + 2.0,
+        )),
     );
     for (z0, z1) in [(8.0f32, 22.0f32), (-8.0, 4.0), (-17.0, -8.0)] {
         b.piece(
             &cube,
             &path,
-            Transform::from_xyz(0.0, 0.01, (z0 + z1) / 2.0).with_scale(Vec3::new(3.0, 0.02, z1 - z0)),
+            Transform::from_xyz(0.0, 0.01, (z0 + z1) / 2.0).with_scale(Vec3::new(
+                3.0,
+                0.02,
+                z1 - z0,
+            )),
         );
     }
 
@@ -336,7 +430,11 @@ pub fn build(
         b.piece(
             &cube,
             &cap,
-            Transform::from_xyz(c.x, a.max.y + 0.08, c.z).with_scale(Vec3::new(s.x, 0.16, s.z + 0.2)),
+            Transform::from_xyz(c.x, a.max.y + 0.08, c.z).with_scale(Vec3::new(
+                s.x,
+                0.16,
+                s.z + 0.2,
+            )),
         );
     }
     // Boulders by the landings (on the bank boxes, so no new colliders).
@@ -380,7 +478,10 @@ pub fn build(
             Transform::from_xyz(x, 3.5 * s, z).with_scale(Vec3::new(1.2 * s, 1.1 * s, 1.2 * s)),
         );
         b.colliders.push(Collider {
-            aabb: Aabb::new(Vec3::new(x, 1.5 * s, z), Vec3::new(0.3 * s, 1.5 * s, 0.3 * s)),
+            aabb: Aabb::new(
+                Vec3::new(x, 1.5 * s, z),
+                Vec3::new(0.3 * s, 1.5 * s, 0.3 * s),
+            ),
             obj: None,
         });
     }
@@ -427,7 +528,11 @@ pub fn build(
     b.commands.spawn((
         Mesh3d(cube.clone()),
         MeshMaterial3d(water),
-        Transform::from_xyz(0.0, 0.02, (z0 + z1) / 2.0).with_scale(Vec3::new(2.0 * h, 0.04, z1 - z0)),
+        Transform::from_xyz(0.0, 0.02, (z0 + z1) / 2.0).with_scale(Vec3::new(
+            2.0 * h,
+            0.04,
+            z1 - z0,
+        )),
         NotShadowCaster,
         LevelRoot,
     ));
@@ -448,7 +553,11 @@ pub fn build(
     let gate_wall = b.piece(
         &cube,
         &kit.ice,
-        Transform::from_xyz(0.0, GATE_H / 2.0, RIDGE_Z).with_scale(Vec3::new(2.0 * GATE_HALF_X, GATE_H, 1.0)),
+        Transform::from_xyz(0.0, GATE_H / 2.0, RIDGE_Z).with_scale(Vec3::new(
+            2.0 * GATE_HALF_X,
+            GATE_H,
+            1.0,
+        )),
     );
     let gate_puddle = b
         .commands
@@ -507,15 +616,20 @@ pub fn build(
 /// Level 2's moving parts each frame: the ice crusts follow the stream's
 /// ice, and the water's ripples scroll (static when `still`, which follows
 /// the Hand sway setting: off under prefers-reduced-motion).
-pub fn sync(
+pub fn sync<F: bevy::ecs::query::QueryFilter>(
     chem: &Chem,
     t: f32,
     still: bool,
-    crusts: &mut Query<(&mut Transform, &mut Visibility, &IceCrust)>,
+    crusts: &mut Query<(&mut Transform, &mut Visibility, &IceCrust), F>,
     ripple: Option<&Ripple>,
     materials: &mut Assets<StandardMaterial>,
 ) {
-    let Some(o) = chem.world.objs.get(STREAM).filter(|o| o.kind == Kind::Stream) else {
+    let Some(o) = chem
+        .world
+        .objs
+        .get(STREAM)
+        .filter(|o| o.kind == Kind::Stream)
+    else {
         return;
     };
     let (z0, z1) = STREAM_Z;
@@ -540,8 +654,11 @@ pub fn sync(
     if let Some(r) = ripple {
         if !still && o.ice < 1.0 {
             if let Some(mut m) = materials.get_mut(&r.0) {
-                m.uv_transform =
-                    Affine2::from_scale_angle_translation(Vec2::new(12.0, 1.0), 0.0, Vec2::new(t * 0.05, t * 0.08));
+                m.uv_transform = Affine2::from_scale_angle_translation(
+                    Vec2::new(12.0, 1.0),
+                    0.0,
+                    Vec2::new(t * 0.05, t * 0.08),
+                );
             }
         }
     }
@@ -625,14 +742,24 @@ mod tests {
             t.push((
                 k,
                 Kind::Stream,
-                ["The bridge melted! Make it cold again.", stream_melt, stream_melt, stream_melt],
+                [
+                    "The bridge melted! Make it cold again.",
+                    stream_melt,
+                    stream_melt,
+                    stream_melt,
+                ],
             ));
         }
         for obj in [Kind::Stream, Kind::IceWall] {
             t.push((
                 EventKind::Chilled,
                 obj,
-                ["Brrr! Cold makes ice colder. Try heat!", chilled, chilled, chilled],
+                [
+                    "Brrr! Cold makes ice colder. Try heat!",
+                    chilled,
+                    chilled,
+                    chilled,
+                ],
             ));
             t.push((
                 EventKind::Soaked,
@@ -683,7 +810,9 @@ mod tests {
                 let (text, _) = caption(k, obj, band).expect("a line");
                 assert!(!text.is_empty() && text.len() <= 200, "{text}");
                 assert!(
-                    !text.chars().any(|c| c == '"' || c == '\\' || c.is_control()),
+                    !text
+                        .chars()
+                        .any(|c| c == '"' || c == '\\' || c.is_control()),
                     "{text:?}"
                 );
             }
@@ -720,7 +849,11 @@ mod tests {
         assert_eq!(w.objs.len(), NAMES.len());
         // Liquid stream: stopped on the south bank.
         let p = walk(&w, &lay.colliders, START, 12.0);
-        assert!(p.pos.z > LANDING_SOUTH - 0.2, "stopped by the stream, z={}", p.pos.z);
+        assert!(
+            p.pos.z > LANDING_SOUTH - 0.2,
+            "stopped by the stream, z={}",
+            p.pos.z
+        );
         // Frozen stream, standing gate: stopped at the gate.
         for _ in 0..3 {
             w.apply(STREAM, Spell::Frost, &mut Vec::new());
@@ -762,14 +895,15 @@ mod tests {
             if let Some(to) = bank_push(p.pos, &w) {
                 p.pos = to;
             }
-            let want_z = if from.z >= 6.0 { LANDING_SOUTH } else { LANDING_NORTH };
+            let want_z = if from.z >= 6.0 {
+                LANDING_SOUTH
+            } else {
+                LANDING_NORTH
+            };
             assert!((p.pos.z - want_z).abs() < 1e-4, "{from:?} -> {:?}", p.pos);
             assert!(p.pos.x.abs() <= LANDING_X + 1e-4, "{from:?} -> {:?}", p.pos);
             let r = crate::player::RADIUS;
-            let body = Aabb::new(
-                p.pos + Vec3::Y * 0.9,
-                Vec3::new(r, 0.875, r),
-            );
+            let body = Aabb::new(p.pos + Vec3::Y * 0.9, Vec3::new(r, 0.875, r));
             for s in colliders.solid(&w) {
                 let overlap = body.min.cmplt(s.max).all() && body.max.cmpgt(s.min).all();
                 assert!(!overlap, "{from:?} -> {:?} is inside {s:?}", p.pos);

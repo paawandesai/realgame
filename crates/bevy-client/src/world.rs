@@ -112,6 +112,8 @@ pub(crate) fn solid_obj(o: &Obj) -> bool {
     match o.kind {
         Kind::IceWall => o.wall,
         Kind::Puddle => false,
+        // Too deep to wade while liquid; a bridge once frozen solid.
+        Kind::Stream => o.ice < 1.0,
         _ => true,
     }
 }
@@ -231,7 +233,11 @@ pub(crate) fn hash(x: u32, y: u32) -> f32 {
 }
 
 /// A small repeating greyscale texture (the material's colour tints it).
-pub(crate) fn texture(images: &mut Assets<Image>, size: u32, f: impl Fn(u32, u32) -> f32) -> Handle<Image> {
+pub(crate) fn texture(
+    images: &mut Assets<Image>,
+    size: u32,
+    f: impl Fn(u32, u32) -> f32,
+) -> Handle<Image> {
     let mut data = Vec::with_capacity((size * size * 4) as usize);
     for y in 0..size {
         for x in 0..size {
@@ -307,7 +313,11 @@ pub(crate) fn toon(materials: &mut Assets<StandardMaterial>, c: Color) -> Handle
     })
 }
 
-pub(crate) fn glow(materials: &mut Assets<StandardMaterial>, c: Color, k: f32) -> Handle<StandardMaterial> {
+pub(crate) fn glow(
+    materials: &mut Assets<StandardMaterial>,
+    c: Color,
+    k: f32,
+) -> Handle<StandardMaterial> {
     let l = c.to_linear();
     materials.add(StandardMaterial {
         base_color: c,
@@ -343,7 +353,11 @@ pub fn make_kit(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMateri
     }
 }
 
-pub(crate) fn state_mats(materials: &mut Assets<StandardMaterial>, base: Color, wet: Color) -> StateMats {
+pub(crate) fn state_mats(
+    materials: &mut Assets<StandardMaterial>,
+    base: Color,
+    wet: Color,
+) -> StateMats {
     StateMats {
         normal: toon(materials, base),
         // A heating bush looks scorched, not lit: no emissive below ignition.
@@ -387,12 +401,22 @@ impl Builder<'_, '_, '_> {
         t: Transform,
     ) -> Entity {
         self.commands
-            .spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat.clone()), t, LevelRoot))
+            .spawn((
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(mat.clone()),
+                t,
+                LevelRoot,
+            ))
             .id()
     }
 
     /// A solid box: drawn and collided.
-    pub(crate) fn block(&mut self, center: Vec3, size: Vec3, mat: &Handle<StandardMaterial>) -> Entity {
+    pub(crate) fn block(
+        &mut self,
+        center: Vec3,
+        size: Vec3,
+        mat: &Handle<StandardMaterial>,
+    ) -> Entity {
         self.colliders.push(Collider {
             aabb: Aabb::new(center, size * 0.5),
             obj: None,

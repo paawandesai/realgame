@@ -415,7 +415,11 @@ export function startHud() {
     caption.textContent = text;
     caption.classList.add('show');
     clearTimeout(capTimer);
-    capTimer = setTimeout(() => caption.classList.remove('show'), 8000);
+    capTimer = setTimeout(() => {
+      caption.classList.remove('show');
+      const pic = document.getElementById('capicon');
+      if (pic) pic.classList.add('hidden');
+    }, 8000);
   };
   // Pause now: free the mouse and show the pause card in the same handler
   // (under automation Esc does not release the lock by itself; the later
@@ -573,6 +577,10 @@ export function startHud() {
   const finder = el('div', { id: 'firefinder', className: 'hidden left' });
   finder.append(el('span', { className: 'ff-chev' }), el('span', { className: 'ff-flame' }));
   $('hud').append(finder);
+  // I-035: the Sprout picture next to a level-2 caption (snowflake, flame on
+  // a drop, or a cross), from the state's capIcon.
+  const capIcon = el('div', { id: 'capicon', className: 'hidden', ariaHidden: 'true' });
+  $('hud').append(capIcon);
 
   // The objective: one number, and a flame per fire left (for players who
   // cannot read yet). The plus sign after MAX_PIPS is drawn by CSS, so the
@@ -629,7 +637,7 @@ export function startHud() {
   // and make the Water slot glow (for players who cannot read yet).
   let idleOn = false;
   function updateIdle(now) {
-    const on = !!state && settings.hints && state.outcome === 'playing' && !state.paused && !input.paused && now - idleSince >= IDLE_MS;
+    const on = !!state && settings.hints && state.level !== 2 && state.outcome === 'playing' && !state.paused && !input.paused && now - idleSince >= IDLE_MS;
     if (on === idleOn) return;
     idleOn = on;
     slots[IDLE_SLOT].classList.toggle('nudge', on);
@@ -688,18 +696,25 @@ export function startHud() {
       setHint(pickHint({ playing, idle: idleOn, note, locked: state.locked, extinguished: state.extinguished, casts: state.casts }));
       // The arrow to the nearest fire, while it is off screen and no fire is
       // in view or aimed at (I-025).
-      const findOn = playing && state.fireOff && !state.fireInView && state.nearFire >= 0 && !state.paused && !input.paused;
+      // I-035: after the courtyard is saved, the same arrow points at the open exit arch.
+      const findExit = state.level === 1 && state.exitOpen && state.outcome === 'won' && state.fireOff && !state.paused && !input.paused;
+      const findOn = (playing && state.fireOff && !state.fireInView && state.nearFire >= 0 && !state.paused && !input.paused) || findExit;
       finder.classList.toggle('hidden', !findOn);
+      finder.classList.toggle('exit', findExit);
       if (findOn) {
         const right = state.fireBearing > 0;
         finder.classList.toggle('right', right);
         finder.classList.toggle('left', !right);
       }
-      if (state.outcome === 'won') setObjective('Greenhouse saved!', 0);
+      if (state.level === 2) setObjective(state.outcome === 'won' ? 'Gate opened!' : 'Cross the stream, melt the gate, reach the lantern.', 0);
+      else if (state.outcome === 'won') setObjective('Greenhouse saved!', 0);
       else setObjective(`Fires to put out: ${state.firesLeft}`, state.firesLeft);
       if (state.captionId !== capId) {
         capId = state.captionId;
         showCaption(state.caption);
+        const icon = ['freeze', 'melt', 'wrong'].includes(state.capIcon) ? state.capIcon : '';
+        capIcon.dataset.icon = icon;
+        capIcon.classList.toggle('hidden', !icon);
         if (state.caption && history[0] !== state.caption) {
           history.unshift(state.caption);
           history.length = Math.min(history.length, 6);
@@ -717,9 +732,12 @@ export function startHud() {
       const banner = $('banner');
       banner.classList.toggle('hidden', state.outcome === 'playing');
       banner.classList.toggle('lost', state.outcome === 'lost');
-      if (state.outcome === 'won') {
+      if (state.outcome === 'won' && state.level === 2) {
+        banner.querySelector('.big').textContent = 'You opened the Frozen Gate!';
+        banner.querySelector('.small').textContent = 'Freeze to cross, melt to open: water changed state both ways. Walk to the arch to go back.';
+      } else if (state.outcome === 'won') {
         banner.querySelector('.big').textContent = 'You saved the greenhouse!';
-        banner.querySelector('.small').textContent = `${state.extinguished} fires put out. Press R to play again.`;
+        banner.querySelector('.small').textContent = 'Walk to the glowing arch behind you to visit the Frozen Gate. Press R to play again.';
       } else if (state.outcome === 'lost') {
         banner.querySelector('.big').textContent = 'The greenhouse caught fire';
         banner.querySelector('.small').textContent = 'Heat spread from bush to bush. Press R to try again.';
