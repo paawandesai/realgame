@@ -135,6 +135,11 @@ The single register of every science claim the first-person 3D client shows the 
 | P-021 | `DIP_CO2_PER_CAST` | 0.5 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills half of level 3's shallow dip, so two casts fill it. | [S0] |
 | P-022 | `HOLLOW_CO2_PER_CAST` | 0.34 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills a third of level 3's deeper hollow (0.34, 0.68, then capped at 1), so a bigger hollow needs more gas. | [S0] |
 | P-023 | `FLICKER_S` | 1.5 | s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: how long Water or Frost knocks a level-3 gas flame down to 40 % before it grows back. | [S0] |
+| P-026 | `G` | 9.81 | m/s² | crates/bevy-client/src/ballistics.rs | correct | Gravity on Water and CO₂ casts. Standard acceleration of gravity g_n = 9.806 65 m/s² (exact, conventional) [S38], rounded to 9.81. | [S38] |
+| P-027 | `WATER_REACH` | 10 | m (held; 6 for a tap) | crates/bevy-client/src/ballistics.rs | correct | gameplay tuning, not a physical claim: the water jet's flat-ground reach at 45°, 6 m for a tap rising to 10 m for a 0.8 s hold (launch speed √(g·R)). A hand-held jet carrying a few metres is the right order for a hose or a water extinguisher, but no number here is claimed. | [S0] |
+| P-028 | `CO2_REACH` | 7 | m (held; 5 for a tap) | crates/bevy-client/src/ballistics.rs | correct | gameplay tuning, not a physical claim: how far the CO₂ puff is lobbed (5 m tap, 7 m held) before it settles and spreads 1.5 m (`CO2_SPREAD`) along the ground. That it sinks and settles follows CO₂ being denser than air (C-035). | [S0] |
+| P-029 | `FIRE_CONE` | 2.5 | m (range; half-angle 18°) | crates/bevy-client/src/ballistics.rs | correct | gameplay tuning, not a physical claim: the Fire spell's flame cone reaches 2.5 m. | [S0] |
+| P-030 | `FROST_CONE` | 3 | m (range; half-angle 20°) | crates/bevy-client/src/ballistics.rs | correct | gameplay tuning, not a physical claim: the Frost spell's spray cone reaches 3 m; its mist is drawn sinking (cold, dense air). | [S0] |
 
 ## Not claims
 
@@ -238,3 +243,4 @@ The single register of every science claim the first-person 3D client shows the 
 - [S29] NIST Chemistry WebBook, SRD 69, Methane (formula CH4, molecular weight 16.0425). Fetched 2026-11-01: https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828
 - [S30] NIST Chemistry WebBook, SRD 69, Nitrogen (molecular weight 28.0134). Fetched 2026-11-01: https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379
 - [S31] NSW Rural Fire Service, Operational Procedures and Guidelines, "Incidents - Common Flammable Gases" ("Do not extinguish burning gas without first cutting off the leaking gas supply"; methane "is lighter than air and will rise and disperse rather than collect near the ground"). Fetched 2026-11-01: https://www.rfs.nsw.gov.au/resources/publications/operational-procedures-and-guidelines/foundational/incidents-common-flammable-gases
+- [S38] NIST, CODATA value: standard acceleration of gravity, g_n = 9.806 65 m s⁻² (exact). Fetched 2026-11-01: https://physics.nist.gov/cgi-bin/cuu/Value?gn ([S32]-[S37] are taken by loop/I-036, not yet merged.)
