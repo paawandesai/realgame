@@ -7,7 +7,8 @@
 //   import { play, setVolume, names } from './sfx.js';
 //   play('water_splash');                 // one-shot
 //   const c = play('water_charge');       // a held sound: c.stop() on release
-//   play('dig', { material: 'stone' });   // per-material sounds
+//   play('dig', { material: 'stone' });   // per-material sounds (dig, step,
+//                                          // place_block)
 //   setVolume(0.5);                       // 0..1, clamped
 //
 // The AudioContext is created lazily on the first user gesture (browsers keep
@@ -19,9 +20,27 @@ const TRIM = 0.5;
 /** Everything goes through this low-pass: warm, no harsh highs. */
 const WARM_HZ = 6000;
 
-/** Materials for `dig` and `step` (an unknown one falls back to the first). */
-export const DIG = ['dirt', 'stone', 'sand', 'wood', 'ice'];
-export const STEP = ['grass', 'stone', 'sand', 'snow', 'wood'];
+/** Materials with their own `dig`, `step` and `place_block` sound. */
+export const DIG = ['dirt', 'stone', 'sand', 'wood', 'ice', 'coal', 'iron_ore', 'crystal', 'glass', 'mud', 'leaves', 'snow', 'iron', 'brick', 'planks'];
+export const STEP = ['grass', 'stone', 'sand', 'snow', 'wood', 'ice', 'crystal', 'mud', 'leaves'];
+export const PLACE = ['dirt', 'stone', 'sand', 'wood', 'ice', 'glass', 'crystal', 'coal', 'ore'];
+/** Block-world material ids (content/materials.json) that sound like another. */
+/** @type {Record<string, string>} */
+const DIG_ALIAS = { ore: 'iron_ore', coal_ore: 'coal', grass: 'dirt', cliffstone: 'stone', runestone: 'stone', ash: 'sand' };
+/** @type {Record<string, string>} */
+const STEP_ALIAS = {
+  dirt: 'grass', planks: 'wood', glass: 'ice', ash: 'sand',
+  cliffstone: 'stone', runestone: 'stone', brick: 'stone', iron: 'stone',
+  coal: 'stone', coal_ore: 'stone', iron_ore: 'stone', ore: 'stone',
+};
+/** @type {Record<string, string>} */
+const PLACE_ALIAS = { ore: 'iron_ore', coal_ore: 'coal' };
+/** The material whose dig sound plays for block `m` ('' if none). @param {string | undefined} m */
+export const digMaterial = (m) => (m ? DIG_ALIAS[m] || m : '');
+/** The material whose footstep plays on block `m`. @param {string | undefined} m */
+export const stepMaterial = (m) => (m ? STEP_ALIAS[m] || m : '');
+/** @param {string | undefined} m */
+const placeMaterial = (m) => (m ? PLACE_ALIAS[m] || m : '');
 
 /**
  * @typedef {{ stop(): void }} Handle
@@ -260,6 +279,26 @@ const DIG_SHAPE = {
   sand: ['highpass', 1500, 700, 0.6, 0.22, 0, 0.45],
   wood: ['bandpass', 700, 500, 4, 0.14, 220, 0.6],
   ice: ['bandpass', 3000, 1800, 5, 0.12, 0, 0.45],
+  // Coal: a dry, crumbly crunch, lower and softer than stone.
+  coal: ['bandpass', 1100, 450, 1.2, 0.16, 130, 0.55],
+  // Iron ore: stone with a dull metallic clank (see `dig`).
+  iron_ore: ['bandpass', 1500, 800, 2.5, 0.13, 170, 0.55],
+  // Crystal: a bright chip; `dig` adds glassy chimes.
+  crystal: ['bandpass', 3200, 2200, 6, 0.08, 0, 0.35],
+  // Glass: a sharp crack; `dig` adds a falling tinkle of shards.
+  glass: ['bandpass', 3600, 1500, 3, 0.06, 0, 0.45],
+  // Mud: a wet, low squelch.
+  mud: ['lowpass', 600, 180, 2, 0.22, 90, 0.6],
+  // Leaves: a short, airy rustle.
+  leaves: ['highpass', 2200, 1200, 0.5, 0.2, 0, 0.35],
+  // Snow: a soft, compact crunch.
+  snow: ['bandpass', 1800, 900, 0.8, 0.16, 0, 0.45],
+  // Iron: a solid knock; `dig` adds a metallic ring.
+  iron: ['bandpass', 1200, 900, 3, 0.1, 200, 0.5],
+  // Brick: like stone, a little lower and drier.
+  brick: ['bandpass', 1400, 700, 2, 0.12, 160, 0.55],
+  // Planks: a brighter, thinner knock than logs.
+  planks: ['bandpass', 950, 650, 4, 0.11, 260, 0.55],
 };
 /** Footsteps per material: [filter type, Hz, Q, length s, thud Hz, peak]. */
 /** @type {Record<string, [BiquadFilterType, number, number, number, number, number]>} */
@@ -269,21 +308,75 @@ const STEP_SHAPE = {
   sand: ['highpass', 1800, 0.5, 0.12, 0, 0.22],
   snow: ['lowpass', 2200, 0.6, 0.16, 0, 0.26],
   wood: ['bandpass', 500, 3, 0.09, 160, 0.34],
+  // Ice: a slick, glassy tap.
+  ice: ['bandpass', 2400, 4, 0.07, 0, 0.6],
+  // Crystal: a clear tap with a faint ring (see `step`).
+  crystal: ['bandpass', 2000, 5, 0.07, 0, 0.55],
+  // Mud: a soft squelch (see `step`).
+  mud: ['lowpass', 500, 2, 0.14, 0, 0.3],
+  // Leaves: a light rustle.
+  leaves: ['highpass', 2400, 0.5, 0.12, 0, 0.2],
+};
+/** Placing per material: [thud Hz, thud peak, noise type, noise Hz, Q, noise peak, length s]. */
+/** @type {Record<string, [number, number, BiquadFilterType, number, number, number, number]>} */
+const PLACE_SHAPE = {
+  default: [200, 0.6, 'lowpass', 1200, 0.8, 0.35, 0.12],
+  dirt: [150, 0.55, 'lowpass', 800, 0.7, 0.4, 0.13],
+  stone: [210, 0.6, 'bandpass', 1500, 2, 0.35, 0.1],
+  sand: [120, 0.35, 'highpass', 1600, 0.5, 0.35, 0.14],
+  wood: [240, 0.6, 'bandpass', 600, 4, 0.35, 0.11],
+  ice: [300, 0.35, 'bandpass', 2600, 5, 0.3, 0.09],
+  glass: [330, 0.3, 'bandpass', 3000, 4, 0.25, 0.08],
+  crystal: [360, 0.3, 'bandpass', 3200, 6, 0.25, 0.08],
+  coal: [140, 0.5, 'bandpass', 900, 1.2, 0.35, 0.12],
+  iron_ore: [180, 0.6, 'bandpass', 1300, 2.5, 0.3, 0.11],
 };
 
-/** @param {Ctx} c @param {string} mat */
-function dig(c, mat) {
-  const [type, f0, f1, q, len, thud, peak] = DIG_SHAPE[mat] || /** @type {any} */ (DIG_SHAPE.dirt);
+/** @param {Ctx} c @param {string} m */
+function dig(c, m) {
+  const shape = DIG_SHAPE[m];
+  const [type, f0, f1, q, len, thud, peak] = shape || /** @type {any} */ (DIG_SHAPE.dirt);
   noisy(c, type, f0, f1, q, len, env(c, 0.004, len, peak));
   if (thud) osc(c, 'sine', thud, thud * 0.6, len, env(c, 0.003, len, peak * 0.8));
-  if (mat === 'ice') bell(c, 2400, c.t, 0.25, 0.08);
+  if (m === 'ice') bell(c, 2400, c.t, 0.25, 0.08);
+  if (m === 'iron') {
+    // Worked iron rings longer and higher than ore.
+    bell(c, 784, c.t + 0.01, 0.4, 0.1);
+    bell(c, 2093, c.t + 0.01, 0.25, 0.04);
+  }
+  if (m === 'mud') osc(c, 'sine', 220, 120, 0.12, env(c, 0.01, 0.12, 0.15, c.t + 0.06), c.t + 0.06);
+  if (m === 'iron_ore') {
+    // A dull metallic clank: two inharmonic partials, quickly damped.
+    bell(c, 523, c.t + 0.01, 0.22, 0.12);
+    bell(c, 1397, c.t + 0.01, 0.15, 0.05);
+  }
+  if (m === 'crystal') {
+    for (const [dt, f] of /** @type {[number, number][]} */ ([[0, 2093], [0.05, 2637], [0.11, 3136]])) bell(c, f, c.t + dt, 0.5, 0.1);
+  }
+  if (m === 'glass') {
+    // Shards falling: a tinkle of short high notes, each a little later.
+    for (const [dt, f] of /** @type {[number, number][]} */ ([[0.04, 3520], [0.09, 2794], [0.15, 3951], [0.22, 3136], [0.31, 2637], [0.4, 3322]])) {
+      bell(c, f, c.t + dt, 0.18, 0.07);
+    }
+  }
 }
 
-/** @param {Ctx} c @param {string} mat */
-function step(c, mat) {
-  const [type, f, q, len, thud, peak] = STEP_SHAPE[mat] || /** @type {any} */ (STEP_SHAPE.grass);
+/** @param {Ctx} c @param {string} m */
+function step(c, m) {
+  const [type, f, q, len, thud, peak] = STEP_SHAPE[m] || /** @type {any} */ (STEP_SHAPE.grass);
   noisy(c, type, f, f * 0.7, q, len, env(c, 0.008, len, peak));
   if (thud) osc(c, 'sine', thud, thud * 0.7, len, env(c, 0.004, len, peak * 0.6));
+  if (m === 'crystal') bell(c, 1760, c.t + 0.01, 0.3, 0.04);
+  if (m === 'mud') osc(c, 'sine', 180, 110, 0.1, env(c, 0.01, 0.1, 0.12, c.t + 0.04), c.t + 0.04);
+}
+
+/** @param {Ctx} c @param {string} m */
+function place(c, m) {
+  const [thud, tp, type, f, q, np, len] = PLACE_SHAPE[m] || /** @type {any} */ (PLACE_SHAPE.default);
+  osc(c, 'sine', thud, thud * 0.6, len, env(c, 0.003, len, tp));
+  noisy(c, type, f, f * 0.5, q, len * 0.7, env(c, 0.002, len * 0.7, np));
+  if (m === 'glass' || m === 'crystal') bell(c, m === 'glass' ? 2349 : 2637, c.t + 0.01, 0.35, 0.07);
+  if (m === 'iron_ore') bell(c, 587, c.t + 0.01, 0.18, 0.08);
 }
 
 /** Every sound: (ctx, crackle buffer) -> optional handle. */
@@ -376,22 +469,35 @@ const SOUNDS = {
     bell(c, 1760, c.t, 0.9, 0.3);
     bell(c, 2637, c.t + 0.01, 0.6, 0.1);
   },
-  dig: (c) => dig(c, c.o.material || 'dirt'),
+  dig: (c) => dig(c, digMaterial(c.o.material) || 'dirt'),
   dig_dirt: (c) => dig(c, 'dirt'),
   dig_stone: (c) => dig(c, 'stone'),
   dig_sand: (c) => dig(c, 'sand'),
   dig_wood: (c) => dig(c, 'wood'),
   dig_ice: (c) => dig(c, 'ice'),
-  place_block: (c) => {
-    osc(c, 'sine', 200, 120, 0.12, env(c, 0.003, 0.12, 0.6));
-    noisy(c, 'lowpass', 1200, 500, 0.8, 0.08, env(c, 0.002, 0.08, 0.35));
-  },
-  step: (c) => step(c, c.o.material || 'grass'),
+  dig_coal: (c) => dig(c, 'coal'),
+  dig_iron_ore: (c) => dig(c, 'iron_ore'),
+  dig_crystal: (c) => dig(c, 'crystal'),
+  dig_glass: (c) => dig(c, 'glass'),
+  dig_mud: (c) => dig(c, 'mud'),
+  dig_leaves: (c) => dig(c, 'leaves'),
+  dig_snow: (c) => dig(c, 'snow'),
+  dig_iron: (c) => dig(c, 'iron'),
+  dig_brick: (c) => dig(c, 'brick'),
+  dig_planks: (c) => dig(c, 'planks'),
+  // A block snapping into place; `material` picks its sound (default: a
+  // neutral soft thunk).
+  place_block: (c) => place(c, placeMaterial(c.o.material) || 'default'),
+  step: (c) => step(c, stepMaterial(c.o.material) || 'grass'),
   step_grass: (c) => step(c, 'grass'),
   step_stone: (c) => step(c, 'stone'),
   step_sand: (c) => step(c, 'sand'),
   step_snow: (c) => step(c, 'snow'),
   step_wood: (c) => step(c, 'wood'),
+  step_ice: (c) => step(c, 'ice'),
+  step_crystal: (c) => step(c, 'crystal'),
+  step_mud: (c) => step(c, 'mud'),
+  step_leaves: (c) => step(c, 'leaves'),
   pickup: (c) => {
     bell(c, 660, c.t, 0.18, 0.3);
     bell(c, 990, c.t + 0.08, 0.25, 0.3);

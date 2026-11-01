@@ -59,9 +59,9 @@ const ensure = () => {
 };
 const db = (x) => (x > 0 ? 20 * Math.log10(x) : -Infinity);
 const LEN = { water_charge: 1.6, fire_crackle: 2.2, gate_open: 2.2, fanfare: 2.4, steam: 1.4 };
-const measure = async (name, btn) => {
+const measure = async (name, btn, opts = {}) => {
   peak = 0;
-  const h = sfx.play(name, name === 'fire_crackle' ? { duration: 2 } : {});
+  const h = sfx.play(name, name === 'fire_crackle' ? { duration: 2, ...opts } : opts);
   await new Promise((r) => setTimeout(r, (LEN[name] || 1.0) * 1000));
   if (h) h.stop();
   await new Promise((r) => setTimeout(r, 150));
@@ -72,18 +72,20 @@ const measure = async (name, btn) => {
 };
 const grid = document.getElementById('grid');
 const buttons = {};
-for (const n of sfx.names.filter((n) => n !== 'dig' && n !== 'step')) {
+const add = (label, name, opts) => {
   const b = document.createElement('button');
-  b.innerHTML = `${n.replace(/_/g, ' ')}<span class="db">&nbsp;</span>`;
-  b.addEventListener('click', () => { if (ensure()) measure(n, b); });
+  b.innerHTML = `${label}<span class="db">&nbsp;</span>`;
+  b.addEventListener('click', () => { if (ensure()) measure(name, b, opts); });
   grid.appendChild(b);
-  buttons[n] = b;
-}
+  buttons[label] = [name, b, opts];
+};
+for (const n of sfx.names.filter((n) => n !== 'dig' && n !== 'step')) add(n.replace(/_/g, ' '), n, {});
+for (const m of ['dirt', 'stone', 'sand', 'wood', 'ice', 'glass', 'crystal', 'coal', 'ore']) add(`place ${m}`, 'place_block', { material: m });
 document.getElementById('vol').addEventListener('input', (e) => sfx.setVolume(+e.target.value));
 document.getElementById('all').addEventListener('click', async () => {
   if (!ensure()) return;
   const out = {};
-  for (const [n, b] of Object.entries(buttons)) out[n] = await measure(n, b);
+  for (const [label, [n, b, o]] of Object.entries(buttons)) out[label] = await measure(n, b, o);
   const worst = Math.max(...Object.values(out));
   document.getElementById('summary').textContent = `loudest peak ${worst.toFixed(1)} dBFS (${Object.values(out).filter((d) => d > -6).length} over -6)`;
   window.__levels = out;

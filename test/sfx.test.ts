@@ -2,7 +2,7 @@
 // a mocked AudioContext that records every node and every scheduled value.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createSfx, DIG, STEP } from "../crates/bevy-client/web/sfx.js";
+import { createSfx, DIG, PLACE, STEP, digMaterial, stepMaterial } from "../crates/bevy-client/web/sfx.js";
 
 class Param {
   value: number;
@@ -62,8 +62,11 @@ const make = () => {
 const REQUIRED = [
   "water_charge", "water_splash", "hiss", "steam", "flame_whoosh", "fire_crackle", "frost_spray",
   "ice_crack", "ice_drip", "co2_puff", "h2_pop", "methane_whoomp", "glass_ting",
-  "dig_dirt", "dig_stone", "dig_sand", "dig_wood", "dig_ice", "place_block",
-  "step_grass", "step_stone", "step_sand", "step_snow", "step_wood",
+  "dig_dirt", "dig_stone", "dig_sand", "dig_wood", "dig_ice",
+  "dig_coal", "dig_iron_ore", "dig_crystal", "dig_glass",
+  "dig_mud", "dig_leaves", "dig_snow", "dig_iron", "dig_brick", "dig_planks", "place_block",
+  "step_grass", "step_stone", "step_sand", "step_snow", "step_wood", "step_ice", "step_crystal",
+  "step_mud", "step_leaves",
   "pickup", "bench_success", "bench_wrong", "gate_open", "fanfare",
 ];
 
@@ -81,10 +84,28 @@ test("every sound in the list exists and plays from generated nodes only", () =>
     // Sources are oscillators or the code-made noise buffers: no samples.
     for (const x of made) if (x instanceof Buf) assert.ok(x.buffer, `${n}: buffer source has a generated buffer`);
   }
-  assert.equal(DIG.length, 5);
-  assert.equal(STEP.length, 5);
-  for (const m of [...DIG, "lava"]) assert.ok(sfx.play("dig", { material: m }), `dig ${m}`);
+  assert.deepEqual(DIG, ["dirt", "stone", "sand", "wood", "ice", "coal", "iron_ore", "crystal", "glass", "mud", "leaves", "snow", "iron", "brick", "planks"]);
+  assert.deepEqual(STEP, ["grass", "stone", "sand", "snow", "wood", "ice", "crystal", "mud", "leaves"]);
+  assert.deepEqual(PLACE, ["dirt", "stone", "sand", "wood", "ice", "glass", "crystal", "coal", "ore"]);
+  for (const m of [...DIG, "ore", "lava"]) assert.ok(sfx.play("dig", { material: m }), `dig ${m}`);
   for (const m of [...STEP, "lava"]) assert.ok(sfx.play("step", { material: m }), `step ${m}`);
+  // place_block varies by material and keeps a default; each material
+  // builds a different graph from the default one.
+  const graph = (o: Record<string, string>) => {
+    const before = ctx.nodes.length;
+    sfx.play("place_block", o);
+    return ctx.nodes.slice(before).map((n) => (n instanceof Filter ? `${n.kind}:${n.type}:${n.frequency.events[0]?.[1]}` : n instanceof Osc ? `osc:${n.frequency.events[0]?.[1]}` : n.kind)).join(",");
+  };
+  const base = graph({});
+  assert.equal(graph({ material: "lava" }), base, "an unknown material is the default");
+  const seen = new Set<string>();
+  for (const m of PLACE) {
+    const g = graph({ material: m });
+    assert.notEqual(g, base, `place ${m} differs from the default`);
+    seen.add(g);
+  }
+  assert.equal(seen.size, PLACE.length, "every placed material sounds different");
+  assert.equal(graph({ material: "ore" }), graph({ material: "iron_ore" }), "ore is iron ore");
 });
 
 test("an unknown name is a no-op, and nothing plays before the first gesture", () => {
@@ -136,4 +157,29 @@ test("output stays at or below -6 dBFS: limiter, warm low-pass and a 0.5 trim", 
       for (const [kind, v] of g.gain.events) if (kind !== "cancel") assert.ok(v <= 1, `${n}: gain ${v}`);
     }
   }
+});
+
+// The block world's materials (I-052 spec 5.2, content/materials.json): every
+// block you can dig has its own dig sound, and every block you can stand on a
+// footstep, either directly or through a block that sounds the same.
+const DIGGABLE = ["dirt", "grass", "sand", "stone", "cliffstone", "runestone", "wood", "leaves", "planks", "snow", "ice", "mud",
+  "coal_ore", "iron_ore", "crystal", "glass", "iron", "brick", "ash"];
+const WALKABLE = ["dirt", "grass", "sand", "stone", "cliffstone", "runestone", "wood", "leaves", "planks", "snow", "ice", "mud",
+  "coal_ore", "iron_ore", "crystal", "glass", "iron", "brick", "ash"];
+
+test("every block-world material has a dig sound and a footstep", () => {
+  for (const m of DIGGABLE) assert.ok(DIG.includes(digMaterial(m)), `dig ${m} -> ${digMaterial(m)}`);
+  for (const m of WALKABLE) assert.ok(STEP.includes(stepMaterial(m)), `step ${m} -> ${stepMaterial(m)}`);
+  assert.equal(digMaterial("coal_ore"), "coal");
+  assert.equal(digMaterial("ore"), "iron_ore");
+  assert.equal(stepMaterial("planks"), "wood");
+  assert.equal(digMaterial("lava"), "lava", "unknown ids pass through (the sound then falls back)");
+  const { ctx, sfx } = make();
+  sfx.unlock();
+  for (const m of DIGGABLE) {
+    const before = ctx.nodes.length;
+    assert.ok(sfx.play("dig", { material: m }), `dig ${m}`);
+    assert.ok(ctx.nodes.length > before);
+  }
+  for (const m of WALKABLE) assert.ok(sfx.play("step", { material: m }), `step ${m}`);
 });
