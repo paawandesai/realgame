@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/sim"]
+members = ["crates/sim", "crates/voxel", "crates/matter"]
 
 [profile.release]
 opt-level = 3

@@ -1,0 +1,12 @@
+[package]
+name = "realgame-matter"
+version = "0.1.0"
+edition = "2021"
+description = "Block chemistry on a voxel world: heat, fire, ice/water/steam, volume-conserving water, the coarse gas field and balloon lift (pure Rust, deterministic, no Bevy)"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+realgame-voxel = { path = "../voxel" }
+realgame-sim = { path = "../sim", default-features = false }

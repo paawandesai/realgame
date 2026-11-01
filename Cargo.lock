@@ -51,12 +51,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "realgame-matter"
+version = "0.1.0"
+dependencies = [
+ "realgame-sim",
+ "realgame-voxel",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "realgame-sim"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "realgame-voxel"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

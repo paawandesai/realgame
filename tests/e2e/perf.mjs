@@ -1039,9 +1039,9 @@ async function runSelfTest() {
     eq(contextOptions(false, { vw: 1512, vh: 945, dpr: 2 }), { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
   });
 
-  t('page URL always carries debug (the workload commands need it), low adds ?low', () => {
-    eq([pageUrl('http://h/', 'default'), pageUrl('http://h/', 'low')], ['http://h/?debug', 'http://h/?low&debug']);
-    eq([pageUrl('http://h/', 'low', 'level=2'), pageUrl('http://h/', 'default', '?level=2'), pageUrl('http://h/', 'low', '')], ['http://h/?low&debug&level=2', 'http://h/?debug&level=2', 'http://h/?low&debug']);
+  t('page URL always carries classic=1 (I-052: today\'s courtyard workload) and debug (the workload commands need it), low adds ?low', () => {
+    eq([pageUrl('http://h/', 'default'), pageUrl('http://h/', 'low')], ['http://h/?classic=1&debug', 'http://h/?low&classic=1&debug']);
+    eq([pageUrl('http://h/', 'low', 'level=2'), pageUrl('http://h/', 'default', '?level=2'), pageUrl('http://h/', 'low', '')], ['http://h/?low&classic=1&debug&level=2', 'http://h/?classic=1&debug&level=2', 'http://h/?low&classic=1&debug']);
     eq([isLevel2('level=2'), isLevel2('a=1&level=2'), isLevel2('level=20'), isLevel2('')], [true, true, false, false]);
     eq([isLevel3('level=3'), isLevel3('low&level=3'), isLevel3('level=30'), isLevel3('level=2')], [true, true, false, false]);
     eq([levelOf('level=3'), levelOf('level=2'), levelOf('')], [3, 2, 1]);
