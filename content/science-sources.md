@@ -135,6 +135,22 @@ The single register of every science claim the first-person 3D client shows the 
 | P-021 | `DIP_CO2_PER_CAST` | 0.5 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills half of level 3's shallow dip, so two casts fill it. | [S0] |
 | P-022 | `HOLLOW_CO2_PER_CAST` | 0.34 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills a third of level 3's deeper hollow (0.34, 0.68, then capped at 1), so a bigger hollow needs more gas. | [S0] |
 | P-023 | `FLICKER_S` | 1.5 | s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: how long Water or Frost knocks a level-3 gas flame down to 40 % before it grows back. | [S0] |
+| P-024 | `FIRE_K` | 1100 | °C | crates/matter/src/lib.rs | simplified | One temperature for a burning block (the I-052 block world; `grid.rs` uses the same wood-fire value). Measured continuous-flame temperatures in fires are about 900 °C, with peaks a little above 1000 °C in large fires; 1100 °C is at the hot end, chosen so a fire clearly out-heats ice and wood ignition. No caption states it. | [S15] |
+| P-025 | `SMOTHER_O2` | 0.15 | O2 fraction | crates/matter/src/lib.rs | simplified | A flame or vent in the block world goes out when its gas cell's oxygen falls below 15 %. Fuel-specific flaming limits run from about 12.5 to 16 vol% O2, so one value stands in for all fuels. | [S14] |
+| P-026 | `GLASS_K` | 1713 | °C | crates/matter/src/lib.rs | simplified | Sand turns to glass at the melting point of silica (1713 °C). Real glassmaking adds soda and lime to melt sand far lower; pure sand is the limiting case. | [S35] |
+| P-027 | `IRON_K` | 1200 | °C | crates/matter/src/lib.rs | simplified | Iron ore touching coal is reduced to iron at 1200 °C. Carbon reduces iron oxide (2Fe₂O₃ + 3C → 4Fe + 3CO₂) in a furnace, and a bloomery does it below the melting point of iron (1538 °C) without melting the ore; one threshold stands in for the furnace conditions. | [S36] [S38] |
+| P-028 | `LN2_K` | 77.35 | K | crates/matter/src/lib.rs | correct | Frost (liquid nitrogen) never cools a block below nitrogen's boiling point. | [S1] |
+| P-029 | `COLD_REST_K` | 268.15 | K | crates/matter/src/props.rs | correct | scenario assumption: untouched ice and snow sit at −5 °C, the Frozen Fields' air (spec section 7 holds the ford's air at −5 °C), so frozen blocks stay frozen. | [S0] |
+| P-030 | `WATER_REST_K` | 285.15 | K | crates/matter/src/props.rs | correct | scenario assumption: untouched liquid water is a cold 12 °C stream. | [S0] |
+| P-031 | `LF_J_KG` | 334000 | J/kg | crates/matter/src/props.rs | correct | Latent heat of fusion of water: 6.01 kJ/mol ÷ 18.02 g/mol = 334 kJ/kg. Ice holds at 0 °C until it has absorbed it. | [S10] |
+| P-032 | `LV_J_KG` | 2260000 | J/kg | crates/matter/src/props.rs | correct | Latent heat of vaporisation of water: 40.7 kJ/mol ÷ 18.02 g/mol = 2.26 MJ/kg. | [S10] |
+| P-033 | `FROST_J` | 400000000 | J per block | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the heat one Frost emit takes from each block within 1.5 m of the hit, enough to freeze one full block of 12 °C water (5 × 10⁷ J to cool it, 3.3 × 10⁸ J to freeze it), so one cast freezes the top layer of a 3 × 3 patch. | [S0] |
+| P-034 | `FIRE_EMIT_J` | 90000000 | J per block per step | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the heat a Fire emit gives each block within 1.5 m, for 5 steps (0.5 s): enough to melt one ice block without boiling the meltwater. | [S0] |
+| P-035 | `BURN_J` | 16000000 | J per block per step | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the heat a burning block gives each touching block per step, so touching wood reaches 300 °C in about 2 s. | [S0] |
+| P-036 | `CO2_EMIT_M3` | 23 | m³ | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the CO₂ one CO2 emit adds, sized so that three casts (and not two) fill the methane hollow's floor past 28 % CO₂. | [S0] |
+| P-037 | `CONDUCTION_X` | 20000 | factor | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: block-to-block heat conduction runs this many times faster than real 1 m blocks would; real conduction through a metre of rock takes days. | [S0] |
+| P-038 | `REST_PULL` | 0.01 | per step | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the share of its distance from its resting temperature a block loses each 0.1 s step (about a 10 s time constant). | [S0] |
+| P-039 | `lift_n air density` | 1.204 | kg/m³ | crates/matter/src/lib.rs | correct | Air at 20 °C and 1 atm from the ideal gas law, ρ = pM/RT with M = 28.97 g/mol (H2 0.084, O2 1.33, CO2 1.83, CH4 0.67 kg/m³ the same way). The balloon's lift is (ρ_air − ρ_gas)·V·g − m·g. | [S12] [S8] |
 
 ## Not claims
 
@@ -238,3 +254,66 @@ The single register of every science claim the first-person 3D client shows the 
 - [S29] NIST Chemistry WebBook, SRD 69, Methane (formula CH4, molecular weight 16.0425). Fetched 2026-11-01: https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828
 - [S30] NIST Chemistry WebBook, SRD 69, Nitrogen (molecular weight 28.0134). Fetched 2026-11-01: https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379
 - [S31] NSW Rural Fire Service, Operational Procedures and Guidelines, "Incidents - Common Flammable Gases" ("Do not extinguish burning gas without first cutting off the leaking gas supply"; methane "is lighter than air and will rise and disperse rather than collect near the ground"). Fetched 2026-11-01: https://www.rfs.nsw.gov.au/resources/publications/operational-procedures-and-guidelines/foundational/incidents-common-flammable-gases
+- [S32] The Engineering ToolBox, "Specific Heat of Solids" (kJ/(kg K): brick, common 0.9; fire brick 1.05; coal, anthracite 1.26; glass, window 0.84; granite 0.79; iron, 20 °C 0.46; sand, dry 0.80; quartz mineral 0.71-0.8; ice 0 °C 2.09; wood, oak 2; ashes 0.84; clay 0.92). Fetched 2026-11-01: https://www.engineeringtoolbox.com/specific-heat-solids-d_154.html
+- [S33] The Engineering ToolBox, "Thermal Conductivity of Selected Materials and Gases" (W/(m K): air 0.0262 at 25 °C; brick dense 1.31, brickwork common 0.6-1.0; coal 0.2; glass 1.05, window 0.96; granite 1.7-4.0; ice 0 °C 2.18; iron-oxide 0.58; quartz mineral 3; sand, dry 0.15-0.25; snow 0.05-0.25; water 0.606; hardwoods 0.16; clay 0.15-1.8; earth, dry 1.5, soil 0.5; water vapour 0.0267). Fetched 2026-11-01: https://www.engineeringtoolbox.com/thermal-conductivity-d_429.html
+- [S34] The Engineering ToolBox, "Densities of Solids" (10³ kg/m³: brick 1.4-2.4; coal, anthracite 1.4-1.8; glass, common 2.4-2.8; granite 2.6-2.8; ice 0.917; hematite 4.9-5.3, brown iron ore 5.1; quartz 2.65; sand, dry 1.4-1.6; snow 0.1; oak 0.72; ashes 0.65; clay 1.8-2.6; earth, loose 1.2). Fetched 2026-11-01: https://www.engineeringtoolbox.com/density-solids-d_1265.html
+- [S35] Wikipedia, "Silicon dioxide", infobox (melting point 1713 °C; density 2.648 g/cm³ for α-quartz; "Silica is the primary ingredient in the production of most glass"; "silica is the major constituent of sand"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Silicon_dioxide
+- [S36] Wikipedia, "Iron", infobox (melting point 1538 °C; density 7.874 g/cm³; specific heat 449 J/(kg·K); thermal conductivity 80.4 W/(m·K)) and the blast furnace section ("iron ore is reduced with coke in a blast furnace"; "2 Fe2O3 + 3 C → 4 Fe + 3 CO2"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Iron
+- [S37] The Engineering ToolBox, "Fuels and Chemicals - Autoignition Temperatures" (wood 300 °C; charcoal 349 °C; bituminous coal glow point 454 °C; methane 580 °C; hydrogen 500 °C). Fetched 2026-11-01: https://www.engineeringtoolbox.com/fuels-ignition-temperatures-d_171.html
+- [S38] Wikipedia, "Bloomery" (it "reduces the iron oxides in the ore to metallic iron without melting the ore"; "this allows the bloomery to operate at lower temperatures than the melting temperature of the ore"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Bloomery
+- [S39] The Engineering ToolBox, "Water - Density, Specific Weight and Thermal Expansion Coefficients" (998.21 kg/m³ at 20 °C; 999.85 at 0.1 °C; 958.35 at 100 °C). Fetched 2026-11-01: https://www.engineeringtoolbox.com/water-density-specific-weight-d_595.html
+
+## Block world
+
+Material rows for the I-052 block world (`content/materials.json`). Each row's `source` field names one heading below (`realgame-voxel` test V10 checks that every row has one). Values are SI at 20 °C and 1 atm unless the row says otherwise; `null` in the JSON means the field does not apply in play. `hardness_s` (dig time) and `burn_s` (how long a block burns) are gameplay tuning [S0], not physical claims; 9999 s marks a fixture that cannot be dug. Specific heats, conductivities and densities are taken from the cited tables, picking one value inside each cited range.
+
+### mat-air
+Air: density 1.204 kg/m³ (ideal gas, M = 28.97 g/mol [S12] [S8]); c_p 1.007 kJ/(kg·K) [S11]; k 0.0262 W/(m·K) [S33]. Air cells hold no heat in the sim; they are the room every block cools toward.
+
+### mat-dirt
+Dirt and grass: density 1200 kg/m³ (earth, loose [S34]); c_p 920 J/(kg·K) (clay [S32]); k 0.5 W/(m·K) (dry soil [S33]). Simplified: soil varies widely with water content.
+
+### mat-sand
+Sand: density 1500 kg/m³ (dry sand 1400-1600 [S34]); c_p 800 J/(kg·K) [S32]; k 0.2 W/(m·K) (0.15-0.25 [S33]); melts at 1713 °C, the melting point of silica [S35], into glass (P-026).
+
+### mat-stone
+Stone, cliffstone, runestone and the gas vent's casing: granite, density 2700 kg/m³ (2600-2800 [S34]); c_p 790 J/(kg·K) [S32]; k 2.8 W/(m·K) (1.7-4.0 [S33]). Runestone and vents are fixtures (cannot be dug).
+
+### mat-wood
+Wood, planks, leaves, torches and both benches: oak, density 720 kg/m³ [S34]; c_p 2000 J/(kg·K) [S32]; k 0.16 W/(m·K) (hardwoods [S33]); ignites at 300 °C [S37] [S6] (as P-004). Simplified: leaves are given wood's values (real leaves are lighter and ignite between 227 and 453 °C [S16]).
+
+### mat-snow
+Snow: density 100 kg/m³ [S34]; c_p 2090 J/(kg·K) (ice [S32]); k 0.15 W/(m·K) (0.05-0.25 [S33]); melts at 0 °C [S10].
+
+### mat-ice
+Ice: density 917 kg/m³ [S34]; c_p 2090 J/(kg·K) [S32] [S11]; k 2.18 W/(m·K) [S33]; melts at 0 °C [S10], taking 334 kJ/kg (P-031).
+
+### mat-water
+Liquid water: density 998 kg/m³ at 20 °C [S39]; c_p 4184 J/(kg·K) [S11]; k 0.606 W/(m·K) [S33]; freezes at 0 °C and boils at 100 °C [S2] [S10].
+
+### mat-steam
+Steam: density 0.59 kg/m³ at 100 °C (ideal gas, ρ = pM/RT with M = 18.02 g/mol [S12]); c_p 1864 J/(kg·K) (water vapour [S11]); k 0.0267 W/(m·K) [S33].
+
+### mat-mud
+Mud: wet clay, density 1800 kg/m³ (clay 1800-2600 [S34]); c_p 920 J/(kg·K) (clay [S32]); k 1.0 W/(m·K) (clay 0.15-1.8 [S33]). Simplified: one value for a mix that varies with its water.
+
+### mat-coal
+Coal ore: anthracite, density 1400 kg/m³ (1400-1800 [S34]); c_p 1260 J/(kg·K) [S32]; k 0.2 W/(m·K) [S33]. Simplified: coal seams do not catch fire from a short flame in play (flammability 0; bituminous coal glows from 454 °C and anthracite from 600 °C [S37]). Coal is the carbon that reduces iron ore (P-027) and the fuel the Invention Bench burns.
+
+### mat-iron-ore
+Iron ore: hematite, density 5100 kg/m³ (4900-5300 [S34]); c_p 650 J/(kg·K) (simplified: between iron 0.46 and granite 0.79 kJ/(kg·K) [S32], no table row for hematite); k 0.58 W/(m·K) (iron oxide [S33]).
+
+### mat-crystal
+Crystal: quartz, density 2650 kg/m³ [S34] [S35]; c_p 800 J/(kg·K) [S32]; k 3 W/(m·K) [S33]; melts at 1713 °C [S35].
+
+### mat-glass
+Glass: density 2600 kg/m³ (2400-2800 [S34]); c_p 840 J/(kg·K) [S32]; k 1.05 W/(m·K) [S33].
+
+### mat-iron
+Iron: density 7874 kg/m³, c_p 449 J/(kg·K), k 80.4 W/(m·K), melts at 1538 °C [S36].
+
+### mat-brick
+Brick and the kiln hearth: density 1900 kg/m³ (1400-2400 [S34]); c_p 900 J/(kg·K) (common brick; fire brick 1050 for the hearth [S32]); k 0.8 W/(m·K) (brickwork 0.6-1.0; dense brick 1.31 for the hearth [S33]).
+
+### mat-ash
+Ash: density 650 kg/m³ [S34]; c_p 840 J/(kg·K) [S32]; k 0.16 W/(m·K) (simplified: no table row for ash, given wood's value [S33]).
