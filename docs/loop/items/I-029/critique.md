@@ -122,7 +122,7 @@ Other points:
 
 # Critique of I-029, revision 3 (wave 13, on d476ac8)
 
-**Verdict: approve, with minimal critic edits made in `spec.md` (each marked "(critic r3)").** Revision 3 builds on merged I-028 names as they are (`judge`, `learnable`, `recipe`, `prompt`, `BenchView`, `mountBuilder(root, { band, spell, recipe, prompt, onMake })`, `reasonFor`, `BenchState.band`), edits no existing golden check, leaves `bench.js` and the `hud.js` pointer-lock block alone, and answers I-035's F1. The edits below close one false-fail test, two honesty gaps in the red/green story, and the main fun risk. None changes the contract, the lanes or the seam.
+**Verdict: revise, with the revision already made by the critic.** The minimal edits are in `spec.md`, each marked "(critic r3)". As amended, the spec is ready for the contract step and needs no further planner round. Revision 3 builds on merged I-028 names as they are (`judge`, `learnable`, `recipe`, `prompt`, `BenchView`, `mountBuilder(root, { band, spell, recipe, prompt, onMake })`, `reasonFor`, `BenchState.band`), edits no existing golden check, leaves `bench.js` and the `hud.js` pointer-lock block alone, and answers I-035's F1. The edits below close one false-fail test, two honesty gaps in the red/green story, and the main fun risk. None changes the contract, the lanes or the seam.
 
 ## 1. Fun for a 6-year-old and a 13-year-old (not a chore every cast)
 
