@@ -1,0 +1,45 @@
+=== FIX
+locked true
+  click(640,360) dyaw=-10.89 dpitch=-10.89 locked=true
+  click(300,200) dyaw=0.00 dpitch=0.00 locked=true
+  click(900,500) dyaw=0.00 dpitch=0.00 locked=true
+  click(640,360) dyaw=-10.89 dpitch=-10.89 locked=true
+  click(200,600) dyaw=-10.89 dpitch=-10.89 locked=true
+  click(1000,150) dyaw=-10.89 dpitch=-8.16 locked=true
+FAIL A headless mouse.click to a new spot under lock does not turn: 4/6 turned
+  move+2f+click(640,360) dyaw=-10.89 dpitch=-10.89
+  move+2f+click(300,200) dyaw=-10.89 dpitch=-10.89
+  move+2f+click(900,500) dyaw=-10.89 dpitch=-10.89
+  move+2f+click(640,360) dyaw=0.00 dpitch=0.00
+FAIL A2 golden real-click pattern (move, 2 frames, click) does not turn: 3/4 turned
+PASS B1 flick -150,-100 after press+release: expected dyaw 8.17 dpitch 5.45, got 8.16 / 5.44
+PASS B2 flick +200,+50 after press: expected dyaw -10.89 dpitch -2.72, got -10.89 / -2.72
+PASS B3 small right move (3,1), click, then back (-3,-1) x3: expected dyaw 0.33 dpitch 0.11, got 0.16 / 0.05
+FAIL B4 aim right (40,0), click, flick back (-40,0): expected dyaw 0.00 dpitch 0.00, got -2.18 / 0.00
+FAIL B5 aim down-right (120,80), press, first held move (-120,-80): expected dyaw 0.00 dpitch 0.00, got -6.53 / -4.35
+small locked true
+FAIL C 400x300 window: genuine flick (-200,-150) after a click: expected dyaw 10.89, got 0.00 / 0.00
+PASS D age picker shows and closes on a pick: shown=true closedAfterPick=true
+
+=== BASE
+locked true
+  click(640,360) dyaw=0.00 dpitch=0.00 locked=true
+  click(300,200) dyaw=21.77 dpitch=21.77 locked=true
+  click(900,500) dyaw=0.00 dpitch=0.00 locked=true
+  click(640,360) dyaw=0.00 dpitch=0.00 locked=true
+  click(200,600) dyaw=0.00 dpitch=0.00 locked=true
+  click(1000,150) dyaw=0.00 dpitch=0.00 locked=true
+FAIL A headless mouse.click to a new spot under lock does not turn: 1/6 turned
+  move+2f+click(640,360) dyaw=0.00 dpitch=0.00
+  move+2f+click(300,200) dyaw=0.00 dpitch=0.00
+  move+2f+click(900,500) dyaw=0.00 dpitch=0.00
+  move+2f+click(640,360) dyaw=0.00 dpitch=0.00
+PASS A2 golden real-click pattern (move, 2 frames, click) does not turn: 0/4 turned
+PASS B3 small right move (3,1), click, then back (-3,-1) x3: expected dyaw 0.33 dpitch 0.11, got 0.33 / 0.11
+PASS B4 aim right (40,0), click, flick back (-40,0): expected dyaw 0.00 dpitch 0.00, got 0.00 / 0.00
+PASS B5 aim down-right (120,80), press, first held move (-120,-80): expected dyaw 0.00 dpitch 0.00, got 0.00 / 0.00
+small locked true
+PASS C 400x300 window: genuine flick (-200,-150) after a click: expected dyaw 10.89, got 10.89 / 8.16
+
+EXIT 0
+EXITALL
