@@ -321,7 +321,7 @@ pub fn caption(
         ),
         E::Pooled if marsh => pick(
             [
-                "All the fires went out!",
+                "These fires went out!",
                 "The CO₂ covered the flames. No oxygen, no fire.",
                 E::Pooled.caption(),
                 "Smothered: pooled CO₂ cut off the oxygen to every flame at once. A deep pool of CO₂ is dangerous for people to breathe too.",
@@ -800,8 +800,8 @@ pub fn flame_scale(o: &Obj) -> f32 {
 
 /// Level 3's moving parts each frame: flames (shown while burning, low,
 /// wobbling unless `still`, shrunk by a flicker), the haze in each hollow
-/// (its height follows the pool) and gas bubbles rising from burning vents
-/// (at most about 12 alive at `low`).
+/// (its height follows the pool) and gas bubbles rising from every vent, lit
+/// or smothered (at most about 12 alive at `low`).
 #[allow(clippy::too_many_arguments)]
 pub fn sync<F: bevy::ecs::query::QueryFilter, G: bevy::ecs::query::QueryFilter>(
     chem: &Chem,
@@ -858,10 +858,12 @@ pub fn sync<F: bevy::ecs::query::QueryFilter, G: bevy::ecs::query::QueryFilter>(
             tr.translation.y = hgt / 2.0;
         }
     }
-    // Bubbles of marsh gas rising out of the water at each burning vent.
+    // Bubbles of marsh gas rising out of the water at each vent, burning or
+    // smothered: the gas keeps coming up after its flame goes out (I-037
+    // break 1, S3); only the flame needs oxygen.
     let rate = if low { 1.5 } else { 3.0 };
     for (i, o) in objs.iter().enumerate() {
-        if o.kind != Kind::GasVent || !o.burning || fx.rand() >= rate * dt {
+        if o.kind != Kind::GasVent || fx.rand() >= rate * dt {
             continue;
         }
         let a = chem.targets[i].aabb;
@@ -935,7 +937,7 @@ mod tests {
                 EventKind::Pooled,
                 vent.clone(),
                 [
-                    "All the fires went out!",
+                    "These fires went out!",
                     "The CO₂ covered the flames. No oxygen, no fire.",
                     "The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.",
                     "Smothered: pooled CO₂ cut off the oxygen to every flame at once. A deep pool of CO₂ is dangerous for people to breathe too.",

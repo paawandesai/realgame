@@ -751,7 +751,7 @@ export function startHud() {
       banner.classList.toggle('lost', state.outcome === 'lost');
       if (state.outcome === 'won' && state.level === 3) {
         banner.querySelector('.big').textContent = 'You cleared the Marsh!';
-        banner.querySelector('.small').textContent = 'CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back.';
+        banner.querySelector('.small').textContent = 'CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back. Press R to play again.';
       } else if (state.outcome === 'won' && state.level === 2) {
         banner.querySelector('.big').textContent = 'You opened the Frozen Gate!';
         banner.querySelector('.small').textContent = 'Freeze to cross, melt to open: water changed state both ways. Walk to the glowing arch to visit the Marsh. Press R to play again.';

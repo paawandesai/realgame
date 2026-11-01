@@ -184,6 +184,29 @@ pub fn layout() -> Layout {
     }
 }
 
+/// I-037: level 2 as the player left it, for the walk back from the Marsh
+/// (I-037 break 1, B1). The stream is frozen solid and the gate melted with
+/// the game's own Frost and Fire rules (so every visual and collider follows
+/// from the state), and the lantern counts as reached: the win is latched, so
+/// walking up to it cannot win the level again, and the banner it shows
+/// describes the state on screen (gate open, stream frozen).
+pub fn solved(w: &mut chem::World) {
+    let mut ev = Vec::new();
+    for _ in 0..8 {
+        if w.objs[STREAM].ice >= 1.0 {
+            break;
+        }
+        w.apply(STREAM, chem::Spell::Frost, &mut ev);
+    }
+    for _ in 0..8 {
+        if !w.objs[GATE].wall {
+            break;
+        }
+        w.apply(GATE, chem::Spell::Fire, &mut ev);
+    }
+    w.reach();
+}
+
 /// When the stream turns solid (liquid again) under a player standing on
 /// it, the bank landing to move them to: the nearer one, x clamped to the
 /// landing. `None` while the stream is frozen or the player is clear of it.
@@ -923,6 +946,41 @@ mod tests {
         }
         let p = walk(&w, &lay.colliders, START, 12.0);
         assert!(near_lantern(&p), "reached the lantern, pos={:?}", p.pos);
+    }
+
+    #[test]
+    fn i037_back_from_the_marsh_level_2_is_already_solved() {
+        let lay = layout();
+        let mut w = lay.world.clone();
+        solved(&mut w);
+        assert!(
+            w.objs[STREAM].frozen() && w.objs[STREAM].ice >= 1.0,
+            "stream frozen solid"
+        );
+        assert!(!w.objs[GATE].wall && !w.objs[GATE].frozen(), "gate melted");
+        assert_eq!(
+            w.outcome(),
+            chem::Outcome::Won,
+            "the lantern win is latched"
+        );
+        // The way is really open: from beside the arrival point (clear of
+        // the lantern's plinth) the walk south crosses the melted gate and
+        // the frozen stream to the start bank.
+        let mut p = walk(&w, &lay.colliders, ARRIVE_NORTH + Vec3::X, 0.0);
+        p.yaw = std::f32::consts::PI;
+        let solids = crate::player::boxes(Colliders(lay.colliders.clone()).solid(&w));
+        let input = MoveInput {
+            wish: Vec2::new(0.0, 1.0),
+            ..MoveInput::default()
+        };
+        for _ in 0..(14.0 * 30.0) as usize {
+            p.step(input, 1.0 / 30.0, &solids, &[]);
+        }
+        assert!(
+            p.pos.z > STREAM_Z.1 + 0.5,
+            "walked back over the stream, pos={:?}",
+            p.pos
+        );
     }
 
     #[test]

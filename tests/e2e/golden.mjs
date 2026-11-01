@@ -4165,6 +4165,25 @@ async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('marsh: the back arch returns to the Frozen Gate with its forward arch open',
     s.level === 2 && s.nextOpen === true && s.pos[2] < -19, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
 
+  // Round 2 (break 1, B1): back from the Marsh, level 2 is as the player left
+  // it (stream frozen, gate melted), so walking on to the lantern cannot win
+  // it with the gate still standing, and the banner matches the state.
+  const solvedState = (x) => {
+    const g = x.objs[idx(x, 'ice gate')], r = x.objs[idx(x, 'stream')];
+    return { gateWall: g && g.wall, gateIce: g && g.ice, streamIce: r && r.ice, streamFrozen: r && r.frozen };
+  };
+  await cmd('look 180 0');
+  await cmd('move 0 1 1.5');
+  s = await gameSecs(2);
+  await cmd('move 0 0 0');
+  const back = solvedState(s);
+  const bB = await banner();
+  check('marsh: back from the Marsh, level 2 stays solved (stream frozen, gate melted) and the lantern gives no unsolved win',
+    s.level === 2 && back.streamFrozen === true && back.streamIce >= 1 && back.gateWall === false
+      && !(s.outcome === 'won' && back.gateWall !== false) && s.pos[2] > -20.3
+      && (!bB.shown || bB.big === 'You opened the Frozen Gate!'),
+    `level=${s.level} outcome=${s.outcome} ${JSON.stringify(back)} pos=${s.pos} banner=${JSON.stringify(bB)}`);
+
   // 16. Captions per band, each on a fresh level 3.
   const per = [];
   let bandsOk = true;
@@ -4212,4 +4231,19 @@ async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('marsh: ?level=3 (no debug) opens the Marsh and CO2 can be selected and cast',
     s.level === 3 && /^The Marsh/.test(s.caption) && c1.spell === 3 && c1.casts > c0,
     `level=${s.level} caption=${s.caption} spell=${c1.spell} casts ${c0} -> ${c1.casts} url=${page.url()}`);
+
+  // Round 2 (break 1, S1 and B1): after a direct ?level=3 load, the back arch
+  // brings the player to level 2 with its forward arch open behind them and
+  // the level solved (debug page, for `tp`).
+  await load(`${base}${base.includes('?') ? '&' : '?'}level=3`);
+  s = await until((x) => x.level === 3, 10000);
+  await resume();
+  await cmd('tp 0 21.8');
+  s = await until((x) => x.level === 2, 5000);
+  await frames(2);
+  s = await st();
+  const direct = solvedState(s);
+  check('marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted',
+    s.level === 2 && s.nextOpen === true && direct.gateWall === false && direct.streamFrozen === true,
+    `level=${s.level} nextOpen=${s.nextOpen} outcome=${s.outcome} ${JSON.stringify(direct)} pos=${s.pos}`);
 }

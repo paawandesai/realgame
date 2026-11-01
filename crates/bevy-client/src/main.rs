@@ -1196,10 +1196,17 @@ fn levels(
     level.n = n;
     BENCH_ON.store(n == 1, std::sync::atomic::Ordering::Relaxed);
     reset(&mut chem, &mut game, &mut player, n);
-    // Back from the Marsh: arrive at level 2's north arch, facing the lantern.
+    // Back from the Marsh: arrive at level 2's north arch, facing the lantern,
+    // with level 2 as it was left (stream frozen, gate melted, lantern won):
+    // the way back to the Marsh was opened by the level-2 win, so the level is
+    // solved, and walking to the lantern cannot win it again (I-037 break 1,
+    // B1). A direct `?level=3` load comes back the same way (S1).
     if n == 2 && from == 3 {
+        level2::solved(&mut chem.world);
+        level.cleared2 = true;
         player.pos = level2::ARRIVE_NORTH;
         player.yaw = std::f32::consts::PI;
+        game.say("Back at the Frozen Gate. The stream is frozen and the gate is open.");
     }
     info!("LEVEL {n}");
 }
