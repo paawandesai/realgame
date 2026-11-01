@@ -128,6 +128,12 @@ test("questEvents: once on playing to won, nothing on lost, a repeat or a replay
   assert.deepEqual(questEvents({ outcome: "playing", quest: 1 }, { outcome: "won", quest: "1" }, new Set()), [0]);
 });
 
+test("questEvents: a level switch that arrives already won is not a completion", () => {
+  const sent = new Set<number>();
+  assert.deepEqual(questEvents({ outcome: "playing", level: 3 }, { outcome: "won", level: 2 }, sent), []);
+  assert.deepEqual(questEvents({ outcome: "playing", level: 2 }, { outcome: "won", level: 2 }, sent), [0]);
+});
+
 test("analyticsOn reads the rg-analytics meta switch", () => {
   const doc = (content: string | null) => ({
     querySelector: (sel: string) => (sel === 'meta[name="rg-analytics"]' && content !== null ? { content } : null),

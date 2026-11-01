@@ -1891,7 +1891,8 @@ fn react(mut game: ResMut<Game>, chem: Res<Chem>, mut fx: ResMut<Fx>, level: Res
             }
         }
         Outcome::Won if level.n == 2 => {
-            if !game.caption.starts_with("You opened") {
+            // "Back at" is the arrival line from the Marsh; keep it.
+            if !game.caption.starts_with("You opened") && !game.caption.starts_with("Back at") {
                 game.say(
                     "You opened the Frozen Gate! Freeze to cross, melt to open: water changed state both ways.",
                 );

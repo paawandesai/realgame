@@ -39,7 +39,7 @@ const ID_RE = /^[0-9a-f]{32}$/;
  *   | { type: 'quest_complete', band: string, quest?: number }
  *   | { type: 'session_end', band: string, dur?: string }
  *   | { type: string, band: string, [key: string]: unknown }} PlayEvent
- * @typedef {{ outcome?: unknown, quest?: unknown } | null | undefined} GameStateLike
+ * @typedef {{ outcome?: unknown, quest?: unknown, level?: unknown } | null | undefined} GameStateLike
  */
 
 /** The extra keys each event type may carry besides v, type, band and id. */
@@ -164,6 +164,8 @@ export function eventBody(event, id) {
  */
 export function questEvents(prev, state, sent) {
   if (!prev || !state || prev.outcome !== 'playing' || state.outcome !== 'won') return [];
+  // A level switch can arrive already won (back from the Marsh): not a completion.
+  if (prev.level !== state.level) return [];
   const quest = validQuest(state.quest) ? /** @type {number} */ (state.quest) : 0;
   if (sent.has(quest)) return [];
   sent.add(quest);
