@@ -3970,7 +3970,9 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     const p = await ctx.newPage();
     const warns = [];
     const errs = [];
-    p.on('console', (m) => { if (m.type() === 'warning') warns.push(m.text()); if (m.type() === 'error') errs.push(m.text()); });
+    // Bevy's warn! reaches the console as a WARN log line (console.log), as
+    // the progress section's "needs ?debug" check reads it.
+    p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); else warns.push(m.text()); });
     p.on('pageerror', (e) => errs.push(e.message));
     await p.goto(urlWith([]));
     for (const t0 = Date.now(); !(await p.evaluate(() => !!window.__gameState));) {
@@ -3986,7 +3988,7 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await waitFramesOf(p, f0, 5);
     await sleep(300);
     w = await wsOf(p);
-    const warned = warns.some((t) => /castmode/.test(t));
+    const warned = warns.some((t) => t.includes('castmode instant') && t.includes('needs ?debug'));
     check('worked: W1 castmode instant without debug is ignored with a warning, not an error', !!w && w.mode === 'worked' && warned && !errs.some((t) => /castmode/.test(t)),
       `mode=${w && w.mode} warned=${warned} errors=${errs.slice(0, 2).join(' | ')}`);
     await p.goto(urlWith(['debug', 'cast=worked']));
@@ -4297,9 +4299,12 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await fresh('prog learn 1');
     const w = await openBuilder();
     const s0 = await st();
-    const t = (await nowOf(page)).t;
+    // The bench takes B in its own capture listener (registered first), so
+    // the frame is read just before the press: one frame stricter, never looser.
+    const at = await nowOf(page);
+    const t = at.t;
     await page.keyboard.press('KeyB');
-    const press = (await pressesOf(page, t)).find((r) => r.kind === 'key');
+    const press = { frame: at.frame };
     await waitFramesOf(page, press ? press.frame : s0.frame, 4);
     const recs = await recsOf(page, t);
     const nullR = recs.find((r) => r.workId === null);

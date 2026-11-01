@@ -58,6 +58,10 @@ export function createWorked({ doc, win, cmd, bench }) {
   /** @type {string[] | null} */ let prevStages = null;
   let vx = 0;
   let vy = 0;
+  // Set once hud.js has forwarded a locked pointermove with movement; until
+  // then the page's own mousemove (fallback) drives the cursor, as hud.js
+  // does for the camera (never both, so nothing counts twice).
+  let moveWorks = false;
   /** @type {any} */ let toastTimer = 0;
 
   const el = (/** @type {string} */ tag, /** @type {string} */ cls, /** @type {string} */ text = '') => {
@@ -240,9 +244,11 @@ export function createWorked({ doc, win, cmd, bench }) {
       if (benchOpen && cancelSent !== openId) { cancelSent = openId; send(`work cancel ${openId}`); }
     },
     isOpen() { return !!panel; },
-    /** @param {number} dx @param {number} dy */
-    move(dx, dy) {
+    /** @param {number} dx @param {number} dy @param {boolean} [fallback] */
+    move(dx, dy, fallback = false) {
       if (!panel || !vcursor) return false;
+      if (fallback && moveWorks) return true;
+      if (!fallback && (dx || dy)) moveWorks = true;
       if (Math.abs(dx) >= JUMP || Math.abs(dy) >= JUMP) return true;
       const r = panel.getBoundingClientRect();
       vx = Math.min(r.left + r.width, Math.max(r.left, vx + (Number(dx) || 0)));
@@ -311,6 +317,13 @@ export function startWorked() {
   const api = createWorked({ doc: document, win: window, cmd: game.cmd, bench: { mountBuilder, reasonFor, pretty } });
   game.overlay(api);
   window.addEventListener('keydown', (e) => { api.key(e); }, true);
+  // Browsers whose locked pointermove carries no movement (headless Chromium)
+  // report it on mousemove; hud.js reads that fallback the same way.
+  const clamp = (/** @type {number} */ v) => (Number.isFinite(v) ? Math.max(-JUMP, Math.min(JUMP, v)) : 0);
+  document.addEventListener('mousemove', (e) => {
+    if (!api.isOpen() || !document.pointerLockElement) return;
+    api.move(clamp(e.movementX), clamp(e.movementY), true);
+  });
   let raw = '';
   /** @type {WorkState | null} */ let ws = null;
   const tick = () => {

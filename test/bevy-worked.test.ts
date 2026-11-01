@@ -312,6 +312,12 @@ test("9: the virtual cursor starts at the panel centre, clamps, ignores 200 px j
   assert.ok(vc, "a .vcursor");
   const pos = () => [parseFloat(vc.style.left ?? "NaN"), parseFloat(vc.style.top ?? "NaN")];
   assert.deepEqual(pos(), [400 + 280, 420 + 150]);
+  // The mousemove fallback moves it until hud.js forwards a real move, then never.
+  t.w.move(10, 0, true);
+  assert.deepEqual(pos(), [400 + 290, 420 + 150]);
+  t.w.move(-10, 0);
+  t.w.move(10, 0, true);
+  assert.deepEqual(pos(), [400 + 280, 420 + 150], "the fallback is ignored once pointermove works");
   for (let i = 0; i < 100; i++) t.w.move(100, -100);
   assert.deepEqual(pos(), [960, 420], "clamped to the top-right corner");
   const before = pos();
