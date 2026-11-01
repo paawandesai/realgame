@@ -177,31 +177,43 @@ fn holding(story: &mut Story, item: Option<Item>) {
     }
 }
 
+/// Runs `f` on the story with the run's one pack, `crate::Pack` (the voxel
+/// view gathers into it and places from it), swapped into `story.pack` for
+/// the call. Outside these calls `story.pack` is unused.
+fn with_pack<R>(story: &mut Story, pack: &mut crate::Pack, f: impl FnOnce(&mut Story) -> R) -> R {
+    std::mem::swap(&mut story.pack, &mut pack.0);
+    let r = f(story);
+    std::mem::swap(&mut story.pack, &mut pack.0);
+    r
+}
+
 /// Drains `window.__gameIn.story`.
-fn commands(mut story: ResMut<Story>) {
+fn commands(mut story: ResMut<Story>, mut pack: ResMut<crate::Pack>) {
     for line in drain() {
-        run_command(&mut story, &line);
+        with_pack(&mut story, &mut pack, |s| run_command(s, &line));
     }
 }
 
 /// Hears what the world and the player did.
 pub fn on_event(
     mut story: ResMut<Story>,
+    mut pack: ResMut<crate::Pack>,
     player_pos: Res<Player>,
     mut player: MessageReader<PlayerEvent>,
     mut matter: MessageReader<MatterEvent>,
 ) {
+    let story = &mut *story;
     for e in player.read() {
         match e {
+            // The voxel view already put the drop in the pack (or refused
+            // the dig when it was full); the quest hears what it holds now.
             PlayerEvent::Dug { mat } => {
                 if let Some(item) = drop_of(*mat) {
-                    story.pack.add(item, 1);
-                    holding(&mut story, Some(item));
+                    with_pack(story, &mut pack, |s| holding(s, Some(item)));
                 }
             }
-            PlayerEvent::Placed { mat } => {
-                story.pack.take(Item::Block(*mat), 1);
-            }
+            // The view took the placed block out of the pack.
+            PlayerEvent::Placed { .. } => {}
             PlayerEvent::InBox { stamp } => {
                 if *stamp == realgame_voxel::stamp::FORD.id && player_pos.pos.z < 150.0 {
                     story.quest.on(QuestEvent::CrossedFord);
@@ -227,8 +239,21 @@ fn intro_camera(time: Res<Time>, story: Res<Story>, mut player: ResMut<Player>) 
 /// Fills the state keys and `__storyState`.
 fn keys(
     mut story: ResMut<Story>,
-    mut keys: ResMut<Keys>,
+    mut pack: ResMut<crate::Pack>,
+    keys: ResMut<Keys>,
     player: Res<Player>,
+    bench: Option<Res<BenchState>>,
+    view: Option<Res<crate::voxel_view::Keys>>,
+) {
+    with_pack(&mut story, &mut pack, |s| {
+        fill_keys(s, keys, &player, bench, view)
+    });
+}
+
+fn fill_keys(
+    story: &mut Story,
+    mut keys: ResMut<Keys>,
+    player: &Player,
     bench: Option<Res<BenchState>>,
     view: Option<Res<crate::voxel_view::Keys>>,
 ) {
@@ -252,7 +277,7 @@ fn keys(
         crate::cues::bearing_deg(eye.x, eye.z, player.yaw, tx, tz)
     });
     keys.ending = step > valley::STEPS;
-    let json = state_json(&story, band);
+    let json = state_json(story, band);
     if json != story.last {
         publish(&json);
         story.last = json;

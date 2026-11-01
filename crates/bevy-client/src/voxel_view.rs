@@ -310,6 +310,7 @@ pub fn debug_cmd(
     world: &mut World,
     player: &mut Player,
     keys: &mut Keys,
+    mut matter: Option<&mut realgame_matter::World>,
     probe_n: &mut u32,
 ) -> bool {
     let f = |i: usize| {
@@ -354,6 +355,9 @@ pub fn debug_cmd(
                         c.set_level(8);
                     }
                     world.set(p, c);
+                    if let Some(m) = matter.as_deref_mut() {
+                        m.touch(world, p);
+                    }
                 }
                 _ => warn!("setcell x y z <material>"),
             }
@@ -364,8 +368,14 @@ pub fn debug_cmd(
                 *probe_n += 1;
                 let c = world.get(p);
                 let fl = materials::flags(c.mat);
+                // The matter sim holds the live temperature and gas (an
+                // untouched cell reads its material's resting temperature).
+                let (temp_c, co2) = match matter.as_deref() {
+                    Some(m) => (m.temp_c(world, p), format!("{:.3}", m.gas_at(p)[0])),
+                    None => (c.temp_c(), "null".to_string()),
+                };
                 keys.probe = Some(format!(
-                    "{{\"n\":{},\"at\":[{},{},{}],\"mat\":\"{}\",\"level\":{},\"state\":{},\"tempC\":{:.2},\"co2\":null,\"solid\":{},\"protected\":{}}}",
+                    "{{\"n\":{},\"at\":[{},{},{}],\"mat\":\"{}\",\"level\":{},\"state\":{},\"tempC\":{:.2},\"co2\":{co2},\"solid\":{},\"protected\":{}}}",
                     probe_n,
                     p[0],
                     p[1],
@@ -373,7 +383,7 @@ pub fn debug_cmd(
                     materials::name(c.mat),
                     c.level(),
                     c.state(),
-                    c.temp_c(),
+                    temp_c,
                     fl.solid,
                     !world.can_break(p),
                 ));
@@ -448,6 +458,7 @@ fn tools(
     mut dig: ResMut<Dig>,
     mut whereabouts: ResMut<Whereabouts>,
     mut events: MessageWriter<PlayerEvent>,
+    mut matter: Option<ResMut<crate::blockchem::Matter>>,
 ) {
     let dt = clock::frame_dt(time.delta_secs());
     let world = &mut world.0;
@@ -589,6 +600,10 @@ fn tools(
                 auto_bind(&mut pack.0, Item::Block(d));
             }
             world.set(cell, Cell::AIR);
+            // Water next to the hole flows in, gas finds the new path.
+            if let Some(mt) = matter.as_mut() {
+                mt.world.touch(world, cell);
+            }
             events.write(PlayerEvent::Dug { mat: m });
             dig.t = 0.0;
             dig.cell = None;
@@ -643,6 +658,9 @@ fn tools(
     }
     if pack.0.take(Item::Block(m), 1) {
         world.set(p, Cell::new(m));
+        if let Some(mt) = matter.as_mut() {
+            mt.world.touch(world, p);
+        }
         events.write(PlayerEvent::Placed { mat: m });
     }
 }

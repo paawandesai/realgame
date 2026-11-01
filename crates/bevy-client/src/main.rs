@@ -131,9 +131,18 @@ pub(crate) struct MatterEvent(pub realgame_matter::MatterEvent);
 
 /// The player's pack in voxel mode (spec section 6): the voxel view adds
 /// what a dig gathers and takes what a click places; Lane C's story owns
-/// the pack UI, crafting and the `pack` state key.
-#[derive(Resource, Debug, Clone, Default)]
+/// the pack UI, crafting and the `pack` state key. This is the one pack:
+/// `story` works on it too. Everyone starts with the Pick (key 5).
+#[derive(Resource, Debug, Clone)]
 pub(crate) struct Pack(pub realgame_sim::valley::Pack);
+
+impl Default for Pack {
+    fn default() -> Self {
+        let mut p = realgame_sim::valley::Pack::default();
+        p.add(realgame_sim::valley::Item::Pick, 1);
+        Pack(p)
+    }
+}
 
 /// A spell landed in the block world (voxel mode only): where, the face it
 /// hit (zero when it hit nothing), and which spell. Sent by `projectiles`
@@ -156,6 +165,7 @@ struct VoxCtl<'w, 's> {
     keys: Option<ResMut<'w, voxel_view::Keys>>,
     world: Option<ResMut<'w, voxel_view::VoxWorld>>,
     walk: Option<ResMut<'w, voxel_view::Walk>>,
+    matter: Option<ResMut<'w, blockchem::Matter>>,
     probes: Local<'s, u32>,
 }
 
@@ -1278,7 +1288,8 @@ fn control(
         // probe (spec section 8).
         if vx.on() && matches!(name, Some("tp" | "face" | "setcell" | "probe")) {
             if let (Some(w), Some(k)) = (vx.world.as_mut(), vx.keys.as_mut()) {
-                voxel_view::debug_cmd(&a, &mut w.0, &mut player, k, &mut vx.probes);
+                let matter = vx.matter.as_mut().map(|m| &mut m.world);
+                voxel_view::debug_cmd(&a, &mut w.0, &mut player, k, matter, &mut vx.probes);
             }
             continue;
         }

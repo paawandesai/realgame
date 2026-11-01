@@ -134,7 +134,46 @@ impl Matter {
 /// Registers block chemistry (Voxel mode only). Matter events go out as
 /// `crate::MatterEvent` messages.
 pub fn plugin(app: &mut App) {
-    app.init_resource::<Keys>().init_resource::<Matter>();
+    app.init_resource::<Keys>()
+        .init_resource::<Matter>()
+        .add_systems(
+            Update,
+            drive
+                .after(crate::projectiles)
+                .before(crate::publish)
+                .before(crate::story::on_event),
+        );
+}
+
+/// Once a frame (integration, round 1): each `SpellLanded` from
+/// `projectiles` (which already waited the flight delay) enters the sim as
+/// its emit, then at most one matter step runs on the block world. The
+/// cells it sets dirty their chunks, which `voxel_view` remeshes on the next
+/// frame; its events go out as `crate::MatterEvent`.
+fn drive(
+    time: Res<Time>,
+    player: Res<crate::player::Player>,
+    mut vox: ResMut<crate::voxel_view::VoxWorld>,
+    mut matter: ResMut<Matter>,
+    mut keys: ResMut<Keys>,
+    mut landed: MessageReader<crate::SpellLanded>,
+    mut out: MessageWriter<crate::MatterEvent>,
+) {
+    for l in landed.read() {
+        // A spell that hit nothing (zero normal) has no face to land on.
+        if l.normal == [0, 0, 0] {
+            continue;
+        }
+        let n = IVec3::new(l.normal[0].into(), l.normal[1].into(), l.normal[2].into());
+        matter.world.emit(on_impact(l.spell, l.pos, n));
+    }
+    let now = time.elapsed_secs();
+    let dt = crate::clock::frame_dt(time.delta_secs());
+    let mut events = Vec::new();
+    matter.tick(&mut vox.0, now, dt, player.pos, &mut keys, &mut events);
+    for e in events {
+        out.write(crate::MatterEvent(e));
+    }
 }
 
 #[cfg(test)]
