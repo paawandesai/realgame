@@ -10,8 +10,8 @@
 //! index, then cell index), no `HashMap` iteration, no `sin`/`exp`/`powf` in
 //! anything a test hashes, and a seeded RNG stored in the world.
 //!
-//! Contract step: the types and signatures are fixed here; the bodies marked
-//! "stub" are filled by Lane A (spec section 12).
+//! The types and signatures were fixed by the contract step (spec section
+//! 10); Lane A owns the bodies.
 
 #![deny(unsafe_code)]
 
@@ -25,7 +25,7 @@ pub mod stamp;
 
 pub use collide::{ice_boxes, solid_boxes};
 pub use diff::DiffLog;
-pub use gen::generate;
+pub use gen::{biome_at, generate, spawn_for};
 pub use mesh::{mesh_chunk, ChunkMesh, MeshData};
 pub use raycast::{raycast, Hit, RayMode};
 pub use stamp::Aabb;

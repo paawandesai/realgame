@@ -613,3 +613,30 @@ fn check_streams(m: &MeshData) {
     assert_eq!(m.indices.len(), n / 4 * 6);
     assert!(m.indices.iter().all(|&i| (i as usize) < n));
 }
+
+/// Not an acceptance test: prints generation and meshing times and the
+/// mesh size for the whole generated world (spec section 9: "measured by a
+/// bench test that prints and is not asserted"). Run with `--nocapture`.
+#[test]
+fn mesh_and_generation_timing_prints() {
+    let t = std::time::Instant::now();
+    let w = generate(DEFAULT_SEED);
+    let gen_ms = t.elapsed().as_secs_f64() * 1000.0;
+    let arrays = (0..w.chunk_count())
+        .filter(|&i| matches!(w.chunk(i), realgame_voxel::Chunk::Array(_)))
+        .count();
+    let (mut quads, mut nonempty, mut worst) = (0usize, 0usize, 0f64);
+    let t = std::time::Instant::now();
+    for c in 0..w.chunk_count() {
+        let t1 = std::time::Instant::now();
+        let m = mesh_chunk(&w, c);
+        worst = worst.max(t1.elapsed().as_secs_f64() * 1000.0);
+        quads += m.opaque.quads() + m.clear.quads();
+        nonempty += usize::from(!m.opaque.is_empty() || !m.clear.is_empty());
+    }
+    let mesh_ms = t.elapsed().as_secs_f64() * 1000.0;
+    println!(
+        "TIMING generate {gen_ms:.1} ms ({arrays} array chunks of 192); mesh all {mesh_ms:.1} ms, worst chunk {worst:.2} ms, {nonempty} non-empty chunks, {quads} quads ({} triangles)",
+        quads * 2
+    );
+}
