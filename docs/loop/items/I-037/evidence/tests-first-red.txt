@@ -25,3 +25,11 @@ passing on the stubs: level3::tests::i037_reed_beds_close_both_sides_of_the_boar
 
 ## raw panics (native)
 thread 'level3::tests::i037_flames_block_the_boardwalk_until_each_hollow_is_pooled' (22813) panicked at src/level3.rs:917:9:
+
+## golden ONLY=marsh against the main build (d32a4ca pkg-out, same game code as origin/main dff8336), QUERY=?low
+FAIL marsh: level 2 forward arch is shut before the lantern (level 2, nextOpen false) level=2 nextOpen=undefined pos=0,0,-21.8
+FAIL marsh: the level-2 win opens the forward arch and the banner points to the Marsh outcome=won nextOpen=undefined banner={"shown":true,"big":"You opened the Frozen Gate!","small":"Freeze to cross, melt to open: water changed state both ways. Walk to the arch to go back."}
+FAIL marsh: walking into the open forward arch loads the Marsh within 5 s level=2 after 5274 ms objs=stream,ice gate,lantern ventsLit=undefined pools=undefined outcome=won caption=You opened the Frozen Gate! Freeze to cross, melt to open: water changed state both ways.
+FAIL marsh: burning gas blocks the walk (stopped south of the dip flames, z > 10) pos=0,0,-23.65 ventsLit=undefined
+then the section stopped with: TypeError: Cannot read properties of undefined (reading '0')
+(main has no nextOpen/pools/ventsLit keys, no north arch and no level 3: every check that ran failed, and the run could not continue past test 10 because the dip vents do not exist)

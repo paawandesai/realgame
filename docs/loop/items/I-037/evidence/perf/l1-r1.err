@@ -1,0 +1,8 @@
+[perf] sizing /home/claude/realgame/.claude/worktrees/w13-I-037/crates/bevy-client/web/pkg-out
+[perf] brotli total 3645235 B (3.645 MB), gzip 5184194 B
+[perf] low@4x: waiting for quiet machine (load1=2.21, own ~0, limit 2)
+[perf] low@4x: loading http://127.0.0.1:37005/?low&debug
+[perf] low@4x: interactive at 5951 ms (bound 80.2 ms, FIRST_FRAME t=5879)
+[perf] low@4x: frames=43 cpu_p50=31 ci95=[28.3,31.9] interval_p50=450.1 dpr=1 vis={"samples":23,"hidden":0,"unfocused":0,"hidden_events":0} canvas={"w":1280,"h":720,"luma_mean":172.86,"luma_stddev":37.15,"distinct_colors":1171,"blank":false} throttle={"rate":4,"iterations":29510087,"pairs_ms":[[182.6,43.2],[164.4,38.4],[170.5,39.1],[158.5,37.8],[174.1,40.6]],"ratio":4.28,"ok":true} workload={"casts":{"1":2,"2":2,"3":3,"4":2},"burning_max":3,"yaw_deg":1729.91,"steps":25,"resets":2} errors=0 valid=true
+[perf] requested brotli 3645038 B (3.645 MB); unrequested: favicon.svg; body mismatches: none; unverified: none
+[perf] pass=false (partial run) valid=true in 105.7 s
