@@ -470,8 +470,8 @@ fn plan_flight(
                 }
             }
             let inside = |i: usize| {
-                let c = nearest_on(chem, i, hand);
-                ballistics::in_cone(hand, dir, range, half, c).then(|| c.distance(hand))
+                let b = chem.bounds(i);
+                ballistics::cone_reaches_box(hand, dir, range, half, b.min, b.max)
             };
             let obj = aim.obj.filter(|&i| inside(i).is_some()).or_else(|| {
                 (0..chem.targets.len())
@@ -479,8 +479,8 @@ fn plan_flight(
                     .min_by(|a, b| a.1.total_cmp(&b.1))
                     .map(|(i, _)| i)
             });
-            let to = match obj {
-                Some(i) => nearest_on(chem, i, hand),
+            let to = match obj.and_then(inside) {
+                Some(d) => hand + dir * d.min(range),
                 None => hand + dir * range,
             };
             Flight {
@@ -1781,7 +1781,10 @@ fn aim_and_cast(
     let clicked = fires_in > 0;
     // I-051: Water and CO2 charge while held and fly on release, so a press
     // starts a charge instead of casting (one press, one cast).
-    let arc_spell = matches!(Spell::ALL[game.spell], Spell::Water | Spell::Foam);
+    // A spell that still opens the formula builder (a worked route) opens
+    // it on the press, as before; the charge is for casting it.
+    let arc_spell = matches!(Spell::ALL[game.spell], Spell::Water | Spell::Foam)
+        && wk.working.routes[game.spell] == worked::Route::Instant;
     if arc_spell && game.locked && !game.paused && clicked {
         game.charge = Some(0.0);
         incoming.retain(|c| c != "fire");

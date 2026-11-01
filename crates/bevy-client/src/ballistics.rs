@@ -143,6 +143,28 @@ pub fn in_cone(apex: Vec3, dir: Vec3, range: f32, half: f32, p: Vec3) -> bool {
     c.acos() <= half
 }
 
+/// Whether a box (`min`..`max`) reaches into the cone from `apex` along
+/// unit `dir` (out to `range`, `half` radians): for points along the axis,
+/// the box point nearest each is tested, so a box right under the hand (its
+/// nearest point to the hand straight down, outside the angle) still counts
+/// when the cone's axis runs into it. Returns the distance from the apex to
+/// the first such point.
+pub fn cone_reaches_box(
+    apex: Vec3,
+    dir: Vec3,
+    range: f32,
+    half: f32,
+    min: Vec3,
+    max: Vec3,
+) -> Option<f32> {
+    let n = 24;
+    (0..=n)
+        .map(|k| apex + dir * (range * k as f32 / n as f32))
+        .map(|q| q.clamp(min, max))
+        .find(|&c| in_cone(apex, dir, range, half, c))
+        .map(|c| c.distance(apex))
+}
+
 /// Traces the path from `p0` with `v0` in steps of `dt` until `hit(a, b)`
 /// says the segment a→b hits something (returning how far along, 0..1), or
 /// `max_t` runs out. Returns the points so far (the last is the landing
@@ -318,6 +340,26 @@ mod tests {
             "outside the angle"
         );
         assert!(in_cone(o, d, 2.5, half, o), "at the hand");
+    }
+
+    #[test]
+    fn i051_a_cone_reaches_a_box_right_under_the_hand() {
+        let half = 20f32.to_radians();
+        let hand = Vec3::new(0.2, 1.35, 10.3);
+        // Aiming down at a low box the hand is right above (its nearest
+        // point to the hand lies straight down, 45 degrees off the axis).
+        let dir = (Vec3::new(0.0, 0.6, 9.6) - hand).normalize();
+        let (min, max) = (Vec3::new(-0.5, 0.0, 9.6), Vec3::new(0.5, 1.2, 10.4));
+        assert!(
+            !in_cone(hand, dir, 3.0, half, hand.clamp(min, max)),
+            "the nearest point alone misses"
+        );
+        assert!(cone_reaches_box(hand, dir, 3.0, half, min, max).is_some());
+        // A box beside the cone, or past its range, is not reached.
+        let side = (Vec3::new(2.0, 0.0, 8.0), Vec3::new(3.0, 1.0, 9.0));
+        assert!(cone_reaches_box(hand, Vec3::NEG_Z, 3.0, half, side.0, side.1).is_none());
+        let far = (Vec3::new(-0.5, 0.0, 5.0), Vec3::new(0.5, 2.0, 6.0));
+        assert!(cone_reaches_box(hand, Vec3::NEG_Z, 3.0, half, far.0, far.1).is_none());
     }
 
     #[test]
