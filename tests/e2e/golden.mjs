@@ -5280,8 +5280,8 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     await poll(() => page.evaluate(() => !!document.querySelector('#worked input, #worked .worked-mount')), 5000);
     const one = await page.evaluate(() => !!document.querySelector('#worked .worked-confirm'));
     if (one) {
-      const c = await centre('#worked .worked-confirm');
-      await page.mouse.click(c.x, c.y);
+      // Playwright's click waits for the panel to settle where it is placed.
+      await page.click('#worked .worked-confirm', { timeout: 20000 });
     } else {
       await page.keyboard.type(formula);
       await page.keyboard.press('Enter');
@@ -5348,18 +5348,25 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   // ---- P1: walk to the workshop door and put the fire out.
   const line1 = (await st()).questLine;
   const b0 = (await st()).burning;
-  s = await walkTo(142.5, 197.0, 1.0);
+  s = await walkTo(142.5, 197.0, 0.4);
   await page.evaluate(() => document.getElementById('game').focus());
   await page.keyboard.press('2');
   await until((x) => x.spell === 1, 10000);
-  const locked = await lockNow();
+  // The page is told the mouse is locked (as in P2): under a real lock,
+  // headless Chromium gives each synthetic press a movement delta that
+  // turns the view about 11 degrees (see E4), which would throw the water
+  // off the aim. The presses themselves are real mouse presses.
+  await page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  const locked = !!(await until((x) => x.locked, 5000)).locked;
   await shot('p1-02-fire.png');
   const casts = [];
   for (let k = 0; k < 8; k++) {
     const x = await st();
     if (x.burning === 0) break;
-    // Aim at the middle of what still burns: the store's top, then lower.
-    await cmd(k % 2 === 0 ? 'face 142.5 36.0 189.0' : 'face 141.2 36.3 188.5');
+    // Water flies an arc: aimed level through the door it drops onto the
+    // floor, so the player lobs it over the low wall into the open roof,
+    // onto the store's top (front middle, then back left).
+    await cmd(k % 2 === 0 ? 'face 142.5 40.0 189.0' : 'face 141.5 40.5 188.5');
     await frames(2);
     const r = await workedPress('H2O(l)');
     casts.push(r.ok ? (r.one ? 'confirm' : 'built') : r.why);
@@ -5377,8 +5384,9 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   const later = await st();
   check('puzzles: P1 the workshop stays out', later.burning === 0, `burning ${later.burning}`);
 
-  // ---- Step 4: three correct worked Water casts in the run make Water
-  // Practised; from then on a press is one confirm, not the builder.
+  // ---- Step 4: correct worked Water casts make Water Practised (three in
+  // the run at most; the saved XP from the bench and two casts can get there
+  // first); from then on a press is one confirm, not the builder.
   let built = casts.filter((c) => c === 'built').length;
   for (let k = 0; built < 3 && k < 4; k++) {
     await cmd('face 142.5 34.2 194.5');
@@ -5391,8 +5399,8 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   await frames(2);
   const conf = await workedPress('H2O(l)');
   await shot('p4-01-practised.png');
-  check('puzzles: after three correct worked Water casts Water is Practised and the next press is one confirm',
-    built >= 3 && pst.progress[1].st === 'practised' && conf.ok && conf.one,
+  check('puzzles: correct worked Water casts (three at most) make Water Practised and the next press is one confirm',
+    built >= 2 && built <= 3 && pst.progress[1].st === 'practised' && conf.ok && conf.one,
     `built ${built}, stage ${pst.progress && pst.progress[1] && pst.progress[1].st}, next press ok=${conf.ok} confirm=${conf.one}`);
   if (await page.evaluate(() => !!document.pointerLockElement)) {
     await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
@@ -5429,6 +5437,10 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   await frames(3);
   const wall = await probe(128, 33, 158);
   const sg0 = await sign('frozen');
+  // The Marsh's gate (the east pass) is shut too, and needs Frost.
+  let pass = null;
+  for (let y = 30; y < 50 && !pass; y++) { const c = await probe(132, y, 70); if (c && c.mat === 'runestone') pass = c; }
+  const marshSign0 = await page.evaluate(() => { const e = document.querySelector('.gate-sign[data-gate="marsh"]'); return e ? e.textContent : null; });
   await shot('p2-01-gate.png');
   // The wall holds: walking at it gets nowhere near the water.
   s = await walkTo(128.5, 156.0, 0.5, 6000);
@@ -5460,7 +5472,7 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   const lookWater = !!(s.lookCell && s.lookCell[3] === 12);
   const frosts = [];
   let iced = null;
-  for (let k = 0; k < 14; k++) {
+  for (let k = 0; k < 20; k++) {
     s = await st();
     if (s.pos[2] < 149.6) break;
     const ahead = Math.max(146.5, s.pos[2] - 2.6);
@@ -5483,6 +5495,8 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
 
   // The ice gate (P2b): Fire melts it. Teleported to the trench in front
   // of it (the walk over the Frozen Fields' hills is not part of this check).
+  // Its own check: if the crossing above failed, the quest is moved on.
+  if ((await st()).quest < 3) await story('quest 3');
   await cmd('tp 60 34 96.0');
   await cmd('face 60 37.5 93.5');
   await until((x) => Math.abs(x.pos[2] - 96) < 0.3, 10000);
@@ -5491,15 +5505,20 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   await page.keyboard.press('1');
   await until((x) => x.spell === 0, 10000);
   const fires = [];
-  for (let k = 0; k < 8; k++) {
-    const gate = [await probe(58, 37, 93), await probe(59, 37, 93), await probe(60, 37, 93), await probe(61, 37, 93)];
-    const left = gate.findIndex((c) => c && c.mat === 'ice');
-    if (left < 0 && (await st()).quest >= 4) break;
-    const x = left < 0 ? 60 : 58 + left;
-    await cmd(`face ${x + 0.5} 37.0 93.9`);
+  // Aim at the ice that is left (the gate is 4 wide and 3 tall), as a
+  // player would, until none is left.
+  const iceLeft = async () => {
+    for (const y of [37, 36, 38]) for (const x of [59, 60, 58, 61]) { const c = await probe(x, y, 93); if (c && c.mat === 'ice') return [x, y]; }
+    return null;
+  };
+  for (let k = 0; k < 10; k++) {
+    const t = await iceLeft();
+    if (!t) break;
+    await cmd(`face ${t[0] + 0.5} ${t[1] + 0.5} 93.9`);
     await frames(2);
     fires.push(await press());
-    await until((v) => v.gameTime >= 0, 1000);
+    const g = await st();
+    await until((v) => v.gameTime >= g.gameTime + 1.5, 20000);
   }
   s = await until((x) => x.quest >= 4, 20000);
   const melted = await probe(60, 37, 93);
@@ -5508,27 +5527,16 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     ice0 && ice0.mat === 'ice' && melted && melted.mat !== 'ice' && s.quest === 4,
     `gate ${ice0 && ice0.mat} -> ${melted && melted.mat}, fire presses [${fires.join(',')}], quest ${s.quest} "${s.questLine.slice(0, 40)}"`);
 
-  // ---- The Marsh's gate (the east pass) needs Frost Practised: three
-  // Frost casts here make it so (each cast with nothing to build counts).
-  await cmd('tp 127.5 46 70.5');
-  await cmd('face 132.5 44 70.5');
-  s = await until((x) => Math.abs(x.pos[0] - 127.5) < 0.3 && Math.abs(x.pos[2] - 70.5) < 0.3, 10000);
-  await until((x) => x.gameTime >= s.gameTime + 1.0, 20000);
-  let pass = null;
-  for (let y = 38; y < 48 && !pass; y++) { const c = await probe(132, y, 70); if (c && c.mat === 'runestone') pass = c; }
-  const sm0 = await sign('marsh');
-  await shot('p3-01-marsh-gate.png');
-  await page.keyboard.press('3');
-  await until((x) => x.spell === 2, 10000);
-  await cmd('look 0 -40');
-  await frames(2);
-  let frostN = 0;
-  for (let k = 0; k < 3; k++) if (await press()) frostN += 1;
-  s = await until((x) => /sinks/.test(x.caption) && /Marsh/.test(x.caption), 15000);
+  // ---- The Marsh's gate (the east pass) needs Frost Practised: it was
+  // shut at the start of P2 and the Frost casts that froze the ford opened
+  // it (each correct cast counts).
   const passAfter = pass ? await probe(pass.at[0], pass.at[1], pass.at[2]) : null;
-  check('puzzles: the Marsh gate (east pass) holds until Frost is Practised; its sign says so; three Frost casts open it',
-    !!pass && sm0 && sm0.shown && /Practise Frost 3 times/.test(sm0.text) && frostN === 3 && passAfter && passAfter.mat === 'air',
-    `wall ${pass && pass.at}, sign "${sm0 && sm0.text}" shown=${sm0 && sm0.shown}, frost presses ${frostN}, after ${passAfter && passAfter.mat}, caption "${s.caption.slice(0, 50)}"`);
+  const marshSign1 = await page.evaluate(() => { const e = document.querySelector('.gate-sign[data-gate="marsh"]'); return e ? e.textContent : null; });
+  const gates = await page.evaluate(() => { try { return JSON.parse(window.__storyState).gates; } catch { return null; } });
+  const marshOpen = Array.isArray(gates) && gates.some((g) => g.id === 'marsh' && g.open);
+  check('puzzles: the Marsh gate (east pass) holds until Frost is Practised; its sign says so; the ford\'s Frost casts open it',
+    !!pass && /Practise Frost 3 times to open \(0\/3\)/.test(marshSign0 || '') && passAfter && passAfter.mat === 'air' && marshOpen,
+    `wall ${pass && pass.at}, sign at start "${marshSign0}", after "${marshSign1}", cell after ${passAfter && passAfter.mat}, open=${marshOpen}`);
 
   // ---- P3: the methane hollow. In the hollow, CO2 poured with the rim gap
   // open spills out and a vent stays lit; a block in the gap, then three
@@ -5551,11 +5559,12 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   // digging is E4's check), placed with a real press on the floor face
   // under the gap.
   await page.evaluate(() => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push('give dirt 2', 'bind 1 6'); });
-  await cmd('tp 195.3 28.2 101.5');
-  await until((x) => Math.abs(x.pos[0] - 195.3) < 0.3, 10000);
+  // Right at the rim, on the hollow's floor, looking down into the gap.
+  await cmd('tp 195.55 28.2 101.5');
+  await until((x) => Math.abs(x.pos[0] - 195.55) < 0.2, 10000);
   await page.keyboard.press('6');
   await until((x) => x.hot === 6, 10000);
-  await cmd('face 196.6 28.0 101.5');
+  await cmd('face 196.5 28.0 101.5');
   await frames(2);
   await page.mouse.move(VW / 2, VH / 2);
   await page.mouse.down();

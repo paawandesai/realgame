@@ -544,3 +544,77 @@ mod tests {
         assert!(!stops(mat::AIR) && !stops(mat::STEAM));
     }
 }
+
+/// I-052 round 2 (P1): the workshop fire from the plaza, with the spell
+/// physics a player has. Water flies an arc, so a tap aimed level at the
+/// fuel store through the door drops onto the floor in front of it; lobbed
+/// over the low wall into the open roof, the arc lands on the store, and a
+/// few casts put the whole fire out.
+#[cfg(test)]
+mod workshop_arc {
+    use super::*;
+    use crate::blockchem::{on_impact, Keys, Matter};
+
+    fn shot(w: &World, target: Vec3, held: f32) -> Option<Arrival> {
+        let mut p = crate::player::Player {
+            pos: Vec3::new(142.5, 35.0, 197.0),
+            ..Default::default()
+        };
+        let d = (target - p.eye()).normalize();
+        p.yaw = (-d.x).atan2(-d.z);
+        p.pitch = d.y.asin();
+        let hand = p.eye() + p.rotation() * Vec3::new(0.2, -0.15, -0.5);
+        plan(Some(w), 1, hand, p.forward(), held).2
+    }
+
+    #[test]
+    fn a_lobbed_water_arc_from_the_plaza_puts_the_workshop_out() {
+        let mut w = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
+        let tap = 0.08;
+        let level = shot(&w, Vec3::new(142.5, 36.0, 189.0), tap).expect("lands");
+        assert_eq!(level.normal, [0, 1, 0], "a level tap lands on the floor");
+        assert!(
+            level.pos.z > 190.0,
+            "in front of the store: {:?}",
+            level.pos
+        );
+        let mut m = Matter::default();
+        let mut keys = Keys::default();
+        let mut ev = Vec::new();
+        let player = Vec3::new(142.5, 35.0, 197.0);
+        let mut now = 0.0;
+        let mut run = |m: &mut Matter, w: &mut World, secs: f32, now: &mut f32| {
+            for _ in 0..(secs / 0.1).round() as usize {
+                *now += 0.1;
+                m.tick(w, *now, 0.1, player, &mut keys, &mut ev);
+            }
+            crate::blockchem::workshop_burning(w)
+        };
+        // Minutes in, as when a player gets there.
+        assert!(run(&mut m, &mut w, 240.0, &mut now) >= 6);
+        let aims = [Vec3::new(142.5, 40.0, 189.0), Vec3::new(141.5, 40.5, 188.5)];
+        // A click with no hold lands there too (a worked cast's hold).
+        for a in aims {
+            let l = shot(&w, a, 0.0).expect("lands");
+            assert!(l.pos.z < 190.01 && l.pos.z > 187.9, "no hold: {l:?}");
+        }
+        let mut casts = 0;
+        let mut left = crate::blockchem::workshop_burning(&w);
+        while left > 0 && casts < 4 {
+            let a = shot(&w, aims[casts % 2], tap).expect("lands");
+            assert!(
+                (141..=143).contains(&a.cell.unwrap()[0]) && a.pos.z < 190.01,
+                "cast {casts} lands on the store: {a:?}"
+            );
+            m.world.emit(on_impact(
+                Spell::Water,
+                a.pos,
+                IVec3::new(a.normal[0].into(), a.normal[1].into(), a.normal[2].into()),
+            ));
+            casts += 1;
+            left = run(&mut m, &mut w, 1.0, &mut now);
+        }
+        assert_eq!(left, 0, "out after {casts} lobbed casts");
+        assert_eq!(run(&mut m, &mut w, 30.0, &mut now), 0, "and it stays out");
+    }
+}

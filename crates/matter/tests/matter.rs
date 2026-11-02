@@ -430,7 +430,8 @@ fn the_workshop_burns_on_until_water_puts_it_out() {
 /// workshop door, each Water cast lands where the look ray first hits
 /// (the store's front face, through the door). Six casts, alternating two
 /// aims, put the whole fire out: the water runs over the pile and soaks the
-/// back row too, so the front is not lit again from behind.
+/// back row too, so the front is not lit again from behind. The fire has
+/// burned for 4 minutes first, as it has when a player gets there.
 #[test]
 fn the_workshop_goes_out_with_six_casts_from_the_door() {
     use realgame_voxel::raycast::{raycast, RayMode};
@@ -452,7 +453,8 @@ fn the_workshop_goes_out_with_six_casts_from_the_door() {
     };
     let mut m = World::new(1);
     let mut ev = Vec::new();
-    step_n(&mut m, &mut vox, steps(10.0), &mut ev);
+    // The player gets here minutes in (the intro, the bench, the walk).
+    step_n(&mut m, &mut vox, steps(240.0), &mut ev);
     assert!(burning(&vox) >= 6);
     let eye = [142.5f32, 36.6, 197.0];
     let aims = [[142.5f32, 36.0, 189.0], [141.2, 36.3, 188.5]];
@@ -462,12 +464,15 @@ fn the_workshop_goes_out_with_six_casts_from_the_door() {
         let d = [t[0] - eye[0], t[1] - eye[1], t[2] - eye[2]];
         let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
         let dir = d.map(|v| v / l);
-        let hit = raycast(&vox, eye, dir, 30.0, RayMode::Fluids).expect("the store is in view");
+        // Water's aim passes through water (the client's `spell_ray`).
+        let hit = raycast(&vox, eye, dir, 30.0, RayMode::Solids).expect("the store is in view");
         let at = [0, 1, 2].map(|a| eye[a] + dir[a] * hit.t);
         emit(&mut m, at, hit.normal, EmitKind::Water);
         casts += 1;
-        // A cast every 2 s, as the cooldown and a worked cast allow.
-        step_n(&mut m, &mut vox, steps(2.0), &mut ev);
+        // The next cast 0.5 s of matter time later: on a slow frame the
+        // sim takes at most one step a frame, so the last cast's water still
+        // stands in front of the fire.
+        step_n(&mut m, &mut vox, steps(0.5), &mut ev);
     }
     let left: Vec<_> = (s.min[2] - 4..s.max[2] + 4)
         .flat_map(|z| {
