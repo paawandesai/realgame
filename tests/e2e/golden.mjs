@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
 // that section and the console-error check; also spellProgress, workedCasts,
-// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, comma-separated), QUERY (for example `?low`,
+// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, valleyPowers, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -112,6 +112,7 @@ function check(name, ok, detail = '') {
     voxelCast: () => voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
     valleyPuzzles: () => valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs }),
     valleyLate: () => valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
+    valleyPowers: () => valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -397,6 +398,7 @@ function check(name, ok, detail = '') {
 
   await valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs });
   await valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
+  await valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -5575,6 +5577,8 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   check('puzzles: P3 with the gap open CO2 spills and a vent stays lit; a block in the gap and three CO2 casts smother every vent; the objective moves on',
     lit0 === 6 && openLit >= 1 && gap && gap.mat === 'dirt' && s.ventsLit === 0 && s.gasCO2Max > 0.28 && s.quest === 6,
     `vents ${lit0}, after 3 casts with the gap open ${openLit}, gap ${gap && gap.mat}, then vents ${s.ventsLit} CO2 max ${s.gasCO2Max}, quest ${s.quest}`);
+}
+
 // ---------------------------------------------------------------------------
 // I-052 late lane (late.rs, web/late.js): the dark Crystal Cave and the torch,
 // the electrolysis rig (2:1), the balloon crate (E13), the Kiln door, the
@@ -5730,4 +5734,134 @@ async function valleyLate({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('late: ?biome=kiln starts at the Kiln step with the Spark and the O2 flask',
     s.quest === 7 && s.biome === 'kiln' && packN(s, 'kiln_spark') === 1 && packN(s, 'o2_flask') === 1,
     `quest=${s.quest} biome=${s.biome} pack=${JSON.stringify(s.pack)}`);
+}
+
+// Spells are powers (powers.rs, rank.js): the rank badge and rank-up moment,
+// each spell's traversal power (F), and the four caches only those powers
+// reach. Run alone with ONLY=valleyPowers.
+async function valleyPowers({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- spells are powers: rank, powers and caches --');
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const url = voxel + (voxel.includes('?') ? '&' : '?') + 'biome=marsh';
+  await page.goto(url);
+  await page.evaluate(() => { try { localStorage.removeItem('rg.caches.v1'); localStorage.removeItem('rg.progress.v1'); } catch { /* none */ } });
+  await page.goto(url);
+  const boot = async () => {
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__powersState));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+      if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+      if (((await st()) || {}).quest > 0) break;
+    }
+    await until((x) => x.quest > 0 && !x.paused, 20000);
+  };
+  await boot();
+  const pw = () => page.evaluate(() => JSON.parse(window.__powersState || 'null'));
+  const untilPw = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await pw();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await pw(); }
+    return x;
+  };
+  const power = () => page.evaluate(() => { window.__gameIn.powers = window.__gameIn.powers || []; window.__gameIn.powers.push('power'); });
+  const cache = (P, id) => P.caches.find((c) => c.id === id);
+  const text = (id) => page.evaluate((id) => { const e = document.getElementById(id); return e && !e.hidden ? e.textContent : ''; }, id);
+  /** Holds W until `done(state)` or `ms`. */
+  const walkUntil = async (done, ms) => {
+    await page.keyboard.down('KeyW');
+    let s = await st();
+    for (const t0 = Date.now(); !done(s) && Date.now() - t0 < ms; await sleep(100)) s = await st();
+    await page.keyboard.up('KeyW');
+    return s;
+  };
+
+  // W0. The badge shows the rank; an unknown spell's power is locked.
+  let P = await untilPw((x) => x.caches.length === 4, 10000);
+  await cmd('select 2');
+  await frames(2);
+  const cap0 = (await st()).captionId;
+  await page.keyboard.press('KeyF');
+  let s = await until((x) => x.captionId > cap0, 10000);
+  const badge0 = await text('rank');
+  check('powers: the badge shows the rank, and an unknown spell\'s power is locked until learned at the Bench',
+    P && P.rankName === 'Spark' && /Rank: Spark/.test(badge0) && /F: H₂ lift \(locked\)/.test(badge0) && /Formula Bench/.test(s.caption),
+    `badge=${badge0} caption=${s.caption} caches=${P && P.caches.length}`);
+
+  // W1. Learning spells earns rank points; crossing a tier is a rank-up moment.
+  await cmd('prog learn 1');
+  await cmd('prog learn 3');
+  P = await untilPw((x) => x.rankUps >= 1, 15000);
+  const banner = await text('rank-up');
+  await screenshot(page, 'powers-1-rankup.png');
+  check('powers: learning two spells is a rank-up to Kindler with a banner',
+    P && P.rankName === 'Kindler' && P.rankUps === 1 && /Kindler/.test(banner) && P.unlocked,
+    `rank=${P && P.rankName} ups=${P && P.rankUps} banner=${banner}`);
+
+  // W2. The Sky Pillar: too tall to jump, the H2 lift rises onto it.
+  const pil = cache(P, 'pillar');
+  await cmd(`tp 176.5 ${pil.h} 130.45`);
+  await cmd(`face 176.5 ${pil.h + 1} 110`);
+  await frames(3);
+  await power();
+  P = await untilPw((x) => x.lifting || x.used[1] > 0, 8000);
+  s = await walkUntil((x) => x.pos[2] <= 128.6, 60000);
+  s = await until((x) => x.pos[1] >= pil.h + 6.9 && Math.abs(x.pos[2] - 128.5) < 1.5, 20000);
+  P = await untilPw((x) => cache(x, 'pillar').found, 30000);
+  await screenshot(page, 'powers-2-pillar.png');
+  check('powers: the H2 lift rises onto the Sky Pillar and its cache is taken',
+    P && P.used[1] === 1 && cache(P, 'pillar').found && s.pos[1] >= pil.h + 6.9,
+    `pos=${s.pos} found=${P && cache(P, 'pillar').found} used=${P && P.used}`);
+
+  // W3. The Ravine Cache: too wide to jump, the CO2 dash crosses it.
+  const rav = cache(P, 'ravine');
+  await cmd('select 4');
+  await cmd(`tp 214.5 ${rav.h} 116.7`);
+  await cmd(`face 214.5 ${rav.h + 1} 140`);
+  await frames(4);
+  await power();
+  P = await untilPw((x) => cache(x, 'ravine').found, 40000);
+  s = await st();
+  check('powers: the CO2 dash crosses the ravine to its cache',
+    P && P.used[3] === 1 && cache(P, 'ravine').found && s.pos[1] >= rav.h - 0.1,
+    `pos=${s.pos} found=${P && cache(P, 'ravine').found}`);
+
+  // W4. The Frost Isle: an ice walkway across the moat.
+  await cmd('prog learn 2');
+  await cmd('select 3');
+  const isle = cache(P, 'isle');
+  await cmd(`tp 70.5 ${isle.h} 135.4`);
+  await cmd(`face 70.5 ${isle.h} 110`);
+  await frames(4);
+  await power();
+  P = await untilPw((x) => x.used[2] === 1, 10000);
+  const ice = P && P.walkway;
+  await screenshot(page, 'powers-3-walkway.png');
+  s = await walkUntil((x) => x.pos[2] <= 121, 120000);
+  P = await untilPw((x) => cache(x, 'isle').found, 20000);
+  check('powers: Frost freezes a walkway over the moat and the isle\'s cache is taken',
+    ice === 13 && P && cache(P, 'isle').found && s.pos[1] >= isle.h - 0.1,
+    `ice=${ice} pos=${s.pos} found=${P && cache(P, 'isle').found}`);
+
+  // W5. Fire's Flare lights the way; four learned spells and three caches (7 points) make a Catalyst.
+  await cmd('prog learn 0');
+  await cmd('select 1');
+  await frames(2);
+  await power();
+  P = await untilPw((x) => x.flare > 0, 10000);
+  check('powers: Fire\'s Flare lights up, and 7 points (4 spells, 3 caches) is Catalyst after a second rank-up',
+    P && P.flare > 0 && P.found === 3 && P.points === 7 && P.rankName === 'Catalyst' && P.rankUps === 2,
+    `flare=${P && P.flare} found=${P && P.found} rank=${P && P.rankName} points=${P && P.points} ups=${P && P.rankUps}`);
+
+  // W6. Found caches are kept on this device; a reload restores them silently.
+  const saved = await page.evaluate(() => localStorage.getItem('rg.caches.v1'));
+  await page.reload();
+  await boot();
+  P = await untilPw((x) => x.found === 3, 20000);
+  check('powers: found caches are remembered on this device after a reload, without a rank-up banner',
+    /pillar/.test(saved || '') && /isle/.test(saved || '') && P && P.found === 3 && P.rankUps === 0,
+    `saved=${saved} found=${P && P.found} ups=${P && P.rankUps}`);
 }

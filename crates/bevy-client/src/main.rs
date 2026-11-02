@@ -32,6 +32,7 @@ mod level2;
 mod level3;
 mod motion;
 mod player;
+mod powers;
 mod progress;
 mod spells;
 mod story;
@@ -825,6 +826,7 @@ fn main() {
             story::plugin,
             voxel_cast::plugin,
             late::plugin,
+            powers::plugin,
         ));
     }
     app.run();

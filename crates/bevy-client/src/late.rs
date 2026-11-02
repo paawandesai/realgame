@@ -895,6 +895,7 @@ fn commands(
 }
 
 /// Reach, darkness and the timed parts.
+#[allow(clippy::too_many_arguments)]
 fn step(
     time: Res<Time>,
     mut late: ResMut<Late>,
@@ -903,6 +904,7 @@ fn step(
     world: Option<Res<VoxWorld>>,
     bench: Option<Res<BenchState>>,
     mut scan: Local<(f32, bool)>,
+    powers: Option<Res<crate::powers::Powers>>,
 ) {
     let dt = time.delta_secs().min(0.1);
     late.band = match band(bench.as_deref()) {
@@ -921,7 +923,9 @@ fn step(
             scan.1 = late.dark && torch_near(&w.0, player.pos, 8).is_some();
         }
     }
-    late.light = pack.0.count(Item::Torch) > 0 || scan.1;
+    // Fire's Flare power lights the way too (powers.rs).
+    let flare = powers.is_some_and(|p| p.flare > 0.0);
+    late.light = pack.0.count(Item::Torch) > 0 || scan.1 || flare;
     late.tick(dt, &mut pack.0);
 }
 

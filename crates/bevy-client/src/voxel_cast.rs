@@ -99,13 +99,24 @@ fn plan(
     hand: Vec3,
     forward: Vec3,
     held: f32,
+    boost: f32,
 ) -> (Vec<Vec3>, f32, Option<Arrival>) {
     let landed = |l: Landing| Arrival {
         cell: Some(l.cell),
         normal: l.normal,
         pos: Vec3::from(l.pos),
     };
-    match crate::tuning::motion(spell, held) {
+    // A Practised or Mastered spell reaches further (`powers::scale`).
+    let motion = match crate::tuning::motion(spell, held) {
+        ballistics::Motion::Arc { reach } => ballistics::Motion::Arc {
+            reach: reach * boost,
+        },
+        ballistics::Motion::Cone { range, half } => ballistics::Motion::Cone {
+            range: range * boost,
+            half,
+        },
+    };
+    match motion {
         ballistics::Motion::Arc { reach } => {
             let v0 = forward * ballistics::launch_speed(reach);
             let (end, t) = match blocks {
@@ -233,10 +244,12 @@ fn fly(
     mats: Res<SpellMats>,
     mut flying: Query<(Entity, &mut Transform, &mut Flying)>,
     mut landed: MessageWriter<crate::SpellLanded>,
+    boost: Option<Res<crate::powers::Boost>>,
 ) {
     let world = blocks.as_deref().map(|b| &b.0);
+    let k = |s: u8| boost.as_ref().map_or(1.0, |b| b.0[(s as usize).min(3)]);
     for s in std::mem::take(&mut ch.shots) {
-        let (path, dur, landing) = plan(world, s.spell, s.hand, s.forward, s.held);
+        let (path, dur, landing) = plan(world, s.spell, s.hand, s.forward, s.held, k(s.spell));
         let size = if s.spell == Spell::Foam as u8 {
             0.4
         } else {
@@ -313,6 +326,7 @@ fn preview(
     blocks: Option<Res<VoxWorld>>,
     kit: Res<Kit>,
     mats: Res<SpellMats>,
+    boost: Option<Res<crate::powers::Boost>>,
     mut dots: Query<
         (
             &mut Transform,
@@ -351,6 +365,7 @@ fn preview(
         hand,
         player.forward(),
         held,
+        boost.as_ref().map_or(1.0, |b| b.0[game.spell.min(3)]),
     );
     for (k, (mut t, mut v, mut m)) in dots.iter_mut().enumerate() {
         t.translation = ballistics::along(&path, (k as f32 + 1.0) / ARC_DOTS as f32);

@@ -117,6 +117,11 @@ The single register of every science claim the first-person 3D client shows the 
 | C-103 | `Put up to three things from your pack on the bench. The Kiln needs a reaction that burns hotter than 1700 °C.` | crates/bevy-client/web/late.js | simplified | I-052 late lane: the Invention Bench. 1700 °C is the game's threshold, chosen near the melting point of silica, 1713 °C, the main ingredient of glass [S35], since the Kiln "made all our glass". Carbon and hydrogen flames in pure oxygen are well above it [S15]. | [S15] [S35] |
 | C-104 | `Your pack has nothing to react yet. A fuel (coal, wood or an H2 balloon) and an O2 flask would do.` | crates/bevy-client/web/late.js | simplified | I-052 late lane: the Invention Bench with no reactants in the pack. Combustion needs a fuel and oxygen [S19]; wood is simplified to carbon as in `carbon_combustion` [S7]. | [S7] [S19] |
 | C-105 | `C + O2 -> CO2` | crates/bevy-client/web/late.js | correct | I-052 late lane: the Invention Bench's typed-equation placeholder. Balanced as written [S7]. | [S7] |
+| C-106 | `H2 lift! Hydrogen is much less dense than air, so its balloon rises.` | crates/bevy-client/src/powers.rs | simplified | Spells-are-powers: Water's power (F). At the same T and p, density scales with molar mass [S12]: M(H2) 2.016 [S40] against M(air) 28.96 [S8], so H2 is about 1/14 as dense and a balloon of it has net lift. Simplified: each m³ of H2 lifts only about 1.1 kg, so lifting a person needs a balloon of tens of m³; the game does not draw one (gameplay tuning [S0] is the rise speed and height, not a claim). | [S8] [S12] [S40] |
+| C-107 | `Ice walkway! Water freezes from the top, because ice is less dense than water.` | crates/bevy-client/src/powers.rs | simplified | Spells-are-powers: Frost's power (F) freezes the top layer of deep water. Ice (917 kg/m³ [S34]) is less dense than liquid water (998 kg/m³ at 20 °C [S39]), so it floats and still water freezes over from the surface [S10]. Simplified: water is also densest near 4 °C, which is why the cold surface layer stays on top to freeze [S10]; the power freezes it at once rather than over hours. | [S10] [S34] [S39] |
+| C-108 | `CO2 dash! Gas rushing out one way pushes you the other way (Newton's third law).` | crates/bevy-client/src/powers.rs | correct | Spells-are-powers: CO2's power (F). Gas pushed out of a nozzle pushes back on whatever pushed it, the same principle as a rocket [S41]. The speed of the dash is gameplay tuning [S0]. | [S41] |
+| C-109 | `Flare! Burning fuel gives out light as well as heat.` | crates/bevy-client/src/powers.rs | correct | Spells-are-powers: Fire's power (F), a light that follows the player. Combustion releases chemical energy as heat and light [S11]; a flame's glow comes from hot soot particles and excited gases [S15]. | [S11] [S15] |
+| C-110 | `freeze a path across deep water` | crates/bevy-client/src/powers.rs | simplified | Spells-are-powers: the locked-power hint for Frost. Ice floats on water and can bear weight once thick enough [S10] [S34]; the walkway's thickness (one block) is gameplay tuning. | [S10] [S34] |
 
 ## Parameters
 
@@ -165,6 +170,12 @@ The single register of every science claim the first-person 3D client shows the 
 
 | text | where | reason |
 |---|---|---|
+| `H2 lift` | crates/bevy-client/src/powers.rs | Power name (Water's power on F). A label; the claim is C-106. |
+| `CO2 dash` | crates/bevy-client/src/powers.rs | Power name (CO2's power on F). A label; the claim is C-108. |
+| `{} is locked. Learn {} at the Formula Bench (B) to unlock it: {}.` | crates/bevy-client/src/powers.rs | Game instruction (a locked power); the hint filled in is C-110 or a power description. |
+| `Ice walkway: no open water ahead to freeze. Face the water.` | crates/bevy-client/src/powers.rs | Game instruction (the walkway found no water to freeze); it states no science. |
+| `{}: stand on the ground first.` | crates/bevy-client/src/powers.rs | Game instruction (a power used in the air). |
+| `{name} found! {REWARD} crystals and a rank point.` | crates/bevy-client/src/powers.rs | Game status (a cache found and its reward); it states no science. |
 | `Fires to put out: ${state.firesLeft}` | crates/bevy-client/web/hud.js | Status counter (fires left to put out). A game count; it states no science. |
 | `The greenhouse is heating up!` | crates/bevy-client/web/index.html | Placeholder of the warning banner, replaced by C-033 before it is shown. A narrative warning with no number or mechanism. |
 | `Not the greenhouse! We are here to save it. Aim at the burning bushes.` | crates/bevy-client/src/chem.rs | Game instruction (Fire aimed at the greenhouse refuses). Flagged by sentence shape and `burn`; it states no science. |
@@ -303,6 +314,7 @@ The single register of every science claim the first-person 3D client shows the 
 - [S38] Wikipedia, "Bloomery" (it "reduces the iron oxides in the ore to metallic iron without melting the ore"; "this allows the bloomery to operate at lower temperatures than the melting temperature of the ore"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Bloomery
 - [S39] The Engineering ToolBox, "Water - Density, Specific Weight and Thermal Expansion Coefficients" (998.21 kg/m³ at 20 °C; 999.85 at 0.1 °C; 958.35 at 100 °C). Fetched 2026-11-01: https://www.engineeringtoolbox.com/water-density-specific-weight-d_595.html
 - [S40] NIST Chemistry WebBook, SRD 69: Hydrogen (molecular weight 2.01588), https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740 ; Oxygen (molecular weight 31.9988), https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782447 . Added by the I-052 late lane from the standard values; not re-fetched from the build machine.
+- [S41] Ling, S. J., Sanny, J., Moebs, W., *University Physics Volume 1*, OpenStax, 2016, § 5.5 "Newton's Third Law" (worked examples include a rocket pushed forward by the gas it expels): https://openstax.org/books/university-physics-volume-1/pages/5-5-newtons-third-law . Added by the spells-are-powers lane from the textbook section; not re-fetched from the build machine.
 
 ## Block world
 
