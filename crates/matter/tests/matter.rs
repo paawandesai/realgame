@@ -303,13 +303,17 @@ fn sand_to_glass_and_ore_to_iron() {
     );
 }
 
-/// M9: H2 and CH4 positive, O2 and CO2 negative, for the cave balloon
-/// (2 m³, 1.5 kg).
+/// M9: the sign of the lift for the cave balloon (2 m³, 1.5 kg). H2 lifts;
+/// O2 and CO2 sink. CH4 is lighter than air but its 10.4 N of buoyancy is
+/// less than the 14.7 N payload, so it cannot lift this crate (the spec's
+/// "CH4 positive" was an arithmetic slip, lanes/B/round-1.md; corrected here
+/// by the late-puzzles lane, which owns the balloon).
 #[test]
-#[ignore = "spec error, not edited: CH4 gives (1.20 - 0.67) x 2 x 9.81 = 10.4 N < 14.7 N payload, so it cannot lift; see lanes/B/round-1.md"]
 fn lift_sign() {
     assert!(lift_n(Gas::H2, 2.0, 1.5) > 0.0);
-    assert!(lift_n(Gas::Ch4, 2.0, 1.5) > 0.0);
+    assert!(lift_n(Gas::Ch4, 2.0, 1.5) < 0.0);
+    // CH4 does lift an empty balloon (it is lighter than air).
+    assert!(lift_n(Gas::Ch4, 2.0, 0.0) > 0.0);
     assert!(lift_n(Gas::O2, 2.0, 1.5) < 0.0);
     assert!(lift_n(Gas::Co2, 2.0, 1.5) < 0.0);
     // Section 5.7's worked numbers: about +7.2 N for H2, -17.3 N for O2.
