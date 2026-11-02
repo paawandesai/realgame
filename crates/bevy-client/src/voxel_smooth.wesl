@@ -6,7 +6,7 @@
 // glowing teal rune veins on glowing materials, then lights the result as
 // StandardMaterial does (sun, ambient, shadows, fog).
 //
-// `params.mode.y`: 1 for `?low` (cheaper noise).
+// `params.mode.y`: 1 for `?low` (one noise octave, one water ripple).
 // `params.mode.x`: 0 opaque ground, 1 the clear pass (ice, glass, crystal,
 // steam; UV_0.y is the alpha there), 2 water (animated ripples, fresnel).
 import bevy_pbr::render::{
@@ -66,8 +66,12 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
         // looking down, sky-pale at grazing angles.
         let t = globals.time;
         let r1 = vnoise(vec3<f32>(wp.x * 0.6 + t * 0.35, t * 0.2, wp.z * 0.6));
-        let r2 = vnoise(vec3<f32>(wp.x * 1.7 - t * 0.5, t * 0.3 + 4.0, wp.z * 1.7 + t * 0.2));
-        let r3 = vnoise(vec3<f32>(wp.z * 0.6 - t * 0.3, 9.0, wp.x * 0.6));
+        var r2 = r1;
+        var r3 = 1.0 - r1;
+        if params.mode.y < 0.5 {
+            r2 = vnoise(vec3<f32>(wp.x * 1.7 - t * 0.5, t * 0.3 + 4.0, wp.z * 1.7 + t * 0.2));
+            r3 = vnoise(vec3<f32>(wp.z * 0.6 - t * 0.3, 9.0, wp.x * 0.6));
+        }
         n = normalize(n + vec3<f32>((r1 - 0.5) * 0.35 + (r2 - 0.5) * 0.15, 0.0, (r3 - 0.5) * 0.35));
         pbr_input.N = n;
         pbr_input.world_normal = n;
@@ -92,8 +96,13 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     var fine: f32;
     var strata: f32;
     if params.mode.y > 0.5 {
+        // `?low` (software GPUs, weak laptops): one octave for the patches,
+        // and the grain only where it draws a rune vein.
         big = vnoise(wp * 0.25);
-        fine = vnoise(wp * 1.6);
+        fine = 0.5;
+        if glow > 0.01 {
+            fine = vnoise(wp * 1.6);
+        }
         strata = 0.5;
     } else {
         big = fbm(wp * 0.18);

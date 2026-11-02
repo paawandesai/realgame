@@ -415,6 +415,17 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
         on_ice: player.on_ice,
     };
     let smooth = !walk.blocks;
+    if smooth {
+        if let Some(y) = lift_out(world, player.pos) {
+            player.pos.y = y;
+            player.vel.y = player.vel.y.max(0.0);
+            player.grounded = true;
+        }
+    }
+    let body = Body {
+        pos: player.pos.to_array(),
+        ..body
+    };
     // Every block the body could touch this frame, step up included.
     let reach = speed.max(player.vel.length()) * dt + 1.2;
     let p = player.pos;
@@ -520,6 +531,31 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     if walk.lag > -0.002 {
         walk.lag = 0.0;
     }
+}
+
+/// Feet deeper than a step inside natural ground (a `tp` into a hill, or
+/// ground set where the player stands): the drawn surface of the nearest
+/// open space above them, so the body is never left inside the ground
+/// (where no floor holds it and it would fall through the hill).
+fn lift_out(world: &World, p: Vec3) -> Option<f32> {
+    let cell = [
+        p.x.floor() as i32,
+        (p.y + STEP).floor() as i32,
+        p.z.floor() as i32,
+    ];
+    if smooth::kind(world.get(cell).mat) != smooth::Kind::Soft
+        || vox::ground(world, p.x, p.z, p.y + STEP, p.y - 3.0) != vox::Ground::Inside
+    {
+        return None;
+    }
+    for k in 1..=48 {
+        match vox::ground(world, p.x, p.z, p.y + STEP + k as f32, p.y) {
+            vox::Ground::Floor(g) => return Some(g),
+            vox::Ground::Inside => continue,
+            vox::Ground::None => return None,
+        }
+    }
+    None
 }
 
 /// The steepest drawn ground W walks up (rise over run, about 50 degrees).
@@ -1408,6 +1444,30 @@ mod tests {
             walk(&mut p, &mut w, &world, input, 0.25);
         }
         assert!(p.pos.z < 176.0 && p.pos.y > 40.9, "at 4 fps: {:?}", p.pos);
+    }
+
+    #[test]
+    fn feet_inside_a_hill_come_up_on_its_surface_and_walk_off_it() {
+        // The golden's ford check: `tp 128.5 35 163.5` is inside the
+        // village's rise above the ford (its top is y 41 there).
+        let world = vox::generate(vox::DEFAULT_SEED);
+        let mut p = Player {
+            pos: Vec3::new(128.5, 35.0, 163.5),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        press(&mut p, &mut w, &world, Vec2::ZERO, false, 2);
+        assert!((p.pos.y - 41.0).abs() < 0.2, "on the top: {:?}", p.pos);
+        // W walks off the edge and down the bank to the water's edge.
+        for _ in 0..480 {
+            press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 1);
+            if p.pos.z < 158.7 {
+                break;
+            }
+        }
+        press(&mut p, &mut w, &world, Vec2::ZERO, false, 90);
+        assert!(p.pos.z < 158.9 && p.pos.y < 33.1, "{:?}", p.pos);
     }
 
     #[test]

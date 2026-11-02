@@ -14,7 +14,7 @@ const RADIUS: f32 = 360.0;
 /// The sky's material.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
 pub struct SkyMat {
-    /// `low.x` is 1 with `?low` (two-octave clouds).
+    /// `low.x` is 1 with `?low` (one-octave clouds, a still aurora).
     #[uniform(0)]
     pub low: Vec4,
 }

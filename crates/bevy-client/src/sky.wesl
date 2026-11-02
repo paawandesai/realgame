@@ -54,8 +54,12 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     col = mix(col, horizon * 0.95, smoothstep(0.0, -0.1, up));
     // A faint teal aurora band low in the north (cultivation sky).
     let north = smoothstep(0.2, 1.0, -d.z) * smoothstep(0.05, 0.18, up) * smoothstep(0.45, 0.2, up);
-    let wave = n2(vec2<f32>(d.x * 6.0 + globals.time * 0.03, up * 10.0));
-    col = col + vec3<f32>(0.10, 0.45, 0.40) * north * wave * 0.35;
+    if params.low.x < 0.5 {
+        let wave = n2(vec2<f32>(d.x * 6.0 + globals.time * 0.03, up * 10.0));
+        col = col + vec3<f32>(0.10, 0.45, 0.40) * north * wave * 0.35;
+    } else {
+        col = col + vec3<f32>(0.10, 0.45, 0.40) * north * 0.17;
+    }
     // The sun: a disc, a halo, and warm light low around it.
     let s = max(dot(d, sun), 0.0);
     col = col + vec3<f32>(1.0, 0.9, 0.7) * (pow(s, 900.0) * 6.0 + pow(s, 40.0) * 0.35 + pow(s, 6.0) * 0.12);
@@ -64,7 +68,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         let p = d.xz / (up + 0.12) * 1.6 + vec2<f32>(globals.time * 0.012, globals.time * 0.004);
         var c: f32;
         if params.low.x > 0.5 {
-            c = n2(p) * 0.6 + n2(p * 2.3 + 4.0) * 0.4;
+            c = n2(p) * 0.75 + 0.12;
         } else {
             c = fbm2(p);
         }
