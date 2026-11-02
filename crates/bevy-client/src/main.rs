@@ -24,7 +24,9 @@ mod chem;
 mod clock;
 mod cues;
 mod feel;
+mod fire_fx;
 mod fx;
+mod gates;
 mod level2;
 mod level3;
 mod motion;
@@ -431,6 +433,26 @@ struct Working {
     routes: [worked::Route; 4],
     /// The last `__workState` published, so it is written only on change.
     last_json: String,
+    /// I-052 round 2: casts this frame that count toward a spell's run
+    /// practice (`valley::practice`): `(spell, true)` for a correct worked
+    /// cast, or a cast that needed no build; `story` drains it.
+    cast_log: Vec<(usize, bool)>,
+    /// Spells Practised in this run (`story` sets it): their worked cast
+    /// is a one-step confirm.
+    practised: [bool; 4],
+}
+
+impl Working {
+    /// The stage worked casts use for spell `i`: the saved one, raised to
+    /// Practised once the spell is practised in this run.
+    fn stage(&self, prog: &Progress, i: usize) -> progress::Stage {
+        let st = prog.0.get(i).map(|p| p.stage).unwrap_or_default();
+        if self.practised.get(i).copied().unwrap_or(false) {
+            st.max(progress::Stage::Practised)
+        } else {
+            st
+        }
+    }
 }
 
 /// What `aim_and_cast` needs for worked casts (one parameter, so the system
@@ -740,6 +762,8 @@ fn main() {
             wrong: 0,
             routes: [worked::Route::Instant; 4],
             last_json: String::new(),
+            cast_log: Vec::new(),
+            practised: [false; 4],
         })
         .init_resource::<Stats>()
         .init_resource::<Game>()
@@ -2081,7 +2105,7 @@ fn aim_and_cast(
     // instead of casting (the world holds from this frame on); an accepted
     // build casts at the click's aim, ahead of everything else.
     for i in 0..4 {
-        let st = wk.prog.0.get(i).map(|p| p.stage).unwrap_or_default();
+        let st = wk.working.stage(&wk.prog, i);
         let learnable =
             def_of(spells, i).and_then(|d| wk.bench.band.map(|b| simbench::learnable(d, b)));
         wk.working.routes[i] =
@@ -2097,6 +2121,9 @@ fn aim_and_cast(
                     if st == Some(progress::Stage::Mastered) {
                         wk.prog.0.instant_cast(sp);
                     }
+                    // A cast with nothing to build (no band, a spell the
+                    // band cannot learn, instant mode) counts as practice.
+                    wk.working.cast_log.push((sp, true));
                     gated.push(aim);
                 }
                 worked::Route::Worked => {
@@ -2107,7 +2134,7 @@ fn aim_and_cast(
                         game.cast_queue.clear();
                         game.paused = true;
                         if let (Some(band), Some(def)) = (wk.bench.band, def_of(spells, sp)) {
-                            let st = wk.prog.0.get(sp).map(|p| p.stage).unwrap_or_default();
+                            let st = wk.working.stage(&wk.prog, sp);
                             game.work.set_view(&work_view(def, band, st, None));
                         }
                     }
@@ -2218,6 +2245,7 @@ fn work_cmd(
             match game.work.submit(id, v.ok) {
                 worked::Submit::Cast { spell, earns } => {
                     wk.prog.0.worked_cast(spell, earns);
+                    wk.working.cast_log.push((spell, true));
                     wk.working.done += 1;
                     game.paused = web_paused;
                     *accepted = Some(game.work_aim);
@@ -2225,7 +2253,7 @@ fn work_cmd(
                 worked::Submit::Wrong { .. } => {
                     wk.prog.0.worked_cast(spell, false);
                     wk.working.wrong += 1;
-                    let stage = wk.prog.0.get(spell).map(|p| p.stage).unwrap_or_default();
+                    let stage = wk.working.stage(&wk.prog, spell);
                     let n = game.work.open().map_or(0, |w| u32::from(w.wrong));
                     let result = simbench::ResultView {
                         n,
@@ -2254,6 +2282,11 @@ fn work_cmd(
 
 /// Writes `window.__workState` (I-029 contract) when it changed.
 fn publish_work(wk: &mut WorkCtx, game: &Game) {
+    // Only the block world's story reads the practice log; elsewhere it
+    // never grows past a frame's worth.
+    if wk.working.cast_log.len() > 64 {
+        wk.working.cast_log.clear();
+    }
     let band = wk
         .bench
         .band
@@ -2265,10 +2298,7 @@ fn publish_work(wk: &mut WorkCtx, game: &Game) {
         .map(|r| format!("\"{}\"", r.as_str()))
         .collect();
     let stages: Vec<String> = (0..4)
-        .map(|i| {
-            let st = wk.prog.0.get(i).map(|p| p.stage).unwrap_or_default();
-            format!("\"{}\"", st.as_str())
-        })
+        .map(|i| format!("\"{}\"", wk.working.stage(&wk.prog, i).as_str()))
         .collect();
     let mode = match wk.working.mode {
         worked::CastMode::Worked => "worked",
@@ -2826,7 +2856,11 @@ fn publish(
         opt(game.hover),
         if voxel { 0 } else { w.extinguished },
         chem::GOAL_FIRES,
-        if voxel { 0 } else { w.burning() },
+        if voxel {
+            keys.matter.burning as usize
+        } else {
+            w.burning()
+        },
         risk.0,
         risk.1,
         esc(&game.caption),
@@ -2885,7 +2919,12 @@ fn publish(
             .map(|p| format!("{p:.3}"))
             .collect::<Vec<_>>()
             .join(","),
-        level3::vents_lit(w),
+        if voxel {
+            // u32::MAX until the first matter step has counted them.
+            (keys.matter.vents_lit % u32::MAX) as usize
+        } else {
+            level3::vents_lit(w)
+        },
         keys.json()
     );
     bridge::publish(&json);

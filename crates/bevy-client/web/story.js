@@ -32,6 +32,27 @@ const push = (cmd) => {
   (w.__gameIn.story = w.__gameIn.story || []).push(cmd);
 };
 
+/**
+ * Where a world point lands on screen for the camera in `s` (the game
+ * state's `cam`, `yaw` and `pitch` in degrees, `fov` the vertical field of
+ * view in degrees), as pixels; null when it is behind the camera.
+ * @param {number[]} p @param {any} s @param {number} w @param {number} h
+ */
+export function project(p, s, w, h) {
+  if (!s || !Array.isArray(s.cam)) return null;
+  const yaw = (s.yaw * Math.PI) / 180, pitch = (s.pitch * Math.PI) / 180;
+  const d = [p[0] - s.cam[0], p[1] - s.cam[1], p[2] - s.cam[2]];
+  const x1 = d[0] * Math.cos(yaw) - d[2] * Math.sin(yaw);
+  const z1 = d[0] * Math.sin(yaw) + d[2] * Math.cos(yaw);
+  const y2 = d[1] * Math.cos(pitch) + z1 * Math.sin(pitch);
+  const z2 = -d[1] * Math.sin(pitch) + z1 * Math.cos(pitch);
+  if (z2 > -0.1) return null;
+  const t = Math.tan((((s.fov || 60) * Math.PI) / 180) / 2);
+  const nx = x1 / -z2 / (t * (w / h)), ny = y2 / -z2 / t;
+  if (Math.abs(nx) > 1.2 || Math.abs(ny) > 1.2) return null;
+  return { x: ((nx + 1) / 2) * w, y: ((1 - ny) / 2) * h, dist: Math.hypot(d[0], d[1], d[2]) };
+}
+
 export function startStory() {
   const w = /** @type {any} */ (window);
   const root = document.createElement('div');
@@ -100,6 +121,9 @@ export function startStory() {
       .map((el) => [el, /** @type {HTMLElement} */ (el).inert]));
     for (const [el] of behind) el.inert = true;
     document.getElementById('pause')?.classList.add('bench-under');
+    // The welcome caption waits under the intro (story.rs says it again
+    // once the intro closes), so the two never overlap.
+    document.body.classList.add('intro-open');
     root.hidden = false;
     show(0);
     play1.focus();
@@ -113,6 +137,7 @@ export function startStory() {
     for (const [el, was] of behind) el.inert = was;
     behind = [];
     document.getElementById('pause')?.classList.remove('bench-under');
+    document.body.classList.remove('intro-open');
     try { w.__game && w.__game.pause(wasPaused); } catch { /* no HUD */ }
     push('intro_done');
     document.getElementById('game')?.focus();
@@ -124,6 +149,15 @@ export function startStory() {
   // that skips does not (it would lock the pointer or cast).
   const skip = (/** @type {Event} */ e) => {
     if (!open) return;
+    // "Just play" is a button the player chose: it works at once, by
+    // mouse, touch or keyboard (the 1 s guard is for stray keys only). Its
+    // press is let through to the button, and its click closes the intro.
+    const onPlay = e.target instanceof Node && play1.contains(e.target);
+    if (onPlay) {
+      e.stopPropagation();
+      if (e.type === 'click') finish();
+      return;
+    }
     const ready = (performance.now() - openedAt - stall()) / 1000 >= SKIP_AFTER_S;
     e.stopImmediatePropagation();
     if (ready && e.type === 'keydown') {
@@ -144,10 +178,40 @@ export function startStory() {
   for (const t of ['keydown', 'keypress', 'keyup', 'pointerdown', 'click']) window.addEventListener(t, skip, true);
   play1.addEventListener('click', finish);
 
+  // The biome gates' signs (round 2): a board over each shut gate, drawn
+  // where the gate is on screen while it is near and in view.
+  /** @type {Record<string, HTMLElement>} */
+  const signs = {};
+  const drawSigns = (/** @type {any} */ s, /** @type {any} */ story) => {
+    const gates = story && Array.isArray(story.gates) ? story.gates : [];
+    for (const g of gates) {
+      let el = signs[g.id];
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'gate-sign';
+        el.dataset.gate = g.id;
+        el.setAttribute('role', 'note');
+        document.body.append(el);
+        signs[g.id] = el;
+      }
+      if (el.textContent !== g.text) el.textContent = g.text;
+      const at = !g.open && !open ? project(g.at, s, innerWidth, innerHeight) : null;
+      const show = !!at && at.dist < 40;
+      el.hidden = !show;
+      if (show && at) {
+        el.style.left = `${Math.round(at.x)}px`;
+        el.style.top = `${Math.round(at.y)}px`;
+        el.style.opacity = String(Math.max(0.35, Math.min(1, 1.4 - at.dist / 40)));
+      }
+    }
+  };
+
   // Sound cues: a chime when a quest step completes, a pickup when the pack
   // gains an item.
   let lastQuest = -1;
+  let lastDonePush = performance.now();
   let lastPack = -1;
+  let lastBurning = -1;
 
   const tick = () => {
     const now = performance.now();
@@ -170,9 +234,19 @@ export function startStory() {
           else finish();
         }
       }
+      drawSigns(s, story);
       if (s.quest > 0) done = true;
+      // Closed, but the game has not heard it yet (a command lost before
+      // the game read its queue): say it again, once a second, so the
+      // intro never comes back and the first objective always shows.
+      else if (done && !open && now - lastDonePush > 1000) { lastDonePush = now; push('intro_done'); }
       if (lastQuest >= 1 && s.quest > lastQuest) play('bench_success');
       lastQuest = s.quest;
+      // A fire put out: the hiss (round 2, P1).
+      if (typeof s.burning === 'number') {
+        if (lastBurning >= 0 && s.burning < lastBurning) play('hiss');
+        lastBurning = s.burning;
+      }
       const n = Array.isArray(s.pack) ? s.pack.reduce((a, p) => a + (p.n || 0), 0) : 0;
       if (lastPack >= 0 && n > lastPack) play('pickup');
       lastPack = n;

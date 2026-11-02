@@ -386,6 +386,14 @@ canvas.hover-fire { cursor: pointer; }
 /* I-052 Lane C: the block valley's intro, pack, Make section and objective arrow. */
 #intro { position: fixed; inset: 0; z-index: 880; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 0 16px calc(48px * var(--ui)); background: linear-gradient(to top, rgba(8, 12, 24, 0.85), rgba(8, 12, 24, 0.15) 60%, rgba(8, 12, 24, 0)); color: #fff; }
 #intro[hidden] { display: none; }
+body.intro-open #caption { visibility: hidden; }
+/* I-052 round 2: the sign over a shut biome gate. */
+.gate-sign { position: fixed; z-index: 40; transform: translate(-50%, -100%); pointer-events: none; padding: 8px 14px; border-radius: 6px; border: 3px solid #6b4a2b; background: #c99a5b; color: #2a1a0c; font-weight: 700; font-size: calc(18px * var(--ui)); line-height: 1.25; text-align: center; max-width: calc(320px * var(--ui)); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); }
+.gate-sign[hidden] { display: none; }
+/* I-052 round 2: a Practised spell's one-step worked cast. */
+.worked-known { margin: 8px 0 12px; font-size: calc(20px * var(--ui)); text-align: center; }
+.worked-confirm { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 auto 8px; min-width: calc(200px * var(--ui)); min-height: 48px; padding: 10px 22px; font: inherit; font-size: calc(22px * var(--ui)); font-weight: 700; border-radius: 12px; border: 2px solid #ffd54a; background: #2b3a5c; color: #fff; cursor: pointer; }
+.worked-confirm:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .intro-card { display: none; max-width: calc(760px * var(--ui)); text-align: center; }
 .intro-card.on { display: block; animation: introIn 0.6s ease-out; }
 .intro-pic { width: calc(120px * var(--ui)); height: calc(120px * var(--ui)); margin: 0 auto calc(14px * var(--ui)); border-radius: 50%; }

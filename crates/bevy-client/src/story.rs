@@ -47,6 +47,10 @@ pub struct Story {
     craft: Option<(String, String)>,
     /// The biome the player is in (`voxel_view`'s key), for its name.
     biome: String,
+    /// Water has put out a burning block in the workshop (step 1).
+    water_on_workshop: bool,
+    /// The biome gates and their signs, as JSON (`gates`, round 2).
+    pub gates_json: String,
 }
 
 impl Default for Story {
@@ -62,6 +66,8 @@ impl Default for Story {
             last: String::new(),
             craft: None,
             biome: "village".to_string(),
+            water_on_workshop: false,
+            gates_json: "[]".to_string(),
         }
     }
 }
@@ -83,12 +89,14 @@ const INTRO_PAN: f32 = 0.08;
 
 /// Registers the story (Voxel mode only).
 pub fn plugin(app: &mut App) {
-    app.init_resource::<Keys>()
+    app.add_plugins(crate::gates::plugin)
+        .init_resource::<Keys>()
         .init_resource::<Story>()
         .add_systems(
             Update,
-            (commands, on_event, intro_camera, keys)
+            (commands, on_event, practice_sync, intro_camera, keys)
                 .chain()
+                .after(crate::aim_and_cast)
                 .before(crate::publish),
         );
 }
@@ -188,9 +196,18 @@ fn with_pack<R>(story: &mut Story, pack: &mut crate::Pack, f: impl FnOnce(&mut S
 }
 
 /// Drains `window.__gameIn.story`.
-fn commands(mut story: ResMut<Story>, mut pack: ResMut<crate::Pack>) {
+fn commands(
+    mut story: ResMut<Story>,
+    mut pack: ResMut<crate::Pack>,
+    mut game: ResMut<crate::Game>,
+) {
+    let before = story.quest.step();
     for line in drain() {
         with_pack(&mut story, &mut pack, |s| run_command(s, &line));
+    }
+    // The welcome caption waited under the intro: say it now it has closed.
+    if before == 0 && story.quest.step() == 1 && story.biome == "village" {
+        game.say(crate::voxel_view::WELCOME_LINE);
     }
 }
 
@@ -201,6 +218,7 @@ pub fn on_event(
     player_pos: Res<Player>,
     mut player: MessageReader<PlayerEvent>,
     mut matter: MessageReader<MatterEvent>,
+    fire: Option<Res<crate::blockchem::Keys>>,
 ) {
     let story = &mut *story;
     for e in player.read() {
@@ -214,19 +232,101 @@ pub fn on_event(
             }
             // The view took the placed block out of the pack.
             PlayerEvent::Placed { .. } => {}
-            PlayerEvent::InBox { stamp } => {
-                if *stamp == realgame_voxel::stamp::FORD.id && player_pos.pos.z < 150.0 {
-                    story.quest.on(QuestEvent::CrossedFord);
-                }
-            }
-            PlayerEvent::EnteredBiome { .. }
+            // Crossing the ford is a position check (`crossing_progress`):
+            // entering the ford's box happens on the water, not across it.
+            PlayerEvent::InBox { .. }
+            | PlayerEvent::EnteredBiome { .. }
             | PlayerEvent::UsedRig
             | PlayerEvent::UsedLever
             | PlayerEvent::UsedKilnDoor => {}
         }
     }
-    // Matter events reach the quest on Tuesday (spec section 12).
-    for _ in matter.read() {}
+    let events: Vec<_> = matter.read().map(|e| e.0).collect();
+    let burning = fire.as_ref().map_or(u32::MAX, |k| k.workshop_burning);
+    fire_progress(story, &events, burning);
+    let gate_ice = fire.as_ref().map_or(u32::MAX, |k| k.gate_ice);
+    crossing_progress(story, player_pos.pos, gate_ice);
+    let vents = fire.as_ref().map_or(u32::MAX, |k| k.vents_lit);
+    hollow_progress(story, player_pos.pos, vents);
+}
+
+/// Step 1 (P1): remembers water putting out a workshop block, and tells
+/// the quest once nothing in the workshop burns (`workshop_burning`, from
+/// `blockchem`) after water did.
+pub fn fire_progress(
+    story: &mut Story,
+    events: &[realgame_matter::MatterEvent],
+    workshop_burning: u32,
+) {
+    use realgame_matter::{By, MatterEvent as M};
+    for e in events {
+        if let M::Extinguished {
+            cell,
+            by: By::Water,
+        } = e
+        {
+            if realgame_voxel::stamp::WORKSHOP.contains(*cell) {
+                story.water_on_workshop = true;
+            }
+        }
+    }
+    if workshop_burning == 0 && story.water_on_workshop {
+        story.quest.on(QuestEvent::WorkshopOut { by_water: true });
+    }
+}
+
+/// Run practice (Paawan, 2026-11-01): each correct worked cast this frame
+/// (or a cast with nothing to build) counts toward its spell; three make it
+/// Practised for this run, which turns its worked cast into a one-step
+/// confirm (`Working::practised`) and opens the biome gate that needs it.
+fn practice_sync(
+    mut story: ResMut<Story>,
+    mut working: ResMut<crate::Working>,
+    mut game: ResMut<crate::Game>,
+) {
+    for (spell, ok) in std::mem::take(&mut working.cast_log) {
+        if ok && story.practice.record(spell) {
+            let name = crate::chem::Spell::ALL.get(spell).map_or("", |s| s.name());
+            game.say(&format!(
+                "{name}: Practised! Its cast is now one quick confirm."
+            ));
+        }
+    }
+    for i in 0..4 {
+        working.practised[i] = story.practice.practised(i);
+    }
+}
+
+/// Steps 2 and 3 (P2): across the ford is standing on its north bank (z
+/// below the water, x in the ford's columns); the gate is melted when its
+/// stamp box holds no ice (`gate_ice`, from `blockchem`).
+pub fn crossing_progress(story: &mut Story, pos: Vec3, gate_ice: u32) {
+    let (x0, x1) = realgame_voxel::gen::FORD_X;
+    let across = pos.z < realgame_voxel::gen::WATER_Z.0 as f32
+        && pos.z > (realgame_voxel::gen::CANYON_Z.0 - 4) as f32
+        && pos.x >= x0 as f32
+        && pos.x < x1 as f32;
+    if across {
+        story.quest.on(QuestEvent::CrossedFord);
+    }
+    if gate_ice == 0 {
+        story.quest.on(QuestEvent::GateMelted);
+    }
+}
+
+/// Step 5 (P3): every vent in the methane hollow is out at once
+/// (`vents_lit`, from `blockchem`) while the player is in the hollow (its
+/// stamp box, along the ground): the burning gas no longer blocks the way.
+pub fn hollow_progress(story: &mut Story, pos: Vec3, vents_lit: u32) {
+    let h = realgame_voxel::stamp::HOLLOW;
+    let inside = pos.x >= h.min[0] as f32
+        && pos.x < h.max[0] as f32
+        && pos.z >= h.min[2] as f32
+        && pos.z < h.max[2] as f32
+        && pos.y < (h.max[1] + 2) as f32;
+    if vents_lit == 0 && inside {
+        story.quest.on(QuestEvent::CrossedHollow);
+    }
 }
 
 /// The intro's slow camera pan over the valley while the cards show.
@@ -349,14 +449,15 @@ pub fn state_json(story: &Story, band: Option<Tier>) -> String {
         .map(|t| format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\"")))
         .collect();
     format!(
-        "{{\"v\":1,\"step\":{},\"biomeName\":\"{}\",\"intro\":[{}],\"recipes\":[{}],\"slots\":[{}],\"hot\":[{}],\"practised\":[{}],\"craft\":{craft}}}",
+        "{{\"v\":1,\"step\":{},\"biomeName\":\"{}\",\"intro\":[{}],\"recipes\":[{}],\"slots\":[{}],\"hot\":[{}],\"practised\":[{}],\"craft\":{craft},\"gates\":{}}}",
         story.quest.step(),
         valley::biome_name(&story.biome),
         intro.join(","),
         recipes.join(","),
         slots.join(","),
         hot.join(","),
-        practised.join(",")
+        practised.join(","),
+        story.gates_json
     )
 }
 
@@ -460,6 +561,94 @@ mod tests {
         run_command(&mut plain, "quest 5");
         assert_eq!(plain.pack.count(Item::Block(valley::mat::COAL_ORE)), 0);
         assert_eq!(plain.quest.step(), 0);
+    }
+
+    /// Round 2 (P1): step 1 completes once no block in the workshop burns
+    /// and water put at least one of them out; not before, and not when
+    /// the fire went out some other way.
+    #[test]
+    fn the_workshop_step_completes_when_water_puts_its_fire_out() {
+        use realgame_matter::{By, MatterEvent as M};
+        let in_shop = [142, 35, 188];
+        let elsewhere = [10, 40, 10];
+        let mut s = Story {
+            quest: Quest::at(1),
+            ..Story::default()
+        };
+        // Water put one cell out, but the store still burns.
+        fire_progress(
+            &mut s,
+            &[M::Extinguished {
+                cell: in_shop,
+                by: By::Water,
+            }],
+            5,
+        );
+        assert_eq!(s.quest.step(), 1, "still burning");
+        // Out, with water earlier: done, and the objective moves on.
+        fire_progress(&mut s, &[], 0);
+        assert_eq!(s.quest.step(), 2, "the workshop is out");
+        // Out without water (smothered, or outside the workshop): not done.
+        let mut t = Story {
+            quest: Quest::at(1),
+            ..Story::default()
+        };
+        fire_progress(
+            &mut t,
+            &[
+                M::Extinguished {
+                    cell: in_shop,
+                    by: By::NoOxygen,
+                },
+                M::Extinguished {
+                    cell: elsewhere,
+                    by: By::Water,
+                },
+            ],
+            0,
+        );
+        assert_eq!(t.quest.step(), 1, "water never touched the workshop fire");
+    }
+
+    /// Round 2 (P2): step 2 completes when the player stands on the north
+    /// bank of the ford (z < 150, in the ford's x range); step 3 when the
+    /// ice gate holds no ice.
+    #[test]
+    fn crossing_the_ford_and_melting_the_gate_move_the_objective_on() {
+        let mut s = Story {
+            quest: Quest::at(2),
+            ..Story::default()
+        };
+        crossing_progress(&mut s, Vec3::new(128.5, 32.0, 155.0), 12);
+        assert_eq!(s.quest.step(), 2, "still on the water");
+        crossing_progress(&mut s, Vec3::new(60.5, 40.0, 140.0), 12);
+        assert_eq!(s.quest.step(), 2, "north, but not by the ford");
+        crossing_progress(&mut s, Vec3::new(128.5, 32.0, 149.4), 12);
+        assert_eq!(s.quest.step(), 3, "across the ford");
+        crossing_progress(&mut s, Vec3::new(60.5, 36.0, 96.0), 3);
+        assert_eq!(s.quest.step(), 3, "ice left in the gate");
+        crossing_progress(&mut s, Vec3::new(60.5, 36.0, 96.0), 0);
+        assert_eq!(s.quest.step(), 4, "the gate melted");
+    }
+
+    /// Round 2 (P3): step 5 completes when no vent in the hollow burns and
+    /// the player is in the hollow (on its boardwalk or floor).
+    #[test]
+    fn the_hollow_step_completes_when_every_vent_is_out_and_the_player_is_in_it() {
+        let mut s = Story {
+            quest: Quest::at(5),
+            ..Story::default()
+        };
+        hollow_progress(&mut s, Vec3::new(191.5, 29.0, 100.5), 2);
+        assert_eq!(s.quest.step(), 5, "two vents still burn");
+        hollow_progress(&mut s, Vec3::new(170.5, 33.0, 100.5), 0);
+        assert_eq!(
+            s.quest.step(),
+            5,
+            "out, but the player is not in the hollow"
+        );
+        hollow_progress(&mut s, Vec3::new(191.5, 29.0, 100.5), 0);
+        assert_eq!(s.quest.step(), 6, "smothered and crossed");
     }
 
     #[test]
