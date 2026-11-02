@@ -215,6 +215,54 @@ pub fn too_deep(w: &voxel::World, feet: Vec3) -> bool {
     water(0) && (water(1) || water(-1))
 }
 
+/// The nearest place to stand on dry ground within a few metres of
+/// `feet` (in deep water): the point of the nearest dry column closest to
+/// the feet, a body's radius in from its edge, on its top (the drawn
+/// surface where there is one).
+pub fn nearest_bank(w: &voxel::World, feet: Vec3) -> Option<Vec3> {
+    const REACH: i32 = 6;
+    let r = crate::motion::RADIUS + 0.05;
+    let [fx, fy, fz] = [
+        feet.x.floor() as i32,
+        feet.y.floor() as i32,
+        feet.z.floor() as i32,
+    ];
+    let solid = |m: u8| voxel::materials::flags(m).solid && m != voxel::mat::WATER;
+    let open = |m: u8| !voxel::materials::flags(m).solid && m != voxel::mat::WATER;
+    let mut best: Option<(f32, Vec3)> = None;
+    for cz in fz - REACH..=fz + REACH {
+        for cx in fx - REACH..=fx + REACH {
+            // The point of this column nearest the feet.
+            let px = feet.x.clamp(cx as f32 + r, cx as f32 + 1.0 - r);
+            let pz = feet.z.clamp(cz as f32 + r, cz as f32 + 1.0 - r);
+            let d = (px - feet.x).hypot(pz - feet.z);
+            if best.is_some_and(|(bd, _)| bd <= d) {
+                continue;
+            }
+            for y in (fy - 3..=fy + 3).rev() {
+                let ground = w.get([cx, y, cz]).mat;
+                if !solid(ground)
+                    || !open(w.get([cx, y + 1, cz]).mat)
+                    || !open(w.get([cx, y + 2, cz]).mat)
+                {
+                    continue;
+                }
+                let top = (y + 1) as f32;
+                let h = match voxel::ground(w, px, pz, top + 0.5, top - 1.0) {
+                    voxel::Ground::Floor(g) => g.max(top - 0.6),
+                    _ => top,
+                };
+                let p = Vec3::new(px, h, pz);
+                if !too_deep(w, p) {
+                    best = Some((d, p));
+                }
+                break;
+            }
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
 /// Where the player last stood dry, for `wade_push`.
 #[derive(Resource, Default)]
 pub struct Wade {
@@ -231,7 +279,7 @@ fn wade_push(
 ) {
     let feet = player.pos;
     if too_deep(&vox.0, feet) {
-        if let Some(back) = wade.last_dry {
+        if let Some(back) = nearest_bank(&vox.0, feet).or(wade.last_dry) {
             player.pos = back;
             player.vel = Vec3::ZERO;
             if game.caption != WADE_LINE {
@@ -365,6 +413,36 @@ mod tests {
         );
         v.set([5, 10, 5], voxel::Cell::new(voxel::mat::ICE));
         assert!(!too_deep(&v, Vec3::new(5.5, 11.0, 5.5)), "ice");
+    }
+
+    /// Smooth-lane follow-up: deep water puts the player back on the
+    /// nearest bank, not wherever they last stood dry (after a jump off
+    /// the Village rise that was the rise's top, 6 m up).
+    #[test]
+    fn deep_water_returns_the_player_to_the_nearest_bank() {
+        let w = voxel::generate(voxel::DEFAULT_SEED);
+        for (feet, near_z) in [
+            (Vec3::new(128.5, 29.5, 156.6), 158.0),
+            (Vec3::new(126.5, 30.2, 151.2), 150.0),
+        ] {
+            let b = nearest_bank(&w, feet).expect("a bank");
+            let d = (b.xz() - feet.xz()).length();
+            assert!(d < 2.6, "{feet:?} -> {b:?} ({d} m)");
+            assert!((b.z - near_z).abs() < 1.5, "{feet:?} -> {b:?}");
+            assert!(!too_deep(&w, b), "dry: {b:?}");
+            let under = w
+                .get([
+                    b.x.floor() as i32,
+                    (b.y - 0.5).floor() as i32,
+                    b.z.floor() as i32,
+                ])
+                .mat;
+            assert!(
+                voxel::materials::flags(under).solid && under != voxel::mat::WATER,
+                "{b:?} on {under}"
+            );
+            assert!(b.y < 36.0, "not up on the rise: {b:?}");
+        }
     }
 
     #[test]

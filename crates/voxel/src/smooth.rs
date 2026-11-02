@@ -206,7 +206,14 @@ impl Grid {
                         g.mat[i] = mat::STONE;
                     } else {
                         let c = world.get([x, y, z]);
-                        g.mat[i] = c.mat;
+                        // Trees are models (`props`): their cells are open
+                        // space to the surface. Crystals are the rock they
+                        // grow from.
+                        g.mat[i] = if crate::props::modelled(world, [x, y, z], c.mat) {
+                            mat::AIR
+                        } else {
+                            crate::props::surface_mat(c.mat)
+                        };
                         g.level[i] = c.level();
                     }
                     i += 1;
@@ -947,6 +954,76 @@ fn water(g: &Grid, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     out
 }
 
+fn vhash(x: i32, y: i32, z: i32) -> f32 {
+    let mut h = (x as u32).wrapping_mul(0x8da6_b343)
+        ^ (y as u32).wrapping_mul(0xd816_3841)
+        ^ (z as u32).wrapping_mul(0xcb1a_b31f);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2c1b_3c6d);
+    h ^= h >> 12;
+    (h >> 8) as f32 / (1u32 << 24) as f32
+}
+
+/// Smooth value noise in [0, 1].
+fn vnoise(p: [f32; 3]) -> f32 {
+    let i = p.map(|v| v.floor());
+    let f = [p[0] - i[0], p[1] - i[1], p[2] - i[2]];
+    let u = f.map(|t| t * t * (3.0 - 2.0 * t));
+    let [ix, iy, iz] = i.map(|v| v as i32);
+    let c = |dx: i32, dy: i32, dz: i32| vhash(ix + dx, iy + dy, iz + dz);
+    let l = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let x00 = l(c(0, 0, 0), c(1, 0, 0), u[0]);
+    let x10 = l(c(0, 1, 0), c(1, 1, 0), u[0]);
+    let x01 = l(c(0, 0, 1), c(1, 0, 1), u[0]);
+    let x11 = l(c(0, 1, 1), c(1, 1, 1), u[0]);
+    l(l(x00, x10, u[1]), l(x01, x11, u[1]), u[2])
+}
+
+/// How far (m) a rock wall's surface is pushed in or out at most.
+pub const CRAG: f32 = 0.7;
+
+/// Natural rock walls (stone, cliffstone) drawn as crags rather than flat
+/// planes: each steep vertex is pushed in or out along its level normal by
+/// value noise of its position (two scales), with its normal and light
+/// varied to match. Only the drawing moves (by at most `CRAG`); the
+/// walking surface (`ground`) is the unmoved one, and flat tops and the
+/// rounded edges onto them (normal mostly up) do not move at all. A pure
+/// function of each vertex's position and normal, so chunk seams agree.
+fn craggy(m: &mut MeshData) {
+    for i in 0..m.positions.len() {
+        if !matches!(m.mats[i], mat::STONE | mat::CLIFFSTONE) {
+            continue;
+        }
+        let n = m.normals[i];
+        let steep = 1.0 - (n[1].abs() / 0.55).min(1.0);
+        if steep <= 0.0 {
+            continue;
+        }
+        let h = (n[0] * n[0] + n[2] * n[2]).sqrt();
+        if h < 1e-4 {
+            continue;
+        }
+        let (hx, hz) = (n[0] / h, n[2] / h);
+        let p = m.positions[i];
+        let big = vnoise([p[0] * 0.42, p[1] * 0.22, p[2] * 0.42]) - 0.5;
+        let fine = vnoise([p[0] * 1.3 + 17.0, p[1] * 1.6, p[2] * 1.3 + 5.0]) - 0.5;
+        let d = (big * 1.4 + fine * 0.6) * CRAG * steep;
+        m.positions[i] = [p[0] + hx * d, p[1], p[2] + hz * d];
+        // Lean the normal with the noise's slope (cheap: a second sample),
+        // and shade the hollows.
+        let tilt = vnoise([p[0] * 0.9 + 3.0, p[1] * 0.9 + 11.0, p[2] * 0.9]) - 0.5;
+        let tz = vnoise([p[0] * 0.9 + 9.0, p[1] * 0.9 + 2.0, p[2] * 0.9 + 7.0]) - 0.5;
+        m.normals[i] = normalize([
+            n[0] - hz * tilt * 0.8,
+            n[1] + tz * 0.5 * steep,
+            n[2] + hx * tilt * 0.8,
+        ]);
+        let shade = 1.0 + (big * 0.5 + fine * 0.3) * steep;
+        m.light[i] = (m.light[i] * shade).clamp(0.0, 1.0);
+        m.colors[i][3] = m.light[i];
+    }
+}
+
 /// Meshes the cells whose lattice edges start in `[lo, hi)` (all three
 /// passes).
 pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
@@ -956,10 +1033,21 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
     let first = g.kinds[0];
     let uniform = g.kinds.iter().all(|&k| k == first);
     if uniform && matches!(first, Kind::Empty | Kind::Soft | Kind::Hard | Kind::Organic) {
-        return SmoothMesh::default();
+        // Open air can still hold a tree's crown.
+        return SmoothMesh {
+            opaque: if first == Kind::Empty {
+                crate::props::models(world, lo, hi)
+            } else {
+                MeshData::default()
+            },
+            ..SmoothMesh::default()
+        };
     }
+    let mut opaque = surface(&g, lo, hi, Pass::Opaque, true);
+    craggy(&mut opaque);
+    append(&mut opaque, crate::props::models(world, lo, hi));
     SmoothMesh {
-        opaque: surface(&g, lo, hi, Pass::Opaque, true),
+        opaque,
         clear: if g.has(Kind::Clear) {
             let mut m = surface(&g, lo, hi, Pass::Clear, true);
             append(&mut m, ice_sheets(&g, lo, hi));

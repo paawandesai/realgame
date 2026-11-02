@@ -20,6 +20,7 @@ pub mod diff;
 pub mod gen;
 pub mod materials;
 pub mod mesh;
+pub mod props;
 pub mod raycast;
 pub mod smooth;
 pub mod stamp;
