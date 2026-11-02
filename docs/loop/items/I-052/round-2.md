@@ -223,7 +223,19 @@ Screenshots from the last golden run are in `docs/loop/items/I-052/evidence/roun
 
 ## Re-run with the two fixes
 
-Pending when this file was first pushed. The result is added here in a follow-up commit.
+**Not run.** The re-run of `formulaBench,workedCasts,voxelEngine,valleyStory,voxelCast` waited on the shared Chromium
+lock for more than 80 minutes, because the other cloud thread's goldens held it, and it was stopped when this round
+ended. So these are still open:
+- `worked: R2a`: fixed in ad96daf. The JS test is red first and then green, but the golden has not re-run.
+- `story: the intro shows three cards and any key skips it after 1 s`: fixed in d12b33e. The golden has not re-run.
+  Before this round it already failed on this sandbox for timing.
+- `story: the pack opens with Tab, pauses, and Escape closes it`: most likely a knock-on of E15. Not re-run.
+- `voxel: the Pick digs a dirt block into the pack and placing puts it back`: cause not found. Not re-run.
+- `bench: Sprout learns Water with the mouse`: cause not found. Not re-run.
+- `voxelCast: Water tapped lands 10-13.5 m away and a full 1 s charge lands 23-29 m away, on the ground at the feet`:
+  terrain this round did not change. Not checked on the base commit.
+
+The next smoke step should run these sections and `valleyPuzzles` on d12b33e or later.
 
 ## What a player can do, from the intro on
 
