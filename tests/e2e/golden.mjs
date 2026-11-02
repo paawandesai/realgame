@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
 // that section and the console-error check; also spellProgress, workedCasts,
-// voxelEngine, blockMatter, valleyStory, voxelCast, comma-separated), QUERY (for example `?low`,
+// voxelEngine, blockMatter, valleyStory, voxelCast, valleyLate, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -110,6 +110,7 @@ function check(name, ok, detail = '') {
     blockMatter: () => blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
     valleyStory: () => valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
     voxelCast: () => voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
+    valleyLate: () => valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -392,6 +393,8 @@ function check(name, ok, detail = '') {
   await valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
 
   await voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
+
+  await valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -5197,4 +5200,145 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('voxelCast: a 1.3 s press flies at least 8 m farther than a click, each press one cast, none while held',
     flat(held) - flat(click) >= 8 && click.n === 1 && held.n === 1 && click.casts === 1 && held.casts === 1 && held.castsDuring === 0,
     `click ${flat(click).toFixed(2)} m (${click.n}), held ${flat(held).toFixed(2)} m (${held.n}), during=${held.castsDuring}`);
+}
+
+// ---------------------------------------------------------------------------
+// I-052 late lane (late.rs, web/late.js): the dark Crystal Cave and the torch,
+// the electrolysis rig (2:1), the balloon crate (E13), the Kiln door, the
+// Invention Bench and the ending (E19). Runs on `?biome=cave` with `debug`,
+// moving between places with `tp`, and setting the quest and the pack with
+// the story's debug commands (`quest <n>`, `give <item> <n>`).
+// ---------------------------------------------------------------------------
+async function valleyLate({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- valley late puzzles and ending (I-052, late lane) --');
+  void logs;
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const url = voxel + (voxel.includes('?') ? '&' : '?') + 'biome=cave';
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__lateState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  // Close the intro with its button (as voxelEngine does).
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 8000);
+  const late = () => page.evaluate(() => JSON.parse(window.__lateState || 'null'));
+  const story = (c) => page.evaluate((c) => { window.__gameIn.story = window.__gameIn.story || []; window.__gameIn.story.push(c); }, c);
+  const untilLate = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await late();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await late(); }
+    return x;
+  };
+  const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
+  const shown = (id) => page.evaluate((id) => { const e = document.getElementById(id); return !!e && !e.hidden; }, id);
+  const pressE = async () => { await page.keyboard.press('KeyE'); await frames(2); };
+  await story('quest 6');
+  await until((x) => x.quest === 6 && !x.paused, 20000);
+
+  // L1. The rig room is dark, and the rig will not run without light.
+  await cmd('tp 231.5 11 27.2');
+  await cmd('face 231.5 12 29.5');
+  let L = await untilLate((x) => x.near === 'rig' && x.dark, 15000);
+  const chip = await page.evaluate(() => { const e = document.getElementById('late-chip'); return e && !e.hidden ? e.textContent : ''; });
+  const say0 = L ? L.sayN : 0;
+  const before = await page.evaluate(() => ({ paused: JSON.parse(window.__gameState).paused, active: document.activeElement && (document.activeElement.id || document.activeElement.className), modals: [...document.querySelectorAll('[aria-modal="true"]')].filter((e) => !e.hidden && e.offsetParent !== null).map((e) => e.id) }));
+  if (before.paused) console.log('  L1: still paused before E:', JSON.stringify(before));
+  await pressE();
+  L = await untilLate((x) => x.sayN > say0, 8000);
+  check('late: the rig room is dark and the rig needs a torch',
+    L && L.near === 'rig' && L.dark && !L.light && /too dark/.test(L.say) && !L.rig.on && L.rig.uses === 0 && /rig/.test(chip),
+    `late=${JSON.stringify(L && { near: L.near, dark: L.dark, light: L.light, say: L.say, rig: L.rig })} chip=${chip}`);
+
+  // L2. With a torch the rig splits water: twice as much H2 as O2.
+  await story('give torch 1');
+  L = await untilLate((x) => x.light, 8000);
+  await pressE();
+  const mid = await untilLate((x) => x.rig.on && x.rig.h2 > 1, 8000);
+  await screenshot(page, 'late-1-rig.png');
+  L = await untilLate((x) => x.rig.uses === 1, 60000);
+  let s = await st();
+  check('late: with a torch the rig fills 2:1 and gives an H2 balloon and an O2 flask',
+    mid && mid.rig.on && Math.abs(mid.rig.h2 - 2 * mid.rig.o2) < 0.6 && L && L.rig.uses === 1 && L.rig.h2 === 40 && L.rig.o2 === 20
+      && packN(s, 'h2_balloon') === 1 && packN(s, 'o2_flask') === 1,
+    `mid=${JSON.stringify(mid && mid.rig)} end=${JSON.stringify(L && L.rig)} pack=${JSON.stringify(s.pack)}`);
+
+  // L3 (E13). An O2 balloon does not lift the crate; an H2 balloon does, and
+  // the crate brings the Kiln Spark down from the ledge.
+  await cmd('tp 239.6 11 19.4');
+  await cmd('face 240.5 11.5 20.5');
+  L = await untilLate((x) => x.near === 'crate', 10000);
+  await pressE();
+  const chooser = await page.evaluate(() => [...document.querySelectorAll('#late-gas button.late-pick')].map((b) => b.dataset.item));
+  const chooserOpen = await shown('late-gas');
+  await page.click('#late-gas button[data-item="o2_flask"]');
+  L = await untilLate((x) => x.crate.state === 'sinking', 5000);
+  let maxY = L ? L.crate.y : -1;
+  for (const t0 = Date.now(); Date.now() - t0 < 3000; await sleep(200)) maxY = Math.max(maxY, (await late()).crate.y);
+  const back = await untilLate((x) => x.crate.state === 'floor' && x.gases.includes('o2_flask'), 40000);
+  await pressE();
+  await page.click('#late-gas button[data-item="h2_balloon"]');
+  const up = await untilLate((x) => x.crate.y > 14, 40000);
+  await cmd('face 240.5 16 20.5');
+  await frames(3);
+  await screenshot(page, 'late-2-balloon.png');
+  L = await untilLate((x) => x.crate.state === 'loaded', 120000);
+  const ledgeEmpty = L && !L.sparkOnLedge;
+  await pressE();
+  s = await until((x) => packN(x, 'kiln_spark') === 1 && x.quest === 7, 8000);
+  check('late: an O2 balloon does not lift the crate, an H2 balloon does (E13)',
+    chooserOpen && chooser.includes('o2_flask') && chooser.includes('h2_balloon') && maxY === 11 && back && up && ledgeEmpty
+      && packN(s, 'kiln_spark') === 1 && s.quest === 7,
+    `chooser=${JSON.stringify(chooser)} o2MaxY=${maxY} back=${!!back} up=${up && up.crate.y} quest=${s.quest} pack=${JSON.stringify(s.pack)}`);
+
+  // L4. The Kiln door opens only for the Spark.
+  await cmd('tp 128.5 41 174.5');
+  await cmd('face 128.5 42 169.5');
+  L = await untilLate((x) => x.near === 'door', 10000);
+  await pressE();
+  L = await untilLate((x) => x.door, 8000);
+  check('late: the Kiln door opens with the Kiln Spark', L && L.door && !L.lit, `late=${JSON.stringify(L && { near: L.near, door: L.door, say: L.say })}`);
+
+  // L5 (E19). The Invention Bench refuses coal alone and accepts coal + O2;
+  // the Kiln lights and the ending card shows with Keep exploring.
+  await story('give coal 1');
+  await cmd('tp 132.5 35 202.5');
+  await cmd('face 132.5 35.5 200.5');
+  L = await untilLate((x) => x.near === 'invention', 10000);
+  await pressE();
+  const benchOpen = await (async () => { for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await shown('late-invent')) return true; return false; })();
+  await page.click('#late-invent button[data-item="coal_ore"]');
+  await page.click('#late-invent .late-try');
+  L = await untilLate((x) => x.tried.n === 1, 8000);
+  const fizzle = L && L.tried;
+  const fizzleText = await page.evaluate(() => document.querySelector('#late-invent .late-result')?.textContent || '');
+  await page.click('#late-invent button[data-item="o2_flask"]');
+  await page.click('#late-invent .late-try');
+  L = await untilLate((x) => x.lit, 8000);
+  s = await until((x) => x.ending === true && x.outcome === 'won', 8000);
+  let card = false;
+  for (const t0 = Date.now(); Date.now() - t0 < 8000 && !card; await sleep(150)) card = await shown('ending');
+  const cardText = await page.evaluate(() => document.getElementById('ending')?.textContent || '');
+  await screenshot(page, 'late-3-ending.png');
+  const keepFocus = await page.evaluate(() => document.activeElement && document.activeElement.className);
+  check('late: the Invention Bench refuses coal alone and accepts coal + O2; the ending card shows with Keep exploring (E19)',
+    benchOpen && fizzle && !fizzle.ok && /oxygen/.test(fizzle.reason) && /oxygen/.test(fizzleText) && L && L.lit && L.tried.reaction === 'carbon_combustion'
+      && s.ending === true && s.outcome === 'won' && s.quest === 8 && card && /relit the Great Kiln/.test(cardText) && /Keep exploring/.test(cardText) && /late-keep/.test(keepFocus || ''),
+    `bench=${benchOpen} fizzle=${JSON.stringify(fizzle)} lit=${L && L.lit} ending=${s.ending} outcome=${s.outcome} quest=${s.quest} card=${card} focus=${keepFocus}`);
+
+  // L6. Keep exploring closes the card and play goes on.
+  await page.click('#ending .late-keep');
+  await frames(3);
+  L = await untilLate((x) => !x.card, 5000);
+  await frames(3);
+  await screenshot(page, 'late-4-kiln-lit.png');
+  s = await until((x) => !x.paused, 5000);
+  check('late: Keep exploring closes the card and play goes on',
+    L && !L.card && !(await shown('ending')) && !s.paused && s.ending === true && s.outcome === 'won',
+    `card=${L && L.card} paused=${s.paused}`);
 }

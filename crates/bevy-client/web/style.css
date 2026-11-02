@@ -424,3 +424,31 @@ canvas.hover-fire { cursor: pointer; }
 
 #firefinder.objective .ff-flame { filter: hue-rotate(160deg) saturate(1.4); }
 #nogl { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 16px; background: #1e2740; color: #fff; font-size: 22px; text-align: center; }
+
+/* I-052 late lane: the cave rig, the balloon crate, the Invention Bench and the ending (web/late.js). */
+.late-chip { position: fixed; left: 50%; bottom: calc(120px * var(--ui)); transform: translateX(-50%); z-index: 40; padding: 8px 16px; border-radius: 12px; background: rgba(20, 28, 48, 0.85); color: #ffd54a; font-size: calc(20px * var(--ui)); font-weight: 700; pointer-events: none; }
+.late-chip[hidden], .late-say[hidden] { display: none; }
+.late-say { position: fixed; left: 50%; top: calc(110px * var(--ui)); transform: translateX(-50%); z-index: 40; max-width: min(92vw, calc(720px * var(--ui))); padding: 10px 18px; border-radius: 12px; background: rgba(20, 28, 48, 0.88); color: #fff; font-size: calc(20px * var(--ui)); text-align: center; pointer-events: none; }
+.late-modal { position: fixed; inset: 0; z-index: 870; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(8, 12, 24, 0.55); }
+.late-modal[hidden] { display: none; }
+.late-card { background: #1e2740; color: #fff; border-radius: 16px; padding: calc(20px * var(--ui)); max-width: calc(640px * var(--ui)); width: 100%; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 12px; }
+.late-card h2 { margin: 0; font-size: calc(26px * var(--ui)); }
+.late-help { margin: 0; opacity: 0.85; font-size: calc(18px * var(--ui)); }
+.late-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.late-pick, .late-try, .late-keep, .late-again, .late-close { font: inherit; font-size: calc(20px * var(--ui)); padding: 10px 18px; border-radius: 12px; border: 2px solid #3c4b70; background: #26314f; color: #fff; cursor: pointer; }
+.late-pick[aria-pressed="true"] { border-color: #ffd54a; background: #3a3a22; }
+.late-gas-h2_balloon { border-color: #7cc4ff; }
+.late-gas-o2_flask { border-color: #ff9a8f; }
+.late-try, .late-keep { background: #2f6b3a; border-color: #5fbf73; font-weight: 700; }
+.late-close { align-self: flex-end; font-size: calc(16px * var(--ui)); padding: 6px 14px; }
+.late-pick:focus-visible, .late-try:focus-visible, .late-keep:focus-visible, .late-again:focus-visible, .late-close:focus-visible { outline: 3px solid #fff; outline-offset: 1px; }
+.late-typed { display: flex; flex-direction: column; gap: 4px; font-size: calc(18px * var(--ui)); }
+.late-typed[hidden] { display: none; }
+.late-text { font: inherit; font-size: calc(20px * var(--ui)); padding: 8px 10px; border-radius: 10px; border: 2px solid #3c4b70; background: #10172a; color: #fff; }
+.late-result { margin: 0; min-height: 1.4em; font-size: calc(19px * var(--ui)); }
+.late-result.ok { color: #9be7a8; }
+.late-result.no { color: #ffcf8a; }
+.late-ending { background: radial-gradient(circle at 50% 30%, rgba(255, 150, 60, 0.35), rgba(8, 12, 24, 0.7)); }
+.late-end-title { color: #ffd27a; font-size: calc(32px * var(--ui)) !important; }
+.late-end-time, .late-end-spells { margin: 0; font-size: calc(20px * var(--ui)); }
+.late-end-list { margin: 0; padding-left: 1.2em; font-size: calc(18px * var(--ui)); }
