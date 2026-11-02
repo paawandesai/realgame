@@ -5575,6 +5575,8 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   check('puzzles: P3 with the gap open CO2 spills and a vent stays lit; a block in the gap and three CO2 casts smother every vent; the objective moves on',
     lit0 === 6 && openLit >= 1 && gap && gap.mat === 'dirt' && s.ventsLit === 0 && s.gasCO2Max > 0.28 && s.quest === 6,
     `vents ${lit0}, after 3 casts with the gap open ${openLit}, gap ${gap && gap.mat}, then vents ${s.ventsLit} CO2 max ${s.gasCO2Max}, quest ${s.quest}`);
+}
+
 // ---------------------------------------------------------------------------
 // I-052 late lane (late.rs, web/late.js): the dark Crystal Cave and the torch,
 // the electrolysis rig (2:1), the balloon crate (E13), the Kiln door, the
