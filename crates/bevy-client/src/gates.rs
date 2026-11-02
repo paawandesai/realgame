@@ -44,7 +44,10 @@ pub const GATES: [Gate; 3] = [
         biome: "marsh",
         wall: Aabb {
             min: [132, 30, 66],
-            max: [133, 50, 74],
+            // As high as the protected ridge on either side (y 61), so it
+            // cannot be pillared over more cheaply than the ridge
+            // (break-2 should-fix 1).
+            max: [133, 62, 74],
         },
         sign: [132.5, 47.0, 70.0],
     },
@@ -53,7 +56,8 @@ pub const GATES: [Gate; 3] = [
         biome: "cave",
         wall: Aabb {
             min: [218, 30, 56],
-            max: [223, 36, 61],
+            // Above the rocks around the mouth (y 38; break-2 should-fix 1).
+            max: [223, 40, 61],
         },
         sign: [220.5, 37.0, 58.5],
     },
@@ -83,8 +87,24 @@ pub fn build(world: &mut World, g: &Gate) -> Vec<[i32; 3]> {
         }
     }
     world.protect(g.wall);
+    // break-2 should-fix 1: nothing can be built on the wall or dug under
+    // it, so the only way past is the spell.
+    let (a, b) = (g.wall.min, g.wall.max);
+    world.protect(Aabb {
+        min: [a[0], b[1], a[2]],
+        max: [b[0], b[1] + WARD_UP, b[2]],
+    });
+    world.protect(Aabb {
+        min: [a[0] - 1, a[1] - WARD_DOWN, a[2] - 1],
+        max: [b[0] + 1, a[1], b[2] + 1],
+    });
     out
 }
+
+/// Blocks above each wall that cannot be built on.
+pub const WARD_UP: i32 = 16;
+/// Blocks under each wall (and one beside it) that cannot be dug.
+pub const WARD_DOWN: i32 = 8;
 
 /// Opens a gate: the cells its wall filled become air again.
 pub fn open(world: &mut World, cells: &[[i32; 3]]) {
@@ -203,6 +223,48 @@ mod tests {
             open(&mut w, &cells);
             assert!(cells.iter().all(|&p| w.get(p).mat == mat::AIR));
         }
+    }
+
+    /// break-2 should-fix 1: a gate cannot be climbed or dug around. Each
+    /// wall stands as high as the protected ridge beside it (the Marsh), the
+    /// cells above every wall are protected (no building on it) and so are
+    /// the cells under it (no tunnel under the cave gate).
+    #[test]
+    fn a_gate_cannot_be_climbed_or_dug_around() {
+        let mut w = vox::generate(vox::DEFAULT_SEED);
+        for g in &GATES {
+            build(&mut w, g);
+            let (a, b) = (g.wall.min, g.wall.max);
+            for x in a[0]..b[0] {
+                for z in a[2]..b[2] {
+                    for y in a[1]..b[1] {
+                        assert!(
+                            vox::materials::flags(w.get([x, y, z]).mat).solid,
+                            "{}: ({x},{y},{z}) in the wall is open",
+                            g.biome
+                        );
+                    }
+                    for y in b[1]..b[1] + 8 {
+                        assert!(
+                            !w.can_place([x, y, z]),
+                            "{}: can build on the wall at ({x},{y},{z})",
+                            g.biome
+                        );
+                    }
+                    for y in a[1] - 6..a[1] {
+                        assert!(
+                            !w.can_break([x, y, z]),
+                            "{}: can dig under the wall at ({x},{y},{z})",
+                            g.biome
+                        );
+                    }
+                }
+            }
+        }
+        // The Marsh pass's wall is as high as the ridge it closes (y 61).
+        assert!(GATES[1].wall.max[1] > 61);
+        // The cave gate stands above the rocks around its mouth (y 38).
+        assert!(GATES[2].wall.max[1] > 38);
     }
 
     #[test]

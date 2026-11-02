@@ -446,16 +446,34 @@ struct Working {
 }
 
 impl Working {
-    /// The stage worked casts use for spell `i`: the saved one, raised to
-    /// Practised once the spell is practised in this run.
+    /// The stage worked casts use for spell `i`: Practised (the one-step
+    /// confirm) only once the spell is practised in this run, 3 correct
+    /// casts (break-2 should-fix 2; saved XP alone reached it after the
+    /// Bench and 2 casts). Mastered stays Mastered.
     fn stage(&self, prog: &Progress, i: usize) -> progress::Stage {
         let st = prog.0.get(i).map(|p| p.stage).unwrap_or_default();
-        if self.practised.get(i).copied().unwrap_or(false) {
-            st.max(progress::Stage::Practised)
-        } else {
-            st
-        }
+        run_stage(st, self.practised.get(i).copied().unwrap_or(false))
     }
+}
+
+/// A saved stage as worked casts use it in a run where the spell is (or is
+/// not yet) practised.
+fn run_stage(saved: progress::Stage, practised: bool) -> progress::Stage {
+    use progress::Stage::*;
+    match (saved, practised) {
+        (Mastered, _) => Mastered,
+        (Unknown, _) => Unknown,
+        (_, true) => Practised,
+        (_, false) => Learning,
+    }
+}
+
+/// Whether an instant cast counts as run practice: only a cast with
+/// nothing to build (no band, a spell the band cannot learn, instant mode,
+/// Mastered). A spell that should be built but whose builder is not ready
+/// does not count (break-2 should-fix 2).
+fn instant_counts(stage: u8, learnable: Option<bool>, mode: worked::CastMode) -> bool {
+    !(mode == worked::CastMode::Worked && stage < 3 && learnable == Some(true))
 }
 
 /// What `aim_and_cast` needs for worked casts (one parameter, so the system
@@ -2131,7 +2149,12 @@ fn aim_and_cast(
                     }
                     // A cast with nothing to build (no band, a spell the
                     // band cannot learn, instant mode) counts as practice.
-                    wk.working.cast_log.push((sp, true));
+                    let stage = wk.working.stage(&wk.prog, sp) as u8;
+                    let learnable = def_of(spells, sp)
+                        .and_then(|d| wk.bench.band.map(|b| simbench::learnable(d, b)));
+                    if instant_counts(stage, learnable, wk.working.mode) {
+                        wk.working.cast_log.push((sp, true));
+                    }
                     gated.push(aim);
                 }
                 worked::Route::Worked => {
@@ -2259,7 +2282,8 @@ fn work_cmd(
             match game.work.submit(id, v.ok) {
                 worked::Submit::Cast { spell, earns } => {
                     wk.prog.0.worked_cast(spell, earns);
-                    wk.working.cast_log.push((spell, true));
+                    // Only a cast built before the answer was shown counts.
+                    wk.working.cast_log.push((spell, earns));
                     wk.working.done += 1;
                     game.paused = web_paused;
                     *accepted = Some(game.work_aim);
@@ -3017,6 +3041,38 @@ fn report(
         let _ = &game;
 
         stats.window_start = Some(now);
+    }
+}
+
+#[cfg(test)]
+mod practice_tests {
+    use super::*;
+    use progress::Stage::*;
+
+    /// break-2 should-fix 2: the one-step confirm comes from 3 correct
+    /// casts in this run, never from saved XP alone.
+    #[test]
+    fn the_confirm_needs_practice_in_this_run() {
+        assert_eq!(run_stage(Practised, false), Learning);
+        assert_eq!(run_stage(Learning, true), Practised);
+        assert_eq!(run_stage(Practised, true), Practised);
+        assert_eq!(run_stage(Mastered, false), Mastered);
+        assert_eq!(run_stage(Unknown, true), Unknown);
+    }
+
+    /// Only casts with nothing to build count as practice; a spell that
+    /// should be built (but whose builder is not ready) does not.
+    #[test]
+    fn only_casts_with_nothing_to_build_count() {
+        use worked::CastMode::*;
+        assert!(!instant_counts(1, Some(true), Worked), "builder not ready");
+        assert!(
+            instant_counts(1, Some(false), Worked),
+            "the band cannot learn it"
+        );
+        assert!(instant_counts(1, None, Worked), "no band");
+        assert!(instant_counts(1, Some(true), Instant), "instant mode");
+        assert!(instant_counts(3, Some(true), Worked), "Mastered");
     }
 }
 

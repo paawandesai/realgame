@@ -198,8 +198,13 @@ fn plan(
     }
 }
 
+/// How far (m) the crosshair's block may be for a worked cast to lob onto
+/// it; further, or at the sky, it flies the tap's arc (hold 0).
+const AIMED_RANGE: f32 = 12.0;
+
 /// The hold for an arc spell that lands nearest the block the crosshair
-/// (`eye` along `forward`) is on; other spells keep hold 0.
+/// (`eye` along `forward`) is on, within `AIMED_RANGE`; otherwise, and for
+/// other spells, hold 0.
 fn aimed_hold(w: &World, spell: u8, hand: Vec3, eye: Vec3, forward: Vec3, boost: f32) -> f32 {
     if !matches!(Spell::ALL[spell as usize], Spell::Water | Spell::Foam) {
         return 0.0;
@@ -208,10 +213,11 @@ fn aimed_hold(w: &World, spell: u8, hand: Vec3, eye: Vec3, forward: Vec3, boost:
         w,
         eye.to_array(),
         forward.to_array(),
-        60.0,
+        AIMED_RANGE,
         realgame_voxel::RayMode::Fluids,
     ) else {
-        return crate::tuning::FULL_HOLD_S;
+        // Aimed at the sky or far off: the shortest arc, as a tap throws it.
+        return 0.0;
     };
     let target = Vec3::new(
         hit.cell[0] as f32 + 0.5,
