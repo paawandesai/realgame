@@ -634,6 +634,14 @@ fn stand_on_surface(
             a.vel[0] = 0.0;
             a.vel[2] = 0.0;
         }
+        // The height came from the move to (x1, z1): where the body is held
+        // back to, it must not be inside a block's box (feet that dropped
+        // past a bank's edge, set back over the ice box they left).
+        if solids.iter().any(|s| s.overlaps(&body_box(a))) {
+            a.pos[1] = from.pos[1];
+            a.vel[1] = a.vel[1].max(0.0);
+            a.grounded = from.grounded;
+        }
     }
     let speed = (a.vel[0] * a.vel[0] + a.vel[2] * a.vel[2]).sqrt();
     let snap = 0.3 + speed * dt * 1.2;
@@ -1499,6 +1507,43 @@ mod tests {
         assert!(
             p.pos.z < 158.5 && (p.pos.y - g).abs() < 0.05,
             "{:?} ground {g}",
+            p.pos
+        );
+    }
+
+    #[test]
+    fn long_frames_on_a_frozen_ford_stay_on_the_ice_at_the_far_bank() {
+        // The ford frozen (its top water layer is ice at y 30); W at 4 fps
+        // from the ice toward the far bank, Space now and then: the body
+        // never drops into the ice or is thrown back across it.
+        let mut world = vox::generate(vox::DEFAULT_SEED);
+        for z in 150..158 {
+            for x in 120..136 {
+                if world.get([x, 30, z]).mat == vox::mat::WATER {
+                    world.set([x, 30, z], realgame_voxel::Cell::new(vox::mat::ICE));
+                }
+            }
+        }
+        let mut p = Player {
+            pos: Vec3::new(128.5, 31.0, 151.5),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        for f in 0..40 {
+            let z0 = p.pos.z;
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump: f % 5 == 4,
+            };
+            walk(&mut p, &mut w, &world, input, 0.25);
+            assert!(p.pos.z <= z0 + 0.01, "thrown back: {z0} -> {:?}", p.pos);
+            assert!(p.pos.y > 30.99, "into the ice: {:?}", p.pos);
+        }
+        assert!(
+            p.pos.z < 148.5 && p.pos.y > 32.9,
+            "up the far bank: {:?}",
             p.pos
         );
     }
