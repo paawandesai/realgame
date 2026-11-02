@@ -6149,8 +6149,10 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
     // Aim at the nearest open water ahead, as a player does (a cast that
     // lands further on can leave a gap at their feet).
     let ahead = Math.max(146.5, s.pos[2] - 2.6);
-    for (let d = 0; d <= 3; d++) {
+    for (let d = 0; d <= 4; d++) {
       const zc = Math.floor(s.pos[2] - 0.6) - d;
+      // Not straight down at the feet: the cone would catch the bank.
+      if (zc + 0.5 > s.pos[2] - 1.0) continue;
       const c = await probe(128, 30, zc);
       if (c && c.mat === 'water') { ahead = zc + 0.5; break; }
     }
