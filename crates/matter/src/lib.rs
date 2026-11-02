@@ -115,6 +115,11 @@ pub const LN2_K: f32 = 77.35;
 pub const LEIDENFROST_K: f32 = 10.0 + 273.15;
 /// Radius (m, to cell centres) that Water, Frost and Fire emits act on.
 pub const EMIT_RADIUS: f32 = 1.5;
+/// How far a Water cast's water runs over burning blocks and puts them out,
+/// metres from where it lands (I-052 round 2, P1): a cast is litres of
+/// water, which sheets over a burning pile rather than wetting one block
+/// (content/science-sources.md, p1-fuel-store).
+pub const WATER_SOAK_RADIUS: f32 = 2.0;
 /// Gameplay tuning: energy a Frost emit takes from each cell in its radius
 /// (enough to freeze one full block of 12 °C water).
 pub const FROST_J: f32 = 4.0e8;
@@ -760,9 +765,14 @@ impl World {
 
     /// Cells whose centres are within `EMIT_RADIUS` of `at`, in key order.
     fn in_radius(at: [f32; 3]) -> Vec<[i32; 3]> {
+        Self::in_radius_of(at, EMIT_RADIUS)
+    }
+
+    /// Cells whose centres are within `r` (at most 2.5) of `at`, in key order.
+    fn in_radius_of(at: [f32; 3], r: f32) -> Vec<[i32; 3]> {
         let c = at.map(|v| v.floor() as i32);
         let mut out: Vec<(u32, [i32; 3])> = Vec::new();
-        let r2 = EMIT_RADIUS * EMIT_RADIUS;
+        let r2 = r * r;
         for dz in -2..=2 {
             for dy in -2..=2 {
                 for dx in -2..=2 {
@@ -850,7 +860,7 @@ impl World {
                     }
                     at = add(at, [0, 1, 0]);
                 }
-                for p in Self::in_radius(e.pos) {
+                for p in Self::in_radius_of(e.pos, WATER_SOAK_RADIUS) {
                     if vox.get(p).has(Cell::BURNING)
                         && self.fires.contains_key(&key(p).unwrap_or(0))
                     {

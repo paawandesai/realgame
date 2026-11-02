@@ -178,7 +178,7 @@ fn draw(
             continue;
         };
         let j = jitter(c, 1);
-        let flick = 0.8 + 0.25 * (t * (7.0 + 3.0 * j) + j * 6.28).sin();
+        let flick = 0.8 + 0.25 * (t * (7.0 + 3.0 * j) + j * std::f32::consts::TAU).sin();
         let core = f.0 % 3 == 0;
         let (w, h) = if core { (0.55, 0.8) } else { (0.95, 1.35) };
         let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 1.0, c[2] as f32 + 0.5);

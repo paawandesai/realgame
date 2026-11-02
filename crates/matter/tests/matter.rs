@@ -425,3 +425,62 @@ fn the_workshop_burns_on_until_water_puts_it_out() {
     step_n(&mut m, &mut vox, steps(30.0), &mut ev);
     assert!(burning(&vox).is_empty(), "the workshop stays out");
 }
+
+/// P1 as a player does it (I-052 round 2): standing in the plaza at the
+/// workshop door, each Water cast lands where the look ray first hits
+/// (the store's front face, through the door). Six casts, alternating two
+/// aims, put the whole fire out: the water runs over the pile and soaks the
+/// back row too, so the front is not lit again from behind.
+#[test]
+fn the_workshop_goes_out_with_six_casts_from_the_door() {
+    use realgame_voxel::raycast::{raycast, RayMode};
+    use realgame_voxel::stamp;
+    let mut vox = generated_world();
+    let s = stamp::WORKSHOP;
+    let burning = |vox: &voxel::World| -> usize {
+        let mut n = 0;
+        for z in s.min[2] - 4..s.max[2] + 4 {
+            for y in s.min[1] - 2..s.max[1] + 4 {
+                for x in s.min[0] - 4..s.max[0] + 4 {
+                    if vox.get([x, y, z]).has(Cell::BURNING) {
+                        n += 1;
+                    }
+                }
+            }
+        }
+        n
+    };
+    let mut m = World::new(1);
+    let mut ev = Vec::new();
+    step_n(&mut m, &mut vox, steps(10.0), &mut ev);
+    assert!(burning(&vox) >= 6);
+    let eye = [142.5f32, 36.6, 197.0];
+    let aims = [[142.5f32, 36.0, 189.0], [141.2, 36.3, 188.5]];
+    let mut casts = 0;
+    while burning(&vox) > 0 && casts < 6 {
+        let t = aims[casts % 2];
+        let d = [t[0] - eye[0], t[1] - eye[1], t[2] - eye[2]];
+        let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+        let dir = d.map(|v| v / l);
+        let hit = raycast(&vox, eye, dir, 30.0, RayMode::Fluids).expect("the store is in view");
+        let at = [0, 1, 2].map(|a| eye[a] + dir[a] * hit.t);
+        emit(&mut m, at, hit.normal, EmitKind::Water);
+        casts += 1;
+        // A cast every 2 s, as the cooldown and a worked cast allow.
+        step_n(&mut m, &mut vox, steps(2.0), &mut ev);
+    }
+    let left: Vec<_> = (s.min[2] - 4..s.max[2] + 4)
+        .flat_map(|z| {
+            (s.min[1] - 2..s.max[1] + 4)
+                .flat_map(move |y| (s.min[0] - 4..s.max[0] + 4).map(move |x| [x, y, z]))
+        })
+        .filter(|&p| vox.get(p).has(Cell::BURNING))
+        .collect();
+    assert_eq!(
+        burning(&vox),
+        0,
+        "out after {casts} casts from the door: {left:?}"
+    );
+    step_n(&mut m, &mut vox, steps(30.0), &mut ev);
+    assert_eq!(burning(&vox), 0, "and it stays out");
+}
