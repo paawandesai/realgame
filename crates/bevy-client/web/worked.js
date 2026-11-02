@@ -27,6 +27,7 @@ const JUMP = 200;
  */
 export function createWorked({ doc, win, cmd, bench }) {
   const w = /** @type {any} */ (win);
+  const blockWorld = () => { try { return JSON.parse(w.__gameState).mode === 'voxel'; } catch { return false; } };
   let [panel, copyLine, reasonBox, vcursor, builder, prev] = /** @type {any[]} */ ([]);
   /** @type {View | null} */ let view = null;
   /** @type {Record<number, string>} */ const names = {};
@@ -91,10 +92,11 @@ export function createWorked({ doc, win, cmd, bench }) {
     vcursor.hidden = !doc.pointerLockElement;
     p.append(copyLine, mount, reasonBox, vcursor);
     doc.body.append(panel = p);
-    // Practised (I-052 round 2): the spell is known well, so its worked
-    // cast is one step: the formula is shown and one Cast press confirms it
-    // (the game still judges the formula it receives).
-    if (stage === 'practised' && card.formula) {
+    // Practised in the block world (I-052 round 2, partial mastery): the
+    // spell is known well, so its worked cast is one step: the formula is
+    // shown and one Cast press confirms it (the game still judges the
+    // formula it receives). The classic courtyard keeps I-029's builder.
+    if (stage === 'practised' && card.formula && blockWorld()) {
       const sure = el('button', 'worked-confirm', '', { type: 'button' });
       sure.append(el('span', icon(card.id), '', H), el('span', '', sprout() ? '✓' : `Cast ${bench.pretty(card.name)}`));
       if (!sprout()) mount.append(el('p', 'worked-known', `You know this one: ${bench.pretty(card.formula)}`));
