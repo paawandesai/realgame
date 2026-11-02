@@ -1,0 +1,189 @@
+diff --git a/crates/bevy-client/src/gates.rs b/crates/bevy-client/src/gates.rs
+index 3b6a140..ec3fff1 100644
+--- a/crates/bevy-client/src/gates.rs
++++ b/crates/bevy-client/src/gates.rs
+@@ -185,6 +185,42 @@ fn run(
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    #[ignore]
++    fn brk_gate_geometry() {
++        let mut w = vox::generate(vox::DEFAULT_SEED);
++        for g in &GATES { build(&mut w, g); }
++        let top = |w: &World, x: i32, z: i32| -> i32 {
++            (0..96).rev().find(|&y| vox::materials::flags(w.get([x, y, z]).mat).solid).unwrap_or(-1)
++        };
++        for g in &GATES {
++            eprintln!("== {} wall {:?}", g.biome, g.wall);
++            let (x0, x1, z0, z1) = (g.wall.min[0] - 3, g.wall.max[0] + 3, g.wall.min[2] - 3, g.wall.max[2] + 3);
++            for z in z0..z1 {
++                let mut row = format!("z{z:4}:");
++                for x in x0..x1 {
++                    let t = top(&w, x, z);
++                    let pr = !w.can_place([x, t + 1, z]);
++                    row += &format!(" {t:2}{}", if pr { "P" } else { " " });
++                }
++                eprintln!("{row}");
++            }
++            // any non-protected air cell directly above the wall top?
++            let mut open_above = 0;
++            for z in g.wall.min[2]..g.wall.max[2] { for x in g.wall.min[0]..g.wall.max[0] {
++                let p = [x, g.wall.max[1], z];
++                if w.get(p).mat == mat::AIR && w.can_place(p) { open_above += 1; }
++            }}
++            eprintln!("open placeable air cells right above the wall top: {open_above}");
++            // cells just under the wall box that can be dug
++            let mut dig_under = 0;
++            for z in g.wall.min[2]..g.wall.max[2] { for x in g.wall.min[0]..g.wall.max[0] {
++                if w.can_break([x, g.wall.min[1] - 1, z]) { dig_under += 1; }
++            }}
++            eprintln!("diggable cells just under the wall: {dig_under}");
++        }
++    }
++
+     #[test]
+     fn each_gate_fills_its_way_and_opens_it_again() {
+         let mut w = vox::generate(vox::DEFAULT_SEED);
+diff --git a/crates/bevy-client/src/voxel_cast.rs b/crates/bevy-client/src/voxel_cast.rs
+index 074a17d..f628fd5 100644
+--- a/crates/bevy-client/src/voxel_cast.rs
++++ b/crates/bevy-client/src/voxel_cast.rs
+@@ -646,6 +646,137 @@ mod workshop_arc {
+         );
+     }
+ 
++    #[test]
++    #[ignore]
++    fn brk_pos_sweep() {
++        let gap: f32 = std::env::var("BRK_GAP").ok().and_then(|v| v.parse().ok()).unwrap_or(4.0);
++        let wg = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
++        // print the workshop layout at y35/36
++        for y in [35, 36, 37] { for z in 185..196 { let mut r = format!("y{y} z{z}: "); for x in 137..148 { r.push(match wg.get([x,y,z]).mat { m if m == mat::AIR => '.', m if m == mat::WOOD => 'W', m if m == mat::WATER => '~', _ => '#' }); } eprintln!("{r}"); } }
++        for (px, pz, ty) in [(142.5f32, 194.5f32, 37.0f32), (142.5, 194.5, 36.5), (142.5, 191.5, 36.5), (142.5, 191.5, 37.5), (141.5, 190.8, 36.5), (142.5, 197.0, 37.5)] {
++            let mut w = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
++            let mut m = Matter::default();
++            let mut keys = Keys::default();
++            let mut ev = Vec::new();
++            let player = Vec3::new(px, 35.0, pz);
++            let mut now = 0.0;
++            let mut run = |m: &mut Matter, w: &mut World, secs: f32, now: &mut f32| {
++                for _ in 0..(secs / 0.1).round() as usize {
++                    *now += 0.1;
++                    m.tick(w, *now, 0.1, player, &mut keys, &mut ev);
++                }
++                crate::blockchem::workshop_burning(w)
++            };
++            run(&mut m, &mut w, 10.0, &mut now);
++            let xs = [142.5f32, 141.5, 143.5];
++            let mut lands = vec![]; let mut trace = vec![];
++            let mut left = 1; let mut casts = 0;
++            while left > 0 && casts < 12 {
++                let mut p = crate::player::Player { pos: player, ..Default::default() };
++                let target = Vec3::new(xs[casts % 3], ty, 188.5);
++                let d = (target - p.eye()).normalize();
++                p.yaw = (-d.x).atan2(-d.z);
++                p.pitch = d.y.asin();
++                let hand = p.eye() + p.rotation() * Vec3::new(0.2, -0.15, -0.5);
++                if let Some(a) = plan(Some(&w), 1, hand, p.forward(), 0.0).2 {
++                    if casts < 3 { lands.push((a.cell, a.normal)); }
++                    m.world.emit(on_impact(Spell::Water, a.pos,
++                        IVec3::new(a.normal[0].into(), a.normal[1].into(), a.normal[2].into())));
++                }
++                casts += 1;
++                left = run(&mut m, &mut w, gap, &mut now);
++                trace.push(left);
++            }
++            let later = run(&mut m, &mut w, 30.0, &mut now);
++            eprintln!("from ({px},{pz}) at y{ty}: casts {casts} trace {trace:?} after30 {later} lands {lands:?}");
++        }
++    }
++
++    #[test]
++    #[ignore]
++    fn brk_aim_sweep() {
++        let gap: f32 = std::env::var("BRK_GAP").ok().and_then(|v| v.parse().ok()).unwrap_or(4.0);
++        for (ay, az) in [(37.5f32, 188.5f32), (38.5, 188.5), (39.0, 188.5), (41.0, 188.0)] {
++            let mut w = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
++            let mut m = Matter::default();
++            let mut keys = Keys::default();
++            let mut ev = Vec::new();
++            let player = Vec3::new(142.5, 35.0, 197.0);
++            let mut now = 0.0;
++            let mut run = |m: &mut Matter, w: &mut World, secs: f32, now: &mut f32| {
++                for _ in 0..(secs / 0.1).round() as usize {
++                    *now += 0.1;
++                    m.tick(w, *now, 0.1, player, &mut keys, &mut ev);
++                }
++                crate::blockchem::workshop_burning(w)
++            };
++            run(&mut m, &mut w, 10.0, &mut now);
++            let xs = [142.5f32, 141.5, 143.5];
++            let mut lands = vec![];
++            let mut trace = vec![];
++            let mut left = 1; let mut casts = 0;
++            while left > 0 && casts < 12 {
++                let a = shot(&w, Vec3::new(xs[casts % 3], ay, az), 0.0);
++                if let Some(a) = a {
++                    if casts < 3 { lands.push((a.cell, a.normal)); }
++                    m.world.emit(on_impact(Spell::Water, a.pos,
++                        IVec3::new(a.normal[0].into(), a.normal[1].into(), a.normal[2].into())));
++                }
++                casts += 1;
++                left = run(&mut m, &mut w, gap, &mut now);
++                trace.push(left);
++            }
++            let later = run(&mut m, &mut w, 30.0, &mut now);
++            eprintln!("aim y{ay} z{az}: casts {casts} trace {trace:?} after30 {later} lands {lands:?}");
++        }
++    }
++
++    #[test]
++    #[ignore]
++    fn brk_gap_sweep() {
++        let startv: f32 = std::env::var("BRK_START").ok().and_then(|v| v.parse().ok()).unwrap_or(240.0);
++        for gap in [1.0f32, 2.0, 3.0, 5.0, 8.0] {
++          for flight in [0.0f32, 0.6] {
++            let mut w = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
++            let mut m = Matter::default();
++            let mut keys = Keys::default();
++            let mut ev = Vec::new();
++            let player = Vec3::new(142.5, 35.0, 197.0);
++            let mut now = 0.0;
++            let mut run = |m: &mut Matter, w: &mut World, secs: f32, now: &mut f32| {
++                for _ in 0..(secs / 0.1).round() as usize {
++                    *now += 0.1;
++                    m.tick(w, *now, 0.1, player, &mut keys, &mut ev);
++                }
++                crate::blockchem::workshop_burning(w)
++            };
++            let start = run(&mut m, &mut w, startv, &mut now);
++            let aims = [
++                Vec3::new(142.5, 40.0, 189.0),
++                Vec3::new(141.5, 40.5, 188.5),
++                Vec3::new(143.5, 40.5, 188.5),
++            ];
++            let mut trace = vec![start];
++            let mut left = start;
++            let mut casts = 0;
++            while left > 0 && casts < 12 {
++                // the arc is planned when the cast is released, it lands after the flight
++                let a = shot(&w, aims[casts % 3], std::env::var("BRK_HELD").ok().and_then(|v| v.parse().ok()).unwrap_or(0.0)).expect("lands");
++                if casts < 3 { eprintln!("  land {:?} {:?} {:?}", a.cell, a.normal, a.pos); }
++                if flight > 0.0 { run(&mut m, &mut w, flight, &mut now); }
++                m.world.emit(on_impact(Spell::Water, a.pos,
++                    IVec3::new(a.normal[0].into(), a.normal[1].into(), a.normal[2].into())));
++                casts += 1;
++                let after = run(&mut m, &mut w, 0.3, &mut now);
++                left = run(&mut m, &mut w, gap, &mut now);
++                trace.push(after); trace.push(left);
++            }
++            let later = run(&mut m, &mut w, 30.0, &mut now);
++            eprintln!("start {startv} gap {gap} flight {flight}: casts {casts} trace {trace:?} after30 {later}");
++          }
++        }
++    }
++
+     #[test]
+     fn a_lobbed_water_arc_from_the_plaza_puts_the_workshop_out() {
+         let mut w = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
