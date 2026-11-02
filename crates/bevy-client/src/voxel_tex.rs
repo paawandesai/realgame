@@ -27,6 +27,78 @@ pub type VoxMat = ExtendedMaterial<StandardMaterial, AtlasTiles>;
 pub struct AtlasTiles {}
 
 const SHADER: Handle<Shader> = uuid_handle!("5f2b7a64-1c0e-4c1f-9a3d-52a7b31e0954");
+const SMOOTH_SHADER: Handle<Shader> = uuid_handle!("9d3c1e7a-4b2f-4e8d-8a61-0c5f2e9b7d13");
+
+/// The smooth world's material (`voxel_smooth.wesl`): StandardMaterial
+/// lighting over colours made in the shader (no textures).
+pub type SmoothMat = ExtendedMaterial<StandardMaterial, SmoothLook>;
+
+/// The extension's one uniform: `mode.x` is 0 for ground, 1 for the clear
+/// pass, 2 for water (16-byte aligned for WebGL2).
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]
+pub struct SmoothLook {
+    #[uniform(100)]
+    pub mode: Vec4,
+}
+
+impl MaterialExtension for SmoothLook {
+    fn fragment_shader() -> ShaderRef {
+        ShaderRef::Handle(SMOOTH_SHADER)
+    }
+}
+
+/// The smooth world's three chunk materials.
+pub struct SmoothMats {
+    pub opaque: Handle<SmoothMat>,
+    pub clear: Handle<SmoothMat>,
+    pub water: Handle<SmoothMat>,
+}
+
+/// Makes the three smooth materials.
+pub fn smooth_materials(mats: &mut Assets<SmoothMat>) -> SmoothMats {
+    let mut make = |mode: f32| {
+        let see_through = mode > 0.5;
+        mats.add(ExtendedMaterial {
+            base: StandardMaterial {
+                base_color: Color::WHITE,
+                perceptual_roughness: 0.85,
+                reflectance: 0.25,
+                alpha_mode: if see_through {
+                    AlphaMode::Blend
+                } else {
+                    AlphaMode::Opaque
+                },
+                cull_mode: if see_through {
+                    None
+                } else {
+                    Some(bevy::render::render_resource::Face::Back)
+                },
+                double_sided: see_through,
+                ..default()
+            },
+            extension: SmoothLook {
+                mode: Vec4::new(mode, 0.0, 0.0, 0.0),
+            },
+        })
+    };
+    SmoothMats {
+        opaque: make(0.0),
+        clear: make(1.0),
+        water: make(2.0),
+    }
+}
+
+/// The clear pass's alpha for material `m` (ice, glass, crystal, steam).
+pub fn clear_alpha(m: u8) -> f32 {
+    use realgame_voxel::mat;
+    match m {
+        mat::ICE => 0.72,
+        mat::GLASS => 0.3,
+        mat::CRYSTAL => 0.88,
+        mat::STEAM => 0.35,
+        _ => 0.8,
+    }
+}
 
 impl MaterialExtension for AtlasTiles {
     fn fragment_shader() -> ShaderRef {
@@ -46,7 +118,18 @@ pub fn register(app: &mut App) {
             ),
         )
         .ok();
+    app.world_mut()
+        .resource_mut::<Assets<Shader>>()
+        .insert(
+            SMOOTH_SHADER.id(),
+            Shader::from_wesl(
+                include_str!("voxel_smooth.wesl"),
+                "realgame/voxel_smooth.wesl",
+            ),
+        )
+        .ok();
     app.add_plugins(MaterialPlugin::<VoxMat>::default());
+    app.add_plugins(MaterialPlugin::<SmoothMat>::default());
 }
 
 fn image(size: u32, data: Vec<u8>) -> Image {
