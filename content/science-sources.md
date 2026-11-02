@@ -170,6 +170,12 @@ The single register of every science claim the first-person 3D client shows the 
 
 | text | where | reason |
 |---|---|---|
+| `Something glows up there. Learn Water at the Formula Bench (B) to rise up to it.` | crates/bevy-client/src/powers.rs | Game instruction (the Plaza Tower before Water is learned); it states no science. |
+| `New power: H2 lift! Press 2 for Water, then F by the glowing tower.` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift); the science of the lift is C-106. |
+| `Walk to the glowing tower ({dist:.0} m), then press F to rise.` | crates/bevy-client/src/powers.rs | Game instruction with a distance (the guided first lift). |
+| `Press F to rise with the H2 lift, then hold W onto the top.` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift). |
+| `Hold W to drift onto the top of the tower!` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift). |
+| `{line} Rank up: {}!` | crates/bevy-client/src/powers.rs | Game status (a cache found and the rank it reached); it states no science. |
 | `H2 lift` | crates/bevy-client/src/powers.rs | Power name (Water's power on F). A label; the claim is C-106. |
 | `CO2 dash` | crates/bevy-client/src/powers.rs | Power name (CO2's power on F). A label; the claim is C-108. |
 | `{} is locked. Learn {} at the Formula Bench (B) to unlock it: {}.` | crates/bevy-client/src/powers.rs | Game instruction (a locked power); the hint filled in is C-110 or a power description. |

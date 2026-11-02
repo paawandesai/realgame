@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
 // that section and the console-error check; also spellProgress, workedCasts,
-// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, valleyPowers, comma-separated), QUERY (for example `?low`,
+// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, valleyPowers, valleyFirstLift, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -113,6 +113,7 @@ function check(name, ok, detail = '') {
     valleyPuzzles: () => valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs }),
     valleyLate: () => valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
     valleyPowers: () => valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase }),
+    valleyFirstLift: () => valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -399,6 +400,7 @@ function check(name, ok, detail = '') {
   await valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs });
   await valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
   await valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase });
+  await valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -5780,7 +5782,7 @@ async function valleyPowers({ page, st, cmd, until, frames, sleep, base }) {
   };
 
   // W0. The badge shows the rank; an unknown spell's power is locked.
-  let P = await untilPw((x) => x.caches.length === 4, 10000);
+  let P = await untilPw((x) => x.caches.length === 5, 10000);
   await cmd('select 2');
   await frames(2);
   const cap0 = (await st()).captionId;
@@ -5864,4 +5866,83 @@ async function valleyPowers({ page, st, cmd, until, frames, sleep, base }) {
   check('powers: found caches are remembered on this device after a reload, without a rank-up banner',
     /pillar/.test(saved || '') && /isle/.test(saved || '') && P && P.found === 3 && P.rankUps === 0,
     `saved=${saved} found=${P && P.found} ups=${P && P.rankUps}`);
+}
+
+// The first two minutes sell the powers: next to the Plaza Tower before
+// Water is known, a tease; learning Water starts a guided first H2 lift onto
+// the tower, whose cache is a rank-up to Kindler. Run alone with
+// ONLY=valleyFirstLift.
+async function valleyFirstLift({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- the guided first lift --');
+  const url = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  await page.goto(url);
+  await page.evaluate(() => { try { localStorage.removeItem('rg.caches.v1'); localStorage.removeItem('rg.progress.v1'); } catch { /* none */ } });
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__powersState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 20000);
+  const pw = () => page.evaluate(() => JSON.parse(window.__powersState || 'null'));
+  const untilPw = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await pw();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await pw(); }
+    return x;
+  };
+  const card = () => page.evaluate(() => { const e = document.getElementById('power-guide'); return e && !e.hidden ? e.textContent : ''; });
+  let P = await untilPw((x) => x.caches.length === 5, 10000);
+  const tower = P.caches.find((c) => c.id === 'ledge');
+  // F1. Beside the tower before learning Water: a tease, no guide.
+  await cmd(`tp 134.5 ${tower.h} 198.6`);
+  await cmd(`face 134.5 ${tower.h + 4} 196.5`);
+  P = await untilPw((x) => /Learn Water/.test(x.guide), 15000);
+  const tease = await card();
+  await screenshot(page, 'firstlift-0-tease.png');
+  check('first lift: next to the glowing tower, the card says to learn Water to rise up to it',
+    /Learn Water at the Formula Bench/.test(tease) && tower.h > 0 && !tower.found,
+    `card=${tease} tower=${JSON.stringify(tower)}`);
+  // F2. Learning Water starts the guide: press 2, then F by the tower.
+  await cmd('tp 124.5 35 202.5');
+  await cmd('prog learn 1');
+  // (If Water is already the selected spell, the guide skips "press 2".)
+  await cmd('select 1');
+  P = await untilPw((x) => /Press 2/.test(x.guide), 15000);
+  const g1 = await card();
+  await cmd('select 2');
+  P = await untilPw((x) => /Walk to the glowing tower/.test(x.guide), 15000);
+  const g2 = await card();
+  check('first lift: learning Water starts a guided first lift (press 2, then walk to the tower)',
+    /Press 2 for Water/.test(g1) && /Walk to the glowing tower \(\d+ m\)/.test(g2),
+    `g1=${g1} g2=${g2}`);
+  // F3. At the tower: F lifts, W drifts onto the top, the cache is a rank-up.
+  await cmd(`tp 134.5 ${tower.h} 198.45`);
+  await cmd(`face 134.5 ${tower.h + 4} 190`);
+  P = await untilPw((x) => /Press F/.test(x.guide), 15000);
+  const g3 = await card();
+  await page.keyboard.press('KeyF');
+  P = await untilPw((x) => x.floating, 15000);
+  await page.keyboard.down('KeyW');
+  let s = await st();
+  for (const t0 = Date.now(); s.pos[2] > 196.6 && Date.now() - t0 < 60000; await sleep(100)) s = await st();
+  await page.keyboard.up('KeyW');
+  // The rank-up banner shows for a few seconds: watch for it while waiting.
+  let banner = '';
+  for (const t0 = Date.now(); Date.now() - t0 < 40000; await sleep(150)) {
+    banner = banner || await page.evaluate(() => { const e = document.getElementById('rank-up'); return e && !e.hidden ? e.textContent : ''; });
+    P = await pw();
+    if (P && P.found >= 1 && banner) break;
+  }
+  await screenshot(page, 'firstlift-1-top.png');
+  s = await st();
+  check('first lift: F rises onto the tower, its cache is taken and the rank goes up to Kindler',
+    /Press F/.test(g3) && P && P.caches.find((c) => c.id === 'ledge').found && P.rankName === 'Kindler' && P.rankUps === 1
+      && /Kindler/.test(banner) && s.pos[1] >= tower.h + 4.9 && (await card()) === '',
+    `g3=${g3} pos=${s.pos} rank=${P && P.rankName} ups=${P && P.rankUps} banner=${banner}`);
 }

@@ -142,7 +142,16 @@ pub struct Site {
     pub at: [i32; 2],
 }
 
-pub const SITES: [Site; 4] = [
+/// Caches (the first is the plaza's guided one).
+pub const N_SITES: usize = 5;
+
+pub const SITES: [Site; N_SITES] = [
+    Site {
+        id: "ledge",
+        name: "Plaza Tower",
+        spell: 1,
+        at: [134, 196],
+    },
     Site {
         id: "vault",
         name: "Ember Vault",
@@ -183,6 +192,8 @@ pub const PILLAR_H: i32 = 7;
 const PLATFORM: i32 = 2;
 const PIT: i32 = 11;
 const PIT_DEPTH: i32 = 4;
+/// Plaza Tower: 3×3, 5 blocks tall (a jump reaches 1).
+pub const TOWER_H: i32 = 5;
 /// Ember Vault: walls on ring 2, 4 blocks tall.
 const VAULT: i32 = 2;
 const VAULT_H: i32 = 4;
@@ -190,6 +201,7 @@ const VAULT_H: i32 = 4;
 /// The flat pad radius and the ramp beyond it, per cache.
 fn pad(id: &str) -> (i32, i32) {
     match id {
+        "ledge" => (3, 0),
         "vault" => (4, 4),
         "pillar" => (9, 6),
         "isle" => (MOAT + 3, 6),
@@ -299,6 +311,23 @@ pub fn stamp(w: &mut World, site: Site) -> Built {
                 Aabb {
                     min: at(-VAULT, h - 2, -VAULT),
                     max: at(VAULT + 1, h + VAULT_H + 2, VAULT + 1),
+                },
+            )
+        }
+        "ledge" => {
+            for (dx, dz, d) in ring(PILLAR) {
+                if d <= PILLAR {
+                    for y in h..h + TOWER_H {
+                        w.set(at(dx, y, dz), Cell::new(mat::CLIFFSTONE));
+                    }
+                }
+            }
+            let g = 3;
+            (
+                (h + TOWER_H) as f32 + 0.9,
+                Aabb {
+                    min: at(-g, h - 2, -g),
+                    max: at(g + 1, realgame_voxel::WORLD[1], g + 1),
                 },
             )
         }
@@ -487,7 +516,7 @@ impl Motion {
 #[derive(Resource, Default)]
 pub struct Powers {
     pub built: Vec<Built>,
-    pub found: [bool; 4],
+    pub found: [bool; N_SITES],
     pub motion: Motion,
     /// Seconds before each spell's power can be used again.
     pub cd: [f32; 4],
@@ -504,6 +533,41 @@ pub struct Powers {
     /// A rank baseline exists (the first frame sets it silently).
     seen: Option<(u32, [bool; 4], u32)>,
     last_casts: u32,
+    /// The guided first lift: seconds left (set when Water is learned in
+    /// play and the Plaza Tower is not yet found).
+    pub guide: f32,
+    stages_before: [Stage; 4],
+    /// The guide's line now (empty when there is none).
+    pub hint: String,
+}
+
+/// Seconds the guided first lift stays up.
+pub const GUIDE_S: f32 = 150.0;
+
+/// The guided first lift's line: `water` is Water's stage, `held` whether
+/// Water is the selected spell, `dist` metres (flat) to the tower and
+/// `floating` whether a lift is under way.
+pub fn guide_line(water: Stage, held: bool, dist: f32, floating: bool, guided: bool) -> String {
+    if water == Stage::Unknown {
+        return if dist <= 5.0 {
+            "Something glows up there. Learn Water at the Formula Bench (B) to rise up to it."
+                .into()
+        } else {
+            String::new()
+        };
+    }
+    if !guided {
+        return String::new();
+    }
+    if floating {
+        "Hold W to drift onto the top of the tower!".into()
+    } else if !held {
+        "New power: H₂ lift! Press 2 for Water, then F by the glowing tower.".into()
+    } else if dist > 3.0 {
+        format!("Walk to the glowing tower ({dist:.0} m), then press F to rise.")
+    } else {
+        "Press F to rise with the H₂ lift, then hold W onto the top.".into()
+    }
 }
 
 /// Spell range multipliers for `voxel_cast` (by spell index).
@@ -526,11 +590,23 @@ impl Powers {
     /// rank-up moment; a load from the save is not.
     pub fn rerank(&mut self, stages: [Stage; 4], rev: u32, practised: [bool; 4]) -> bool {
         self.stages = stages;
+        if self.seen.is_none() {
+            self.stages_before = stages;
+        }
         self.points = points(&stages, self.found_n());
         let rank = rank_of(self.points);
         let key = (rev, practised, self.found_n());
         let earned = self.seen.is_some_and(|s| s != key);
         self.seen = Some(key);
+        // Water learned in play: the guided first lift.
+        if earned
+            && self.stages_before[1] == Stage::Unknown
+            && stages[1] != Stage::Unknown
+            && !self.found[0]
+        {
+            self.guide = GUIDE_S;
+        }
+        self.stages_before = stages;
         let up = earned && rank > self.rank;
         self.rank = rank;
         if up {
@@ -567,7 +643,7 @@ impl Powers {
             .map(|s| format!("\"{}\"", s.as_str()))
             .collect();
         format!(
-            "{{\"rank\":{},\"rankName\":\"{}\",\"points\":{},\"next\":{},\"nextAt\":{},\"rankUps\":{},\"spell\":{},\"power\":\"{}\",\"unlocked\":{},\"cd\":{:.2},\"lifting\":{},\"floating\":{},\"flare\":{:.1},\"used\":[{},{},{},{}],\"walkway\":{},\"stages\":[{}],\"found\":{},\"caches\":[{}]}}",
+            "{{\"rank\":{},\"rankName\":\"{}\",\"points\":{},\"next\":{},\"nextAt\":{},\"rankUps\":{},\"spell\":{},\"power\":\"{}\",\"unlocked\":{},\"cd\":{:.2},\"lifting\":{},\"floating\":{},\"flare\":{:.1},\"used\":[{},{},{},{}],\"walkway\":{},\"stages\":[{}],\"found\":{},\"guide\":\"{}\",\"caches\":[{}]}}",
             self.rank,
             name,
             self.points,
@@ -588,6 +664,7 @@ impl Powers {
             self.last_walkway,
             stages.join(","),
             self.found_n(),
+            self.hint,
             caches.join(",")
         )
     }
@@ -693,6 +770,9 @@ struct Orb(usize);
 #[derive(Component)]
 struct FlareLight;
 
+#[derive(Component)]
+struct Beam;
+
 pub fn plugin(app: &mut App) {
     // Stamp the caches now, before the chunks are meshed (Startup).
     let mut pw = Powers::default();
@@ -750,6 +830,25 @@ fn spawn(
                 shadow_maps_enabled: false,
                 ..default()
             });
+    }
+    // A beam of light over the Plaza Tower until its cache is taken.
+    if let Some(b) = pw.built.first() {
+        let beam = materials.add(StandardMaterial {
+            base_color: Color::srgba(0.5, 0.8, 1.0, 0.35),
+            emissive: LinearRgba::rgb(0.6, 1.2, 2.0),
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            ..default()
+        });
+        commands.spawn((
+            Mesh3d(meshes.add(Cylinder::new(0.12, 24.0))),
+            MeshMaterial3d(beam),
+            Transform::from_translation(b.orb + Vec3::Y * 12.5),
+            NotShadowCaster,
+            Orb(0),
+            Beam,
+            Visibility::Visible,
+        ));
     }
     commands.spawn((
         PointLight {
@@ -855,16 +954,41 @@ fn run(
             got = Some((i, b.site.name));
         }
     }
+    let mut line = String::new();
     if let Some((i, name)) = got {
         pw.found[i] = true;
         pack.0.add(Item::Block(mat::CRYSTAL), REWARD);
-        game.say(&format!(
-            "{name} found! {REWARD} crystals and a rank point."
-        ));
+        line = format!("{name} found! {REWARD} crystals and a rank point.");
+        if i == 0 {
+            pw.guide = 0.0;
+        }
     }
     let up = pw.rerank(st, prog.0.rev(), working.practised);
     if up {
-        game.say(&format!("Rank up: {}!", RANKS[pw.rank].0));
+        line = format!("{line} Rank up: {}!", RANKS[pw.rank].0)
+            .trim()
+            .to_string();
+    }
+    if !line.is_empty() {
+        game.say(&line);
+    }
+    // The guided first lift.
+    pw.guide -= dt;
+    let hint = match pw.built.first().filter(|_| !pw.found[0]) {
+        Some(b) => {
+            let d = Vec2::new(player.pos.x - b.orb.x, player.pos.z - b.orb.z).length();
+            guide_line(
+                st[1],
+                game.spell == 1,
+                d,
+                pw.motion.floating,
+                pw.guide > 0.0,
+            )
+        }
+        None => String::new(),
+    };
+    if pw.hint != hint {
+        pw.hint = hint;
     }
 }
 
@@ -872,11 +996,11 @@ fn draw(
     time: Res<Time>,
     pw: Res<Powers>,
     player: Res<Player>,
-    mut orbs: Query<(&Orb, &mut Transform, &mut Visibility), Without<FlareLight>>,
+    mut orbs: Query<(&Orb, &mut Transform, &mut Visibility, Has<Beam>), Without<FlareLight>>,
     mut flare: Query<(&mut PointLight, &mut Transform), With<FlareLight>>,
 ) {
     let t = time.elapsed_secs();
-    for (o, mut tr, mut v) in &mut orbs {
+    for (o, mut tr, mut v, beam) in &mut orbs {
         let want = if pw.found[o.0] {
             Visibility::Hidden
         } else {
@@ -884,6 +1008,9 @@ fn draw(
         };
         if *v != want {
             *v = want;
+        }
+        if beam {
+            continue;
         }
         if let Some(b) = pw
             .built
@@ -1046,7 +1173,7 @@ mod tests {
         assert!(!pw.rerank([Practised, Practised, Practised, Mastered], 0, [false; 4]));
         assert_eq!(RANKS[pw.rank].0, "Synthesist");
         // A new cache is a rank-up moment when it crosses a tier.
-        pw.found = [true, true, true, true];
+        pw.found = [false, true, true, true, true];
         assert!(pw.rerank([Practised, Practised, Practised, Mastered], 0, [false; 4]));
         assert_eq!((RANKS[pw.rank].0, pw.rank_ups), ("Archon", 1));
         let mut pw = Powers::default();
@@ -1055,10 +1182,41 @@ mod tests {
         // Caches restored from the device's save (the `found` command) are silent.
         let mut pw = Powers::default();
         pw.rerank([Learning; 4], 0, [false; 4]);
-        pw.found = [true, true, true, false];
+        pw.found = [false, true, true, true, false];
         pw.seen = None;
         assert!(!pw.rerank([Learning; 4], 0, [false; 4]));
         assert_eq!((RANKS[pw.rank].0, pw.rank_ups), ("Catalyst", 0));
+    }
+
+    #[test]
+    fn learning_water_in_play_starts_the_guided_lift() {
+        use Stage::*;
+        let mut pw = Powers::default();
+        pw.rerank([Unknown; 4], 0, [false; 4]);
+        assert!(pw.rerank([Unknown, Learning, Unknown, Unknown], 1, [false; 4]) == false);
+        assert_eq!(pw.guide, GUIDE_S);
+        // Each step of the moment says what to do next.
+        assert!(guide_line(Learning, false, 12.0, false, true).contains("Press 2"));
+        assert!(guide_line(Learning, true, 12.0, false, true)
+            .contains("Walk to the glowing tower (12 m)"));
+        assert!(guide_line(Learning, true, 2.0, false, true).contains("Press F"));
+        assert!(guide_line(Learning, true, 1.0, true, true).contains("Hold W"));
+        assert_eq!(guide_line(Learning, true, 2.0, false, false), "");
+        // Before learning: a tease next to the tower only.
+        assert!(guide_line(Unknown, false, 3.0, false, false).contains("Formula Bench"));
+        assert_eq!(guide_line(Unknown, false, 30.0, false, false), "");
+        // Water already known from the save: no guide.
+        let mut pw = Powers::default();
+        pw.rerank([Unknown; 4], 0, [false; 4]);
+        pw.rerank([Unknown, Learning, Unknown, Unknown], 0, [false; 4]);
+        assert_eq!(pw.guide, 0.0);
+        // Learning Water and taking the tower's cache is a rank-up to Kindler.
+        let mut pw = Powers::default();
+        pw.rerank([Unknown; 4], 0, [false; 4]);
+        pw.rerank([Unknown, Learning, Unknown, Unknown], 1, [false; 4]);
+        pw.found[0] = true;
+        assert!(pw.rerank([Unknown, Learning, Unknown, Unknown], 1, [false; 4]));
+        assert_eq!(RANKS[pw.rank].0, "Kindler");
     }
 
     #[test]
@@ -1105,7 +1263,7 @@ mod tests {
     fn caches_sit_in_their_areas_and_clear_of_the_story() {
         let (w, built) = world();
         let fresh = gen::generate(DEFAULT_SEED);
-        let biomes = ["Village", "Marsh", "Frozen", "Marsh"];
+        let biomes = ["Village", "Village", "Marsh", "Frozen", "Marsh"];
         for (b, want) in built.iter().zip(biomes) {
             let c = b.site.at;
             assert_eq!(
@@ -1179,10 +1337,19 @@ mod tests {
 
     #[test]
     fn the_sky_pillar_needs_the_lift() {
+        lift_onto("pillar", PILLAR_H);
+    }
+
+    #[test]
+    fn the_plaza_tower_needs_the_lift() {
+        lift_onto("ledge", TOWER_H);
+    }
+
+    fn lift_onto(id: &str, height: i32) {
         let (w, _) = world();
-        let b = built("pillar");
+        let b = built(id);
         let c = b.site.at;
-        let top = b.h + PILLAR_H;
+        let top = b.h + height;
         // Standing against the pillar's south face, facing it (north).
         let start = || {
             at(

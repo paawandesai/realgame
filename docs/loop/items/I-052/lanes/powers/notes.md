@@ -31,6 +31,17 @@ playtest ("there is no incentive to learn the spells"). Voxel mode only.
   the rank-up banner with `fanfare`, power and pickup sounds, found caches saved under `rg.caches.v1`.
 - **Golden `valleyPowers`** (`ONLY=valleyPowers`): 8/8 on this sandbox (`?low`, headless).
 
+## The first two minutes (guided first lift)
+
+- **Plaza Tower** (`ledge`, Village (134, 196), between the benches and the workshop): a 3×3 cliffstone tower, 5
+  tall, with a Water cache on top and a beam of light over it until it is taken. Protected 3 blocks around.
+- Before Water is learned, standing within 5 m shows a tease card: "Something glows up there. Learn Water at the
+  Formula Bench (B) to rise up to it."
+- Learning Water in play (the book's `rev` changes; not a save load) starts a 150 s guide card that follows the
+  player: press 2 (skipped if Water is selected), walk to the tower (with metres), press F, hold W onto the top.
+- Water learned (1 point) plus the tower cache (1 point) is the first rank-up: Kindler, with the banner.
+- Golden `valleyFirstLift` (`ONLY=valleyFirstLift`): 4/4. The card is `#power-guide` (rank.js), above the E chip.
+
 ## Shared files touched
 
 | File | Change |

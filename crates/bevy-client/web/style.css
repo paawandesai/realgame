@@ -476,3 +476,4 @@ body.intro-open #caption { visibility: hidden; }
 .rank-pop { animation: rank-pop 0.6s ease-out; }
 @keyframes rank-pop { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .rank-pop { animation: none; } }
+.rank-guide { position: fixed; z-index: 700; left: 50%; bottom: calc(185px * var(--ui) + 24px); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; text-align: center; pointer-events: none; padding: 10px 18px; border-radius: 14px; background: rgba(20, 50, 90, 0.92); border: 2px solid #8fd0ff; box-shadow: 0 0 22px rgba(120, 200, 255, 0.5); font-weight: 700; font-size: calc(19px * var(--ui)); }

@@ -70,7 +70,13 @@ export function startRank() {
   up.setAttribute('role', 'status');
   up.setAttribute('aria-live', 'polite');
   up.hidden = true;
-  document.body.append(badge, up);
+  // The guided first lift (and the tease before Water is learned).
+  const guide = mk('div', 'rank-guide');
+  guide.id = 'power-guide';
+  guide.setAttribute('role', 'status');
+  guide.setAttribute('aria-live', 'polite');
+  guide.hidden = true;
+  document.body.append(badge, up, guide);
 
   let sent = false;
   let ups = -1;
@@ -82,6 +88,9 @@ export function startRank() {
     const st = parse(w.__powersState);
     const on = !!s && s.mode === 'voxel' && !!st;
     badge.hidden = !on;
+    const g = on && !s.paused ? st.guide || '' : '';
+    if (guide.textContent !== g) guide.textContent = g;
+    guide.hidden = !g;
     if (on) {
       if (!sfx) {
         sfx = {};
