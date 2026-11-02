@@ -109,6 +109,14 @@ The single register of every science claim the first-person 3D client shows the 
 | C-095 | `You cleared the Marsh! CO₂ is heavier than air: it filled the hollows and smothered the flames.` | crates/bevy-client/src/main.rs | correct | Level 3 win caption [S26] [S19] [S5] [S8]. | [S5] [S8] [S19] [S26] |
 | C-096 | `CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back. Press R to play again.` | crates/bevy-client/web/hud.js | correct | Level 3 win banner subtitle; the second and third sentences are game instructions [S26] [S19]. | [S19] [S26] |
 | C-097 | `Too deep and icy to wade. Freeze it into a bridge?` | crates/bevy-client/src/blockchem.rs | simplified | I-052 round 2: the ford is 3 blocks deep and near freezing, so the player cannot wade it; Frost freezes still water from the top down into ice that bears the player's weight (ice floats: it is less dense than liquid water, which is densest near 4 °C). Real lake ice must be several cm thick to bear a person; here a frozen block is taken to bear the player (gameplay, as C-053). | [S10] |
+| C-098 | `Electricity splits water: 2H2O → 2H2 + O2. Watch the tubes.` | crates/bevy-client/src/late.rs | correct | I-052 late lane: the cave rig starts. Electrolysis of water gives hydrogen at the cathode and oxygen at the anode, 2:1 by volume [S13] [S7]. | [S7] [S13] |
+| C-099 | `Twice as much hydrogen as oxygen! You got an H2 balloon and an O2 flask.` | crates/bevy-client/src/late.rs | correct | I-052 late lane: the rig is done. The H2 tube collects twice the volume of the O2 tube [S13]. | [S13] |
+| C-100 | `Hydrogen is much lighter than air: the balloon pulls up with {lift:.1} N!` | crates/bevy-client/src/late.rs | correct | I-052 late lane: an H2 balloon tied to the crate. Net force from `realgame_matter::lift_n` (2 m³, 1.5 kg payload): (ρ_air − ρ_H2)·V·g − m·g ≈ +7.3 N, densities from ρ = pM/RT [S12] with M(air) 28.96 [S8] and M(H2) 2.016 [S40]. | [S8] [S12] [S40] |
+| C-101 | `Oxygen is heavier than air, so the balloon cannot lift the crate ({lift:.1} N).` | crates/bevy-client/src/late.rs | correct | I-052 late lane: an O2 balloon tied to the crate. M(O2) 32.00 [S40] > M(air) 28.96 [S8], so at the same T and p O2 is denser than air [S12]; the net force is about −17 N. | [S8] [S12] [S40] |
+| C-102 | `Which gas will lift the crate up to the Kiln Spark? A gas lifts only if it is lighter than air.` | crates/bevy-client/web/late.js | correct | I-052 late lane: the balloon chooser. Buoyancy is the weight of displaced air, so a gas denser than air gives a net downward force before any payload [S12] [S8]. "Only if" is a necessary condition; the crate's weight also counts (C-100). | [S8] [S12] |
+| C-103 | `Put up to three things from your pack on the bench. The Kiln needs a reaction that burns hotter than 1700 °C.` | crates/bevy-client/web/late.js | simplified | I-052 late lane: the Invention Bench. 1700 °C is the game's threshold, chosen near the melting point of silica, 1713 °C, the main ingredient of glass [S35], since the Kiln "made all our glass". Carbon and hydrogen flames in pure oxygen are well above it [S15]. | [S15] [S35] |
+| C-104 | `Your pack has nothing to react yet. A fuel (coal, wood or an H2 balloon) and an O2 flask would do.` | crates/bevy-client/web/late.js | simplified | I-052 late lane: the Invention Bench with no reactants in the pack. Combustion needs a fuel and oxygen [S19]; wood is simplified to carbon as in `carbon_combustion` [S7]. | [S7] [S19] |
+| C-105 | `C + O2 -> CO2` | crates/bevy-client/web/late.js | correct | I-052 late lane: the Invention Bench's typed-equation placeholder. Balanced as written [S7]. | [S7] |
 
 ## Parameters
 
@@ -229,6 +237,28 @@ The single register of every science claim the first-person 3D client shows the 
 | `frozen` | crates/bevy-client/src/gates.rs | I-052 round 2: the Frozen Fields' biome id, naming which gate a sign belongs to. Flagged by the word `frozen`; it states no science. |
 | `The runestone gate to {} sinks into the ground!` | crates/bevy-client/src/gates.rs | I-052 round 2: game narration when a biome gate opens (partial mastery). Flagged by sentence shape; it states no science. |
 | `{name}: Practised! Its cast is now one quick confirm.` | crates/bevy-client/src/story.rs | I-052 round 2: UI instruction when a spell becomes Practised in the run; states no science (as the worked.js Practised toast above). |
+| `It's too dark to see the rig. Make a torch at the Formula Bench (wood + coal).` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction in the dark cave; the torch recipe is a game recipe. Flagged by sentence shape or a formula; it states no science. |
+| `You already carry a hydrogen balloon and an oxygen flask.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction (the rig will not run again while you carry both). Flagged by sentence shape or a formula; it states no science. |
+| `Choose a gas to fill the balloon.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction (the balloon chooser). Flagged by sentence shape or a formula; it states no science. |
+| `The Kiln Spark is up on the ledge. A balloon could lift this crate to it. Try the rig.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction at the crate with no gas in the pack. Flagged by sentence shape or a formula; it states no science. |
+| `You have the Kiln Spark! Take it home to the Kiln.` | crates/bevy-client/src/late.rs | I-052 late lane: Game progress line (the quest item). Flagged by sentence shape or a formula; it states no science. |
+| `This old runestone door only opens for the Kiln Spark.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction at the Kiln door. Flagged by sentence shape or a formula; it states no science. |
+| `The Kiln Spark glows and the door swings open. Now invent a reaction hot enough to relight the Kiln.` | crates/bevy-client/src/late.rs | I-052 late lane: Game progress line; the reaction rule is C-103. Flagged by sentence shape or a formula; it states no science. |
+| `{reason} But the Kiln needs its Spark to light it. Find it in the Crystal Cave.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction appended to a judged reaction (the judge's own reasons live in crates/sim/src/valley). Flagged by sentence shape or a formula; it states no science. |
+| `You untie the balloon and keep the gas. Which gas is lighter than air?` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction and a question; it states no science. Flagged by sentence shape or a formula; it states no science. |
+| `The crate reaches the ledge and the Kiln Spark rolls in! Reeling it down...` | crates/bevy-client/src/late.rs | I-052 late lane: Game progress line. Flagged by sentence shape or a formula; it states no science. |
+| `The crate is down. Press E to take the Kiln Spark.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction. Flagged by sentence shape or a formula; it states no science. |
+| `carbon_combustion` | crates/bevy-client/src/late.rs | I-052 late lane: Machine key: a reaction id from content/reactions.json. Never shown as text. Flagged by sentence shape or a formula; it states no science. |
+| `O2` | crates/bevy-client/src/late.rs | I-052 late lane: Machine key: a species id the bench matches reactants with. Never shown as text. Flagged by sentence shape or a formula; it states no science. |
+| `H2` | crates/bevy-client/src/late.rs | I-052 late lane: Machine key: a species id the bench matches reactants with. Never shown as text. Flagged by sentence shape or a formula; it states no science. |
+| `E: use the electrolysis rig` | crates/bevy-client/web/late.js | I-052 late lane: Key prompt (UI). Flagged by sentence shape or a formula; it states no science. |
+| `Freeze the river ford` | crates/bevy-client/web/late.js | I-052 late lane: Puzzle name on the ending card. Flagged by sentence shape or a formula; it states no science. |
+| `Smother the marsh gas` | crates/bevy-client/web/late.js | I-052 late lane: Puzzle name on the ending card. Flagged by sentence shape or a formula; it states no science. |
+| `Invent a reaction to relight the Kiln` | crates/bevy-client/web/late.js | I-052 late lane: Puzzle name on the ending card. Flagged by sentence shape or a formula; it states no science. |
+| `Hydrogen, H2` | crates/bevy-client/web/late.js | I-052 late lane: Button label naming the gas. Flagged by sentence shape or a formula; it states no science. |
+| `Oxygen, O2` | crates/bevy-client/web/late.js | I-052 late lane: Button label naming the gas. Flagged by sentence shape or a formula; it states no science. |
+| `Or type the reaction` | crates/bevy-client/web/late.js | I-052 late lane: Label of the Invention Bench's text box. Flagged by sentence shape or a formula; it states no science. |
+| `You relit the Great Kiln!` | crates/bevy-client/web/late.js | I-052 late lane: Ending card title (story). Flagged by sentence shape or a formula; it states no science. |
 
 ## Sources
 
@@ -272,6 +302,7 @@ The single register of every science claim the first-person 3D client shows the 
 - [S37] The Engineering ToolBox, "Fuels and Chemicals - Autoignition Temperatures" (wood 300 °C; charcoal 349 °C; bituminous coal glow point 454 °C; methane 580 °C; hydrogen 500 °C). Fetched 2026-11-01: https://www.engineeringtoolbox.com/fuels-ignition-temperatures-d_171.html
 - [S38] Wikipedia, "Bloomery" (it "reduces the iron oxides in the ore to metallic iron without melting the ore"; "this allows the bloomery to operate at lower temperatures than the melting temperature of the ore"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Bloomery
 - [S39] The Engineering ToolBox, "Water - Density, Specific Weight and Thermal Expansion Coefficients" (998.21 kg/m³ at 20 °C; 999.85 at 0.1 °C; 958.35 at 100 °C). Fetched 2026-11-01: https://www.engineeringtoolbox.com/water-density-specific-weight-d_595.html
+- [S40] NIST Chemistry WebBook, SRD 69: Hydrogen (molecular weight 2.01588), https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740 ; Oxygen (molecular weight 31.9988), https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782447 . Added by the I-052 late lane from the standard values; not re-fetched from the build machine.
 
 ## Block world
 
