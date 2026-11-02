@@ -33,6 +33,7 @@ mod level3;
 mod motion;
 mod player;
 mod progress;
+mod sky;
 mod spells;
 mod story;
 mod tuning;

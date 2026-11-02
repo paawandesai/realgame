@@ -130,6 +130,7 @@ pub fn plugin(app: &mut App) {
         .and_then(|s| parse_seed(&s))
         .unwrap_or(vox::DEFAULT_SEED);
     crate::voxel_tex::register(app);
+    crate::sky::plugin(app);
     let t = Instant::now();
     let world = vox::generate(seed);
     info!(
@@ -173,6 +174,8 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut mats: ResMut<Assets<crate::voxel_tex::VoxMat>>,
     mut smooth_mats: ResMut<Assets<crate::voxel_tex::SmoothMat>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut std_mats: ResMut<Assets<StandardMaterial>>,
     world: Res<VoxWorld>,
     start: Res<crate::StartBiome>,
     mut player: ResMut<Player>,
@@ -183,6 +186,9 @@ fn setup(
     let smooth = crate::param("blocks")
         .is_none()
         .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats));
+    if smooth.is_some() {
+        spawn_props(&mut commands, &mut meshes, &mut std_mats);
+    }
     let mut chunks = Chunks {
         ents: vec![[None, None, None]; n],
         queue: Vec::new(),
@@ -208,6 +214,72 @@ fn setup(
         Biome::Village => WELCOME_LINE,
         _ => "Welcome to the valley! Press 5 for the Pick and hold the mouse button to dig.",
     });
+}
+
+/// The smooth look's fixed props: the Great Kiln's glowing rune bands
+/// round its dome and a glowing ring on its chimney (the dome itself is
+/// the smooth mesh of its bricks).
+fn spawn_props(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    mats: &mut Assets<StandardMaterial>,
+) {
+    let rune = mats.add(StandardMaterial {
+        base_color: Color::srgb(0.2, 0.9, 0.8),
+        emissive: LinearRgba::rgb(0.6, 3.2, 2.7),
+        unlit: true,
+        cull_mode: None,
+        double_sided: true,
+        ..default()
+    });
+    // The dome (`gen::stamps`, P5): centre (128, 169), half-axes 7.5 x 4.6
+    // on the terrace at y 40, 9 tall.
+    for (dy, h) in [(2.6f32, 0.32f32), (3.5, 0.1)] {
+        let k = (1.0 - (dy / 9.0).powi(2)).sqrt();
+        let band = ring_band([128.0, 40.0 + dy, 169.0], 7.5 * k + 0.12, 4.6 * k + 0.12, h);
+        commands.spawn((
+            Mesh3d(meshes.add(band)),
+            MeshMaterial3d(rune.clone()),
+            Transform::IDENTITY,
+            NotShadowCaster,
+        ));
+    }
+    let top = ring_band([128.5, 60.15, 169.5], 1.75, 1.75, 0.25);
+    commands.spawn((
+        Mesh3d(meshes.add(top)),
+        MeshMaterial3d(rune),
+        Transform::IDENTITY,
+        NotShadowCaster,
+    ));
+}
+
+/// A vertical ribbon `h` tall round the ellipse with centre `c` and
+/// half-axes `rx`, `rz`, facing out.
+fn ring_band(c: [f32; 3], rx: f32, rz: f32, h: f32) -> Mesh {
+    const N: u32 = 96;
+    let mut pos = Vec::new();
+    let mut nrm = Vec::new();
+    let mut idx = Vec::new();
+    for i in 0..=N {
+        let a = i as f32 / N as f32 * std::f32::consts::TAU;
+        let (s, co) = a.sin_cos();
+        let n = Vec3::new(co / rx, 0.0, s / rz).normalize();
+        for y in [c[1] - h / 2.0, c[1] + h / 2.0] {
+            pos.push([c[0] + rx * co, y, c[2] + rz * s]);
+            nrm.push(n.to_array());
+        }
+        if i < N {
+            let b = i * 2;
+            idx.extend_from_slice(&[b, b + 1, b + 2, b + 1, b + 3, b + 2]);
+        }
+    }
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
+    .with_inserted_indices(Indices::U32(idx))
 }
 
 /// The block world replaces the courtyard (spec section 3.2): its entities

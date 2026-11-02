@@ -294,17 +294,24 @@ fn fill(g: &Grid, p: [i32; 3]) -> f32 {
         return 0.0;
     }
     let soft = |dx: i32, dz: i32| g.kind([x + dx, y, z + dz]) == Kind::Soft;
-    let (e, w, s, n) = (soft(1, 0), soft(-1, 0), soft(0, 1), soft(0, -1));
-    let n4 = u8::from(e) + u8::from(w) + u8::from(s) + u8::from(n);
-    let nd = u8::from(soft(1, 1))
-        + u8::from(soft(1, -1))
-        + u8::from(soft(-1, 1))
-        + u8::from(soft(-1, -1));
+    fill_from(
+        [soft(1, 0), soft(-1, 0), soft(0, 1), soft(0, -1)],
+        [soft(1, 1), soft(1, -1), soft(-1, 1), soft(-1, -1)],
+    )
+}
+
+/// The fill of an open cell on natural ground from which of its four side
+/// neighbours (east, west, south, north) and four diagonal neighbours are
+/// natural ground.
+fn fill_from(side: [bool; 4], diag: [bool; 4]) -> f32 {
+    let [e, w, s, n] = side;
+    let n4 = side.iter().filter(|&&b| b).count();
+    let nd = diag.iter().filter(|&&b| b).count() as f32;
     match n4 {
         // An outside corner: a touch of rounding, never a ramp.
-        0 => 0.1 * f32::from(nd.min(4)),
+        0 => 0.1 * nd,
         // The foot of a straight step: a ramp.
-        1 => 0.58 + 0.04 * f32::from(nd.min(2)),
+        1 => 0.58 + 0.04 * nd.min(2.0),
         // An inside corner (a ramp both ways), or a one-wide trench.
         2 if (e && w) || (s && n) => 0.42,
         2 => 0.72,
@@ -381,10 +388,32 @@ impl Net {
 fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass) -> Net {
     let n = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
     let mut val = Vec::with_capacity((n[0] * n[1] * n[2]) as usize);
+    // The lattice lies inside the grid with a ring to spare, so the fill's
+    // neighbours are plain index offsets.
+    let (sy, sz) = (g.n[0] as usize, (g.n[0] * g.n[1]) as usize);
+    let k = &g.kinds;
+    let soft = |i: usize| k[i] == Kind::Soft;
     for z in lo[2]..hi[2] {
         for y in lo[1]..hi[1] {
-            for x in lo[0]..hi[0] {
-                val.push(value(g, [x, y, z], pass));
+            let row = g.idx([lo[0], y, z]).expect("lattice inside the grid");
+            for (dx, _) in (lo[0]..hi[0]).enumerate() {
+                let i = row + dx;
+                let kd = k[i];
+                let v = match pass {
+                    Pass::Clear => f32::from(u8::from(kd == Kind::Clear || opaque(kd))),
+                    Pass::Opaque if opaque(kd) => 1.0,
+                    Pass::Opaque if kd == Kind::Clear || !soft(i - sy) => 0.0,
+                    Pass::Opaque => fill_from(
+                        [soft(i + 1), soft(i - 1), soft(i + sz), soft(i - sz)],
+                        [
+                            soft(i + 1 + sz),
+                            soft(i + 1 - sz),
+                            soft(i - 1 + sz),
+                            soft(i - 1 - sz),
+                        ],
+                    ),
+                };
+                val.push(v);
             }
         }
     }
@@ -399,22 +428,25 @@ fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass) -> Net {
         light: Vec::new(),
         nrm: Vec::new(),
     };
+    let (ly, lz) = (n[0] as usize, (n[0] * n[1]) as usize);
+    let offs = CORNERS.map(|c| c[0] as usize + c[1] as usize * ly + c[2] as usize * lz);
     let mut di = 0usize;
     for z in lo[2]..hi[2] - 1 {
         for y in lo[1]..hi[1] - 1 {
-            for x in lo[0]..hi[0] - 1 {
-                let q = [x, y, z];
+            let row = net.li([lo[0], y, z]);
+            for (dx, x) in (lo[0]..hi[0] - 1).enumerate() {
+                let base = row + dx;
                 let mut v = [0f32; 8];
                 let mut inside = 0u8;
-                for (k, c) in CORNERS.iter().enumerate() {
-                    v[k] = net.v([q[0] + c[0], q[1] + c[1], q[2] + c[2]]);
-                    inside += u8::from(v[k] >= ISO);
+                for c in 0..8 {
+                    v[c] = net.val[base + offs[c]];
+                    inside += u8::from(v[c] >= ISO);
                 }
                 if inside == 0 || inside == 8 {
                     di += 1;
                     continue;
                 }
-                let (p, m, l) = place(g, q, &v, inside, pass);
+                let (p, m, l) = place(g, [x, y, z], &v, inside, pass);
                 net.vert[di] = net.pos.len() as u32;
                 net.pos.push(p);
                 net.mat.push(m);
