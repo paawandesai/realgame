@@ -397,6 +397,7 @@ pub fn stops(m: u8) -> bool {
 /// `dt`, at most `max_t`) and returns where it lands, if it does. Each step's
 /// chord is walked cell by cell (a 3D DDA), so a thin wall between two
 /// samples is still hit; leaving the world's bottom counts as no landing.
+#[cfg(test)]
 pub fn land(world: &World, hand: [f32; 3], v0: [f32; 3], dt: f32, max_t: f32) -> Option<Landing> {
     land_in(world, hand, v0, dt, max_t, stops)
 }
@@ -670,7 +671,12 @@ mod workshop_arc {
         };
         // Minutes in, as when a player gets there.
         assert!(run(&mut m, &mut w, 240.0, &mut now) >= 6);
-        let aims = [Vec3::new(142.5, 40.0, 189.0), Vec3::new(141.5, 40.5, 188.5)];
+        // Front middle, back left, back right: what a player sees burning.
+        let aims = [
+            Vec3::new(142.5, 40.0, 189.0),
+            Vec3::new(141.5, 40.5, 188.5),
+            Vec3::new(143.5, 40.5, 188.5),
+        ];
         // A click with no hold lands there too (a worked cast's hold).
         for a in aims {
             let l = shot(&w, a, 0.0).expect("lands");
@@ -678,8 +684,8 @@ mod workshop_arc {
         }
         let mut casts = 0;
         let mut left = crate::blockchem::workshop_burning(&w);
-        while left > 0 && casts < 4 {
-            let a = shot(&w, aims[casts % 2], tap).expect("lands");
+        while left > 0 && casts < 6 {
+            let a = shot(&w, aims[casts % 3], tap).expect("lands");
             assert!(
                 (141..=143).contains(&a.cell.unwrap()[0]) && a.pos.z < 190.01,
                 "cast {casts} lands on the store: {a:?}"

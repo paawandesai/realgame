@@ -5371,10 +5371,10 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     if (x.burning === 0) break;
     // Water flies an arc: aimed level through the door it drops onto the
     // floor, so the player lobs it over the low wall into the open roof,
-    // onto the store's top (front middle, then back left). These aims from
-    // (142.5, 35, 197) are the ones the client test
+    // onto the store (front middle, back left, back right). These aims
+    // from (142.5, 35, 197) are the ones the client test
     // a_lobbed_water_arc_from_the_plaza_puts_the_workshop_out plans.
-    await cmd(k % 2 === 0 ? 'face 142.5 40.0 189.0' : 'face 141.5 40.5 188.5');
+    await cmd(['face 142.5 40.0 189.0', 'face 141.5 40.5 188.5', 'face 143.5 40.5 188.5'][k % 3]);
     await frames(2);
     const r = await workedPress('H2O(l)');
     casts.push(r.ok ? (r.one ? 'confirm' : 'built') : r.why);
