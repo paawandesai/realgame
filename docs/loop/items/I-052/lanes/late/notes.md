@@ -55,6 +55,7 @@ and the round-1 break fixes, and merges both branches.
 | `crates/bevy-client/build-web.sh` | `web/late.js` added to the `cp` line |
 | `crates/bevy-client/web/boot.js` | one `import('./late.js')` line after `music.js` |
 | `crates/bevy-client/web/style.css` | appended `late-*` rules at the end |
+| `crates/voxel/src/gen.rs` | one protected box in `protect()`: the shaft and ledge plus 2-3 blocks around, up to the sky |
 | `crates/sim/src/valley/mod.rs` | `mat::PLANKS`, `mat::WATER`; `invent` body and C4 body |
 | `crates/matter/tests/matter.rs` | M9 corrected and un-ignored |
 | `tests/e2e/golden.mjs` | `valleyLate` appended, one `onlyRuns` entry, one call after `voxelCast` |
@@ -64,10 +65,13 @@ Not touched: `story.rs`, `blockchem.rs`, `voxel_view.rs`. `late.rs` reads `story
 
 ## Open / for the merge
 
-- `?biome=cave` does not seed the quest or the pack yet (Lane C's item); the golden uses the `quest` and `give`
-  debug commands.
-- The walk from the cave hall to the rig room and the shaft was not walked end to end in a browser here; the golden
-  teleports. Worth a playtest pass.
+- Round 2 (main thread's asks): `?biome=cave` starts at step 6 with 2 coal and 1 wood (enough for a torch, no torch);
+  `?biome=kiln` at step 7 with coal, a torch, an O2 flask, an H2 balloon and the Kiln Spark (`late::seed`, golden L0
+  and L7). The cave route from the mouth to the rig room and into the shaft is checked by a walker search on the
+  generated world (`the_cave_route_is_walkable`). The shaft, the ledge and the rock around and above them up to the
+  sky are now one protected box in `voxel::gen::protect` (lane A's file), so the Spark cannot be dug down to
+  (`the_ledge_cannot_be_dug_or_built_around`; break finding from the main thread: (244, 27..31, 20)).
+- The golden still teleports between places; a real playtest of the walk is worth doing.
 
 ## Checks (cloud sandbox, headless Chromium, `QUERY=?low`)
 

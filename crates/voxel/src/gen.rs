@@ -754,6 +754,14 @@ fn protect(w: &mut World) {
     for p in [BENCH, INVENTION_BENCH] {
         w.protect(b(p, [p[0] + 1, p[1] + 1, p[2] + 1]));
     }
+    // The balloon shaft and the ledge, with the rock around them up to the
+    // sky: the Kiln Spark is reached by balloon only, never by digging down
+    // from the Marsh or sideways from the cave (late lane, P4).
+    let (sh, le) = (stamp::SHAFT, stamp::LEDGE);
+    w.protect(b(
+        [sh.min[0] - 2, sh.min[1] - 1, sh.min[2] - 3],
+        [le.max[0] + 3, wy, sh.max[2] + 3],
+    ));
     // The puzzle stamps.
     for s in stamp::ALL {
         match s.id {

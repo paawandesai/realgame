@@ -5238,6 +5238,11 @@ async function valleyLate({ page, st, cmd, until, frames, sleep, base, logs }) {
   const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
   const shown = (id) => page.evaluate((id) => { const e = document.getElementById(id); return !!e && !e.hidden; }, id);
   const pressE = async () => { await page.keyboard.press('KeyE'); await frames(2); };
+  // L0. `?biome=cave` starts at step 6 with the coal and wood for a torch.
+  let s0 = await until((x) => x.quest === 6, 8000);
+  check('late: ?biome=cave starts at the cave step with coal and wood for a torch',
+    s0.quest === 6 && packN(s0, 'coal_ore') === 2 && packN(s0, 'wood') === 1 && packN(s0, 'torch') === 0,
+    `quest=${s0.quest} pack=${JSON.stringify(s0.pack)}`);
   await story('quest 6');
   await until((x) => x.quest === 6 && !x.paused, 20000);
 
@@ -5341,4 +5346,15 @@ async function valleyLate({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('late: Keep exploring closes the card and play goes on',
     L && !L.card && !(await shown('ending')) && !s.paused && s.ending === true && s.outcome === 'won',
     `card=${L && L.card} paused=${s.paused}`);
+
+  // L7. `?biome=kiln` starts at the Kiln step with what the cave gave.
+  await page.goto(url.replace('biome=cave', 'biome=kiln'));
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+    if (Date.now() - t0 > 120000) throw new Error('kiln page did not start within 120 s');
+    await sleep(250);
+  }
+  s = await until((x) => x.quest === 7, 15000);
+  check('late: ?biome=kiln starts at the Kiln step with the Spark and the O2 flask',
+    s.quest === 7 && s.biome === 'kiln' && packN(s, 'kiln_spark') === 1 && packN(s, 'o2_flask') === 1,
+    `quest=${s.quest} biome=${s.biome} pack=${JSON.stringify(s.pack)}`);
 }

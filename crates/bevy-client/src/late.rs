@@ -580,6 +580,43 @@ pub fn light_hearth(world: &mut World) {
     world.set(gen::KILN_HEARTH, c);
 }
 
+/// `?biome=cave` and `?biome=kiln` (spec section 3.3): the quest step and
+/// the pack the earlier steps would have given, so a judge who jumps in can
+/// play the late puzzles. The cave start has coal and wood for a torch (the
+/// coal step's reward) but no torch; the Kiln start has what the cave gave.
+pub fn seed(biome: realgame_voxel::Biome) -> Option<(u8, Vec<(Item, u16)>)> {
+    use realgame_voxel::Biome;
+    let coal = Item::Block(mat::COAL_ORE);
+    let wood = Item::Block(mat::WOOD);
+    match biome {
+        Biome::Cave => Some((6, vec![(coal, 2), (wood, 1)])),
+        Biome::Kiln => Some((
+            7,
+            vec![
+                (coal, 2),
+                (Item::Torch, 1),
+                (Item::O2Flask, 1),
+                (Item::H2Balloon, 1),
+                (Item::KilnSpark, 1),
+            ],
+        )),
+        _ => None,
+    }
+}
+
+fn seed_start(
+    start: Option<Res<crate::StartBiome>>,
+    mut story: ResMut<Story>,
+    mut pack: ResMut<crate::Pack>,
+) {
+    if let Some((step, items)) = start.and_then(|b| seed(b.0)) {
+        story.quest = realgame_sim::valley::Quest::at(step);
+        for (item, n) in items {
+            pack.0.add(item, n);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The Bevy side.
 // ---------------------------------------------------------------------------
@@ -611,7 +648,7 @@ struct Sun(Option<f32>);
 pub fn plugin(app: &mut App) {
     app.init_resource::<Late>()
         .init_resource::<Sun>()
-        .add_systems(Startup, spawn)
+        .add_systems(Startup, (spawn, seed_start))
         .add_systems(
             Update,
             (commands, step, light, draw, publish)
@@ -1240,5 +1277,95 @@ mod tests {
             "the ledge holds the Spark"
         );
         assert!(air([242, 23, 20]), "the shaft opens onto the ledge");
+    }
+
+    /// A walker 2 blocks tall who can step up 1 block and drop any height
+    /// can get from the cave mouth to the rig and into the balloon shaft.
+    #[test]
+    fn the_cave_route_is_walkable() {
+        use std::collections::{HashSet, VecDeque};
+        let w = gen::generate(7);
+        let solid = |p: [i32; 3]| realgame_voxel::materials::flags(w.get(p).mat).solid;
+        let stand = |p: [i32; 3]| {
+            !solid(p) && !solid([p[0], p[1] + 1, p[2]]) && solid([p[0], p[1] - 1, p[2]])
+        };
+        // Drop to the floor below a free cell.
+        let fall = |mut p: [i32; 3]| {
+            while p[1] > 1 && !solid([p[0], p[1] - 1, p[2]]) {
+                p[1] -= 1;
+            }
+            p
+        };
+        let m = gen::CAVE_MOUTH;
+        let start = fall([m[0], m[1] + 1, m[2]]);
+        assert!(stand(start), "the cave mouth has a floor: {start:?}");
+        let goal = |p: [i32; 3]| p;
+        let rig = goal([231, 11, 27]);
+        let shaft = goal([240, 11, 20]);
+        let mut seen: HashSet<[i32; 3]> = HashSet::new();
+        let mut q = VecDeque::from([start]);
+        seen.insert(start);
+        while let Some(p) = q.pop_front() {
+            for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                for dy in [1, 0] {
+                    let n = [p[0] + dx, p[1] + dy, p[2] + dz];
+                    // Stepping up needs head room above the start too.
+                    if dy == 1 && solid([p[0], p[1] + 2, p[2]]) {
+                        continue;
+                    }
+                    if !solid(n) && !solid([n[0], n[1] + 1, n[2]]) {
+                        let f = fall(n);
+                        if stand(f)
+                            && (180..250).contains(&f[0])
+                            && (5..80).contains(&f[2])
+                            && seen.insert(f)
+                        {
+                            q.push_back(f);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        assert!(
+            seen.contains(&rig),
+            "the rig room is reachable from the cave mouth"
+        );
+        assert!(
+            seen.contains(&shaft),
+            "the balloon shaft is reachable from the cave mouth"
+        );
+    }
+
+    /// The Spark is reached by balloon only: the ledge, the shaft and the
+    /// rock above and around them cannot be dug or built in.
+    #[test]
+    fn the_ledge_cannot_be_dug_or_built_around() {
+        let w = gen::generate(7);
+        for y in 24..60 {
+            for p in [[244, y, 20], [240, y, 20], [246, y, 21], [237, y, 19]] {
+                assert!(!w.can_break(p) && !w.can_place(p), "{p:?} is protected");
+            }
+        }
+    }
+
+    #[test]
+    fn biome_starts_seed_the_quest_and_pack() {
+        use realgame_voxel::Biome;
+        let (step, items) = seed(Biome::Cave).expect("cave");
+        assert_eq!(step, 6);
+        assert!(
+            !items.iter().any(|(i, _)| *i == Item::Torch),
+            "the torch is the cave's first job"
+        );
+        let mut pack = Pack::default();
+        for (i, n) in items {
+            pack.add(i, n);
+        }
+        assert!(realgame_sim::valley::can_craft(&pack, "torch"));
+        let (step, items) = seed(Biome::Kiln).expect("kiln");
+        assert_eq!(step, 7);
+        assert!(items.contains(&(Item::KilnSpark, 1)) && items.contains(&(Item::O2Flask, 1)));
+        assert_eq!(seed(Biome::Village), None);
     }
 }
