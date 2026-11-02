@@ -263,6 +263,8 @@ pub mod mat {
     pub const DIRT: u8 = 1;
     pub const STONE: u8 = 4;
     pub const WOOD: u8 = 7;
+    pub const PLANKS: u8 = 9;
+    pub const WATER: u8 = 12;
     pub const COAL_ORE: u8 = 15;
     pub const FURNACE: u8 = 27;
     /// Row names, in id order (`realgame_voxel::mat::NAMES` plus `furnace`).
@@ -503,6 +505,8 @@ pub fn intro(band: Option<Tier>) -> [&'static str; 3] {
 pub mod invent {
     use super::Item;
     use crate::bench::Code;
+    use crate::formula::{parse_equation, side_atoms, Equation};
+    use crate::reactions::ReactionBook;
     use crate::tier::Tier;
 
     /// The bench's verdict.
@@ -522,11 +526,212 @@ pub mod invent {
         pub flame_c: f32,
     }
 
+    /// A fuel's flame in pure O2, °C: the same value as `grid::FLAME_C_IN_O2`
+    /// (that module is behind the `game` feature). Carbon in O2 and the
+    /// hydrogen-oxygen flame are both about 2800 °C.
+    pub const FLAME_IN_O2_C: f32 = 2800.0;
+
+    /// The Kiln needs a flame at least this hot to relight (spec section 6).
+    pub const KILN_MIN_C: f32 = 1700.0;
+
+    /// The species an item brings to the bench (spec section 6): coal and
+    /// wood are C(s) (wood simplified to carbon, as `carbon_combustion`'s
+    /// `real_world` line says), the flask O2, the balloon H2, water H2O.
+    pub fn species(item: Item) -> Option<&'static str> {
+        use super::mat;
+        match item {
+            Item::Block(mat::COAL_ORE | mat::WOOD | mat::PLANKS) => Some("C"),
+            Item::Block(mat::WATER) => Some("H2O"),
+            Item::O2Flask => Some("O2"),
+            Item::H2Balloon => Some("H2"),
+            _ => None,
+        }
+    }
+
+    /// How hot the reaction's flame gets in pure O2, °C, or 0 when it is not
+    /// a burning in oxygen. Carbon and hydrogen both burn at about 2800 °C in
+    /// pure oxygen (`grid::FLAME_C_IN_O2`), well over the Kiln's 1700 °C.
+    fn flame_c(eq: &Equation, delta_h_kj: f32) -> f32 {
+        let burns_in_o2 = eq.reactants.iter().any(|t| t.formula == "O2");
+        if burns_in_o2 && delta_h_kj < 0.0 {
+            FLAME_IN_O2_C
+        } else {
+            0.0
+        }
+    }
+
+    fn verdict(r: &crate::reactions::Reaction, eq: &Equation) -> Invention {
+        let flame_c = flame_c(eq, r.delta_h_kj);
+        let relights = flame_c >= KILN_MIN_C;
+        let pretty = eq.to_string().replace("O2", "O₂").replace("H2", "H₂");
+        let reason = if relights {
+            format!(
+                "{pretty} gives off {:.1} kJ. In pure oxygen it burns at about {:.0} °C: hot enough for the Kiln!",
+                -r.delta_h_kj, flame_c
+            )
+        } else {
+            format!("{pretty} is real, but it is not hot enough for the Kiln.")
+        };
+        Invention {
+            ok: true,
+            relights,
+            reaction: Some(r.id.clone()),
+            code: Code::Ok,
+            reason,
+            flame_c,
+        }
+    }
+
+    fn fizzle(code: Code, reason: impl Into<String>) -> Invention {
+        Invention {
+            code,
+            reason: reason.into(),
+            ..Invention::default()
+        }
+    }
+
     /// Judges the items on the bench, or `text` when Apprentice or Adept
-    /// typed an equation. Stub: refuses everything.
+    /// typed an equation (then `items` is what the pack holds, and the typed
+    /// reactants must be among them). A reaction counts when it is in
+    /// `content/reactions.json`, gives off heat, and uses only what is on the
+    /// bench.
     pub fn judge(items: &[Item], band: Tier, text: &str) -> Invention {
-        let _ = (items, band, text);
-        Invention::default()
+        let book = ReactionBook::load();
+        let mut have: Vec<&'static str> = items.iter().filter_map(|&i| species(i)).collect();
+        have.sort_unstable();
+        have.dedup();
+        let typed = text.trim();
+        if matches!(band, Tier::Apprentice | Tier::Adept) && !typed.is_empty() {
+            return judge_typed(&book, &have, typed);
+        }
+        if items.is_empty() {
+            return fizzle(
+                Code::Empty,
+                "Put one to three things from your pack on the bench.",
+            );
+        }
+        if let Some(odd) = items.iter().find(|&&i| species(i).is_none()) {
+            return fizzle(
+                Code::WrongSpecies,
+                format!(
+                    "The {} does not take part in a reaction here. Try coal, O₂ or H₂.",
+                    odd.label()
+                ),
+            );
+        }
+        // The hottest exothermic reaction that uses only what is here.
+        let found = book
+            .reactions
+            .iter()
+            .filter(|(r, eq)| {
+                r.delta_h_kj < 0.0
+                    && eq
+                        .reactants
+                        .iter()
+                        .all(|t| have.contains(&t.formula.as_str()))
+            })
+            .max_by(|a, b| {
+                flame_c(&a.1, a.0.delta_h_kj)
+                    .total_cmp(&flame_c(&b.1, b.0.delta_h_kj))
+                    .then(b.0.delta_h_kj.total_cmp(&a.0.delta_h_kj))
+            });
+        if let Some((r, eq)) = found {
+            return verdict(r, eq);
+        }
+        let fuel = have.iter().any(|s| matches!(*s, "C" | "H2"));
+        let reason = if have == ["H2O"] {
+            "Water is hydrogen that has already burnt, so there is nothing to burn."
+        } else if fuel && !have.contains(&"O2") {
+            if have.contains(&"C") {
+                "Coal needs oxygen to burn. Air has only 21 %; the Kiln needs more."
+            } else {
+                "Hydrogen needs oxygen to burn. Air has only 21 %; the Kiln needs more."
+            }
+        } else if have.contains(&"O2") && !fuel {
+            "Oxygen helps things burn, but it needs a fuel too. Try coal or hydrogen."
+        } else {
+            "These do not react to give off heat. Try a fuel with oxygen."
+        };
+        fizzle(Code::WrongSpecies, reason)
+    }
+
+    fn judge_typed(book: &ReactionBook, have: &[&str], text: &str) -> Invention {
+        let eq = match parse_equation(text) {
+            Ok(eq) => eq,
+            Err(e) => return fizzle(Code::Parse, e.to_string()),
+        };
+        if !eq.has_arrow || eq.products.is_empty() {
+            return fizzle(
+                Code::NoProducts,
+                "Write what it makes after an arrow, like C + O2 -> CO2.",
+            );
+        }
+        if !eq.is_balanced() {
+            let left = side_atoms(&eq.reactants);
+            let right = side_atoms(&eq.products);
+            let mut els: Vec<&String> = left.keys().chain(right.keys()).collect();
+            els.sort();
+            els.dedup();
+            let diffs: Vec<String> = els
+                .into_iter()
+                .filter_map(|el| {
+                    let l = left.get(el).copied().unwrap_or(0);
+                    let r = right.get(el).copied().unwrap_or(0);
+                    (l != r).then(|| format!("{el}: {l} before, {r} after"))
+                })
+                .collect();
+            return fizzle(
+                Code::Unbalanced,
+                format!(
+                    "Not balanced as written ({}). Count the atoms on each side.",
+                    diffs.join("; ")
+                ),
+            );
+        }
+        let Some((r, known)) = book.find_by_species(&eq) else {
+            let reason = match book.find_elsewhere(&eq) {
+                Some(k) => format!("{} is real chemistry, but it will not relight the Kiln.", k.name),
+                None => "That is balanced, but it is not a reaction the bench knows. Try a fuel burning in O2.".to_string(),
+            };
+            return fizzle(Code::WrongSpecies, reason);
+        };
+        if eq.simplest().0.species_key() != known.species_key()
+            || coefs(&eq.simplest().0) != coefs(&known.simplest().0)
+        {
+            return fizzle(
+                Code::WrongSpecies,
+                "Those numbers do not match the real reaction. Check the coefficients.",
+            );
+        }
+        if r.delta_h_kj >= 0.0 {
+            return fizzle(
+                Code::WrongSpecies,
+                format!("{} takes in heat, so it would cool the Kiln.", r.name),
+            );
+        }
+        if let Some(t) = known
+            .reactants
+            .iter()
+            .find(|t| !have.contains(&t.formula.as_str()))
+        {
+            let what = t.formula.replace("O2", "O₂").replace("H2", "H₂");
+            return fizzle(
+                Code::WrongSpecies,
+                format!("Your pack has no {what} for that. Find some first."),
+            );
+        }
+        verdict(r, known)
+    }
+
+    fn coefs(eq: &Equation) -> Vec<(String, u32)> {
+        let mut v: Vec<(String, u32)> = eq
+            .reactants
+            .iter()
+            .chain(eq.products.iter())
+            .map(|t| (t.formula.clone(), t.coef))
+            .collect();
+        v.sort();
+        v
     }
 }
 
@@ -810,9 +1015,76 @@ mod tests {
     /// existing `atoms_off` code and its reason (unbalanced as written; the
     /// reason must not call carbon monoxide impossible).
     #[test]
-    #[ignore = "Lane C (Tue): body with the Invention Bench"]
     fn invention_judges_real_reactions() {
-        todo!("C4")
+        use crate::bench::Code;
+        let coal = Item::Block(mat::COAL_ORE);
+        let water = Item::Block(mat::WATER);
+        for band in Tier::ALL {
+            let v = invent::judge(&[coal, Item::O2Flask], band, "");
+            assert!(v.ok && v.relights, "{band:?}: coal + O2 {v:?}");
+            assert_eq!(v.reaction.as_deref(), Some("carbon_combustion"));
+            assert!(v.flame_c >= invent::KILN_MIN_C, "{v:?}");
+            let v = invent::judge(&[Item::H2Balloon, Item::O2Flask], band, "");
+            assert!(v.ok && v.relights, "{band:?}: H2 + O2 {v:?}");
+            assert_eq!(v.reaction.as_deref(), Some("water_synthesis"));
+            // Order on the bench does not matter.
+            let v = invent::judge(&[Item::O2Flask, coal], band, "");
+            assert_eq!(v.reaction.as_deref(), Some("carbon_combustion"));
+            // Wood is carbon too (simplified, as the reaction's real_world says).
+            let v = invent::judge(&[Item::Block(mat::WOOD), Item::O2Flask], band, "");
+            assert!(v.ok && v.relights, "{band:?}: wood + O2 {v:?}");
+        }
+        // Fizzles, each with its kind reason.
+        let v = invent::judge(&[coal], Tier::Seedling, "");
+        assert!(!v.ok && !v.relights);
+        assert!(v.reason.contains("oxygen"), "{v:?}");
+        let v = invent::judge(&[water], Tier::Seedling, "");
+        assert!(!v.ok && !v.relights);
+        assert!(v.reason.contains("nothing to burn"), "{v:?}");
+        let v = invent::judge(&[Item::O2Flask], Tier::Seedling, "");
+        assert!(!v.ok && v.reason.contains("fuel"), "{v:?}");
+        let v = invent::judge(&[], Tier::Seedling, "");
+        assert!(!v.ok && !v.reason.is_empty(), "{v:?}");
+        let v = invent::judge(&[Item::Pick, Item::O2Flask], Tier::Seedling, "");
+        assert!(!v.ok, "a Pick is not a reactant: {v:?}");
+        // Apprentice types the equation: accepted when the pack holds the
+        // reactants.
+        let have = [coal, Item::O2Flask];
+        let v = invent::judge(&have, Tier::Apprentice, "C + O2 -> CO2");
+        assert!(v.ok && v.relights, "{v:?}");
+        assert_eq!(v.code, Code::Ok);
+        assert_eq!(v.reaction.as_deref(), Some("carbon_combustion"));
+        let v = invent::judge(
+            &[Item::H2Balloon, Item::O2Flask],
+            Tier::Adept,
+            "2H2 + O2 -> 2H2O",
+        );
+        assert!(v.ok && v.relights, "{v:?}");
+        // Unbalanced as written: refused with the bench's code and diffs,
+        // and the reason never calls carbon monoxide impossible.
+        let v = invent::judge(&have, Tier::Apprentice, "C + O2 -> CO");
+        assert!(!v.ok && !v.relights, "{v:?}");
+        assert_eq!(v.code, Code::Unbalanced, "{v:?}");
+        assert!(v.reason.contains("balanced"), "{v:?}");
+        let low = v.reason.to_lowercase();
+        assert!(
+            !low.contains("impossible")
+                && !low.contains("not real")
+                && !low.contains("can't exist"),
+            "{v:?}"
+        );
+        // Typed, balanced, but the pack lacks a reactant.
+        let v = invent::judge(&[coal], Tier::Apprentice, "C + O2 -> CO2");
+        assert!(!v.ok && v.reason.contains("O₂"), "{v:?}");
+        // Typed text is ignored below Apprentice: the cards decide.
+        let v = invent::judge(&have, Tier::Seedling, "C + O2 -> CO");
+        assert!(v.ok, "{v:?}");
+        // Typed nonsense is a parse refusal.
+        let v = invent::judge(&have, Tier::Apprentice, "C + Qx -> ?");
+        assert!(!v.ok && v.code != Code::Ok, "{v:?}");
+        // Electrolysis takes in heat: never a Kiln reaction.
+        let v = invent::judge(&[water], Tier::Adept, "2H2O -> 2H2 + O2");
+        assert!(!v.ok && !v.relights, "{v:?}");
     }
 
     /// C5: Fire at Sprout is usable while unknown; Frost at Seedling is usable

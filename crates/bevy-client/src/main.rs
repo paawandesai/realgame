@@ -27,10 +27,12 @@ mod feel;
 mod fire_fx;
 mod fx;
 mod gates;
+mod late;
 mod level2;
 mod level3;
 mod motion;
 mod player;
+mod powers;
 mod progress;
 mod spells;
 mod story;
@@ -823,6 +825,8 @@ fn main() {
             blockchem::plugin,
             story::plugin,
             voxel_cast::plugin,
+            late::plugin,
+            powers::plugin,
         ));
     }
     app.run();
@@ -2823,7 +2827,15 @@ fn publish(
         *last_hit = (game.impacts, *frame);
     }
     let w = &chem.world;
+    // Voxel mode: "playing" until the ending (the Kiln relit), then "won".
     let outcome = match w.outcome() {
+        _ if voxel => {
+            if keys.story.ending {
+                "won"
+            } else {
+                "playing"
+            }
+        }
         Outcome::Playing => "playing",
         Outcome::Won => "won",
         Outcome::Lost => "lost",

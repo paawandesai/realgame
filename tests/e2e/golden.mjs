@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
 // that section and the console-error check; also spellProgress, workedCasts,
-// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, comma-separated), QUERY (for example `?low`,
+// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, valleyPowers, valleyFirstLift, comma-separated; `playthrough` runs only when named), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -111,6 +111,10 @@ function check(name, ok, detail = '') {
     valleyStory: () => valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
     voxelCast: () => voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
     valleyPuzzles: () => valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs }),
+    valleyLate: () => valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
+    valleyPowers: () => valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase }),
+    valleyFirstLift: () => valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase }),
+    playthrough: () => playthrough({ page, st, cmd, until, frames, sleep, base: voxelBase }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -395,6 +399,9 @@ function check(name, ok, detail = '') {
   await voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
 
   await valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs });
+  await valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
+  await valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase });
+  await valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -5590,4 +5597,668 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   check('puzzles: P3 with the gap open CO2 spills and a vent stays lit; a block in the gap and three CO2 casts smother every vent; the objective moves on',
     lit0 === 6 && openLit >= 1 && gap && gap.mat === 'dirt' && s.ventsLit === 0 && s.gasCO2Max > 0.28 && s.quest === 6,
     `vents ${lit0}, after 3 casts with the gap open ${openLit}, gap ${gap && gap.mat}, then vents ${s.ventsLit} CO2 max ${s.gasCO2Max}, quest ${s.quest}`);
+}
+
+// ---------------------------------------------------------------------------
+// I-052 late lane (late.rs, web/late.js): the dark Crystal Cave and the torch,
+// the electrolysis rig (2:1), the balloon crate (E13), the Kiln door, the
+// Invention Bench and the ending (E19). Runs on `?biome=cave` with `debug`,
+// moving between places with `tp`, and setting the quest and the pack with
+// the story's debug commands (`quest <n>`, `give <item> <n>`).
+// ---------------------------------------------------------------------------
+async function valleyLate({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- valley late puzzles and ending (I-052, late lane) --');
+  void logs;
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const url = voxel + (voxel.includes('?') ? '&' : '?') + 'biome=cave';
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__lateState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  // Close the intro with its button (as voxelEngine does).
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 8000);
+  const late = () => page.evaluate(() => JSON.parse(window.__lateState || 'null'));
+  const story = (c) => page.evaluate((c) => { window.__gameIn.story = window.__gameIn.story || []; window.__gameIn.story.push(c); }, c);
+  const untilLate = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await late();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await late(); }
+    return x;
+  };
+  const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
+  const shown = (id) => page.evaluate((id) => { const e = document.getElementById(id); return !!e && !e.hidden; }, id);
+  const pressE = async () => { await page.keyboard.press('KeyE'); await frames(2); };
+  // L0. `?biome=cave` starts at step 6 with the coal and wood for a torch.
+  let s0 = await until((x) => x.quest === 6, 8000);
+  check('late: ?biome=cave starts at the cave step with coal and wood for a torch',
+    s0.quest === 6 && packN(s0, 'coal_ore') === 2 && packN(s0, 'wood') === 1 && packN(s0, 'torch') === 0,
+    `quest=${s0.quest} pack=${JSON.stringify(s0.pack)}`);
+  await story('quest 6');
+  await until((x) => x.quest === 6 && !x.paused, 20000);
+
+  // L1. The rig room is dark, and the rig will not run without light.
+  await cmd('tp 231.5 11 27.2');
+  await cmd('face 231.5 12 29.5');
+  let L = await untilLate((x) => x.near === 'rig' && x.dark, 15000);
+  const chip = await page.evaluate(() => { const e = document.getElementById('late-chip'); return e && !e.hidden ? e.textContent : ''; });
+  const say0 = L ? L.sayN : 0;
+  const before = await page.evaluate(() => ({ paused: JSON.parse(window.__gameState).paused, active: document.activeElement && (document.activeElement.id || document.activeElement.className), modals: [...document.querySelectorAll('[aria-modal="true"]')].filter((e) => !e.hidden && e.offsetParent !== null).map((e) => e.id) }));
+  if (before.paused) console.log('  L1: still paused before E:', JSON.stringify(before));
+  await pressE();
+  L = await untilLate((x) => x.sayN > say0, 8000);
+  check('late: the rig room is dark and the rig needs a torch',
+    L && L.near === 'rig' && L.dark && !L.light && /too dark/.test(L.say) && !L.rig.on && L.rig.uses === 0 && /rig/.test(chip),
+    `late=${JSON.stringify(L && { near: L.near, dark: L.dark, light: L.light, say: L.say, rig: L.rig })} chip=${chip}`);
+
+  // L2. With a torch the rig splits water: twice as much H2 as O2.
+  await story('give torch 1');
+  L = await untilLate((x) => x.light, 8000);
+  await pressE();
+  const mid = await untilLate((x) => x.rig.on && x.rig.h2 > 1, 8000);
+  await screenshot(page, 'late-1-rig.png');
+  L = await untilLate((x) => x.rig.uses === 1, 60000);
+  let s = await st();
+  check('late: with a torch the rig fills 2:1 and gives an H2 balloon and an O2 flask',
+    mid && mid.rig.on && Math.abs(mid.rig.h2 - 2 * mid.rig.o2) < 0.6 && L && L.rig.uses === 1 && L.rig.h2 === 40 && L.rig.o2 === 20
+      && packN(s, 'h2_balloon') === 1 && packN(s, 'o2_flask') === 1,
+    `mid=${JSON.stringify(mid && mid.rig)} end=${JSON.stringify(L && L.rig)} pack=${JSON.stringify(s.pack)}`);
+
+  // L3 (E13). An O2 balloon does not lift the crate; an H2 balloon does, and
+  // the crate brings the Kiln Spark down from the ledge.
+  await cmd('tp 239.6 11 19.4');
+  await cmd('face 240.5 11.5 20.5');
+  L = await untilLate((x) => x.near === 'crate', 10000);
+  await pressE();
+  const chooser = await page.evaluate(() => [...document.querySelectorAll('#late-gas button.late-pick')].map((b) => b.dataset.item));
+  const chooserOpen = await shown('late-gas');
+  await page.click('#late-gas button[data-item="o2_flask"]');
+  L = await untilLate((x) => x.crate.state === 'sinking', 5000);
+  let maxY = L ? L.crate.y : -1;
+  for (const t0 = Date.now(); Date.now() - t0 < 3000; await sleep(200)) maxY = Math.max(maxY, (await late()).crate.y);
+  const back = await untilLate((x) => x.crate.state === 'floor' && x.gases.includes('o2_flask'), 40000);
+  await pressE();
+  await page.click('#late-gas button[data-item="h2_balloon"]');
+  const up = await untilLate((x) => x.crate.y > 14, 40000);
+  await cmd('face 240.5 16 20.5');
+  await frames(3);
+  await screenshot(page, 'late-2-balloon.png');
+  L = await untilLate((x) => x.crate.state === 'loaded', 120000);
+  const ledgeEmpty = L && !L.sparkOnLedge;
+  await pressE();
+  s = await until((x) => packN(x, 'kiln_spark') === 1 && x.quest === 7, 8000);
+  check('late: an O2 balloon does not lift the crate, an H2 balloon does (E13)',
+    chooserOpen && chooser.includes('o2_flask') && chooser.includes('h2_balloon') && maxY === 11 && back && up && ledgeEmpty
+      && packN(s, 'kiln_spark') === 1 && s.quest === 7,
+    `chooser=${JSON.stringify(chooser)} o2MaxY=${maxY} back=${!!back} up=${up && up.crate.y} quest=${s.quest} pack=${JSON.stringify(s.pack)}`);
+
+  // L4. The Kiln door opens only for the Spark.
+  await cmd('tp 128.5 41 174.5');
+  await cmd('face 128.5 42 169.5');
+  L = await untilLate((x) => x.near === 'door', 10000);
+  await pressE();
+  L = await untilLate((x) => x.door, 8000);
+  check('late: the Kiln door opens with the Kiln Spark', L && L.door && !L.lit, `late=${JSON.stringify(L && { near: L.near, door: L.door, say: L.say })}`);
+
+  // L5 (E19). The Invention Bench refuses coal alone and accepts coal + O2;
+  // the Kiln lights and the ending card shows with Keep exploring.
+  await story('give coal 1');
+  await cmd('tp 132.5 35 202.5');
+  await cmd('face 132.5 35.5 200.5');
+  L = await untilLate((x) => x.near === 'invention', 10000);
+  await pressE();
+  const benchOpen = await (async () => { for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await shown('late-invent')) return true; return false; })();
+  await page.click('#late-invent button[data-item="coal_ore"]');
+  await page.click('#late-invent .late-try');
+  L = await untilLate((x) => x.tried.n === 1, 8000);
+  const fizzle = L && L.tried;
+  const fizzleText = await page.evaluate(() => document.querySelector('#late-invent .late-result')?.textContent || '');
+  await page.click('#late-invent button[data-item="o2_flask"]');
+  await page.click('#late-invent .late-try');
+  L = await untilLate((x) => x.lit, 8000);
+  s = await until((x) => x.ending === true && x.outcome === 'won', 8000);
+  let card = false;
+  for (const t0 = Date.now(); Date.now() - t0 < 8000 && !card; await sleep(150)) card = await shown('ending');
+  const cardText = await page.evaluate(() => document.getElementById('ending')?.textContent || '');
+  await screenshot(page, 'late-3-ending.png');
+  const keepFocus = await page.evaluate(() => document.activeElement && document.activeElement.className);
+  check('late: the Invention Bench refuses coal alone and accepts coal + O2; the ending card shows with Keep exploring (E19)',
+    benchOpen && fizzle && !fizzle.ok && /oxygen/.test(fizzle.reason) && /oxygen/.test(fizzleText) && L && L.lit && L.tried.reaction === 'carbon_combustion'
+      && s.ending === true && s.outcome === 'won' && s.quest === 8 && card && /relit the Great Kiln/.test(cardText) && /Keep exploring/.test(cardText) && /late-keep/.test(keepFocus || ''),
+    `bench=${benchOpen} fizzle=${JSON.stringify(fizzle)} lit=${L && L.lit} ending=${s.ending} outcome=${s.outcome} quest=${s.quest} card=${card} focus=${keepFocus}`);
+
+  // L6. Keep exploring closes the card and play goes on.
+  await page.click('#ending .late-keep');
+  await frames(3);
+  L = await untilLate((x) => !x.card, 5000);
+  await frames(3);
+  await screenshot(page, 'late-4-kiln-lit.png');
+  s = await until((x) => !x.paused, 5000);
+  check('late: Keep exploring closes the card and play goes on',
+    L && !L.card && !(await shown('ending')) && !s.paused && s.ending === true && s.outcome === 'won',
+    `card=${L && L.card} paused=${s.paused}`);
+
+  // L7. `?biome=kiln` starts at the Kiln step with what the cave gave.
+  await page.goto(url.replace('biome=cave', 'biome=kiln'));
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+    if (Date.now() - t0 > 120000) throw new Error('kiln page did not start within 120 s');
+    await sleep(250);
+  }
+  s = await until((x) => x.quest === 7, 15000);
+  check('late: ?biome=kiln starts at the Kiln step with the Spark and the O2 flask',
+    s.quest === 7 && s.biome === 'kiln' && packN(s, 'kiln_spark') === 1 && packN(s, 'o2_flask') === 1,
+    `quest=${s.quest} biome=${s.biome} pack=${JSON.stringify(s.pack)}`);
+}
+
+// Spells are powers (powers.rs, rank.js): the rank badge and rank-up moment,
+// each spell's traversal power (F), and the four caches only those powers
+// reach. Run alone with ONLY=valleyPowers.
+async function valleyPowers({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- spells are powers: rank, powers and caches --');
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const url = voxel + (voxel.includes('?') ? '&' : '?') + 'biome=marsh';
+  await page.goto(url);
+  await page.evaluate(() => { try { localStorage.removeItem('rg.caches.v1'); localStorage.removeItem('rg.progress.v1'); } catch { /* none */ } });
+  await page.goto(url);
+  const boot = async () => {
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__powersState));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+      if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+      if (((await st()) || {}).quest > 0) break;
+    }
+    await until((x) => x.quest > 0 && !x.paused, 20000);
+  };
+  await boot();
+  const pw = () => page.evaluate(() => JSON.parse(window.__powersState || 'null'));
+  const untilPw = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await pw();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await pw(); }
+    return x;
+  };
+  const power = () => page.evaluate(() => { window.__gameIn.powers = window.__gameIn.powers || []; window.__gameIn.powers.push('power'); });
+  const cache = (P, id) => P.caches.find((c) => c.id === id);
+  const text = (id) => page.evaluate((id) => { const e = document.getElementById(id); return e && !e.hidden ? e.textContent : ''; }, id);
+  /** Holds W until `done(state)` or `ms`. */
+  const walkUntil = async (done, ms) => {
+    await page.keyboard.down('KeyW');
+    let s = await st();
+    for (const t0 = Date.now(); !done(s) && Date.now() - t0 < ms; await sleep(100)) s = await st();
+    await page.keyboard.up('KeyW');
+    return s;
+  };
+
+  // W0. The badge shows the rank; an unknown spell's power is locked.
+  let P = await untilPw((x) => x.caches.length === 5, 10000);
+  await cmd('select 2');
+  await frames(2);
+  const cap0 = (await st()).captionId;
+  await page.keyboard.press('KeyF');
+  let s = await until((x) => x.captionId > cap0, 10000);
+  const badge0 = await text('rank');
+  check('powers: the badge shows the rank, and an unknown spell\'s power is locked until learned at the Bench',
+    P && P.rankName === 'Spark' && /Rank: Spark/.test(badge0) && /F: H₂ lift \(locked\)/.test(badge0) && /Formula Bench/.test(s.caption),
+    `badge=${badge0} caption=${s.caption} caches=${P && P.caches.length}`);
+
+  // W1. Learning spells earns rank points; crossing a tier is a rank-up moment.
+  await cmd('prog learn 1');
+  await cmd('prog learn 3');
+  P = await untilPw((x) => x.rankUps >= 1, 15000);
+  const banner = await text('rank-up');
+  await screenshot(page, 'powers-1-rankup.png');
+  check('powers: learning two spells is a rank-up to Kindler with a banner',
+    P && P.rankName === 'Kindler' && P.rankUps === 1 && /Kindler/.test(banner) && P.unlocked,
+    `rank=${P && P.rankName} ups=${P && P.rankUps} banner=${banner}`);
+
+  // W2. The Sky Pillar: too tall to jump, the H2 lift rises onto it.
+  const pil = cache(P, 'pillar');
+  await cmd(`tp 176.5 ${pil.h} 130.45`);
+  await cmd(`face 176.5 ${pil.h + 1} 110`);
+  await frames(3);
+  await power();
+  P = await untilPw((x) => x.lifting || x.used[1] > 0, 8000);
+  s = await walkUntil((x) => x.pos[2] <= 128.6, 60000);
+  s = await until((x) => x.pos[1] >= pil.h + 6.9 && Math.abs(x.pos[2] - 128.5) < 1.5, 20000);
+  P = await untilPw((x) => cache(x, 'pillar').found, 30000);
+  await screenshot(page, 'powers-2-pillar.png');
+  check('powers: the H2 lift rises onto the Sky Pillar and its cache is taken',
+    P && P.used[1] === 1 && cache(P, 'pillar').found && s.pos[1] >= pil.h + 6.9,
+    `pos=${s.pos} found=${P && cache(P, 'pillar').found} used=${P && P.used}`);
+
+  // W3. The Ravine Cache: too wide to jump, the CO2 dash crosses it.
+  const rav = cache(P, 'ravine');
+  await cmd('select 4');
+  await cmd(`tp 214.5 ${rav.h} 116.7`);
+  await cmd(`face 214.5 ${rav.h + 1} 140`);
+  await frames(4);
+  await power();
+  P = await untilPw((x) => cache(x, 'ravine').found, 40000);
+  s = await st();
+  check('powers: the CO2 dash crosses the ravine to its cache',
+    P && P.used[3] === 1 && cache(P, 'ravine').found && s.pos[1] >= rav.h - 0.1,
+    `pos=${s.pos} found=${P && cache(P, 'ravine').found}`);
+
+  // W4. The Frost Isle: an ice walkway across the moat.
+  await cmd('prog learn 2');
+  await cmd('select 3');
+  const isle = cache(P, 'isle');
+  await cmd(`tp 70.5 ${isle.h} 135.4`);
+  await cmd(`face 70.5 ${isle.h} 110`);
+  await frames(4);
+  await power();
+  P = await untilPw((x) => x.used[2] === 1, 10000);
+  const ice = P && P.walkway;
+  await screenshot(page, 'powers-3-walkway.png');
+  s = await walkUntil((x) => x.pos[2] <= 121, 120000);
+  P = await untilPw((x) => cache(x, 'isle').found, 20000);
+  check('powers: Frost freezes a walkway over the moat and the isle\'s cache is taken',
+    ice === 13 && P && cache(P, 'isle').found && s.pos[1] >= isle.h - 0.1,
+    `ice=${ice} pos=${s.pos} found=${P && cache(P, 'isle').found}`);
+
+  // W5. Fire's Flare lights the way; four learned spells and three caches (7 points) make a Catalyst.
+  await cmd('prog learn 0');
+  await cmd('select 1');
+  await frames(2);
+  await power();
+  P = await untilPw((x) => x.flare > 0, 10000);
+  check('powers: Fire\'s Flare lights up, and 7 points (4 spells, 3 caches) is Catalyst after a second rank-up',
+    P && P.flare > 0 && P.found === 3 && P.points === 7 && P.rankName === 'Catalyst' && P.rankUps === 2,
+    `flare=${P && P.flare} found=${P && P.found} rank=${P && P.rankName} points=${P && P.points} ups=${P && P.rankUps}`);
+
+  // W6. Found caches are kept on this device; a reload restores them silently.
+  const saved = await page.evaluate(() => localStorage.getItem('rg.caches.v1'));
+  await page.reload();
+  await boot();
+  P = await untilPw((x) => x.found === 3, 20000);
+  check('powers: found caches are remembered on this device after a reload, without a rank-up banner',
+    /pillar/.test(saved || '') && /isle/.test(saved || '') && P && P.found === 3 && P.rankUps === 0,
+    `saved=${saved} found=${P && P.found} ups=${P && P.rankUps}`);
+}
+
+// The first two minutes sell the powers: next to the Plaza Tower before
+// Water is known, a tease; learning Water starts a guided first H2 lift onto
+// the tower, whose cache is a rank-up to Kindler. Run alone with
+// ONLY=valleyFirstLift.
+async function valleyFirstLift({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- the guided first lift --');
+  const url = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  await page.goto(url);
+  await page.evaluate(() => { try { localStorage.removeItem('rg.caches.v1'); localStorage.removeItem('rg.progress.v1'); } catch { /* none */ } });
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__powersState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 20000);
+  const pw = () => page.evaluate(() => JSON.parse(window.__powersState || 'null'));
+  const untilPw = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await pw();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await pw(); }
+    return x;
+  };
+  const card = () => page.evaluate(() => { const e = document.getElementById('power-guide'); return e && !e.hidden ? e.textContent : ''; });
+  let P = await untilPw((x) => x.caches.length === 5, 10000);
+  const tower = P.caches.find((c) => c.id === 'ledge');
+  // F1. Beside the tower before learning Water: a tease, no guide.
+  await cmd(`tp 134.5 ${tower.h} 198.6`);
+  await cmd(`face 134.5 ${tower.h + 4} 196.5`);
+  P = await untilPw((x) => /Learn Water/.test(x.guide), 15000);
+  const tease = await card();
+  await screenshot(page, 'firstlift-0-tease.png');
+  check('first lift: next to the glowing tower, the card says to learn Water to rise up to it',
+    /Learn Water at the Formula Bench/.test(tease) && tower.h > 0 && !tower.found,
+    `card=${tease} tower=${JSON.stringify(tower)}`);
+  // F2. Learning Water starts the guide: press 2, then F by the tower.
+  await cmd('tp 124.5 35 202.5');
+  await cmd('prog learn 1');
+  // (If Water is already the selected spell, the guide skips "press 2".)
+  await cmd('select 1');
+  P = await untilPw((x) => /Press 2/.test(x.guide), 15000);
+  const g1 = await card();
+  await cmd('select 2');
+  P = await untilPw((x) => /Walk to the glowing tower/.test(x.guide), 15000);
+  const g2 = await card();
+  check('first lift: learning Water starts a guided first lift (press 2, then walk to the tower)',
+    /Press 2 for Water/.test(g1) && /Walk to the glowing tower \(\d+ m\)/.test(g2),
+    `g1=${g1} g2=${g2}`);
+  // F3. At the tower: F lifts, W drifts onto the top, the cache is a rank-up.
+  await cmd(`tp 134.5 ${tower.h} 198.45`);
+  await cmd(`face 134.5 ${tower.h + 4} 190`);
+  P = await untilPw((x) => /Press F/.test(x.guide), 15000);
+  const g3 = await card();
+  await page.keyboard.press('KeyF');
+  P = await untilPw((x) => x.floating, 15000);
+  await page.keyboard.down('KeyW');
+  let s = await st();
+  for (const t0 = Date.now(); s.pos[2] > 196.6 && Date.now() - t0 < 60000; await sleep(100)) s = await st();
+  await page.keyboard.up('KeyW');
+  // The rank-up banner shows for a few seconds: watch for it while waiting.
+  let banner = '';
+  for (const t0 = Date.now(); Date.now() - t0 < 40000; await sleep(150)) {
+    banner = banner || await page.evaluate(() => { const e = document.getElementById('rank-up'); return e && !e.hidden ? e.textContent : ''; });
+    P = await pw();
+    if (P && P.found >= 1 && banner) break;
+  }
+  await screenshot(page, 'firstlift-1-top.png');
+  s = await st();
+  check('first lift: F rises onto the tower, its cache is taken and the rank goes up to Kindler',
+    /Press F/.test(g3) && P && P.caches.find((c) => c.id === 'ledge').found && P.rankName === 'Kindler' && P.rankUps === 1
+      && /Kindler/.test(banner) && s.pos[1] >= tower.h + 4.9 && (await card()) === '',
+    `g3=${g3} pos=${s.pos} rank=${P && P.rankName} ups=${P && P.rankUps} banner=${banner}`);
+}
+
+// ---------------------------------------------------------------------------
+// The whole quest on one page, spawn to the ending card, on the critical path
+// (ONLY=playthrough; not in the default run, it takes a long time headless).
+// Every quest step is completed by playing it: casts, a real Pick dig, E at
+// the rig, the crate and the benches. Debug stand-ins, each tested elsewhere:
+// `tp` between places (walking: valleyPuzzles, voxelEngine), `prog learn`
+// for the Formula Bench (valleyPuzzles P1, bench tests), `give torch` for
+// crafting it, and `give dirt` for the block that closes the hollow's gap.
+// No `quest <n>`. Logs an estimated new-player time per step from a walking
+// model (straight-line distance × 1.3 for paths, at 4 m/s with pauses) plus
+// a per-task allowance, for the 10-15 minute target.
+async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- full playthrough: spawn to the ending card --');
+  const url = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  await page.goto(url);
+  await page.evaluate(() => { try { for (const k of ['rg.caches.v1', 'rg.progress.v1']) localStorage.removeItem(k); } catch { /* none */ } });
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__lateState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  const story = (l) => page.evaluate((l) => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push(l); }, l);
+  const late = () => page.evaluate(() => JSON.parse(window.__lateState || 'null'));
+  const untilLate = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await late();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await late(); }
+    return x;
+  };
+  const packN = (x, item) => ((x.pack || []).find((e) => e.item === item) || { n: 0 }).n;
+  const probe = async (x, y, z) => {
+    const n0 = ((await st()).probe || { n: 0 }).n;
+    await cmd(`probe ${x} ${y} ${z}`);
+    const v = await until((q) => q.probe && q.probe.n > n0, 15000);
+    return v.probe && v.probe.n > n0 ? v.probe : null;
+  };
+  const fakeLock = () => page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  const press = async (ms = 80) => {
+    const a = await until((x) => x.cooldown <= 0 && !x.paused, 10000);
+    await page.mouse.move(VW / 2, VH / 2);
+    await page.mouse.down();
+    await sleep(ms);
+    await page.mouse.up();
+    const z = await until((x) => x.impacts > a.impacts, 15000);
+    await until((x) => x.gameTime >= z.gameTime + 0.4, 15000);
+    return z.impacts > a.impacts;
+  };
+  const key = async (k, spell) => { await page.keyboard.press(k); await until((x) => x.spell === spell, 10000); };
+  const walkTo = async (x, z, near = 0.5, ms = 20000, hop = false) => {
+    let v = await st();
+    await cmd(`face ${x} ${v.pos[1] + 1.5} ${z}`);
+    await page.keyboard.down('w');
+    let k = 0;
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) {
+      v = await st();
+      if (Math.hypot(v.pos[0] - x, v.pos[2] - z) <= near) break;
+      if (++k % 6 === 0) await cmd(`face ${x} ${v.pos[1] + 1.5} ${z}`);
+      if (hop && k % 5 === 0) { await page.keyboard.down('Space'); await sleep(90); await page.keyboard.up('Space'); }
+    }
+    await page.keyboard.up('w');
+    return v;
+  };
+
+  // The new-player model. Places (x, z) on the path.
+  const P = {
+    spawn: [128.5, 205.5], bench: [124.5, 202], workshop: [142.5, 197], fordGate: [128.5, 163.5], fordFar: [128.5, 146.5],
+    iceGate: [60, 96], coal: [80.5, 71.5], marshGate: [127.5, 70.5], hollow: [192.5, 99.5], caveMouth: [220, 58],
+    rig: [231.5, 27.2], crate: [239.6, 19.4], kilnDoor: [128.5, 174.5], invention: [132.5, 202.5],
+  };
+  const walkS = (...pts) => {
+    let m = 0;
+    for (let i = 1; i < pts.length; i++) m += Math.hypot(P[pts[i]][0] - P[pts[i - 1]][0], P[pts[i]][1] - P[pts[i - 1]][1]);
+    return { m: Math.round(m * 1.3), s: (m * 1.3) / 4 };
+  };
+  const rows = [];
+  let tStep = Date.now();
+  // `route`: the places walked in order; `tasks`: [label, seconds] allowances.
+  const step = (name, ok, route, tasks, detail = '') => {
+    const w = walkS(...route);
+    const task = tasks.reduce((a, t) => a + t[1], 0);
+    const est = w.s + task;
+    rows.push({ name, walk: w.m, est, wall: (Date.now() - tStep) / 1000 });
+    void music().then((m) => { if (m.biome) biomes.add(m.biome); });
+    tStep = Date.now();
+    console.log(`  playthrough: ${name}: est ${Math.round(est)} s (walk ${w.m} m ${Math.round(w.s)} s + ${tasks.map((t) => `${t[0]} ${t[1]} s`).join(', ')}) scripted ${rows[rows.length - 1].wall.toFixed(0)} s`);
+    check(`playthrough: ${name}`, ok, detail);
+  };
+  const LEARN = 45; // pick the spell, read, build its formula at the Formula Bench
+  const CAST = 6; // aim and cast once (worked casts take longer; this is the Seedling estimate)
+
+  const music = () => page.evaluate(() => ({ ...(window.__music || {}) }));
+  const m0 = await music();
+  const biomes = new Set();
+  // 0. The intro ("Just play").
+  for (const t0 = Date.now(); Date.now() - t0 < 60000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  let s = await until((x) => x.quest === 1 && !x.paused, 60000);
+  // The player's first click in the world (the music may start only now).
+  await page.mouse.click(VW / 2, VH / 2);
+  await frames(2);
+  await fakeLock();
+  await until((x) => x.locked, 5000);
+  const m1 = await music();
+  step('intro', s.quest === 1, ['spawn'], [['read the intro', 25]], `quest ${s.quest}`);
+  check('playthrough: the music waits for the first click (no AudioContext before it), then plays the Village theme',
+    m0.started === false && m0.playing === false && m1.playing === true && m1.biome === 'village',
+    `before ${JSON.stringify(m0)} after ${JSON.stringify(m1)}`);
+
+  // 1. Learn Water at the Bench, put the workshop fire out.
+  await cmd('tp 124.5 35 202');
+  await cmd('prog learn 1');
+  // In through the workshop door (valleyPuzzles walks there and casts from
+  // the doorway with worked casts; here the instant casts go in close).
+  await cmd('tp 142.5 35 192.6');
+  await until((x) => Math.abs(x.pos[0] - 142.5) < 0.3 && Math.abs(x.pos[2] - 192.6) < 0.3, 15000);
+  await frames(3);
+  await key('2', 1);
+  for (let k = 0; k < 40; k++) {
+    const v0 = await st();
+    if (v0.quest >= 2) break;
+    // Aim at the nearest fire, as a player does (the HUD's fire finder).
+    if (v0.nearFire >= 0) {
+      await cmd(`look ${(v0.yaw * 180 / Math.PI - v0.fireBearing).toFixed(1)} ${(v0.pitch * 180 / Math.PI + v0.fireElev).toFixed(1)}`);
+    } else {
+      await cmd(k % 2 === 0 ? 'face 142.5 36.0 189.0' : 'face 141.2 36.3 188.5');
+    }
+    await frames(2);
+    const ok = await press();
+    if (process.env.PT_DEBUG) { const v = await st(); console.log(`    fire cast ${k}: ok=${ok} near=${v0.nearFire} bearing=${v0.fireBearing} elev=${v0.fireElev} casts=${v.casts} impacts=${v.impacts} burning=${v.burning} pos=${v.pos} spell=${v.spell} hot=${v.hot} locked=${v.locked} paused=${v.paused} cd=${v.cooldown} caption=${v.caption}`); }
+  }
+  s = await until((x) => x.burning === 0 && x.quest >= 2, 60000);
+  step('1 workshop fire (Water)', s.quest === 2, ['spawn', 'bench', 'workshop'],
+    [['learn Water', LEARN], ['first-lift detour', 30], ['put the fire out', 5 * CAST]], `quest ${s.quest} burning ${s.burning}`);
+
+  // 2. The ford: practise Water at its gate if needed, learn Frost, freeze across.
+  await cmd('tp 128.5 35 163.5');
+  await cmd('face 128.5 36.5 158.5');
+  await until((x) => Math.abs(x.pos[2] - 163.5) < 0.3, 15000);
+  const wall = await probe(128, 33, 158);
+  if (wall && wall.mat === 'runestone') {
+    await key('2', 1);
+    await cmd('look 0 -30');
+    for (let k = 0; k < 4; k++) {
+      const c = await probe(128, 33, 158);
+      if (!c || c.mat !== 'runestone') break;
+      await press();
+    }
+  }
+  await cmd('prog learn 2');
+  s = await walkTo(128.5, 158.7, 0.35, 30000);
+  await key('3', 2);
+  for (let k = 0; k < 16; k++) {
+    s = await st();
+    if (s.pos[2] < 149.6) break;
+    const ahead = Math.max(146.5, s.pos[2] - 2.6);
+    await cmd(`face 128.5 30.9 ${ahead.toFixed(2)}`);
+    await frames(2);
+    await press();
+    s = await walkTo(128.5, Math.max(147.5, s.pos[2] - 1.6), 0.3, 8000);
+  }
+  await walkTo(128.5, 146.5, 0.5, 20000, true);
+  s = await until((x) => x.quest >= 3, 15000);
+  step('2 the ford (Frost)', s.quest === 3, ['workshop', 'fordGate', 'bench', 'fordGate', 'fordFar'],
+    [['practise Water at the gate', 3 * CAST], ['learn Frost', LEARN], ['freeze and cross', 8 * CAST]], `quest ${s.quest} z ${s.pos[2].toFixed(1)}`);
+
+  // 3. The ice gate: learn Fire, melt it.
+  await cmd('prog learn 0');
+  await cmd('tp 60 34 96.0');
+  await cmd('face 60 37.5 93.5');
+  await until((x) => Math.abs(x.pos[2] - 96) < 0.3, 10000);
+  await key('1', 0);
+  for (let k = 0; k < 16; k++) {
+    const v = await st();
+    if (v.quest >= 4) break;
+    if (process.env.PT_DEBUG) console.log(`    gate cast ${k}: quest ${v.quest} pos ${v.pos}`);
+    // Sweep the gate's four columns (58-61), as a player sprays across it.
+    await cmd(`face ${58.5 + (k % 4)} 37.0 93.9`);
+    await frames(1);
+    await press();
+  }
+  s = await until((x) => x.quest >= 4, 30000);
+  step('3 the ice gate (Fire)', s.quest === 4, ['fordFar', 'bench', 'fordFar', 'iceGate'],
+    [['learn Fire', LEARN], ['melt the gate', 4 * CAST]], `quest ${s.quest}`);
+
+  // 4. Dig coal with the Pick (a real dig, held).
+  await cmd('tp 80.5 42 71.5');
+  await cmd('face 79.5 42.5 71.5');
+  await until((x) => Math.abs(x.pos[0] - 80.5) < 0.3, 10000);
+  await page.keyboard.press('5');
+  await until((x) => x.hot === 5, 10000);
+  await frames(2);
+  await page.mouse.move(VW / 2, VH / 2);
+  await page.mouse.down();
+  s = await until((x) => packN(x, 'coal_ore') >= 1, 60000);
+  await page.mouse.up();
+  s = await until((x) => x.quest >= 5, 15000);
+  step('4 dig coal (Pick)', s.quest === 5 && packN(s, 'coal_ore') >= 1, ['iceGate', 'coal'],
+    [['find the seam, dig', 25]], `quest ${s.quest} coal ${packN(s, 'coal_ore')}`);
+
+  // 5. The Marsh gate (Frost practised), learn CO2, close the hollow's gap, smother the vents.
+  await cmd('tp 127.5 46 70.5');
+  await cmd('face 132.5 44 70.5');
+  await until((x) => Math.abs(x.pos[0] - 127.5) < 0.3, 10000);
+  await key('3', 2);
+  await cmd('look 0 -40');
+  for (let k = 0; k < 3; k++) await press();
+  await cmd('prog learn 3');
+  await cmd('tp 192.5 28.2 99.5');
+  await until((x) => Math.abs(x.pos[0] - 192.5) < 0.3, 10000);
+  await story('give dirt 2');
+  await story('bind 1 6');
+  await cmd('tp 195.3 28.2 101.5');
+  await until((x) => Math.abs(x.pos[0] - 195.3) < 0.3, 10000);
+  await page.keyboard.press('6');
+  await until((x) => x.hot === 6, 10000);
+  await cmd('face 196.6 28.0 101.5');
+  await frames(2);
+  await page.mouse.down();
+  await sleep(80);
+  await page.mouse.up();
+  for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(300)) { const g = await probe(196, 28, 101); if (g && g.mat === 'dirt') break; }
+  await cmd('tp 192.5 28.2 99.5');
+  await key('4', 3);
+  await cmd('face 191.5 28.0 101.0');
+  await frames(2);
+  for (let k = 0; k < 6; k++) { if ((await st()).quest >= 6) break; await press(); await until((x) => x.gameTime >= 0, 500); }
+  s = await until((x) => x.ventsLit === 0 && x.quest >= 6, 90000);
+  step('5 the methane hollow (CO2)', s.quest === 6, ['coal', 'marshGate', 'bench', 'marshGate', 'hollow'],
+    [['practise Frost at the Marsh gate', 3 * CAST], ['learn CO2', LEARN], ['gather and place a block in the gap', 25], ['pour CO2, wait for it to pool', 30]],
+    `quest ${s.quest} vents ${s.ventsLit}`);
+
+  // 6. The Crystal Cave: a torch, the rig, the H2 balloon lifts the Spark down.
+  await story('give torch 1');
+  await cmd('tp 231.5 11 27.2');
+  await cmd('face 231.5 12 29.5');
+  let L = await untilLate((x) => x.near === 'rig' && x.light, 20000);
+  await page.keyboard.press('KeyE');
+  L = await untilLate((x) => x.rig.uses === 1, 90000);
+  await cmd('tp 239.6 11 19.4');
+  await cmd('face 240.5 11.5 20.5');
+  L = await untilLate((x) => x.near === 'crate', 10000);
+  await page.keyboard.press('KeyE');
+  for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await page.evaluate(() => !document.getElementById('late-gas')?.hidden)) break;
+  await page.click('#late-gas button[data-item="h2_balloon"]');
+  L = await untilLate((x) => x.crate.state === 'loaded', 180000);
+  await page.keyboard.press('KeyE');
+  s = await until((x) => packN(x, 'kiln_spark') === 1 && x.quest === 7, 15000);
+  step('6 the Crystal Cave (torch, rig, H2 balloon)', s.quest === 7, ['hollow', 'bench', 'caveMouth', 'rig', 'crate'],
+    [['make a torch at the Bench', 30], ['find the rig in the dark', 30], ['run the rig', 10], ['choose a gas (a wrong try)', 25], ['the crate rises and comes back', 15]],
+    `quest ${s.quest} spark ${packN(s, 'kiln_spark')}`);
+
+  // 7. Home: the Kiln door, the Invention Bench, the ending card.
+  await cmd('tp 128.5 41 174.5');
+  await cmd('face 128.5 42 169.5');
+  L = await untilLate((x) => x.near === 'door', 10000);
+  await page.keyboard.press('KeyE');
+  L = await untilLate((x) => x.door, 8000);
+  await cmd('tp 132.5 35 202.5');
+  await cmd('face 132.5 35.5 200.5');
+  L = await untilLate((x) => x.near === 'invention', 10000);
+  await page.keyboard.press('KeyE');
+  for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await page.evaluate(() => !document.getElementById('late-invent')?.hidden)) break;
+  await page.click('#late-invent button[data-item="coal_ore"]');
+  await page.click('#late-invent button[data-item="o2_flask"]');
+  await page.click('#late-invent .late-try');
+  s = await until((x) => x.ending === true && x.outcome === 'won', 15000);
+  let card = false;
+  for (const t0 = Date.now(); Date.now() - t0 < 10000 && !card; await sleep(150)) card = await page.evaluate(() => !document.getElementById('ending')?.hidden);
+  await screenshot(page, 'playthrough-ending.png');
+  step('7 relight the Kiln (door, Invention Bench)', s.quest === 8 && s.outcome === 'won' && card, ['crate', 'caveMouth', 'kilnDoor', 'invention'],
+    [['open the door', 10], ['try the Invention Bench (one fizzle)', 60], ['read the ending', 15]],
+    `quest ${s.quest} outcome ${s.outcome} card ${card}`);
+
+  // Music: every area had its theme, the ending its sting; M turns it off and on.
+  const mEnd = await (async () => { for (const t0 = Date.now(); Date.now() - t0 < 3000; await sleep(200)) { const m = await music(); if (m.stings) return m; } return music(); })();
+  if (mEnd.biome) biomes.add(mEnd.biome);
+  await page.click('#ending .late-keep').catch(() => {});
+  await frames(2);
+  await page.keyboard.press('KeyM');
+  const mOff = await music();
+  const saved = await page.evaluate(() => localStorage.getItem('rg.music.v1'));
+  await page.keyboard.press('KeyM');
+  const mOn = await music();
+  check('playthrough: each area has its own theme on the way, the ending plays a sting and the Kiln theme, M turns the music off and on',
+    ['village', 'frozen', 'marsh', 'cave', 'kiln'].every((b) => biomes.has(b)) && mEnd.stings === 1 && mEnd.biome === 'kiln'
+      && mOff.playing === false && saved === 'off' && mOn.playing === true,
+    `biomes ${[...biomes].join(',')} stings ${mEnd.stings} biome ${mEnd.biome} off ${mOff.playing}/${saved} on ${mOn.playing}`);
+
+  const total = rows.reduce((a, r) => a + r.est, 0);
+  const walked = rows.reduce((a, r) => a + r.walk, 0);
+  console.log(`  playthrough: estimated new-player time ${Math.floor(total / 60)} min ${Math.round(total % 60)} s (walking ${walked} m); scripted run ${rows.reduce((a, r) => a + r.wall, 0).toFixed(0)} s`);
+  check('playthrough: the estimate is within the 10-15 minute target', total >= 600 && total <= 900, `${(total / 60).toFixed(1)} min`);
 }

@@ -789,7 +789,8 @@ export function startHud() {
         warn.querySelector('.fill').style.width = `${Math.min(100, Math.max(0, (state.ghTemp - 20) / 2.8)).toFixed(0)}%`;
       }
       const banner = $('banner');
-      banner.classList.toggle('hidden', state.outcome === 'playing');
+      // The block world has its own ending card (late.js), not the courtyard's banner.
+      banner.classList.toggle('hidden', state.outcome === 'playing' || state.mode === 'voxel');
       banner.classList.toggle('lost', state.outcome === 'lost');
       if (state.outcome === 'won' && state.level === 3) {
         banner.querySelector('.big').textContent = 'You cleared the Marsh!';
