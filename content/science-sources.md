@@ -323,3 +323,9 @@ Brick and the kiln hearth: density 1900 kg/m³ (1400-2400 [S34]); c_p 900 J/(kg�
 
 ### mat-ash
 Ash: density 650 kg/m³ [S34]; c_p 840 J/(kg·K) [S32]; k 0.16 W/(m·K) (simplified: no table row for ash, given wood's value [S33]).
+
+### p1-fuel-store
+The workshop fire (I-052 P1): its fuel store is a stack of charcoal and logs, drawn as wood blocks flagged `SOURCE`. One burning block burns for its `burn_s` and turns to ash (gameplay tuning [S0]); the store holds far more fuel than one block, so in play it keeps burning until something puts it out, the same way a river cell flagged `SOURCE` keeps refilling. A fire needs fuel, heat and oxygen; water puts a wood or charcoal fire out by cooling the fuel below its ignition temperature [S9] (wood about 300 °C [S37] [S6], charcoal 349 °C [S37]), and a cell cooled by water sits at or below 100 °C, where water boils [S2]. Once cooled below ignition it does not light again by itself; a new flame (the Fire spell) can relight it, and too little oxygen (pooled CO2) also puts it out [S14]. Simplified: the store's fuel is not counted down at all, because a real store of this size burns far longer than the 10-15 minutes of play (scenario assumption [S0]).
+
+### p2-river-flows
+The river outside the ford (I-052 P2): its cells are `SOURCE` water, refilled from upstream, and in play a Frost cast does not freeze them; the ford's water is still (no source upstream of the ford row, spec section 7) and freezes from the top down, as still water does: ice forms first at the surface because water is densest near 4 °C and ice floats [S10]. Simplified: a real river can freeze over in a long cold spell; here the current is taken to carry each cast's cold away faster than it can build ice (scenario assumption [S0]), so the ford is the one crossing.

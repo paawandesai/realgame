@@ -304,6 +304,19 @@ impl World {
         key(p).and_then(|k| self.fires.get(&k).copied())
     }
 
+    /// Burning blocks (not gas vents), in key order.
+    pub fn burning_cells(&self) -> impl Iterator<Item = [i32; 3]> + '_ {
+        self.fires.keys().map(|&k| pos(k))
+    }
+
+    /// Gas vents whose flame is lit now, in key order.
+    pub fn lit_vents<'a>(&'a self, vox: &'a voxel::World) -> impl Iterator<Item = [i32; 3]> + 'a {
+        self.vents
+            .keys()
+            .map(|&k| pos(k))
+            .filter(|&v| vox.get(v).has(Cell::BURNING))
+    }
+
     /// Temperature of the cell at `p` in °C (the `probe` debug command): an
     /// untouched cell reads its material's resting temperature.
     pub fn temp_c(&self, vox: &voxel::World, p: [i32; 3]) -> f32 {
@@ -620,8 +633,11 @@ impl World {
                 }
                 t += e / cap;
                 if t < MELT_K {
+                    // The top cell of a column freezes first; flowing river
+                    // water (`SOURCE`, refilled from upstream) keeps moving
+                    // and does not freeze from a cast (P2).
                     let top = vox.get(add(p, [0, 1, 0])).mat != mat::WATER;
-                    if top {
+                    if top && !c.has(Cell::SOURCE) {
                         lat -= (MELT_K - t) * cap;
                     }
                     t = MELT_K;
@@ -1034,7 +1050,14 @@ impl World {
                 self.heat_toward(vox, q, BURN_J, FIRE_K, ev);
                 self.check_phase(vox, q, ev);
             }
-            let left = self.fires.get(&k).copied().unwrap_or(0).saturating_sub(1);
+            // A fuel store (`SOURCE` on a flammable block: a stack of
+            // charcoal and logs) holds far more fuel than one block, so it
+            // burns on until water or smothering puts it out (P1).
+            let left = if c.has(Cell::SOURCE) {
+                self.fires.get(&k).copied().unwrap_or(1).max(1)
+            } else {
+                self.fires.get(&k).copied().unwrap_or(0).saturating_sub(1)
+            };
             if left == 0 {
                 let to = if c.mat == mat::LEAVES {
                     Cell::AIR

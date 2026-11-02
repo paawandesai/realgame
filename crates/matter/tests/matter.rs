@@ -100,7 +100,6 @@ fn the_emit_and_event_shapes_are_the_contract() {
 
 /// M1a: on the generated world, Frost freezes the top layer of the ford first.
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn frost_freezes_top_layer_first() {
     check_frost_freezes_top_layer_first(generated_world());
 }
@@ -108,7 +107,6 @@ fn frost_freezes_top_layer_first() {
 /// M1b: 3 Frost emits along one row of the ford make a walkable line of ice
 /// (`solid_boxes` cover the path from bank to bank for a 0.7 m wide body).
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3) and ice_boxes (V8); same check green on the fixture in rules.rs"]
 fn ford_bridges_in_three_casts_per_row() {
     check_ford_bridges_in_three_casts_per_row(generated_world(), true);
 }
@@ -117,7 +115,6 @@ fn ford_bridges_in_three_casts_per_row() {
 /// steps; the meltwater flows downhill (some water cell is lower than the
 /// gate's base after 5 s).
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn fire_melts_ice_gate_in_three_casts() {
     check_fire_melts_ice_gate_in_three_casts(generated_world());
 }
@@ -191,7 +188,6 @@ fn cells(
 /// cell within 5 s, all 6 vents report `Smothered`, and the hollow's CO2 does
 /// not climb over its rim (the gas cells just above the rim stay below 5 %).
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn co2_pools_in_hollow() {
     check_co2_pools_in_hollow(generated_world());
 }
@@ -201,7 +197,6 @@ fn co2_pools_in_hollow() {
 /// (or 1 Frost emit on the gap's water, making ice) the same 3 emits put
 /// every vent out.
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn hollow_gap_spills_until_closed() {
     check_hollow_gap_spills_until_closed(generated_world(), close_with_stone);
     let vox = generated_world();
@@ -258,7 +253,6 @@ fn h2_rises_co2_sinks() {
 /// 3 s; a Water emit on each burning cell puts the workshop out; a Fire emit
 /// relights it.
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn fire_spreads_through_wood_and_water_puts_it_out() {
     check_fire_spreads_through_wood_and_water_puts_it_out(generated_world());
 }
@@ -373,4 +367,61 @@ fn caps_hold() {
         full.unwrap() < m.burn_full(mat::WOOD),
         "the last cell was reached by carry-over"
     );
+}
+
+/// Round 2 (P1, spec section 7 step 1): on the generated world the workshop
+/// fire does not burn out by itself before the player can learn Water: after
+/// 3 minutes its fuel store still burns, and the fire has not left the
+/// workshop's box. Water on each burning cell then puts it out for good.
+#[test]
+fn the_workshop_burns_on_until_water_puts_it_out() {
+    use realgame_voxel::stamp;
+    let mut vox = generated_world();
+    let s = stamp::WORKSHOP;
+    let burning = |vox: &voxel::World| -> Vec<[i32; 3]> {
+        let mut out = Vec::new();
+        for z in s.min[2] - 4..s.max[2] + 4 {
+            for y in s.min[1] - 2..s.max[1] + 4 {
+                for x in s.min[0] - 4..s.max[0] + 4 {
+                    if vox.get([x, y, z]).has(Cell::BURNING) {
+                        out.push([x, y, z]);
+                    }
+                }
+            }
+        }
+        out
+    };
+    let b0 = burning(&vox);
+    assert!(b0.len() >= 6, "the workshop burns at the start: {b0:?}");
+    let mut m = World::new(1);
+    let mut ev = Vec::new();
+    step_n(&mut m, &mut vox, steps(180.0), &mut ev);
+    let b1 = burning(&vox);
+    assert!(
+        b1.len() >= 6,
+        "after 3 minutes the workshop still burns: {b1:?}"
+    );
+    assert!(
+        b1.iter().all(|&p| s.contains(p)),
+        "the fire stays in the workshop: {b1:?}"
+    );
+    let mut rounds = 0;
+    loop {
+        let b = burning(&vox);
+        if b.is_empty() {
+            break;
+        }
+        rounds += 1;
+        assert!(
+            rounds <= 12,
+            "still burning after 12 rounds of water: {b:?}"
+        );
+        for p in b {
+            let (pos, n) = air_face(&vox, p).expect("a burning cell faces air");
+            emit(&mut m, pos, n, EmitKind::Water);
+        }
+        step_n(&mut m, &mut vox, 2, &mut ev);
+    }
+    step_n(&mut m, &mut vox, steps(30.0), &mut ev);
+    assert!(burning(&vox).is_empty(), "the workshop stays out");
 }
