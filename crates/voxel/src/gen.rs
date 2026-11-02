@@ -50,7 +50,9 @@ pub fn biome_at(p: [i32; 3]) -> Biome {
         return Biome::Cave;
     }
     if z >= CANYON_Z.1 {
-        if (112..144).contains(&x) && z < 177 {
+        // The Kiln terrace (y 41 from z 162); the river bank in front of
+        // it (y 35, z 160-163) is the Village's.
+        if (112..144).contains(&x) && z < 177 && (z >= 164 || y >= 39) {
             return Biome::Kiln;
         }
         if x >= EAST_CLIFF_X.1 {
@@ -553,6 +555,21 @@ fn stamps(w: &mut World) {
         28..=RIVER_Y => water(false),
         _ => a,
     });
+    // Its north bank steps up a block a metre, but its first step stood a
+    // block above the water, so frozen the ford met a drawn ledge W could
+    // not walk up (I-052 r3, smooth ground). Each of the bank's first four
+    // rows is lowered a block, so the bank starts level with the ice.
+    for k in 0..4 {
+        let z = s.min[2] - 1 - k;
+        for x in s.min[0]..s.max[0] {
+            let top = RIVER_Y + 1 + k;
+            let cell = w.get([x, top, z]);
+            if cell.mat != mat::AIR && w.get([x, top + 1, z]).mat == mat::AIR {
+                w.set([x, top - 1, z], cell);
+                w.set([x, top, z], a);
+            }
+        }
+    }
 
     // P2b: the ice gate: a passage 4 wide and 3 tall through the cliff
     // band (floor top y 35), plugged on its south face by one layer of ice
@@ -892,6 +909,10 @@ mod tests {
     fn biomes_are_where_the_spec_says() {
         assert_eq!(biome_at([128, 35, 205]), Biome::Village);
         assert_eq!(biome_at([128, 41, 170]), Biome::Kiln);
+        // The river bank before the Kiln terrace is the Village's (break-2
+        // should-fix 6); the terrace above it is the Kiln's.
+        assert_eq!(biome_at([128, 35, 163]), Biome::Village);
+        assert_eq!(biome_at([128, 41, 163]), Biome::Kiln);
         assert_eq!(biome_at([60, 40, 100]), Biome::Frozen);
         assert_eq!(biome_at([200, 31, 100]), Biome::Marsh);
         assert_eq!(biome_at([220, 12, 40]), Biome::Cave);

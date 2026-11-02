@@ -201,12 +201,13 @@ impl VoxAim<'_> {
     /// block (spells target water too), or a point far along the ray.
     fn pick(&self, origin: Vec3, dir: Vec3) -> Aim {
         let hit = self.world.as_ref().and_then(|w| {
-            realgame_voxel::raycast(
+            voxel_view::pick(
                 &w.0,
-                origin.to_array(),
-                dir.to_array(),
+                origin,
+                dir,
                 voxel_view::SPELL_RANGE,
                 realgame_voxel::RayMode::Fluids,
+                voxel_view::blocks_mode(),
             )
         });
         match hit {

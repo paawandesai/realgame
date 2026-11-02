@@ -276,6 +276,11 @@ fn level(w: &mut World, c: [i32; 2], h: i32, r: i32, ramp: i32, top: u8) {
 
 /// Stamps one cache into the world and protects it from digging and
 /// building (powers change protected blocks; the player's hands do not).
+/// What the caches' towers, pillar and platform are built of: a built
+/// block, drawn with crisp edges and walked as boxes on the smooth ground
+/// (natural stone would be drawn as a rounded hill and walked as one).
+const SHAPED: u8 = mat::BRICK;
+
 pub fn stamp(w: &mut World, site: Site) -> Built {
     let c = site.at;
     let h = ground(w, c[0], c[1]);
@@ -318,7 +323,7 @@ pub fn stamp(w: &mut World, site: Site) -> Built {
             for (dx, dz, d) in ring(PILLAR) {
                 if d <= PILLAR {
                     for y in h..h + TOWER_H {
-                        w.set(at(dx, y, dz), Cell::new(mat::CLIFFSTONE));
+                        w.set(at(dx, y, dz), Cell::new(SHAPED));
                     }
                 }
             }
@@ -335,7 +340,7 @@ pub fn stamp(w: &mut World, site: Site) -> Built {
             for (dx, dz, d) in ring(PILLAR) {
                 if d <= PILLAR {
                     for y in h..h + PILLAR_H {
-                        w.set(at(dx, y, dz), Cell::new(mat::CLIFFSTONE));
+                        w.set(at(dx, y, dz), Cell::new(SHAPED));
                     }
                 }
             }
@@ -378,17 +383,25 @@ pub fn stamp(w: &mut World, site: Site) -> Built {
                     }
                     w.set(at(dx, h - PIT_DEPTH - 1, dz), Cell::new(top));
                 } else {
-                    w.set(at(dx, h - 1, dz), Cell::new(mat::STONE));
+                    w.set(at(dx, h - 1, dz), Cell::new(SHAPED));
                     for y in h - PIT_DEPTH - 1..h - 1 {
-                        w.set(at(dx, y, dz), Cell::new(mat::STONE));
+                        w.set(at(dx, y, dz), Cell::new(SHAPED));
                     }
+                }
+            }
+            // The rim: a course of built stone round the pit's edge, so the
+            // feet stand on its top right at the edge (natural ground there
+            // is drawn as a rounded lip that drops away).
+            for (dx, dz, d) in ring(PIT + 1) {
+                if d == PIT + 1 {
+                    w.set(at(dx, h - 1, dz), Cell::new(SHAPED));
                 }
             }
             // Steps out of the pit along the east wall (a block below the
             // rim at the top, so they are no launch pad).
             for (k, dz) in [-3, -2, -1].into_iter().enumerate() {
                 for y in h - PIT_DEPTH..h - PIT_DEPTH + k as i32 + 1 {
-                    w.set(at(PIT, y, dz), Cell::new(mat::STONE));
+                    w.set(at(PIT, y, dz), Cell::new(SHAPED));
                 }
             }
             let g = PIT + 1;
@@ -445,7 +458,9 @@ pub fn touches(player: &Player, orb: Vec3) -> bool {
 pub fn freeze_walkway(w: &mut World, feet: Vec3, yaw: f32, len: f32, half: i32) -> Vec<[i32; 3]> {
     let fwd = Vec2::new(-yaw.sin(), -yaw.cos());
     let side = Vec2::new(fwd.y, -fwd.x);
-    let fy = feet.y.floor() as i32;
+    // Feet on smooth ground stand on the drawn surface, which can sit a
+    // little below the block top: round to the block the feet are on.
+    let fy = (feet.y + 0.25).floor() as i32;
     let mut out = Vec::new();
     let mut t = 0.0;
     while t <= len {
@@ -1488,8 +1503,11 @@ mod tests {
         let mut p = start();
         let mut m = Motion::default();
         settle(w, &mut p);
-        // A run-up: sprint from further back and jump at the edge.
-        p.pos.z -= 6.0;
+        // A run-up: sprint from further back on the rim's level pad and
+        // jump at the edge.
+        p.pos.z -= 3.0;
+        p.pos.y = b.h as f32;
+        settle(w, &mut p);
         let mut ws = Walk::default();
         let mut jumped = false;
         for _ in 0..400 {

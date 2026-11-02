@@ -209,12 +209,13 @@ fn aimed_hold(w: &World, spell: u8, hand: Vec3, eye: Vec3, forward: Vec3, boost:
     if !matches!(Spell::ALL[spell as usize], Spell::Water | Spell::Foam) {
         return 0.0;
     }
-    let Some(hit) = realgame_voxel::raycast(
+    let Some(hit) = crate::voxel_view::pick(
         w,
-        eye.to_array(),
-        forward.to_array(),
+        eye,
+        forward,
         AIMED_RANGE,
         realgame_voxel::RayMode::Fluids,
+        crate::voxel_view::blocks_mode(),
     ) else {
         // Aimed at the sky or far off: the shortest arc, as a tap throws it.
         return 0.0;

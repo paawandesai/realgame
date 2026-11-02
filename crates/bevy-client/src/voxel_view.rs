@@ -560,6 +560,81 @@ fn lift_out(world: &World, p: Vec3) -> Option<f32> {
     None
 }
 
+/// `?blocks`: the old block look and walking (read once).
+pub fn blocks_mode() -> bool {
+    static B: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *B.get_or_init(|| crate::param("blocks").is_some())
+}
+
+/// The first block a ray from `origin` hits, as drawn. On smooth ground a
+/// ramp is drawn over part of the air cell above a terrace step, so a ray
+/// that meets that drawn ramp hits the ground block under it (a face up),
+/// not whatever lies behind (I-052 r3). With `blocks` it is the plain
+/// block raycast.
+pub fn pick(
+    world: &World,
+    origin: Vec3,
+    dir: Vec3,
+    max: f32,
+    mode: RayMode,
+    blocks: bool,
+) -> Option<vox::Hit> {
+    let hit = vox::raycast(world, origin.to_array(), dir.to_array(), max, mode);
+    if blocks || dir.length_squared() < 1e-12 {
+        return hit;
+    }
+    let d = dir.normalize();
+    let end = hit.map_or(max, |h| h.t);
+    let mut t = 0.0;
+    while t < end {
+        let q = origin + d * t;
+        let c = q.floor().as_ivec3().to_array();
+        if world.get(c).mat == vox::mat::AIR {
+            let below = [c[0], c[1] - 1, c[2]];
+            let soft = |p: [i32; 3]| smooth::kind(world.get(p).mat) == smooth::Kind::Soft;
+            // A ramp is drawn over an air cell only beside a step up (a
+            // ground block level with it), so flat ground costs nothing.
+            let step = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+                .iter()
+                .any(|d| soft([c[0] + d[0], c[1], c[2] + d[1]]));
+            if step && soft(below) {
+                if let vox::Ground::Floor(g) = vox::ground(world, q.x, q.z, q.y + 0.02, q.y - 1.5) {
+                    if g >= q.y - 0.02 {
+                        return Some(vox::Hit {
+                            cell: below,
+                            normal: [0, 1, 0],
+                            t,
+                        });
+                    }
+                }
+            }
+        }
+        t += 0.1;
+    }
+    hit
+}
+
+/// How high (m) the drawn bank's lip at the edge of a sheet of ice may
+/// rise for W to walk up onto it.
+const ICE_CLIMB: f32 = 0.8;
+
+/// Feet on or within about a metre of the top of a sheet of ice (the
+/// bank's lip beside it).
+fn by_ice(world: &World, p: [f32; 3]) -> bool {
+    let y = (p[1] - 0.5).floor() as i32;
+    (-1..=1).any(|dx| {
+        (-1..=1).any(|dz| {
+            let c = [
+                (p[0] + dx as f32 * 0.9).floor() as i32,
+                y,
+                (p[2] + dz as f32 * 0.9).floor() as i32,
+            ];
+            world.get(c).mat == vox::mat::ICE
+                || world.get([c[0], c[1] - 1, c[2]]).mat == vox::mat::ICE
+        })
+    })
+}
+
 /// The steepest drawn ground W walks up (rise over run, about 50 degrees).
 const MAX_SLOPE: f32 = 1.2;
 
@@ -579,13 +654,21 @@ fn stand_on_surface(
     let y = a.pos[1];
     let (x0, z0) = (from.pos[0], from.pos[2]);
     let (x1, z1) = (a.pos[0], a.pos[2]);
+    // Ice is drawn as a flat sheet, so the drawn bank beside it rises in a
+    // short lip from the bed below the ice: off the ice W walks up that
+    // lip, as it would a ramp (I-052 r3: the frozen ford).
+    let climb = if from.grounded && by_ice(world, from.pos) {
+        ICE_CLIMB
+    } else {
+        STEP
+    };
     // Natural ground in the way: the drawn surface at the centre or the
     // body's leading edge is more than a step up. Built blocks are left to
     // their boxes.
     let natural = |px: f32, pz: f32| {
         let (cx, cz) = (px.floor() as i32, pz.floor() as i32);
         let lo = y.floor() as i32;
-        !(lo..=(y + STEP).floor() as i32).any(|cy| {
+        !(lo..=(y + climb).floor() as i32).any(|cy| {
             matches!(
                 smooth::kind(world.get([cx, cy, cz]).mat),
                 smooth::Kind::Hard | smooth::Kind::Organic | smooth::Kind::Clear
@@ -603,7 +686,7 @@ fn stand_on_surface(
             .iter()
             .any(|&(px, pz)| {
                 natural(px, pz)
-                    && vox::ground(world, px, pz, y + STEP, y - 1.5) == vox::Ground::Inside
+                    && vox::ground(world, px, pz, y + climb, y - 1.5) == vox::Ground::Inside
             })
     };
     if blocked(x1, z1) {
@@ -645,9 +728,10 @@ fn stand_on_surface(
     }
     let speed = (a.vel[0] * a.vel[0] + a.vel[2] * a.vel[2]).sqrt();
     let snap = 0.3 + speed * dt * 1.2;
-    if let vox::Ground::Floor(g) = vox::ground(world, a.pos[0], a.pos[2], y + STEP, y - 3.0) {
+    if let vox::Ground::Floor(g) = vox::ground(world, a.pos[0], a.pos[2], y + climb, y - 3.0) {
         let d = ((a.pos[0] - x0).powi(2) + (a.pos[2] - z0).powi(2)).sqrt();
-        if g > y && from.grounded && !jump && g - y > d * MAX_SLOPE + 0.004 {
+        let off_ice = climb > STEP && g - y <= climb;
+        if g > y && from.grounded && !jump && !off_ice && g - y > d * MAX_SLOPE + 0.004 {
             // Steeper than a walkable slope (the face of a wall): stay put.
             a.pos[0] = x0;
             a.pos[2] = z0;
@@ -862,24 +946,13 @@ fn tools(
     let dt = clock::frame_dt(time.delta_secs());
     let world = &mut world.0;
     let eye = player.eye();
-    let look = vox::raycast(
-        world,
-        eye.to_array(),
-        player.forward().to_array(),
-        REACH,
-        RayMode::Solids,
-    );
+    let blocks = blocks_mode();
+    let look = pick(world, eye, player.forward(), REACH, RayMode::Solids, blocks);
     // With a spell in hand (keys 1-4) the look cell stops at water, where
     // Frost and Fire land (round 2: the ford is aimable from the bank);
     // with the Pick or a block it is the solid block the tool works on.
     let looked = if keys.hot < 5 {
-        vox::raycast(
-            world,
-            eye.to_array(),
-            player.forward().to_array(),
-            REACH,
-            RayMode::Fluids,
-        )
+        pick(world, eye, player.forward(), REACH, RayMode::Fluids, blocks)
     } else {
         look
     };
@@ -931,9 +1004,8 @@ fn tools(
             }
             Some("tap") if a.len() == 3 => {
                 let f = Vec2::new(a[1].parse().unwrap_or(-1.0), a[2].parse().unwrap_or(-1.0));
-                let hit = tap_ray(&player, &settings, f).and_then(|d| {
-                    vox::raycast(world, eye.to_array(), d.to_array(), REACH, RayMode::Solids)
-                });
+                let hit = tap_ray(&player, &settings, f)
+                    .and_then(|d| pick(world, eye, d, REACH, RayMode::Solids, blocks));
                 auto_target = Some(hit);
                 false
             }
@@ -1531,6 +1603,9 @@ mod tests {
         };
         let mut w = Walk::default();
         for f in 0..40 {
+            if p.pos.z < 148.5 && p.pos.y > 32.9 {
+                break;
+            }
             let z0 = p.pos.z;
             let input = crate::player::MoveInput {
                 wish: Vec2::new(0.0, 1.0),
@@ -1546,6 +1621,92 @@ mod tests {
             "up the far bank: {:?}",
             p.pos
         );
+    }
+
+    /// P2 on smooth ground: with the gate sunk and the ford frozen, W alone
+    /// (no Space) walks from the Village bank down onto the ice, across
+    /// and up the far bank (z < 147, the quest's "across"), at 60 fps and
+    /// at 4 fps, down the middle and along either side.
+    #[test]
+    fn w_alone_walks_across_the_frozen_ford() {
+        let mut world = vox::generate(vox::DEFAULT_SEED);
+        let cells = crate::gates::build(&mut world, &crate::gates::GATES[0]);
+        crate::gates::open(&mut world, &cells);
+        for z in 140..160 {
+            for x in 120..136 {
+                if world.get([x, 30, z]).mat == vox::mat::WATER {
+                    world.set([x, 30, z], realgame_voxel::Cell::new(vox::mat::ICE));
+                }
+            }
+        }
+        for x0 in [124.5f32, 128.5, 131.5] {
+            for dt in [1.0f32 / 60.0, 0.25] {
+                let mut p = Player {
+                    pos: Vec3::new(x0, 35.0, 162.5),
+                    grounded: true,
+                    ..Player::default()
+                };
+                let mut w = Walk::default();
+                let mut path = Vec::new();
+                let mut t = 0.0;
+                while t < 12.0 && !(p.pos.z < 147.0 && p.pos.y > 33.5) {
+                    let input = crate::player::MoveInput {
+                        wish: Vec2::new(0.0, 1.0),
+                        sprint: false,
+                        jump: false,
+                    };
+                    walk(&mut p, &mut w, &world, input, dt);
+                    t += dt;
+                    if path.last().is_none_or(|q: &Vec3| q.distance(p.pos) > 0.5) {
+                        path.push(p.pos);
+                    }
+                }
+                assert!(
+                    p.pos.z < 147.0 && p.pos.y > 33.5,
+                    "x {x0}, dt {dt}: stuck at {:?} after {t:.1} s; path {:?}",
+                    p.pos,
+                    path.iter()
+                        .map(|v| format!("({:.2},{:.2})", v.y, v.z))
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+
+    /// A ray that meets a drawn ramp (over the air cell above a terrace
+    /// step) hits the ground under it, as drawn; with `?blocks` it passes.
+    #[test]
+    fn a_ray_hits_the_drawn_ramp_not_the_air_cell() {
+        let world = vox::generate(vox::DEFAULT_SEED);
+        // The ford's north bank (rows a block a metre from the ice): look
+        // down the bank from above its top, along it.
+        let eye = Vec3::new(128.5, 37.0, 144.0);
+        let mut found = 0;
+        for k in 0..40 {
+            let dir = Vec3::new(0.0, -0.2 - k as f32 * 0.02, 1.0).normalize();
+            let drawn = pick(&world, eye, dir, 20.0, RayMode::Solids, false);
+            let plain = pick(&world, eye, dir, 20.0, RayMode::Solids, true);
+            let (Some(a), Some(b)) = (drawn, plain) else {
+                continue;
+            };
+            assert!(a.t <= b.t + 1e-4, "never further than the blocks");
+            assert!(
+                world.get(a.cell).mat != vox::mat::AIR,
+                "hits a block: {:?}",
+                a.cell
+            );
+            if a.t + 0.05 < b.t {
+                // Met a ramp first: the hit point is on the drawn ground.
+                let q = eye + dir * a.t;
+                let vox::Ground::Floor(g) = vox::ground(&world, q.x, q.z, q.y + 0.5, q.y - 1.5)
+                else {
+                    panic!("no drawn ground at {q}");
+                };
+                assert!((g - q.y).abs() < 0.15, "on the drawn ground: {q} vs {g}");
+                found += 1;
+            }
+        }
+        assert!(found > 0, "some rays meet a ramp before a block");
     }
 
     #[test]
