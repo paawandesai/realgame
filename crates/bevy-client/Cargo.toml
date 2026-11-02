@@ -78,6 +78,11 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+# The smooth mesher (realgame-voxel) remeshes chunks inside the frame
+# budget; it is small, so it is speed-optimised (smooth-world lane).
+[profile.release.package.realgame-voxel]
+opt-level = 3
+
 # Same as release but speed-optimised, to compare size against opt-level z.
 [profile.release-speed]
 inherits = "release"

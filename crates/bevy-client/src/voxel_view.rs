@@ -19,7 +19,7 @@ use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use realgame_sim::valley::Item;
-use realgame_voxel::{self as vox, materials, Biome, Cell, RayMode, World, CHUNK};
+use realgame_voxel::{self as vox, materials, smooth, Biome, Cell, RayMode, World, CHUNK};
 
 use crate::motion::{self, Body, Box3};
 use crate::player::{MoveInput, Player};
@@ -75,12 +75,16 @@ pub const PROTECTED_LINE: &str = "This old runestone will not budge. Try chemist
 /// queue, and the materials.
 #[derive(Resource)]
 struct Chunks {
-    ents: Vec<[Option<Entity>; 2]>,
+    /// Each chunk's pass entities: opaque, clear and (smooth) water.
+    ents: Vec<[Option<Entity>; 3]>,
     /// Waiting to be meshed (index order; sorted by distance when picked).
     queue: Vec<usize>,
     queued: Vec<bool>,
     opaque: Handle<crate::voxel_tex::VoxMat>,
     clear: Handle<crate::voxel_tex::VoxMat>,
+    /// The smooth look's materials; `None` with `?blocks` (the block
+    /// atlas look, kept for comparison).
+    smooth: Option<crate::voxel_tex::SmoothMats>,
     /// The spawn ring (3 x 2 x 3 chunks around the start) is meshed.
     ring_done: bool,
 }
@@ -104,6 +108,8 @@ struct Dig {
 pub struct Walk {
     /// Metres the camera sits below the eye after a step up; eases to 0.
     pub lag: f32,
+    /// Walk on the blocks themselves (`?blocks`), not the smooth surface.
+    pub blocks: bool,
 }
 
 /// Where the player was, for biome and stamp entry events.
@@ -124,6 +130,7 @@ pub fn plugin(app: &mut App) {
         .and_then(|s| parse_seed(&s))
         .unwrap_or(vox::DEFAULT_SEED);
     crate::voxel_tex::register(app);
+    crate::sky::plugin(app);
     let t = Instant::now();
     let world = vox::generate(seed);
     info!(
@@ -138,7 +145,10 @@ pub fn plugin(app: &mut App) {
     .insert_resource(VoxWorld(world))
     .init_resource::<crate::Pack>()
     .init_resource::<Dig>()
-    .init_resource::<Walk>()
+    .insert_resource(Walk {
+        blocks: crate::param("blocks").is_some(),
+        ..default()
+    })
     .init_resource::<Whereabouts>()
     .add_systems(Startup, setup.after(crate::setup))
     .add_systems(PostStartup, hide_courtyard)
@@ -158,23 +168,36 @@ fn parse_seed(s: &str) -> Option<u64> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn setup(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut mats: ResMut<Assets<crate::voxel_tex::VoxMat>>,
+    mut smooth_mats: ResMut<Assets<crate::voxel_tex::SmoothMat>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut std_mats: ResMut<Assets<StandardMaterial>>,
     world: Res<VoxWorld>,
     start: Res<crate::StartBiome>,
     mut player: ResMut<Player>,
     mut game: ResMut<Game>,
+    settings: Res<Settings>,
 ) {
     let m = crate::voxel_tex::materials(&mut images, &mut mats, world.0.seed);
     let n = world.0.chunk_count();
+    let smooth = crate::param("blocks")
+        .is_none()
+        .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats, settings.low));
+    if smooth.is_some() {
+        let opaque = smooth.as_ref().map(|m| m.opaque.clone());
+        spawn_props(&mut commands, &mut meshes, &mut std_mats, opaque);
+    }
     let mut chunks = Chunks {
-        ents: vec![[None, None]; n],
+        ents: vec![[None, None, None]; n],
         queue: Vec::new(),
         queued: vec![false; n],
         opaque: m.opaque,
         clear: m.clear,
+        smooth,
         ring_done: false,
     };
     // Everything is dirty after generation: queue it all.
@@ -195,6 +218,164 @@ fn setup(
     });
 }
 
+/// The smooth look's fixed props: the Great Kiln's glowing rune bands
+/// round its dome and a glowing ring on its chimney (the dome itself is
+/// the smooth mesh of its bricks).
+fn spawn_props(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    mats: &mut Assets<StandardMaterial>,
+    clay: Option<Handle<crate::voxel_tex::SmoothMat>>,
+) {
+    if let Some(clay) = clay {
+        // A round clay dome and chimney over the Kiln's brick cells (the
+        // cells stay underneath for the puzzle and for collision).
+        for mesh in [kiln_dome(), kiln_chimney()] {
+            commands.spawn((
+                Mesh3d(meshes.add(mesh)),
+                MeshMaterial3d(clay.clone()),
+                Transform::IDENTITY,
+            ));
+        }
+    }
+    let rune = mats.add(StandardMaterial {
+        base_color: Color::srgb(0.2, 0.9, 0.8),
+        emissive: LinearRgba::rgb(0.6, 3.2, 2.7),
+        unlit: true,
+        cull_mode: None,
+        double_sided: true,
+        ..default()
+    });
+    // Round the clay dome (`kiln_dome`: centre y 40.8, half-axes 8.0 x 9.3
+    // x 5.1), a hair outside it.
+    for (y, h) in [(43.2f32, 0.34f32), (44.3, 0.12)] {
+        let k = (1.0 - ((y - 40.8) / 9.3).powi(2)).sqrt();
+        let band = ring_band([128.0, y, 169.0], 8.0 * k + 0.06, 5.1 * k + 0.06, h);
+        commands.spawn((
+            Mesh3d(meshes.add(band)),
+            MeshMaterial3d(rune.clone()),
+            Transform::IDENTITY,
+            NotShadowCaster,
+        ));
+    }
+    let top = ring_band([128.5, 59.9, 169.5], 2.08, 2.08, 0.3);
+    commands.spawn((
+        Mesh3d(meshes.add(top)),
+        MeshMaterial3d(rune),
+        Transform::IDENTITY,
+        NotShadowCaster,
+    ));
+}
+
+/// Vertex streams for the smooth material: colour (rgb, AO 1) and UV_0
+/// (no glow, not grassy).
+fn clay_mesh(pos: Vec<[f32; 3]>, nrm: Vec<[f32; 3]>, idx: Vec<u32>) -> Mesh {
+    let look = smooth::look_of(vox::mat::BRICK);
+    let n = pos.len();
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0f32, 0.0]; n])
+    .with_inserted_attribute(
+        Mesh::ATTRIBUTE_COLOR,
+        vec![[look.rgb[0], look.rgb[1], look.rgb[2], 1.0]; n],
+    )
+    .with_inserted_indices(Indices::U32(idx))
+}
+
+/// The Kiln's dome: half an ellipsoid just outside its brick shell
+/// (`gen::stamps`, P5), with the runestone door left open on the south.
+fn kiln_dome() -> Mesh {
+    let (c, r) = ([128.0f32, 40.8, 169.0], [8.0f32, 9.3, 5.1]);
+    const AZ: u32 = 64;
+    const EL: u32 = 16;
+    let mut pos = Vec::new();
+    let mut nrm = Vec::new();
+    for j in 0..=EL {
+        let phi = j as f32 / EL as f32 * std::f32::consts::FRAC_PI_2;
+        for i in 0..=AZ {
+            let th = i as f32 / AZ as f32 * std::f32::consts::TAU;
+            let u = Vec3::new(phi.cos() * th.cos(), phi.sin(), phi.cos() * th.sin());
+            pos.push([c[0] + r[0] * u.x, c[1] + r[1] * u.y, c[2] + r[2] * u.z]);
+            nrm.push(
+                Vec3::new(u.x / r[0], u.y / r[1], u.z / r[2])
+                    .normalize()
+                    .to_array(),
+            );
+        }
+    }
+    let mut idx = Vec::new();
+    let door = |p: [f32; 3]| (126.8..130.2).contains(&p[0]) && p[1] < 44.2 && p[2] > 169.0;
+    for j in 0..EL {
+        for i in 0..AZ {
+            let a = j * (AZ + 1) + i;
+            let (b, cc, d) = (a + 1, a + AZ + 1, a + AZ + 2);
+            let mid = [0, 1, 2].map(|k| (pos[a as usize][k] + pos[d as usize][k]) / 2.0);
+            if door(mid) {
+                continue;
+            }
+            idx.extend_from_slice(&[a, cc, b, b, cc, d]);
+        }
+    }
+    clay_mesh(pos, nrm, idx)
+}
+
+/// The Kiln's chimney: a round stack over its square brick one, open at
+/// the top.
+fn kiln_chimney() -> Mesh {
+    let (c, r, y0, y1) = ([128.5f32, 169.5], 2.05f32, 46.0f32, 60.0f32);
+    const AZ: u32 = 32;
+    let mut pos = Vec::new();
+    let mut nrm = Vec::new();
+    let mut idx = Vec::new();
+    for i in 0..=AZ {
+        let th = i as f32 / AZ as f32 * std::f32::consts::TAU;
+        let (s, co) = th.sin_cos();
+        // A slight taper towards the top.
+        for (y, rr) in [(y0, r * 1.08), (y1, r)] {
+            pos.push([c[0] + rr * co, y, c[1] + rr * s]);
+            nrm.push([co, 0.04, s]);
+        }
+        if i < AZ {
+            let b = i * 2;
+            idx.extend_from_slice(&[b, b + 1, b + 2, b + 1, b + 3, b + 2]);
+        }
+    }
+    clay_mesh(pos, nrm, idx)
+}
+
+/// A vertical ribbon `h` tall round the ellipse with centre `c` and
+/// half-axes `rx`, `rz`, facing out.
+fn ring_band(c: [f32; 3], rx: f32, rz: f32, h: f32) -> Mesh {
+    const N: u32 = 96;
+    let mut pos = Vec::new();
+    let mut nrm = Vec::new();
+    let mut idx = Vec::new();
+    for i in 0..=N {
+        let a = i as f32 / N as f32 * std::f32::consts::TAU;
+        let (s, co) = a.sin_cos();
+        let n = Vec3::new(co / rx, 0.0, s / rz).normalize();
+        for y in [c[1] - h / 2.0, c[1] + h / 2.0] {
+            pos.push([c[0] + rx * co, y, c[2] + rz * s]);
+            nrm.push(n.to_array());
+        }
+        if i < N {
+            let b = i * 2;
+            idx.extend_from_slice(&[b, b + 1, b + 2, b + 1, b + 3, b + 2]);
+        }
+    }
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
+    .with_inserted_indices(Indices::U32(idx))
+}
+
 /// The block world replaces the courtyard (spec section 3.2): its entities
 /// go, while `Chem` and `Colliders` stay as inert resources for the shared
 /// systems that still read them.
@@ -210,9 +391,16 @@ fn hide_courtyard(mut commands: Commands, q: Query<Entity, CourtyardParts>) {
 // Walking.
 // ---------------------------------------------------------------------------
 
-/// One frame of walking on blocks: `Player::step`'s rules (`motion`), with
-/// the world's solid and ice blocks around the player as boxes, a step up
-/// of one block without jumping, and the world's edge as the bound.
+/// One frame of walking: `Player::step`'s rules (`motion`), with the
+/// world's built blocks and ice around the player as boxes, a step up of
+/// at most `STEP` without jumping, and the world's edge as the bound.
+///
+/// Natural ground (`smooth::Kind::Soft`) is walked as it is drawn: the feet
+/// stand on the smooth surface (`vox::ground`), so ramps that the drawing
+/// makes from terrace steps are walked up, and the body never hovers over
+/// or sinks into what is shown. Natural ground higher than a step, or above
+/// the knees, still stops the body. With `?blocks` every solid block is a
+/// box, as before.
 pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInput, dt: f32) {
     let MoveInput { wish, sprint, jump } = input;
     let fwd = Vec3::new(-player.yaw.sin(), 0.0, -player.yaw.cos());
@@ -225,6 +413,18 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
         vel: player.vel.to_array(),
         grounded: player.grounded,
         on_ice: player.on_ice,
+    };
+    let smooth = !walk.blocks;
+    if smooth {
+        if let Some(y) = lift_out(world, player.pos) {
+            player.pos.y = y;
+            player.vel.y = player.vel.y.max(0.0);
+            player.grounded = true;
+        }
+    }
+    let body = Body {
+        pos: player.pos.to_array(),
+        ..body
     };
     // Every block the body could touch this frame, step up included.
     let reach = speed.max(player.vel.length()) * dt + 1.2;
@@ -240,8 +440,31 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
         p.z + r,
     ];
     let ice: Vec<Box3> = vox::ice_boxes(world, aabb).iter().map(box3).collect();
-    let mut solids: Vec<Box3> = vox::solid_boxes(world, aabb).iter().map(box3).collect();
+    // Natural ground is a box only above the knees (overhangs, ceilings and
+    // the upper part of a wall); below that the smooth surface holds it.
+    let soft = |b: &[f32; 6]| {
+        smooth::kind(world.get([b[0] as i32, b[1] as i32, b[2] as i32]).mat) == smooth::Kind::Soft
+    };
+    let mut solids: Vec<Box3> = vox::solid_boxes(world, aabb)
+        .iter()
+        .filter(|b| !smooth || !soft(b) || b[1] >= p.y + 1.0 - 1e-3)
+        .map(box3)
+        .collect();
     solids.extend_from_slice(&ice);
+    // The blocks themselves, without this frame's floor box.
+    let blocks = solids.len();
+    // The drawn ground under the feet, as a floor box for this frame.
+    let ground_at = |x: f32, z: f32, y: f32| vox::ground(world, x, z, y + STEP, y - 3.0);
+    if smooth {
+        if let vox::Ground::Floor(g) = ground_at(p.x, p.z, p.y) {
+            let top = g.min(p.y);
+            let w = motion::RADIUS + 0.5;
+            solids.push(Box3 {
+                min: [p.x - w, top - 0.5, p.z - w],
+                max: [p.x + w, top, p.z + w],
+            });
+        }
+    }
     const BOUND: f32 = 1.0e5;
     // Space jumps (`tuning::JUMP_HEIGHT`, enough to get onto one block);
     // moving never does.
@@ -261,7 +484,12 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     );
     let moved =
         |b: &Body| ((b.pos[0] - body.pos[0]).powi(2) + (b.pos[2] - body.pos[2]).powi(2)).sqrt();
-    let want = target.length() * dt;
+    // Blocked means slower than the same frame with nothing in the way
+    // (not slower than the wished speed: starting from rest is slow too,
+    // and must not try a step up).
+    let mut free = body;
+    motion::advance(&mut free, [target.x, target.z], false, dt, &[], &[], BOUND);
+    let want = moved(&free);
     if body.grounded && !jump && want > 1e-4 && moved(&a) < want * 0.5 {
         let mut b = body;
         b.pos[1] += STEP;
@@ -287,6 +515,9 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
             }
         }
     }
+    if smooth {
+        stand_on_surface(world, &body, &mut a, jump, dt, walk, &solids[..blocks]);
+    }
     // The world's edge (the protected mountains stop the player first).
     let lim = |v: f32, hi: i32| v.clamp(motion::RADIUS, hi as f32 - motion::RADIUS);
     a.pos[0] = lim(a.pos[0], vox::WORLD[0]);
@@ -301,6 +532,151 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     walk.lag = (walk.lag * (1.0 - (dt * 14.0).min(1.0))).clamp(-STEP, 0.0);
     if walk.lag > -0.002 {
         walk.lag = 0.0;
+    }
+}
+
+/// Feet deeper than a step inside natural ground (a `tp` into a hill, or
+/// ground set where the player stands): the drawn surface of the nearest
+/// open space above them, so the body is never left inside the ground
+/// (where no floor holds it and it would fall through the hill).
+fn lift_out(world: &World, p: Vec3) -> Option<f32> {
+    let cell = [
+        p.x.floor() as i32,
+        (p.y + STEP).floor() as i32,
+        p.z.floor() as i32,
+    ];
+    if smooth::kind(world.get(cell).mat) != smooth::Kind::Soft
+        || vox::ground(world, p.x, p.z, p.y + STEP, p.y - 3.0) != vox::Ground::Inside
+    {
+        return None;
+    }
+    for k in 1..=48 {
+        match vox::ground(world, p.x, p.z, p.y + STEP + k as f32, p.y) {
+            vox::Ground::Floor(g) => return Some(g),
+            vox::Ground::Inside => continue,
+            vox::Ground::None => return None,
+        }
+    }
+    None
+}
+
+/// The steepest drawn ground W walks up (rise over run, about 50 degrees).
+const MAX_SLOPE: f32 = 1.2;
+
+/// The smooth ground's half of a walking frame: natural ground that rises
+/// more than a step (or a wall of it) stops the move, axis by axis so the
+/// body slides along it; then the feet are set on the drawn surface when
+/// they are below it, or kept on it walking downhill.
+fn stand_on_surface(
+    world: &World,
+    from: &Body,
+    a: &mut Body,
+    jump: bool,
+    dt: f32,
+    walk: &mut Walk,
+    solids: &[Box3],
+) {
+    let y = a.pos[1];
+    let (x0, z0) = (from.pos[0], from.pos[2]);
+    let (x1, z1) = (a.pos[0], a.pos[2]);
+    // Natural ground in the way: the drawn surface at the centre or the
+    // body's leading edge is more than a step up. Built blocks are left to
+    // their boxes.
+    let natural = |px: f32, pz: f32| {
+        let (cx, cz) = (px.floor() as i32, pz.floor() as i32);
+        let lo = y.floor() as i32;
+        !(lo..=(y + STEP).floor() as i32).any(|cy| {
+            matches!(
+                smooth::kind(world.get([cx, cy, cz]).mat),
+                smooth::Kind::Hard | smooth::Kind::Organic | smooth::Kind::Clear
+            )
+        })
+    };
+    let blocked = |x: f32, z: f32| -> bool {
+        let (dx, dz) = (x - x0, z - z0);
+        let len = (dx * dx + dz * dz).sqrt();
+        if len < 1e-6 {
+            return false;
+        }
+        let lead = motion::RADIUS * 0.9 / len;
+        [(x, z), (x + dx * lead, z + dz * lead)]
+            .iter()
+            .any(|&(px, pz)| {
+                natural(px, pz)
+                    && vox::ground(world, px, pz, y + STEP, y - 1.5) == vox::Ground::Inside
+            })
+    };
+    if blocked(x1, z1) {
+        // Keep as much of the move as is clear (a long frame moves far),
+        // then try sliding along each axis.
+        let mut t = 1.0f32;
+        for _ in 0..4 {
+            t *= 0.5;
+            if !blocked(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t) {
+                break;
+            }
+        }
+        if blocked(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t) {
+            t = 0.0;
+        }
+        let (xt, zt) = (x0 + (x1 - x0) * t, z0 + (z1 - z0) * t);
+        if !blocked(x1, zt) {
+            a.pos[0] = x1;
+            a.pos[2] = zt;
+            a.vel[2] = 0.0;
+        } else if !blocked(xt, z1) {
+            a.pos[0] = xt;
+            a.pos[2] = z1;
+            a.vel[0] = 0.0;
+        } else {
+            a.pos[0] = xt;
+            a.pos[2] = zt;
+            a.vel[0] = 0.0;
+            a.vel[2] = 0.0;
+        }
+        // The height came from the move to (x1, z1): where the body is held
+        // back to, it must not be inside a block's box (feet that dropped
+        // past a bank's edge, set back over the ice box they left).
+        if solids.iter().any(|s| s.overlaps(&body_box(a))) {
+            a.pos[1] = from.pos[1];
+            a.vel[1] = a.vel[1].max(0.0);
+            a.grounded = from.grounded;
+        }
+    }
+    let speed = (a.vel[0] * a.vel[0] + a.vel[2] * a.vel[2]).sqrt();
+    let snap = 0.3 + speed * dt * 1.2;
+    if let vox::Ground::Floor(g) = vox::ground(world, a.pos[0], a.pos[2], y + STEP, y - 3.0) {
+        let d = ((a.pos[0] - x0).powi(2) + (a.pos[2] - z0).powi(2)).sqrt();
+        if g > y && from.grounded && !jump && g - y > d * MAX_SLOPE + 0.004 {
+            // Steeper than a walkable slope (the face of a wall): stay put.
+            a.pos[0] = x0;
+            a.pos[2] = z0;
+            a.vel[0] = 0.0;
+            a.vel[2] = 0.0;
+        } else if g > y {
+            // Up onto the surface (a ramp, or landing on it).
+            if g - y > 0.05 {
+                walk.lag -= g - y;
+            }
+            a.pos[1] = g;
+            if a.vel[1] <= 0.0 {
+                a.vel[1] = 0.0;
+                a.grounded = true;
+            }
+        } else if from.grounded && !jump && a.vel[1] <= 0.0 && y - g < snap && {
+            // Never down into a block's box (a bevel is drawn a little
+            // below a built block's top; the box holds the feet there).
+            // `solids` leaves out the frame's floor box, which is where
+            // the feet were, not where they are going.
+            let mut b = *a;
+            b.pos[1] = g;
+            !solids.iter().any(|s| s.overlaps(&body_box(&b)))
+        } {
+            // Down a slope: stay on it rather than hop off each bump.
+            a.pos[1] = g;
+            a.vel[1] = 0.0;
+            a.grounded = true;
+        }
     }
 }
 
@@ -738,7 +1114,12 @@ fn mesh_chunks(
     mesh3d: Query<&Mesh3d>,
 ) {
     let t0 = Instant::now();
-    for c in world.0.take_dirty() {
+    let dirty = if chunks.smooth.is_some() {
+        world.0.take_dirty_smooth()
+    } else {
+        world.0.take_dirty()
+    };
+    for c in dirty {
         if !chunks.queued[c] {
             chunks.queued[c] = true;
             chunks.queue.push(c);
@@ -762,18 +1143,36 @@ fn mesh_chunks(
             .distance_squared(me)
             .total_cmp(&centre(a).distance_squared(me))
     });
-    let mut done = 0;
     while let Some(c) = chunks.queue.pop() {
         chunks.queued[c] = false;
-        let m = vox::mesh_chunk(&world.0, c);
         let o = World::chunk_origin(c);
-        let aabb = Aabb::from_min_max(
-            Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32),
-            Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) + Vec3::splat(CHUNK as f32),
-        );
-        for (pass, data) in [&m.opaque, &m.clear].into_iter().enumerate() {
+        // The smooth surface may bulge a little past the chunk's cells.
+        let lo = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) - Vec3::splat(1.0);
+        let aabb = Aabb::from_min_max(lo, lo + Vec3::splat(CHUNK as f32 + 2.0));
+        let passes: [Option<(Mesh, PassMat)>; 3] = match &chunks.smooth {
+            Some(sm) => {
+                let m = vox::mesh_chunk_smooth(&world.0, c);
+                [
+                    (&m.opaque, PassMat::Smooth(sm.opaque.clone()), false),
+                    (&m.clear, PassMat::Smooth(sm.clear.clone()), true),
+                    (&m.water, PassMat::Smooth(sm.water.clone()), false),
+                ]
+                .map(|(d, mat, clear)| (!d.is_empty()).then(|| (to_smooth_mesh(d, clear), mat)))
+            }
+            None => {
+                let m = vox::mesh_chunk(&world.0, c);
+                [
+                    (!m.opaque.is_empty())
+                        .then(|| (to_mesh(&m.opaque), PassMat::Atlas(chunks.opaque.clone()))),
+                    (!m.clear.is_empty())
+                        .then(|| (to_mesh(&m.clear), PassMat::Atlas(chunks.clear.clone()))),
+                    None,
+                ]
+            }
+        };
+        for (pass, data) in passes.into_iter().enumerate() {
             let old = chunks.ents[c][pass];
-            if data.is_empty() {
+            let Some((mesh, mat)) = data else {
                 if let Some(e) = old {
                     if let Ok(h) = mesh3d.get(e) {
                         meshes.remove(h.0.id());
@@ -782,35 +1181,28 @@ fn mesh_chunks(
                     chunks.ents[c][pass] = None;
                 }
                 continue;
-            }
-            let handle = meshes.add(to_mesh(data));
+            };
+            let handle = meshes.add(mesh);
             match old {
                 Some(e) => {
                     if let Ok(h) = mesh3d.get(e) {
                         meshes.remove(h.0.id());
                     }
-                    commands.entity(e).insert(Mesh3d(handle));
+                    commands.entity(e).insert((Mesh3d(handle), aabb));
                 }
                 None => {
-                    let mat = if pass == 0 {
-                        chunks.opaque.clone()
-                    } else {
-                        chunks.clear.clone()
+                    let mut e = commands.spawn((Mesh3d(handle), Transform::IDENTITY, aabb));
+                    match mat {
+                        PassMat::Atlas(h) => e.insert(MeshMaterial3d(h)),
+                        PassMat::Smooth(h) => e.insert(MeshMaterial3d(h)),
                     };
-                    let mut e = commands.spawn((
-                        Mesh3d(handle),
-                        MeshMaterial3d(mat),
-                        Transform::IDENTITY,
-                        aabb,
-                    ));
-                    if pass == 1 || settings.low {
+                    if pass > 0 || settings.low {
                         e.insert(NotShadowCaster);
                     }
                     chunks.ents[c][pass] = Some(e.id());
                 }
             }
         }
-        done += 1;
         if t0.elapsed().as_secs_f32() * 1000.0 >= budget_ms {
             break;
         }
@@ -822,14 +1214,43 @@ fn mesh_chunks(
             info!("VOXEL spawn ring meshed");
         }
     }
-    let _ = done;
     keys.chunks_meshed = chunks
         .ents
         .iter()
-        .filter(|e| e[0].is_some() || e[1].is_some())
+        .filter(|e| e.iter().any(Option::is_some))
         .count() as u32;
     keys.mesh_q = chunks.queue.len() as u32;
     keys.mesh_ms = t0.elapsed().as_secs_f32() * 1000.0;
+}
+
+/// A chunk pass's material: the block atlas (`?blocks`) or the smooth look.
+enum PassMat {
+    Atlas(Handle<crate::voxel_tex::VoxMat>),
+    Smooth(Handle<crate::voxel_tex::SmoothMat>),
+}
+
+/// A smooth `MeshData` as a Bevy mesh that lives on the GPU only: the
+/// colour carries the material's colour and AO, UV_0 its glow and grassy
+/// values (in the clear pass, its glow and alpha).
+fn to_smooth_mesh(d: &vox::MeshData, clear: bool) -> Mesh {
+    let uv0: Vec<[f32; 2]> = if clear {
+        d.uvs
+            .iter()
+            .zip(&d.mats)
+            .map(|(uv, &m)| [uv[0], crate::voxel_tex::clear_alpha(m)])
+            .collect()
+    } else {
+        d.uvs.clone()
+    };
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, d.positions.clone())
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, d.normals.clone())
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv0)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, d.colors.clone())
+    .with_inserted_indices(Indices::U32(d.indices.clone()))
 }
 
 /// A `MeshData` as a Bevy mesh that lives on the GPU only.
@@ -921,6 +1342,210 @@ mod tests {
         press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), true, 1);
         press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 40);
         assert!(p.pos.y >= 35.99 && p.pos.z < 181.0, "{:?}", p.pos);
+    }
+
+    /// Flat grass at y 34 (feet at 35), and a one-block step of `m` from
+    /// x 40 on (feet at 36).
+    fn step_world(m: u8) -> World {
+        let mut w = World::new();
+        for z in 0..64 {
+            for x in 0..64 {
+                for y in 0..=34 {
+                    w.set([x, y, z], Cell::new(vox::mat::GRASS));
+                }
+                if x >= 40 {
+                    w.set([x, 35, z], Cell::new(m));
+                }
+            }
+        }
+        w
+    }
+
+    #[test]
+    fn w_walks_up_a_grassy_terrace_ramp_and_the_feet_stay_on_the_drawn_ground() {
+        let world = step_world(vox::mat::GRASS);
+        let mut p = Player {
+            pos: Vec3::new(34.5, 35.0, 20.5),
+            // Facing +x.
+            yaw: -std::f32::consts::FRAC_PI_2,
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        let mut worst = 0f32;
+        for _ in 0..180 {
+            press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 1);
+            if let vox::Ground::Floor(g) =
+                vox::ground(&world, p.pos.x, p.pos.z, p.pos.y + 1.0, p.pos.y - 2.0)
+            {
+                worst = worst.max((p.pos.y - g).abs());
+            }
+        }
+        assert!(p.pos.x > 44.0, "walked up the ramp: {:?}", p.pos);
+        assert!(
+            (p.pos.y - 36.0).abs() < 0.01,
+            "on the upper ground: {:?}",
+            p.pos
+        );
+        assert!(worst < 0.15, "feet off the drawn ground by {worst}");
+    }
+
+    #[test]
+    fn w_stops_at_a_brick_step_and_a_grass_wall_two_blocks_high() {
+        let world = step_world(vox::mat::BRICK);
+        let mut p = Player {
+            pos: Vec3::new(34.5, 35.0, 20.5),
+            yaw: -std::f32::consts::FRAC_PI_2,
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        let top = press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 180);
+        assert!(top < 35.2 && p.pos.x < 40.0, "{top} {:?}", p.pos);
+        let mut world = step_world(vox::mat::GRASS);
+        for z in 0..64 {
+            for x in 40..64 {
+                world.set([x, 36, z], Cell::new(vox::mat::GRASS));
+            }
+        }
+        let mut p = Player {
+            pos: Vec3::new(34.5, 35.0, 20.5),
+            yaw: -std::f32::consts::FRAC_PI_2,
+            grounded: true,
+            ..Player::default()
+        };
+        let mut top = 0f32;
+        for _ in 0..180 {
+            top = top.max(press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 1));
+        }
+        // Up the ramp of the first block, then stopped by the second.
+        assert!(top < 36.5 && p.pos.x < 40.0, "{top} {:?}", p.pos);
+    }
+
+    #[test]
+    fn w_with_space_climbs_the_kiln_terrace_steps() {
+        // The golden's E3 walk: W held, Space every 0.6 s, from the plaza.
+        let world = vox::generate(vox::DEFAULT_SEED);
+        let mut p = Player {
+            pos: Vec3::new(128.5, 35.0, 187.5),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        for f in 0..600 {
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump: f > 0 && f % 36 == 0,
+            };
+            walk(&mut p, &mut w, &world, input, 1.0 / 60.0);
+        }
+        assert!(p.pos.z < 176.0 && p.pos.y > 40.9, "{:?}", p.pos);
+        // The same at 4 frames a second (a software GPU, long frames).
+        let mut p = Player {
+            pos: Vec3::new(128.5, 35.0, 187.5),
+            grounded: true,
+            ..Player::default()
+        };
+        for f in 0..100 {
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump: f > 0 && f % 3 == 0,
+            };
+            walk(&mut p, &mut w, &world, input, 0.25);
+        }
+        assert!(p.pos.z < 176.0 && p.pos.y > 40.9, "at 4 fps: {:?}", p.pos);
+    }
+
+    #[test]
+    fn feet_inside_a_hill_come_up_on_its_surface_and_walk_off_it() {
+        // The golden's ford check: `tp 128.5 35 163.5` is inside the
+        // village's rise above the ford (its top is y 41 there).
+        let world = vox::generate(vox::DEFAULT_SEED);
+        let mut p = Player {
+            pos: Vec3::new(128.5, 35.0, 163.5),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        press(&mut p, &mut w, &world, Vec2::ZERO, false, 2);
+        assert!((p.pos.y - 41.0).abs() < 0.2, "on the top: {:?}", p.pos);
+        // W walks off the edge and down the bank to the water's edge.
+        for _ in 0..480 {
+            press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 1);
+            if p.pos.z < 158.7 {
+                break;
+            }
+        }
+        press(&mut p, &mut w, &world, Vec2::ZERO, false, 90);
+        assert!(p.pos.z < 158.9 && p.pos.y < 33.1, "{:?}", p.pos);
+    }
+
+    #[test]
+    fn a_long_frame_down_the_ford_bank_keeps_the_feet_on_it() {
+        // The ford's mouth once its gate has sunk: one 0.25 s frame from
+        // the bank's ramp lands on the ground, not a metre above it.
+        let mut world = vox::generate(vox::DEFAULT_SEED);
+        let cells = crate::gates::build(&mut world, &crate::gates::GATES[0]);
+        crate::gates::open(&mut world, &cells);
+        let mut p = Player {
+            pos: Vec3::new(128.5, 33.59, 159.35),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        let input = crate::player::MoveInput {
+            wish: Vec2::new(0.0, 1.0),
+            sprint: false,
+            jump: false,
+        };
+        walk(&mut p, &mut w, &world, input, 0.25);
+        let vox::Ground::Floor(g) = vox::ground(&world, p.pos.x, p.pos.z, 36.0, 28.0) else {
+            panic!("no ground at {:?}", p.pos);
+        };
+        assert!(
+            p.pos.z < 158.5 && (p.pos.y - g).abs() < 0.05,
+            "{:?} ground {g}",
+            p.pos
+        );
+    }
+
+    #[test]
+    fn long_frames_on_a_frozen_ford_stay_on_the_ice_at_the_far_bank() {
+        // The ford frozen (its top water layer is ice at y 30); W at 4 fps
+        // from the ice toward the far bank, Space now and then: the body
+        // never drops into the ice or is thrown back across it.
+        let mut world = vox::generate(vox::DEFAULT_SEED);
+        for z in 150..158 {
+            for x in 120..136 {
+                if world.get([x, 30, z]).mat == vox::mat::WATER {
+                    world.set([x, 30, z], realgame_voxel::Cell::new(vox::mat::ICE));
+                }
+            }
+        }
+        let mut p = Player {
+            pos: Vec3::new(128.5, 31.0, 151.5),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        for f in 0..40 {
+            let z0 = p.pos.z;
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump: f % 5 == 4,
+            };
+            walk(&mut p, &mut w, &world, input, 0.25);
+            assert!(p.pos.z <= z0 + 0.01, "thrown back: {z0} -> {:?}", p.pos);
+            assert!(p.pos.y > 30.99, "into the ice: {:?}", p.pos);
+        }
+        assert!(
+            p.pos.z < 148.5 && p.pos.y > 32.9,
+            "up the far bank: {:?}",
+            p.pos
+        );
     }
 
     #[test]

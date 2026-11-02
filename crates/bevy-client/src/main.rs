@@ -35,6 +35,7 @@ mod motion;
 mod player;
 mod powers;
 mod progress;
+mod sky;
 mod spells;
 mod story;
 mod tuning;

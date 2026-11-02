@@ -21,6 +21,7 @@ pub mod gen;
 pub mod materials;
 pub mod mesh;
 pub mod raycast;
+pub mod smooth;
 pub mod stamp;
 
 pub use collide::{ice_boxes, solid_boxes};
@@ -28,6 +29,7 @@ pub use diff::DiffLog;
 pub use gen::{biome_at, generate, spawn_for};
 pub use mesh::{mesh_chunk, ChunkMesh, MeshData};
 pub use raycast::{raycast, Hit, RayMode};
+pub use smooth::{ground, mesh_chunk_smooth, Ground, SmoothMesh};
 pub use stamp::Aabb;
 
 /// Cells along each edge of a chunk.
@@ -242,6 +244,10 @@ impl Chunk {
 pub struct World {
     chunks: Vec<Chunk>,
     dirty: Vec<bool>,
+    /// Chunks whose smooth mesh a change of material or liquid level
+    /// reached (`smooth::MARGIN` cells around the cell, so diagonal
+    /// neighbours too), and replaced chunks.
+    near: Vec<bool>,
     protected: Vec<Aabb>,
     /// The generation seed (`generate`); 0 for `World::new`.
     pub seed: u64,
@@ -260,6 +266,7 @@ impl World {
         World {
             chunks: vec![Chunk::Uniform(Cell::AIR); n],
             dirty: vec![false; n],
+            near: vec![false; n],
             protected: Vec::new(),
             seed: 0,
         }
@@ -321,11 +328,35 @@ impl World {
             return;
         };
         let i = World::cell_index(p);
-        if self.chunks[c].get(i) == cell {
+        let old = self.chunks[c].get(i);
+        if old == cell {
             return;
         }
         self.chunks[c].set(i, cell);
         self.dirty[c] = true;
+        // The smooth surface reads only the material and the liquid level:
+        // a change of temperature or state (a burning block heating its
+        // neighbours ten times a second) leaves it as it is.
+        if old.mat == cell.mat && old.level() == cell.level() {
+            self.edge_dirty(p);
+            return;
+        }
+        let m = smooth::MARGIN;
+        let lo = p.map(|v| v - m);
+        let hi = p.map(|v| v + m);
+        for cz in lo[2].max(0) / CHUNK..=(hi[2].min(WORLD[2] - 1) / CHUNK) {
+            for cy in lo[1].max(0) / CHUNK..=(hi[1].min(WORLD[1] - 1) / CHUNK) {
+                for cx in lo[0].max(0) / CHUNK..=(hi[0].min(WORLD[0] - 1) / CHUNK) {
+                    self.near[(cx + CHUNKS[0] * (cy + CHUNKS[1] * cz)) as usize] = true;
+                }
+            }
+        }
+        self.edge_dirty(p);
+    }
+
+    /// Marks the chunks across the faces cell `p` touches dirty (their
+    /// block meshes show its faces).
+    fn edge_dirty(&mut self, p: [i32; 3]) {
         for a in 0..3 {
             let local = p[a].rem_euclid(CHUNK);
             for (edge, d) in [(0, -1), (CHUNK - 1, 1)] {
@@ -349,6 +380,7 @@ impl World {
     pub fn put_chunk(&mut self, i: usize, chunk: Chunk) {
         self.chunks[i] = chunk;
         self.dirty[i] = true;
+        self.near[i] = true;
     }
 
     /// The dirty chunks, in index order.
@@ -360,6 +392,17 @@ impl World {
     pub fn take_dirty(&mut self) -> Vec<usize> {
         let out = self.dirty_chunks();
         self.dirty.iter_mut().for_each(|d| *d = false);
+        out
+    }
+
+    /// The chunks whose smooth mesh is out of date (every chunk within
+    /// `smooth::MARGIN` cells of a change of material or liquid level, and
+    /// every replaced chunk), in index order, clearing this set and the
+    /// dirty set.
+    pub fn take_dirty_smooth(&mut self) -> Vec<usize> {
+        let out = (0..self.near.len()).filter(|&i| self.near[i]).collect();
+        self.dirty.iter_mut().for_each(|d| *d = false);
+        self.near.iter_mut().for_each(|d| *d = false);
         out
     }
 
