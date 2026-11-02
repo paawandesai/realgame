@@ -5255,7 +5255,8 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
       if (flat([s.pos[0], s.pos[2]], [x, z]) <= near) break;
       if (++k % 6 === 0) await cmd(`face ${x} ${s.pos[1] + 1.5} ${z}`);
       // A player jumps up a one-block step (W alone does not climb).
-      if (hop && k % 5 === 0) { await page.keyboard.down('Space'); await sleep(90); await page.keyboard.up('Space'); }
+      // Held long enough that a slow frame (about 0.4 s headless) sees it.
+      if (hop && k % 5 === 0) { await page.keyboard.down('Space'); await sleep(450); await page.keyboard.up('Space'); }
     }
     await page.keyboard.up('w');
     return until((v) => v.frame > s.frame + 1, 5000);
@@ -5348,7 +5349,12 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   // ---- P1: walk to the workshop door and put the fire out.
   const line1 = (await st()).questLine;
   const b0 = (await st()).burning;
-  s = await walkTo(142.5, 197.0, 0.4);
+  s = await walkTo(142.5, 197.0, 1.0);
+  // The walk stops within a metre (frames are slow); the arc's landing
+  // moves with the player, so the last step is a debug tp onto the spot the
+  // aims below are planned from.
+  await cmd('tp 142.5 35 197');
+  s = await until((x) => Math.abs(x.pos[0] - 142.5) < 0.05 && Math.abs(x.pos[2] - 197) < 0.05, 10000);
   await page.evaluate(() => document.getElementById('game').focus());
   await page.keyboard.press('2');
   await until((x) => x.spell === 1, 10000);
@@ -5365,7 +5371,9 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     if (x.burning === 0) break;
     // Water flies an arc: aimed level through the door it drops onto the
     // floor, so the player lobs it over the low wall into the open roof,
-    // onto the store's top (front middle, then back left).
+    // onto the store's top (front middle, then back left). These aims from
+    // (142.5, 35, 197) are the ones the client test
+    // a_lobbed_water_arc_from_the_plaza_puts_the_workshop_out plans.
     await cmd(k % 2 === 0 ? 'face 142.5 40.0 189.0' : 'face 141.5 40.5 188.5');
     await frames(2);
     const r = await workedPress('H2O(l)');
@@ -5481,8 +5489,8 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     frosts.push(await press());
     const c = await probe(128, 30, Math.floor(ahead));
     if (!iced && c && c.mat === 'ice') iced = c;
-    // Step onto the new ice (or the far bank).
-    s = await walkTo(128.5, Math.max(147.5, s.pos[2] - 1.6), 0.3, 8000);
+    // Step onto the new ice (or up the far bank's first step).
+    s = await walkTo(128.5, Math.max(147.5, s.pos[2] - 1.6), 0.3, 8000, true);
   }
   // Up the far bank's step.
   s = await walkTo(128.5, 146.5, 0.5, 20000, true);
