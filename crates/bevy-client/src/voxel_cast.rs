@@ -109,7 +109,18 @@ fn plan(
         ballistics::Motion::Arc { reach } => {
             let v0 = forward * ballistics::launch_speed(reach);
             let (end, t) = match blocks {
-                Some(w) => match land(w, hand.to_array(), v0.to_array(), STEP_S, MAX_FLIGHT_S) {
+                Some(w) => match land_in(
+                    w,
+                    hand.to_array(),
+                    v0.to_array(),
+                    STEP_S,
+                    MAX_FLIGHT_S,
+                    if spell == Spell::Water as u8 {
+                        stops_water
+                    } else {
+                        stops
+                    },
+                ) {
                     Some(l) => (Some(landed(l)), l.t),
                     None => (None, MAX_FLIGHT_S),
                 },
@@ -387,6 +398,25 @@ pub fn stops(m: u8) -> bool {
 /// chord is walked cell by cell (a 3D DDA), so a thin wall between two
 /// samples is still hit; leaving the world's bottom counts as no landing.
 pub fn land(world: &World, hand: [f32; 3], v0: [f32; 3], dt: f32, max_t: f32) -> Option<Landing> {
+    land_in(world, hand, v0, dt, max_t, stops)
+}
+
+/// What stops a Water arc (round 2, P1): as `stops`, but water lets it
+/// through, since water poured into a puddle runs on to what is under it
+/// (the last cast's water on a burning store must not catch the next one).
+pub fn stops_water(m: u8) -> bool {
+    m != mat::WATER && stops(m)
+}
+
+/// `land`, with `stop` deciding which cells stop the arc.
+pub fn land_in(
+    world: &World,
+    hand: [f32; 3],
+    v0: [f32; 3],
+    dt: f32,
+    max_t: f32,
+    stop: fn(u8) -> bool,
+) -> Option<Landing> {
     let p0 = Vec3::from(hand);
     let v = Vec3::from(v0);
     let mut a = p0;
@@ -394,7 +424,7 @@ pub fn land(world: &World, hand: [f32; 3], v0: [f32; 3], dt: f32, max_t: f32) ->
     while t < max_t {
         let t1 = (t + dt).min(max_t);
         let b = ballistics::at(p0, v, t1);
-        if let Some((cell, normal, f)) = walk(world, a, b) {
+        if let Some((cell, normal, f)) = walk_in(world, a, b, stop) {
             let pos = a + (b - a) * f;
             return Some(Landing {
                 cell,
@@ -416,6 +446,15 @@ pub fn land(world: &World, hand: [f32; 3], v0: [f32; 3], dt: f32, max_t: f32) ->
 /// first one that stops a spell, the face it entered by, and how far along
 /// the segment (0-1) it entered.
 fn walk(world: &World, a: Vec3, b: Vec3) -> Option<([i32; 3], [i8; 3], f32)> {
+    walk_in(world, a, b, stops)
+}
+
+fn walk_in(
+    world: &World,
+    a: Vec3,
+    b: Vec3,
+    stop: fn(u8) -> bool,
+) -> Option<([i32; 3], [i8; 3], f32)> {
     let d = b - a;
     let mut c = a.floor().as_ivec3();
     let end = b.floor().as_ivec3();
@@ -453,7 +492,7 @@ fn walk(world: &World, a: Vec3, b: Vec3) -> Option<([i32; 3], [i8; 3], f32)> {
         c[i] += step[i];
         tmax[i] += delta[i];
         let p = c.to_array();
-        if World::in_bounds(p) && stops(world.get(p).mat) {
+        if World::in_bounds(p) && stop(world.get(p).mat) {
             let mut n = [0i8; 3];
             n[i] = -step[i] as i8;
             return Some((p, n, f));
@@ -565,6 +604,45 @@ mod workshop_arc {
         p.pitch = d.y.asin();
         let hand = p.eye() + p.rotation() * Vec3::new(0.2, -0.15, -0.5);
         plan(Some(w), 1, hand, p.forward(), held).2
+    }
+
+    /// The last cast's water still lies on the store (on a slow frame the
+    /// sim has had few steps to run it off): the next Water arc goes into
+    /// that puddle and lands on the burning block under it, not on the
+    /// water's surface. Frost still stops at water (the ford).
+    #[test]
+    fn a_water_arc_lands_through_a_puddle_on_the_store() {
+        let mut w = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
+        for aim in [Vec3::new(142.5, 40.0, 189.0), Vec3::new(141.5, 40.5, 188.5)] {
+            let dry = shot(&w, aim, 0.0).expect("lands");
+            let c = dry.cell.unwrap();
+            let n = dry.normal.map(i32::from);
+            // Water standing on the face the arc comes in by, and above it.
+            for k in 1..=2 {
+                let q = [c[0] + n[0] * k, c[1] + n[1] * k, c[2] + n[2] * k];
+                if w.get(q).mat == mat::AIR {
+                    w.set(q, realgame_voxel::Cell::new(mat::WATER));
+                }
+            }
+            let up = [c[0] + n[0], c[1] + n[1] + 1, c[2] + n[2]];
+            if w.get(up).mat == mat::AIR {
+                w.set(up, realgame_voxel::Cell::new(mat::WATER));
+            }
+            let wet = shot(&w, aim, 0.0).expect("lands");
+            assert_eq!(wet.cell, Some(c), "through the puddle: {dry:?} -> {wet:?}");
+        }
+        let mut p = crate::player::Player {
+            pos: Vec3::new(128.5, 32.0, 159.5),
+            ..Default::default()
+        };
+        p.pitch = -0.6;
+        let hand = p.eye() + p.rotation() * Vec3::new(0.2, -0.15, -0.5);
+        let frost = plan(Some(&w), 2, hand, p.forward(), 0.0).2.expect("lands");
+        assert_eq!(
+            w.get(frost.cell.unwrap()).mat,
+            mat::WATER,
+            "frost stops at the ford's water"
+        );
     }
 
     #[test]
