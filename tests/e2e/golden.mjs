@@ -6034,7 +6034,19 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
     spawn: [128.5, 205.5], bench: [124.5, 202], workshop: [142.5, 197], fordGate: [128.5, 163.5], fordFar: [128.5, 146.5],
     iceGate: [60, 96], coal: [80.5, 71.5], marshGate: [127.5, 70.5], hollow: [192.5, 99.5], caveMouth: [220, 58],
     rig: [231.5, 27.2], crate: [239.6, 19.4], kilnDoor: [128.5, 174.5], invention: [132.5, 202.5],
+    // The field Benches (bench.rs FIELD_STATIONS): the ford approach and the Marsh gate.
+    fordBench: [146.5, 162.5], marshBench: [118.5, 70.5],
   };
+  // At a field Bench: stand beside it and check its button lights.
+  const atField = async (x, z) => {
+    await cmd(`tp ${x + 1.5} 50 ${z}`);
+    await until((v) => Math.abs(v.pos[0] - x - 1.5) < 0.3 && Math.abs(v.pos[2] - z) < 0.3, 15000);
+    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(200)) {
+      if (await page.evaluate(() => { try { return JSON.parse(window.__benchState || 'null').atBench === true; } catch { return false; } })) return true;
+    }
+    return false;
+  };
+  const benches = [];
   const walkS = (...pts) => {
     let m = 0;
     for (let i = 1; i < pts.length; i++) m += Math.hypot(P[pts[i]][0] - P[pts[i - 1]][0], P[pts[i]][1] - P[pts[i - 1]][1]);
@@ -6086,9 +6098,11 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   await until((x) => Math.abs(x.pos[0] - 142.5) < 0.3 && Math.abs(x.pos[2] - 192.6) < 0.3, 15000);
   await frames(3);
   await key('2', 1);
-  for (let k = 0; k < 40; k++) {
+  let fireCasts = 0;
+  for (let k = 0; k < 12; k++) {
     const v0 = await st();
-    if (v0.quest >= 2) break;
+    if (v0.quest >= 2 || v0.burning === 0) break;
+    fireCasts++;
     // Aim at the nearest fire, as a player does (the HUD's fire finder).
     if (v0.nearFire >= 0) {
       await cmd(`look ${(v0.yaw * 180 / Math.PI - v0.fireBearing).toFixed(1)} ${(v0.pitch * 180 / Math.PI + v0.fireElev).toFixed(1)}`);
@@ -6100,8 +6114,8 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
     if (process.env.PT_DEBUG) { const v = await st(); console.log(`    fire cast ${k}: ok=${ok} near=${v0.nearFire} bearing=${v0.fireBearing} elev=${v0.fireElev} casts=${v.casts} impacts=${v.impacts} burning=${v.burning} pos=${v.pos} spell=${v.spell} hot=${v.hot} locked=${v.locked} paused=${v.paused} cd=${v.cooldown} caption=${v.caption}`); }
   }
   s = await until((x) => x.burning === 0 && x.quest >= 2, 60000);
-  step('1 workshop fire (Water)', s.quest === 2, ['spawn', 'bench', 'workshop'],
-    [['learn Water', LEARN], ['first-lift detour', 30], ['put the fire out', 5 * CAST]], `quest ${s.quest} burning ${s.burning}`);
+  step('1 workshop fire (Water)', s.quest === 2 && fireCasts <= 6, ['spawn', 'bench', 'workshop'],
+    [['learn Water', LEARN], ['first-lift detour', 30], ['put the fire out', 5 * CAST]], `quest ${s.quest} burning ${s.burning} casts ${fireCasts}`);
 
   // 2. The ford: practise Water at its gate if needed, learn Frost, freeze across.
   await cmd('tp 128.5 35 163.5');
@@ -6117,25 +6131,40 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
       await press();
     }
   }
+  // Learn Frost (and Fire, for the gate beyond) at the ford's field Bench.
+  benches.push(['ford', await atField(146.5, 162.5)]);
   await cmd('prog learn 2');
+  await cmd('prog learn 0');
+  await cmd('tp 128.5 35 163.5');
+  await until((x) => Math.abs(x.pos[2] - 163.5) < 0.3 && Math.abs(x.pos[0] - 128.5) < 0.3, 15000);
   s = await walkTo(128.5, 158.7, 0.35, 30000);
   await key('3', 2);
-  for (let k = 0; k < 16; k++) {
+  for (let k = 0; k < 24; k++) {
     s = await st();
-    if (s.pos[2] < 149.6) break;
-    const ahead = Math.max(146.5, s.pos[2] - 2.6);
+    if (process.env.PT_DEBUG) {
+      console.log(`    ford cast ${k}: z ${s.pos[2].toFixed(2)} y ${s.pos[1].toFixed(2)} x ${s.pos[0].toFixed(2)} spell ${s.spell}`);
+    }
+    // On the far bank's ice: walk off it.
+    if (s.pos[2] < 150.6) break;
+    // Aim at the nearest open water ahead, as a player does (a cast that
+    // lands further on can leave a gap at their feet).
+    let ahead = Math.max(146.5, s.pos[2] - 2.6);
+    for (let d = 0; d <= 3; d++) {
+      const zc = Math.floor(s.pos[2] - 0.6) - d;
+      const c = await probe(128, 30, zc);
+      if (c && c.mat === 'water') { ahead = zc + 0.5; break; }
+    }
     await cmd(`face 128.5 30.9 ${ahead.toFixed(2)}`);
     await frames(2);
     await press();
     s = await walkTo(128.5, Math.max(147.5, s.pos[2] - 1.6), 0.3, 8000);
   }
-  await walkTo(128.5, 146.5, 0.5, 20000, true);
-  s = await until((x) => x.quest >= 3, 15000);
-  step('2 the ford (Frost)', s.quest === 3, ['workshop', 'fordGate', 'bench', 'fordGate', 'fordFar'],
-    [['practise Water at the gate', 3 * CAST], ['learn Frost', LEARN], ['freeze and cross', 8 * CAST]], `quest ${s.quest} z ${s.pos[2].toFixed(1)}`);
+  await walkTo(128.5, 146.5, 0.5, 60000, true);
+  s = await until((x) => x.quest >= 3, 30000);
+  step('2 the ford (Frost)', s.quest === 3, ['workshop', 'fordBench', 'fordGate', 'fordFar'],
+    [['practise Water at the gate', 3 * CAST], ['learn Frost at the ford Bench', LEARN], ['learn Fire there too', LEARN], ['freeze and cross', 8 * CAST]], `quest ${s.quest} z ${s.pos[2].toFixed(1)}`);
 
-  // 3. The ice gate: learn Fire, melt it.
-  await cmd('prog learn 0');
+  // 3. The ice gate: melt it with Fire.
   await cmd('tp 60 34 96.0');
   await cmd('face 60 37.5 93.5');
   await until((x) => Math.abs(x.pos[2] - 96) < 0.3, 10000);
@@ -6150,8 +6179,8 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
     await press();
   }
   s = await until((x) => x.quest >= 4, 30000);
-  step('3 the ice gate (Fire)', s.quest === 4, ['fordFar', 'bench', 'fordFar', 'iceGate'],
-    [['learn Fire', LEARN], ['melt the gate', 4 * CAST]], `quest ${s.quest}`);
+  step('3 the ice gate (Fire)', s.quest === 4, ['fordFar', 'iceGate'],
+    [['melt the gate', 4 * CAST]], `quest ${s.quest}`);
 
   // 4. Dig coal with the Pick (a real dig, held).
   await cmd('tp 80.5 42 71.5');
@@ -6175,6 +6204,8 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   await key('3', 2);
   await cmd('look 0 -40');
   for (let k = 0; k < 3; k++) await press();
+  // Learn CO2 at the Marsh gate's field Bench.
+  benches.push(['marsh', await atField(118.5, 70.5)]);
   await cmd('prog learn 3');
   await cmd('tp 192.5 28.2 99.5');
   await until((x) => Math.abs(x.pos[0] - 192.5) < 0.3, 10000);
@@ -6196,8 +6227,8 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   await frames(2);
   for (let k = 0; k < 6; k++) { if ((await st()).quest >= 6) break; await press(); await until((x) => x.gameTime >= 0, 500); }
   s = await until((x) => x.ventsLit === 0 && x.quest >= 6, 90000);
-  step('5 the methane hollow (CO2)', s.quest === 6, ['coal', 'marshGate', 'bench', 'marshGate', 'hollow'],
-    [['practise Frost at the Marsh gate', 3 * CAST], ['learn CO2', LEARN], ['gather and place a block in the gap', 25], ['pour CO2, wait for it to pool', 30]],
+  step('5 the methane hollow (CO2)', s.quest === 6, ['coal', 'marshBench', 'marshGate', 'hollow'],
+    [['learn CO2 at the Marsh Bench (on the way)', LEARN], ['practise Frost at the Marsh gate', 3 * CAST], ['gather and place a block in the gap', 25], ['pour CO2, wait for it to pool', 30]],
     `quest ${s.quest} vents ${s.ventsLit}`);
 
   // 6. The Crystal Cave: a torch, the rig, the H2 balloon lifts the Spark down.
@@ -6216,8 +6247,8 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   L = await untilLate((x) => x.crate.state === 'loaded', 180000);
   await page.keyboard.press('KeyE');
   s = await until((x) => packN(x, 'kiln_spark') === 1 && x.quest === 7, 15000);
-  step('6 the Crystal Cave (torch, rig, H2 balloon)', s.quest === 7, ['hollow', 'bench', 'caveMouth', 'rig', 'crate'],
-    [['make a torch at the Bench', 30], ['find the rig in the dark', 30], ['run the rig', 10], ['choose a gas (a wrong try)', 25], ['the crate rises and comes back', 15]],
+  step('6 the Crystal Cave (torch, rig, H2 balloon)', s.quest === 7, ['hollow', 'marshBench', 'caveMouth', 'rig', 'crate'],
+    [['make a torch at the Marsh Bench', 30], ['find the rig in the dark', 30], ['run the rig', 10], ['choose a gas (a wrong try)', 25], ['the crate rises and comes back', 15]],
     `quest ${s.quest} spark ${packN(s, 'kiln_spark')}`);
 
   // 7. Home: the Kiln door, the Invention Bench, the ending card.
@@ -6257,6 +6288,8 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
       && mOff.playing === false && saved === 'off' && mOn.playing === true,
     `biomes ${[...biomes].join(',')} stings ${mEnd.stings} biome ${mEnd.biome} off ${mOff.playing}/${saved} on ${mOn.playing}`);
 
+  check('playthrough: the field Benches at the ford approach and the Marsh gate light the Bench button',
+    benches.length === 2 && benches.every((b) => b[1]), JSON.stringify(benches));
   const total = rows.reduce((a, r) => a + r.est, 0);
   const walked = rows.reduce((a, r) => a + r.walk, 0);
   console.log(`  playthrough: estimated new-player time ${Math.floor(total / 60)} min ${Math.round(total % 60)} s (walking ${walked} m); scripted run ${rows.reduce((a, r) => a + r.wall, 0).toFixed(0)} s`);

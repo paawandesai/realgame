@@ -277,6 +277,7 @@ pub fn plugin(app: &mut App) {
 /// its emit, then at most one matter step runs on the block world. The
 /// cells it sets dirty their chunks, which `voxel_view` remeshes on the next
 /// frame; its events go out as `crate::MatterEvent`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn drive(
     time: Res<Time>,
     player: Res<crate::player::Player>,
@@ -285,6 +286,7 @@ pub(crate) fn drive(
     mut keys: ResMut<Keys>,
     mut landed: MessageReader<crate::SpellLanded>,
     mut out: MessageWriter<crate::MatterEvent>,
+    game: Option<Res<crate::Game>>,
 ) {
     for l in landed.read() {
         // A spell that hit nothing (zero normal) has no face to land on.
@@ -295,7 +297,13 @@ pub(crate) fn drive(
         matter.world.emit(on_impact(l.spell, l.pos, n));
     }
     let now = time.elapsed_secs();
-    let dt = crate::clock::frame_dt(time.delta_secs());
+    // break-2 B1: the world holds while the game is paused (the formula
+    // builder, the pack, the pause card), so a fire does not burn on.
+    let dt = if game.is_some_and(|g| g.paused) {
+        0.0
+    } else {
+        crate::clock::frame_dt(time.delta_secs())
+    };
     let mut events = Vec::new();
     matter.tick(&mut vox.0, now, dt, player.pos, &mut keys, &mut events);
     for e in events {

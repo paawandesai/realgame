@@ -72,24 +72,30 @@ Not touched: `gen.rs`, mesh and shader files.
   click (checked in the playthrough: `started` false before, Village theme playing after the first click).
 - **Golden `playthrough`** (`ONLY=playthrough`, not in the default run): spawn to the ending card on one page with no
   `quest <n>`; stand-ins are `tp`, `prog learn`, `give torch` and `give dirt` (each tested elsewhere). It logs an
-  estimated new-player time per step. **Status:** on this sandbox (0.5-2 fps headless) the intro, music, workshop
-  fire and ford steps have each passed, but the workshop fire is flaky (the fire spreads by a varying amount
-  before the casts start and the scripted aim misses the spread cells; one run needed 4 casts, another failed after
-  40), so the whole run has not yet gone green end to end.
+  estimated new-player time per step. **Status:** green end to end on this sandbox (0.5-2 fps headless, about
+  40 min wall time): every quest step, the field Benches, the music checks and the estimate check pass.
+- **Field Benches** (`bench::FIELD_STATIONS`, stamped by `powers::stamp_field_bench`): small stone shrines with
+  runestone corner posts on levelled ground, at the ford approach (146.5, 162.5, Village bank) and the Marsh gate
+  (118.5, 70.5, Frozen side). Each teaches anything, like the Plaza Bench. Native test: flat ground, clear of
+  every protected box, the bench lights beside it, and you can walk up to it.
+- **Workshop fire** (`firebreak.rs`): the fire is a puzzle, never a soft-lock. When the world loads, every
+  flammable block within 4 of the workshop except its fuel store is made fireproof (wood posts to brick, the
+  plank workbench to stone, grass to dirt), so the fire can never spread to the walls or the plaza. A Water
+  cast that lands within 5 m of the fire also lands on the nearest burning block, so every cast wins ground.
+  Native tests: in 6000 steps only the store burns; from five landing spots and four burn times it always
+  goes out in under 5 casts, each cast puts out some of it, and it stays out. In the playthrough: 3 casts.
 - **Estimate** (walking model: straight line × 1.3 at 4 m/s, plus task allowances in the script):
 
   | Step | Walk | Est. |
   |---|---|---|
   | Intro | 0 m | 25 s |
   | 1 Workshop fire (learn Water) | 31 m | 113 s |
-  | 2 Ford (back to the Bench for Frost) | 170 m | 153 s |
-  | 3 Ice gate (back over the ford for Fire) | 255 m | 133 s |
+  | 2 Ford (Frost and Fire at the ford Bench) | 91 m | 179 s |
+  | 3 Ice gate | 111 m | 52 s |
   | 4 Coal | 42 m | 35 s |
-  | 5 Hollow (Marsh gate, back to the Bench for CO2) | 496 m | 242 s |
-  | 6 Cave (torch at the Bench, the rig, the crate) | 442 m | 220 s |
+  | 5 Hollow (CO2 at the Marsh Bench on the way) | 154 m | 156 s |
+  | 6 Cave (torch at the Marsh Bench, the rig, the crate) | 294 m | 183 s |
   | 7 Kiln (door, Invention Bench, ending) | 286 m | 156 s |
-  | **Total** | **1721 m** | **18.0 min** |
+  | **Total** | **1009 m** | **15.0 min** |
 
-  A player who learns all four spells at the first Bench visit walks 1134 m: **15.0 min**. The overrun is the
-  Formula Bench round trips (about 590 m). A second Bench near the ford or the Marsh gate (or learning at any
-  Bench once seen) would bring the objective-following path to about 14-15 min.
+  Before the field Benches it was 1721 m and 18.0 min (Bench round trips).

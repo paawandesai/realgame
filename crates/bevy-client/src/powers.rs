@@ -410,6 +410,30 @@ pub fn stamp(w: &mut World, site: Site) -> Built {
     }
 }
 
+/// A field Bench: a Formula Bench block on a 5×5 stone floor with four
+/// runestone posts, levelled flat and protected. Returns its ground height.
+pub fn stamp_field_bench(w: &mut World, at: (f32, f32)) -> i32 {
+    let c = [at.0.floor() as i32, at.1.floor() as i32];
+    let h = ground(w, c[0], c[1]);
+    level(w, c, h, 2, 0, mat::GRASS);
+    for dz in -2..=2 {
+        for dx in -2..=2 {
+            w.set([c[0] + dx, h - 1, c[1] + dz], Cell::new(mat::STONE));
+        }
+    }
+    for (dx, dz) in [(-2, -2), (2, -2), (-2, 2), (2, 2)] {
+        for y in h..h + 2 {
+            w.set([c[0] + dx, y, c[1] + dz], Cell::new(mat::RUNESTONE));
+        }
+    }
+    w.set([c[0], h, c[1]], Cell::new(mat::BENCH));
+    w.protect(Aabb {
+        min: [c[0] - 2, h - 2, c[1] - 2],
+        max: [c[0] + 3, h + 3, c[1] + 3],
+    });
+    h
+}
+
 /// True when the player is close enough to take the orb.
 pub fn touches(player: &Player, orb: Vec3) -> bool {
     let body = player.pos + Vec3::Y * 0.9;
@@ -779,6 +803,9 @@ pub fn plugin(app: &mut App) {
     if let Some(mut w) = app.world_mut().get_resource_mut::<VoxWorld>() {
         for s in SITES {
             pw.built.push(stamp(&mut w.0, s));
+        }
+        for at in crate::bench::FIELD_STATIONS {
+            stamp_field_bench(&mut w.0, at);
         }
     }
     app.insert_resource(pw)
@@ -1193,7 +1220,7 @@ mod tests {
         use Stage::*;
         let mut pw = Powers::default();
         pw.rerank([Unknown; 4], 0, [false; 4]);
-        assert!(pw.rerank([Unknown, Learning, Unknown, Unknown], 1, [false; 4]) == false);
+        assert!(!pw.rerank([Unknown, Learning, Unknown, Unknown], 1, [false; 4]));
         assert_eq!(pw.guide, GUIDE_S);
         // Each step of the moment says what to do next.
         assert!(guide_line(Learning, false, 12.0, false, true).contains("Press 2"));
@@ -1217,6 +1244,60 @@ mod tests {
         pw.found[0] = true;
         assert!(pw.rerank([Unknown, Learning, Unknown, Unknown], 1, [false; 4]));
         assert_eq!(RANKS[pw.rank].0, "Kindler");
+    }
+
+    #[test]
+    fn field_benches_stand_on_flat_ground_and_light_the_bench() {
+        let mut w = gen::generate(DEFAULT_SEED);
+        let fresh = w.clone();
+        for at in crate::bench::FIELD_STATIONS {
+            let c = [at.0.floor() as i32, at.1.floor() as i32];
+            // Flat and unclaimed before (the smooth mesher keeps flat ground).
+            let hs: Vec<i32> = (-2..=2)
+                .flat_map(|dz| (-2..=2).map(move |dx| (dx, dz)))
+                .map(|(dx, dz)| ground(&fresh, c[0] + dx, c[1] + dz))
+                .collect();
+            let (lo, hi) = (*hs.iter().min().unwrap(), *hs.iter().max().unwrap());
+            assert!(hi - lo <= 1, "{at:?} is flat: {lo}..{hi}");
+            for dz in -2..=2 {
+                for dx in -2..=2 {
+                    let p = [c[0] + dx, ground(&fresh, c[0] + dx, c[1] + dz), c[1] + dz];
+                    assert!(
+                        fresh.can_place(p),
+                        "{at:?} clear of protected places at {p:?}"
+                    );
+                }
+            }
+            let h = stamp_field_bench(&mut w, at);
+            assert_eq!(w.get([c[0], h, c[1]]).mat, mat::BENCH);
+            assert!(!w.can_break([c[0], h, c[1]]));
+            // Standing beside it (a step off the floor's edge) lights the bench.
+            let p = Vec3::new(at.0 + 1.6, h as f32, at.1 + 0.5);
+            assert!(crate::bench::at_voxel_bench(p), "{at:?}");
+            // And it can be walked up to.
+            let mut pl = Player {
+                pos: Vec3::new(at.0, ground(&w, c[0], c[1] + 4) as f32, at.1 + 4.0),
+                ..Player::default()
+            };
+            let mut ws = Walk::default();
+            for _ in 0..200 {
+                walk(
+                    &mut pl,
+                    &mut ws,
+                    &w,
+                    MoveInput {
+                        wish: Vec2::Y,
+                        ..default()
+                    },
+                    DT,
+                );
+            }
+            assert!(
+                crate::bench::at_voxel_bench(pl.pos),
+                "{at:?} walked to: {:?}",
+                pl.pos
+            );
+        }
     }
 
     #[test]

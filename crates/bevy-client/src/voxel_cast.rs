@@ -39,6 +39,10 @@ struct Shot {
     forward: Vec3,
     held: f32,
     epoch: u32,
+    /// A worked cast (built in the formula builder) lobs to where the
+    /// crosshair from this eye pointed (break-2 B1): its press opened the
+    /// builder, so it never charged.
+    eye: Option<Vec3>,
 }
 
 impl Charge {
@@ -52,6 +56,21 @@ impl Charge {
             forward,
             held,
             epoch,
+            eye: None,
+        });
+    }
+
+    /// A worked cast: an arc spell picks the hold that lands nearest the
+    /// block under the crosshair (`eye` along `forward`).
+    pub fn shoot_aimed(&mut self, spell: usize, hand: Vec3, eye: Vec3, forward: Vec3, epoch: u32) {
+        self.release = None;
+        self.shots.push(Shot {
+            spell: spell as u8,
+            hand,
+            forward,
+            held: 0.0,
+            epoch,
+            eye: Some(eye),
         });
     }
 }
@@ -179,6 +198,36 @@ fn plan(
     }
 }
 
+/// The hold for an arc spell that lands nearest the block the crosshair
+/// (`eye` along `forward`) is on; other spells keep hold 0.
+fn aimed_hold(w: &World, spell: u8, hand: Vec3, eye: Vec3, forward: Vec3, boost: f32) -> f32 {
+    if !matches!(Spell::ALL[spell as usize], Spell::Water | Spell::Foam) {
+        return 0.0;
+    }
+    let Some(hit) = realgame_voxel::raycast(
+        w,
+        eye.to_array(),
+        forward.to_array(),
+        60.0,
+        realgame_voxel::RayMode::Fluids,
+    ) else {
+        return crate::tuning::FULL_HOLD_S;
+    };
+    let target = Vec3::new(
+        hit.cell[0] as f32 + 0.5,
+        hit.cell[1] as f32 + 0.5,
+        hit.cell[2] as f32 + 0.5,
+    );
+    (0..=20)
+        .map(|i| i as f32 * crate::tuning::FULL_HOLD_S / 20.0)
+        .filter_map(|h| {
+            let (_, _, l) = plan(Some(w), spell, hand, forward, h, boost);
+            l.map(|l| (l.pos.distance(target), h))
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map_or(0.0, |(_, h)| h)
+}
+
 fn arc_spell(spell: usize, working: &Working) -> bool {
     matches!(Spell::ALL[spell], Spell::Water | Spell::Foam)
         && working.routes[spell] == worked::Route::Instant
@@ -260,7 +309,11 @@ fn fly(
     let world = blocks.as_deref().map(|b| &b.0);
     let k = |s: u8| boost.as_ref().map_or(1.0, |b| b.0[(s as usize).min(3)]);
     for s in std::mem::take(&mut ch.shots) {
-        let (path, dur, landing) = plan(world, s.spell, s.hand, s.forward, s.held, k(s.spell));
+        let held = match (s.eye, world) {
+            (Some(eye), Some(w)) => aimed_hold(w, s.spell, s.hand, eye, s.forward, k(s.spell)),
+            _ => s.held,
+        };
+        let (path, dur, landing) = plan(world, s.spell, s.hand, s.forward, held, k(s.spell));
         let size = if s.spell == Spell::Foam as u8 {
             0.4
         } else {
@@ -619,7 +672,7 @@ mod workshop_arc {
         p.yaw = (-d.x).atan2(-d.z);
         p.pitch = d.y.asin();
         let hand = p.eye() + p.rotation() * Vec3::new(0.2, -0.15, -0.5);
-        plan(Some(w), 1, hand, p.forward(), held).2
+        plan(Some(w), 1, hand, p.forward(), held, 1.0).2
     }
 
     /// The last cast's water still lies on the store (on a slow frame the
@@ -653,12 +706,48 @@ mod workshop_arc {
         };
         p.pitch = -0.6;
         let hand = p.eye() + p.rotation() * Vec3::new(0.2, -0.15, -0.5);
-        let frost = plan(Some(&w), 2, hand, p.forward(), 0.0).2.expect("lands");
+        let frost = plan(Some(&w), 2, hand, p.forward(), 0.0, 1.0)
+            .2
+            .expect("lands");
         assert_eq!(
             w.get(frost.cell.unwrap()).mat,
             mat::WATER,
             "frost stops at the ford's water"
         );
+    }
+
+    /// break-2 B1: a worked Water cast (no charge) lobs to the block under
+    /// the crosshair, from the plaza and from the door, wherever on the
+    /// store the player points (the flames, its face, its far corner).
+    #[test]
+    fn a_worked_water_cast_lobs_to_the_crosshair() {
+        let w = realgame_voxel::generate(realgame_voxel::DEFAULT_SEED);
+        for from in [Vec3::new(142.5, 35.0, 197.0), Vec3::new(141.5, 35.0, 193.5)] {
+            for aim in [
+                Vec3::new(142.5, 37.5, 188.5),
+                Vec3::new(142.5, 36.5, 190.0),
+                Vec3::new(141.5, 36.8, 189.5),
+            ] {
+                let mut p = crate::player::Player {
+                    pos: from,
+                    ..Default::default()
+                };
+                let d = (aim - p.eye()).normalize();
+                p.yaw = (-d.x).atan2(-d.z);
+                p.pitch = d.y.asin();
+                let hand = p.eye() + p.rotation() * Vec3::new(0.2, -0.15, -0.5);
+                let h = aimed_hold(&w, 1, hand, p.eye(), p.forward(), 1.0);
+                let l = plan(Some(&w), 1, hand, p.forward(), h, 1.0)
+                    .2
+                    .expect("lands");
+                let store = Vec3::new(143.0, 36.0, 189.0);
+                assert!(
+                    l.pos.distance(store) < 3.0,
+                    "from {from} at {aim}: hold {h} lands at {:?}",
+                    l.pos
+                );
+            }
+        }
     }
 
     #[test]

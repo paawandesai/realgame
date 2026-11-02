@@ -25,6 +25,7 @@ mod clock;
 mod cues;
 mod feel;
 mod fire_fx;
+mod firebreak;
 mod fx;
 mod gates;
 mod late;
@@ -827,6 +828,7 @@ fn main() {
             voxel_cast::plugin,
             late::plugin,
             powers::plugin,
+            firebreak::plugin,
         ));
     }
     app.run();
@@ -2115,6 +2117,8 @@ fn aim_and_cast(
         wk.working.routes[i] =
             worked::route(st as u8, learnable, wk.working.mode, wk.working.ready);
     }
+    // The accepted worked cast (if any) is the first one cast below.
+    let mut worked_first = accepted.is_some();
     let mut gated: Vec<Aim> = accepted.into_iter().collect();
     if !ended {
         let sp = game.spell;
@@ -2170,7 +2174,13 @@ fn aim_and_cast(
         // I-051-voxel: in the block world the spell flies its arc or cone
         // through the blocks (voxel_cast.rs) instead of the courtyard beam.
         if let Some(v) = charge.as_deref_mut() {
-            v.shoot(game.spell, hand, player.forward(), game.held, game.epoch);
+            if std::mem::take(&mut worked_first) {
+                // break-2 B1: a worked cast never charged (its press opened
+                // the builder), so it lobs to the crosshair instead.
+                v.shoot_aimed(game.spell, hand, eye, player.forward(), game.epoch);
+            } else {
+                v.shoot(game.spell, hand, player.forward(), game.held, game.epoch);
+            }
             continue;
         }
         let dist = hand.distance(aim.point);

@@ -91,10 +91,21 @@ pub fn at_bench(pos: Vec3) -> bool {
 pub const VOXEL_STATION: (f32, f32) = (124.5, 200.5);
 pub const VOXEL_RADIUS: f32 = 2.5;
 
-/// True while the player stands next to the block world's Formula Bench.
+/// Field Benches (small stone shrines stamped by `powers.rs`): at the
+/// Village's ford approach and on the Frozen side of the Marsh gate. They
+/// teach and craft the same as the plaza's, so the quest never sends a
+/// player all the way back to the Village to learn the next spell.
+pub const FIELD_STATIONS: [(f32, f32); 2] = [(146.5, 162.5), (118.5, 70.5)];
+
+/// True while the player stands next to the block world's Formula Bench or
+/// a field Bench.
 pub fn at_voxel_bench(pos: Vec3) -> bool {
-    let (dx, dz) = (pos.x - VOXEL_STATION.0, pos.z - VOXEL_STATION.1);
-    dx * dx + dz * dz <= VOXEL_RADIUS * VOXEL_RADIUS
+    std::iter::once(VOXEL_STATION)
+        .chain(FIELD_STATIONS)
+        .any(|(x, z)| {
+            let (dx, dz) = (pos.x - x, pos.z - z);
+            dx * dx + dz * dz <= VOXEL_RADIUS * VOXEL_RADIUS
+        })
 }
 
 fn def_by_slot(spells: &[SpellDef], slot: u8) -> Option<&SpellDef> {

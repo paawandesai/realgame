@@ -238,12 +238,12 @@ export function startMusic() {
     try { s = JSON.parse(w.__gameState || 'null'); } catch { s = null; }
     const on = !!s && s.mode === 'voxel';
     btn.hidden = !on;
-    if (on && typeof s.biome === 'string') setBiome(s.biome);
     if (on && s.ending && !ended) {
       ended = true;
       sting();
-      setBiome('kiln');
     }
+    // After the ending the Kiln theme plays (the player stands in the Village).
+    if (on && typeof s.biome === 'string') setBiome(s.ending ? 'kiln' : s.biome);
     const off = !soundOn() || !musicOn();
     if (off && state.playing) stop();
     state.muted = off;
