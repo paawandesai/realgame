@@ -6138,8 +6138,11 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   benches.push(['ford', await atField(146.5, 162.5)]);
   await cmd('prog learn 2');
   await cmd('prog learn 0');
-  await cmd('tp 128.5 35 163.5');
-  await until((x) => Math.abs(x.pos[2] - 163.5) < 0.3 && Math.abs(x.pos[0] - 128.5) < 0.3, 15000);
+  // Back at the ford, on the bank below the Village rise (a long headless
+  // frame off the rise's edge would carry the body past the bank into the
+  // water, and deep water puts it back up on the rise).
+  await cmd('tp 128.5 35 160.5');
+  await until((x) => Math.abs(x.pos[2] - 160.5) < 0.3 && Math.abs(x.pos[0] - 128.5) < 0.3 && x.pos[1] < 34.5, 15000);
   s = await walkTo(128.5, 158.7, 0.35, 30000);
   await key('3', 2);
   for (let k = 0; k < 24; k++) {
@@ -6152,12 +6155,17 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
     // Aim at the nearest open water ahead, as a player does (a cast that
     // lands further on can leave a gap at their feet).
     let ahead = Math.max(146.5, s.pos[2] - 2.6);
-    for (let d = 0; d <= 4; d++) {
-      const zc = Math.floor(s.pos[2] - 0.6) - d;
-      // Not straight down at the feet: the cone would catch the bank.
-      if (zc + 0.5 > s.pos[2] - 1.0) continue;
-      const c = await probe(128, 30, zc);
-      if (c && c.mat === 'water') { ahead = zc + 0.5; break; }
+    // Not straight down at the feet (the cone would catch the bank), unless
+    // the last open row is right there (the far bank's edge).
+    let found = false;
+    for (const gap of [1.0, 0.3]) {
+      for (let d = 0; d <= 4 && !found; d++) {
+        const zc = Math.floor(s.pos[2] - 0.3) - d;
+        if (zc + 0.5 > s.pos[2] - gap) continue;
+        const c = await probe(128, 30, zc);
+        if (c && c.mat === 'water') { ahead = zc + 0.5; found = true; }
+      }
+      if (found) break;
     }
     await cmd(`face 128.5 30.9 ${ahead.toFixed(2)}`);
     await frames(2);
@@ -6241,13 +6249,26 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   await cmd('tp 231.5 11 27.2');
   await cmd('face 231.5 12 29.5');
   let L = await untilLate((x) => x.near === 'rig' && x.light, 20000);
-  await page.keyboard.press('KeyE');
-  L = await untilLate((x) => x.rig.uses === 1, 90000);
+  // E again if a long headless frame missed the press (as a player would).
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press('KeyE');
+    await frames(2);
+    L = await untilLate((x) => x.rig.on || x.rig.uses >= 1, 10000);
+    if (L && (L.rig.on || L.rig.uses >= 1)) break;
+  }
+  L = await untilLate((x) => x.rig.uses === 1, 150000);
+  if (process.env.PT_DEBUG) console.log(`    rig: ${JSON.stringify(L && { near: L.near, light: L.light, rig: L.rig })}`);
   await cmd('tp 239.6 11 19.4');
   await cmd('face 240.5 11.5 20.5');
   L = await untilLate((x) => x.near === 'crate', 10000);
-  await page.keyboard.press('KeyE');
-  for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await page.evaluate(() => !document.getElementById('late-gas')?.hidden)) break;
+  if (process.env.PT_DEBUG) console.log(`    crate: near ${L && L.near} pos ${(await st()).pos}`);
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press('KeyE');
+    await frames(2);
+    let open = false;
+    for (const t0 = Date.now(); Date.now() - t0 < 5000 && !open; await sleep(100)) open = await page.evaluate(() => !document.getElementById('late-gas')?.hidden);
+    if (open) break;
+  }
   await page.click('#late-gas button[data-item="h2_balloon"]');
   L = await untilLate((x) => x.crate.state === 'loaded', 180000);
   await page.keyboard.press('KeyE');
