@@ -245,11 +245,11 @@ fn spawn_props(
         double_sided: true,
         ..default()
     });
-    // The dome (`gen::stamps`, P5): centre (128, 169), half-axes 7.5 x 4.6
-    // on the terrace at y 40, 9 tall.
-    for (dy, h) in [(2.6f32, 0.32f32), (3.5, 0.1)] {
-        let k = (1.0 - (dy / 9.0).powi(2)).sqrt();
-        let band = ring_band([128.0, 40.0 + dy, 169.0], 7.5 * k + 0.12, 4.6 * k + 0.12, h);
+    // Round the clay dome (`kiln_dome`: centre y 40.8, half-axes 8.0 x 9.3
+    // x 5.1), a hair outside it.
+    for (y, h) in [(43.2f32, 0.34f32), (44.3, 0.12)] {
+        let k = (1.0 - ((y - 40.8) / 9.3).powi(2)).sqrt();
+        let band = ring_band([128.0, y, 169.0], 8.0 * k + 0.06, 5.1 * k + 0.06, h);
         commands.spawn((
             Mesh3d(meshes.add(band)),
             MeshMaterial3d(rune.clone()),
