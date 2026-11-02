@@ -62,3 +62,34 @@ Not touched: `gen.rs`, mesh and shader files.
   world's terrain should hide or reshape these.
 - Cache coordinates were picked on the current generator; `caches_sit_in_their_areas_and_clear_of_the_story`
   fails loudly if a new generator moves a stamp or protected place onto a pad.
+
+## Music and the full playthrough (round 3)
+
+- **`web/music.js`:** each area (Village, Frozen, Marsh, Cave, Kiln) keeps its own synthesised theme with 2 s
+  crossfades, now with an answering B phrase every other pass and a bass line. The ending plays a short rising
+  sting and then the Kiln theme. M (or the ♪ button under the rank badge) turns the music alone on and off, saved
+  as `rg.music.v1`; the Sound setting still silences everything. No AudioContext is made before the first key or
+  click (checked in the playthrough: `started` false before, Village theme playing after the first click).
+- **Golden `playthrough`** (`ONLY=playthrough`, not in the default run): spawn to the ending card on one page with no
+  `quest <n>`; stand-ins are `tp`, `prog learn`, `give torch` and `give dirt` (each tested elsewhere). It logs an
+  estimated new-player time per step. **Status:** on this sandbox (0.5-2 fps headless) the intro, music, workshop
+  fire and ford steps have each passed, but the workshop fire is flaky (the fire spreads by a varying amount
+  before the casts start and the scripted aim misses the spread cells; one run needed 4 casts, another failed after
+  40), so the whole run has not yet gone green end to end.
+- **Estimate** (walking model: straight line × 1.3 at 4 m/s, plus task allowances in the script):
+
+  | Step | Walk | Est. |
+  |---|---|---|
+  | Intro | 0 m | 25 s |
+  | 1 Workshop fire (learn Water) | 31 m | 113 s |
+  | 2 Ford (back to the Bench for Frost) | 170 m | 153 s |
+  | 3 Ice gate (back over the ford for Fire) | 255 m | 133 s |
+  | 4 Coal | 42 m | 35 s |
+  | 5 Hollow (Marsh gate, back to the Bench for CO2) | 496 m | 242 s |
+  | 6 Cave (torch at the Bench, the rig, the crate) | 442 m | 220 s |
+  | 7 Kiln (door, Invention Bench, ending) | 286 m | 156 s |
+  | **Total** | **1721 m** | **18.0 min** |
+
+  A player who learns all four spells at the first Bench visit walks 1134 m: **15.0 min**. The overrun is the
+  Formula Bench round trips (about 590 m). A second Bench near the ford or the Marsh gate (or learning at any
+  Bench once seen) would bring the objective-following path to about 14-15 min.
