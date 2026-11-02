@@ -115,6 +115,11 @@ pub const LN2_K: f32 = 77.35;
 pub const LEIDENFROST_K: f32 = 10.0 + 273.15;
 /// Radius (m, to cell centres) that Water, Frost and Fire emits act on.
 pub const EMIT_RADIUS: f32 = 1.5;
+/// How far a Water cast's water runs over burning blocks and puts them out,
+/// metres from where it lands (I-052 round 2, P1): a cast is litres of
+/// water, which sheets over a burning pile rather than wetting one block
+/// (content/science-sources.md, p1-fuel-store).
+pub const WATER_SOAK_RADIUS: f32 = 2.0;
 /// Gameplay tuning: energy a Frost emit takes from each cell in its radius
 /// (enough to freeze one full block of 12 °C water).
 pub const FROST_J: f32 = 4.0e8;
@@ -302,6 +307,19 @@ impl World {
     /// Steps the burning cell at `p` has left, if it burns.
     pub fn burn_left(&self, p: [i32; 3]) -> Option<u16> {
         key(p).and_then(|k| self.fires.get(&k).copied())
+    }
+
+    /// Burning blocks (not gas vents), in key order.
+    pub fn burning_cells(&self) -> impl Iterator<Item = [i32; 3]> + '_ {
+        self.fires.keys().map(|&k| pos(k))
+    }
+
+    /// Gas vents whose flame is lit now, in key order.
+    pub fn lit_vents<'a>(&'a self, vox: &'a voxel::World) -> impl Iterator<Item = [i32; 3]> + 'a {
+        self.vents
+            .keys()
+            .map(|&k| pos(k))
+            .filter(|&v| vox.get(v).has(Cell::BURNING))
     }
 
     /// Temperature of the cell at `p` in °C (the `probe` debug command): an
@@ -620,8 +638,11 @@ impl World {
                 }
                 t += e / cap;
                 if t < MELT_K {
+                    // The top cell of a column freezes first; flowing river
+                    // water (`SOURCE`, refilled from upstream) keeps moving
+                    // and does not freeze from a cast (P2).
                     let top = vox.get(add(p, [0, 1, 0])).mat != mat::WATER;
-                    if top {
+                    if top && !c.has(Cell::SOURCE) {
                         lat -= (MELT_K - t) * cap;
                     }
                     t = MELT_K;
@@ -744,9 +765,14 @@ impl World {
 
     /// Cells whose centres are within `EMIT_RADIUS` of `at`, in key order.
     fn in_radius(at: [f32; 3]) -> Vec<[i32; 3]> {
+        Self::in_radius_of(at, EMIT_RADIUS)
+    }
+
+    /// Cells whose centres are within `r` (at most 2.5) of `at`, in key order.
+    fn in_radius_of(at: [f32; 3], r: f32) -> Vec<[i32; 3]> {
         let c = at.map(|v| v.floor() as i32);
         let mut out: Vec<(u32, [i32; 3])> = Vec::new();
-        let r2 = EMIT_RADIUS * EMIT_RADIUS;
+        let r2 = r * r;
         for dz in -2..=2 {
             for dy in -2..=2 {
                 for dx in -2..=2 {
@@ -834,7 +860,7 @@ impl World {
                     }
                     at = add(at, [0, 1, 0]);
                 }
-                for p in Self::in_radius(e.pos) {
+                for p in Self::in_radius_of(e.pos, WATER_SOAK_RADIUS) {
                     if vox.get(p).has(Cell::BURNING)
                         && self.fires.contains_key(&key(p).unwrap_or(0))
                     {
@@ -1034,7 +1060,14 @@ impl World {
                 self.heat_toward(vox, q, BURN_J, FIRE_K, ev);
                 self.check_phase(vox, q, ev);
             }
-            let left = self.fires.get(&k).copied().unwrap_or(0).saturating_sub(1);
+            // A fuel store (`SOURCE` on a flammable block: a stack of
+            // charcoal and logs) holds far more fuel than one block, so it
+            // burns on until water or smothering puts it out (P1).
+            let left = if c.has(Cell::SOURCE) {
+                self.fires.get(&k).copied().unwrap_or(1).max(1)
+            } else {
+                self.fires.get(&k).copied().unwrap_or(0).saturating_sub(1)
+            };
             if left == 0 {
                 let to = if c.mat == mat::LEAVES {
                     Cell::AIR

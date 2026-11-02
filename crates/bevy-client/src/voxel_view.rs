@@ -65,6 +65,9 @@ const WALK: f32 = 5.0;
 const SPRINT: f32 = 8.5;
 /// The most the body steps up without a jump (`tuning::STEP_UP`).
 const STEP: f32 = crate::tuning::STEP_UP;
+/// The first caption in the Village (said again when the intro closes).
+pub const WELCOME_LINE: &str =
+    "Welcome to the valley! Walk with WASD. Press 5 for the Pick and hold the mouse button to dig.";
 /// The caption for a protected block (spec section 4).
 pub const PROTECTED_LINE: &str = "This old runestone will not budge. Try chemistry.";
 
@@ -187,7 +190,7 @@ fn setup(
         ..Player::default()
     };
     game.say(match start.0 {
-        Biome::Village => "Welcome to the valley! Walk with WASD. Press 5 for the Pick and hold the mouse button to dig.",
+        Biome::Village => WELCOME_LINE,
         _ => "Welcome to the valley! Press 5 for the Pick and hold the mouse button to dig.",
     });
 }
@@ -490,7 +493,21 @@ fn tools(
         REACH,
         RayMode::Solids,
     );
-    keys.look_cell = look.map(|h| {
+    // With a spell in hand (keys 1-4) the look cell stops at water, where
+    // Frost and Fire land (round 2: the ford is aimable from the bank);
+    // with the Pick or a block it is the solid block the tool works on.
+    let looked = if keys.hot < 5 {
+        vox::raycast(
+            world,
+            eye.to_array(),
+            player.forward().to_array(),
+            REACH,
+            RayMode::Fluids,
+        )
+    } else {
+        look
+    };
+    keys.look_cell = looked.map(|h| {
         let m = world.get(h.cell).mat;
         [h.cell[0], h.cell[1], h.cell[2], i32::from(m)]
     });

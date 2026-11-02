@@ -91,6 +91,22 @@ export function createWorked({ doc, win, cmd, bench }) {
     vcursor.hidden = !doc.pointerLockElement;
     p.append(copyLine, mount, reasonBox, vcursor);
     doc.body.append(panel = p);
+    // Practised (I-052 round 2): the spell is known well, so its worked
+    // cast is one step: the formula is shown and one Cast press confirms it
+    // (the game still judges the formula it receives).
+    if (stage === 'practised' && card.formula) {
+      const sure = el('button', 'worked-confirm', '', { type: 'button' });
+      sure.append(el('span', icon(card.id), '', H), el('span', '', sprout() ? '✓' : `Cast ${bench.pretty(card.name)}`));
+      if (!sprout()) mount.append(el('p', 'worked-known', `You know this one: ${bench.pretty(card.formula)}`));
+      mount.append(sure);
+      sure.addEventListener('click', () => { if (openId === id) send(`work submit ${id} ${card.formula}`); });
+      const r0 = p.getBoundingClientRect();
+      vx = r0.left + r0.width / 2;
+      vy = r0.top + r0.height / 2;
+      place();
+      try { sure.focus(); } catch { /* none */ }
+      return;
+    }
     try {
       builder = bench.mountBuilder(mount, {
         band,

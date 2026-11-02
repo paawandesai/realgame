@@ -501,3 +501,21 @@ test("13: boot.js imports worked.js, and every imported module is on build-web.s
   }
   assert.ok(seen.has("worked.js"));
 });
+
+// I-052 round 2: a Practised spell's worked cast is a one-step confirm: no
+// builder, the formula shown, and one Cast press submits it.
+test("I-052: a Practised spell is one Cast press that submits its formula", () => {
+  const t = setup();
+  t.w.update(ws(work(7, view("seedling", "practised"))));
+  assert.equal(t.mounts.length, 0, "no builder for a Practised spell");
+  const sure = t.doc.querySelector("#worked .worked-confirm") as El;
+  assert.ok(sure, "a Cast button");
+  assert.match(t.doc.querySelector("#worked .worked-known")!.textContent, /H2O\(l\)/);
+  sure.click();
+  assert.deepEqual(t.sent, ["work submit 7 H2O(l)"]);
+  // Learning still builds.
+  const u = setup();
+  u.w.update(ws(work(8, view("seedling", "learning"))));
+  assert.equal(u.mounts.length, 1);
+  assert.equal(u.doc.querySelector("#worked .worked-confirm"), null);
+});

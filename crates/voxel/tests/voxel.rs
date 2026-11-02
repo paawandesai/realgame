@@ -659,3 +659,54 @@ fn mesh_and_generation_timing_prints() {
         quads * 2
     );
 }
+
+/// Round 2 (P1): the workshop's fire is a fuel store (burning wood flagged
+/// `SOURCE`) on a floor that cannot burn, open to the sky so a Water arc
+/// from the plaza can come down on it, with a door on the plaza side.
+#[test]
+fn the_workshop_is_a_burning_fuel_store_open_to_the_sky() {
+    let w = generate(DEFAULT_SEED);
+    let s = stamp::WORKSHOP;
+    let mut store = Vec::new();
+    for z in s.min[2]..s.max[2] {
+        for y in s.min[1]..s.max[1] {
+            for x in s.min[0]..s.max[0] {
+                let c = w.get([x, y, z]);
+                if c.has(Cell::BURNING) && c.has(Cell::SOURCE) {
+                    store.push([x, y, z]);
+                }
+            }
+        }
+    }
+    assert!(
+        store.len() >= 6,
+        "a fuel store of 6 or more cells: {store:?}"
+    );
+    for &[x, y, z] in &store {
+        let c = w.get([x, y, z]);
+        assert!(
+            c.mat == mat::WOOD || c.mat == mat::PLANKS,
+            "the store is wood at {:?}",
+            [x, y, z]
+        );
+        // Nothing flammable under the store but more of the store.
+        let below = w.get([x, y - 1, z]);
+        assert!(
+            below.has(Cell::SOURCE) || !matches!(below.mat, mat::WOOD | mat::PLANKS | mat::LEAVES),
+            "the floor under {:?} cannot burn",
+            [x, y, z]
+        );
+    }
+    // The top of the store sees the sky.
+    let top = store.iter().map(|p| p[1]).max().unwrap();
+    for &[x, _, z] in store.iter().filter(|p| p[1] == top) {
+        for y in top + 1..WORLD[1] {
+            assert_eq!(w.get([x, y, z]).mat, mat::AIR, "open above {x},{y},{z}");
+        }
+    }
+    // A door in the south wall (towards the plaza): two air cells high.
+    let zs = s.max[2] - 1;
+    let door = (s.min[0]..s.max[0])
+        .any(|x| w.get([x, 35, zs]).mat == mat::AIR && w.get([x, 36, zs]).mat == mat::AIR);
+    assert!(door, "a door in the south wall at z {zs}");
+}

@@ -86,6 +86,17 @@ pub fn at_bench(pos: Vec3) -> bool {
     dx * dx + dz * dz <= RADIUS * RADIUS && crate::bench_on()
 }
 
+/// The Formula Bench on the block world's plaza (`voxel::gen::BENCH`): the
+/// centre of its block, and the radius (m) within which `atBench` lights.
+pub const VOXEL_STATION: (f32, f32) = (124.5, 200.5);
+pub const VOXEL_RADIUS: f32 = 2.5;
+
+/// True while the player stands next to the block world's Formula Bench.
+pub fn at_voxel_bench(pos: Vec3) -> bool {
+    let (dx, dz) = (pos.x - VOXEL_STATION.0, pos.z - VOXEL_STATION.1);
+    dx * dx + dz * dz <= VOXEL_RADIUS * VOXEL_RADIUS
+}
+
 fn def_by_slot(spells: &[SpellDef], slot: u8) -> Option<&SpellDef> {
     spells.iter().find(|d| d.slot == slot)
 }
@@ -278,6 +289,7 @@ pub fn run(
     mut bench: ResMut<BenchState>,
     mut progress: ResMut<Progress>,
     player: Res<Player>,
+    voxel: Option<Res<crate::voxel_view::VoxWorld>>,
 ) {
     let spells = crate::spells::book().all();
     for line in std::mem::take(&mut web.bench) {
@@ -289,7 +301,12 @@ pub fn run(
             warn!("bench: ignored {line:?}: {why}");
         }
     }
-    let json = view(&bench, &progress.0, spells, at_bench(player.pos)).to_json();
+    let at = if voxel.is_some() {
+        at_voxel_bench(player.pos)
+    } else {
+        at_bench(player.pos)
+    };
+    let json = view(&bench, &progress.0, spells, at).to_json();
     if json != bench.last_json {
         bridge::publish_bench(&json);
         bench.last_json = json;
@@ -339,6 +356,16 @@ mod tests {
         ] {
             assert_eq!(parse(s), None, "{s:?}");
         }
+    }
+
+    #[test]
+    fn the_block_worlds_bench_lights_within_its_radius() {
+        assert!(at_voxel_bench(Vec3::new(124.5, 35.0, 202.5)));
+        assert!(at_voxel_bench(Vec3::new(126.0, 35.0, 201.5)));
+        assert!(
+            !at_voxel_bench(Vec3::new(128.5, 35.0, 205.5)),
+            "spawn is not at the bench"
+        );
     }
 
     #[test]

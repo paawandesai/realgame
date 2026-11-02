@@ -510,23 +510,37 @@ fn stamps(w: &mut World) {
     let a = Cell::AIR;
     let c = Cell::new;
 
-    // P1: the workshop hut of planks and wood, burning at the start.
+    // P1: the workshop, burning at the start. Its roof has burnt away;
+    // low brick walls, wood corner posts and a stone floor are left, and in
+    // the middle its fuel store (stacked charcoal and logs) burns on: a
+    // store holds far more fuel than one block, so it keeps burning until
+    // water cools it below ignition (`SOURCE` on a flammable block; see
+    // content/science-sources.md, p1-fuel-store). A plank workbench stands
+    // against the store, and the door faces the plaza.
     let s = stamp::WORKSHOP;
     stamp_box(w, &s, |[x, y, z]| {
         let edge_x = x == s.min[0] || x == s.max[0] - 1;
         let edge_z = z == s.min[2] || z == s.max[2] - 1;
+        let store = (WORKSHOP_STORE.0[0]..WORKSHOP_STORE.1[0]).contains(&x)
+            && (WORKSHOP_STORE.0[1]..WORKSHOP_STORE.1[1]).contains(&y)
+            && (WORKSHOP_STORE.0[2]..WORKSHOP_STORE.1[2]).contains(&z);
         match y {
-            34 => c(mat::PLANKS),
-            35..=38 if edge_x && edge_z => c(mat::WOOD),
-            // The door on the south side, a window on the west.
-            35..=37 if z == s.max[2] - 1 && (141..=142).contains(&x) => a,
-            36..=37 if x == s.min[0] && (189..=190).contains(&z) => a,
-            35..=38 if edge_x || edge_z => c(mat::PLANKS),
-            39 if x > s.min[0] && x < s.max[0] - 1 && z > s.min[2] && z < s.max[2] - 1 => {
-                let mut p = c(mat::PLANKS);
-                p.set_flag(Cell::BURNING, (x + z) % 3 == 0);
+            34 => c(mat::STONE),
+            _ if store => {
+                let mut p = c(mat::WOOD);
+                p.set_flag(Cell::BURNING, true);
+                p.set_flag(Cell::SOURCE, true);
                 p
             }
+            35 if x == WORKSHOP_STORE.0[0] - 1
+                && (WORKSHOP_STORE.0[2]..WORKSHOP_STORE.1[2]).contains(&z) =>
+            {
+                c(mat::PLANKS)
+            }
+            35..=38 if edge_x && edge_z => c(mat::WOOD),
+            // The door on the south side, towards the plaza.
+            35..=36 if z == s.max[2] - 1 && (141..=142).contains(&x) => a,
+            35..=36 if edge_x || edge_z => c(mat::BRICK),
             _ => a,
         }
     });
@@ -540,12 +554,29 @@ fn stamps(w: &mut World) {
         _ => a,
     });
 
-    // P2b: the ice gate fills the opening in the cliff band.
+    // P2b: the ice gate: a passage 4 wide and 3 tall through the cliff
+    // band (floor top y 35), plugged on its south face by one layer of ice
+    // (z 93); cliffstone above. In front of it the ground steps down one
+    // block into a trench, so the meltwater runs away downhill.
     let s = stamp::ICE_GATE;
-    stamp_box(w, &s, |[_, y, _]| match y {
+    stamp_box(w, &s, |[_, y, z]| match y {
         ..=35 => c(mat::STONE),
-        _ => c(mat::ICE),
+        36..=38 if z == s.max[2] - 1 => c(mat::ICE),
+        36..=38 => a,
+        _ => c(mat::CLIFFSTONE),
     });
+    fill(
+        w,
+        [s.min[0] - 1, 35, s.max[2]],
+        [s.max[0] + 1, 40, s.max[2] + 4],
+        a,
+    );
+    fill(
+        w,
+        [s.min[0] - 1, 33, s.max[2]],
+        [s.max[0] + 1, 35, s.max[2] + 4],
+        c(mat::STONE),
+    );
 
     // The coal seam behind the ice gate: stone with coal ore, the top of
     // the seam open to the sky.
@@ -567,7 +598,9 @@ fn stamps(w: &mut World) {
     stamp_box(w, &s, |[x, y, z]| {
         let wall = x == s.min[0] || x == s.max[0] - 1 || z == s.min[2] || z == s.max[2] - 1;
         let gap = [x, y, z] == HOLLOW_GAP;
-        let boardwalk = (100..=101).contains(&z) && !wall;
+        // The boardwalk stops one block short of the rim gap, so the gap
+        // opens into the hollow (a plank beside it would plug it).
+        let boardwalk = (100..=101).contains(&z) && !wall && x < HOLLOW_GAP[0] - 1;
         match y {
             26 => c(mat::STONE),
             27 if HOLLOW_VENTS.contains(&[x, y, z]) => c(mat::GAS_VENT),
@@ -575,6 +608,9 @@ fn stamps(w: &mut World) {
             _ if gap => a,
             28 if boardwalk => c(mat::PLANKS),
             28..=29 if wall => c(mat::CLIFFSTONE),
+            // The east rim stands full height over the pond, so CO2 leaves
+            // only by the gap.
+            30..=33 if x == s.max[0] - 1 => c(mat::CLIFFSTONE),
             _ => a,
         }
     });
@@ -688,13 +724,17 @@ fn stamps(w: &mut World) {
     for (dx, dz) in [(-1, -1), (2, -1), (-1, 2), (2, 2)] {
         w.set([WELL[0] + dx, WELL[1] + 1, WELL[2] + dz], c(mat::STONE));
     }
-    // The hollow's gap drains east along a trench into a low basin, so CO2
-    // poured into the hollow spills out while the gap is open.
-    let [gx, _, gz] = HOLLOW_GAP;
-    fill(w, [gx + 1, 27, gz], [gx + 10, 28, gz + 1], c(mat::MUD));
-    fill(w, [gx + 1, 28, gz], [gx + 10, 34, gz + 1], a);
-    fill(w, [gx + 10, 26, gz - 5], [gx + 18, 27, gz + 6], c(mat::MUD));
-    fill(w, [gx + 10, 27, gz - 5], [gx + 18, 34, gz + 6], a);
+    // East of the hollow's rim wall: a sunken marsh pond, its still water
+    // (y 23-25) five blocks below the gap, open to the sky. CO2 poured into
+    // the hollow pours out through an open gap and sinks onto the pond
+    // (section 5.5); a block in the gap stops it. Falling in is safe: deep
+    // water pushes the player back to the bank (section 5.4).
+    let [gx, _, _] = HOLLOW_GAP;
+    let (p0, p1) = HOLLOW_POND;
+    fill(w, [p0[0], 22, p0[1]], [p1[0], 23, p1[1]], c(mat::STONE));
+    fill(w, [p0[0], 23, p0[1]], [p1[0], 26, p1[1]], water(false));
+    fill(w, [p0[0], 26, p0[1]], [p1[0], 40, p1[1]], a);
+    debug_assert_eq!(p0[0], gx + 1);
     // The cave mouth opens to the sky.
     fill(
         w,
@@ -704,6 +744,8 @@ fn stamps(w: &mut World) {
     );
 }
 
+/// The workshop's burning fuel store (min inclusive, max exclusive).
+pub const WORKSHOP_STORE: ([i32; 3], [i32; 3]) = ([141, 35, 188], [144, 37, 190]);
 /// The six gas vents on the hollow's floor.
 pub const HOLLOW_VENTS: [[i32; 3]; 6] = [
     [188, 27, 98],
@@ -713,6 +755,9 @@ pub const HOLLOW_VENTS: [[i32; 3]; 6] = [
     [191, 27, 103],
     [194, 27, 103],
 ];
+/// The sunken pond east of the hollow: x and z ranges (min inclusive, max
+/// exclusive).
+pub const HOLLOW_POND: ([i32; 2], [i32; 2]) = ([197, 96], [215, 106]);
 /// The one low gap in the hollow's rim (placeable, section 5.5).
 pub const HOLLOW_GAP: [i32; 3] = [196, 28, 101];
 /// The Kiln's hearth (the P5 target).
@@ -754,6 +799,14 @@ fn protect(w: &mut World) {
     for p in [BENCH, INVENTION_BENCH] {
         w.protect(b(p, [p[0] + 1, p[1] + 1, p[2] + 1]));
     }
+    // The balloon shaft and the ledge, with the rock around them up to the
+    // sky: the Kiln Spark is reached by balloon only, never by digging down
+    // from the Marsh or sideways from the cave (late lane, P4).
+    let (sh, le) = (stamp::SHAFT, stamp::LEDGE);
+    w.protect(b(
+        [sh.min[0] - 2, sh.min[1] - 1, sh.min[2] - 3],
+        [le.max[0] + 3, wy, sh.max[2] + 3],
+    ));
     // The puzzle stamps.
     for s in stamp::ALL {
         match s.id {

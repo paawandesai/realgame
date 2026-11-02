@@ -100,7 +100,6 @@ fn the_emit_and_event_shapes_are_the_contract() {
 
 /// M1a: on the generated world, Frost freezes the top layer of the ford first.
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn frost_freezes_top_layer_first() {
     check_frost_freezes_top_layer_first(generated_world());
 }
@@ -108,7 +107,6 @@ fn frost_freezes_top_layer_first() {
 /// M1b: 3 Frost emits along one row of the ford make a walkable line of ice
 /// (`solid_boxes` cover the path from bank to bank for a 0.7 m wide body).
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3) and ice_boxes (V8); same check green on the fixture in rules.rs"]
 fn ford_bridges_in_three_casts_per_row() {
     check_ford_bridges_in_three_casts_per_row(generated_world(), true);
 }
@@ -117,7 +115,6 @@ fn ford_bridges_in_three_casts_per_row() {
 /// steps; the meltwater flows downhill (some water cell is lower than the
 /// gate's base after 5 s).
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn fire_melts_ice_gate_in_three_casts() {
     check_fire_melts_ice_gate_in_three_casts(generated_world());
 }
@@ -191,7 +188,6 @@ fn cells(
 /// cell within 5 s, all 6 vents report `Smothered`, and the hollow's CO2 does
 /// not climb over its rim (the gas cells just above the rim stay below 5 %).
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn co2_pools_in_hollow() {
     check_co2_pools_in_hollow(generated_world());
 }
@@ -201,7 +197,6 @@ fn co2_pools_in_hollow() {
 /// (or 1 Frost emit on the gap's water, making ice) the same 3 emits put
 /// every vent out.
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn hollow_gap_spills_until_closed() {
     check_hollow_gap_spills_until_closed(generated_world(), close_with_stone);
     let vox = generated_world();
@@ -258,7 +253,6 @@ fn h2_rises_co2_sinks() {
 /// 3 s; a Water emit on each burning cell puts the workshop out; a Fire emit
 /// relights it.
 #[test]
-#[ignore = "waits on Lane A's generate() stamps (V3); same check green on the fixture in rules.rs"]
 fn fire_spreads_through_wood_and_water_puts_it_out() {
     check_fire_spreads_through_wood_and_water_puts_it_out(generated_world());
 }
@@ -303,13 +297,17 @@ fn sand_to_glass_and_ore_to_iron() {
     );
 }
 
-/// M9: H2 and CH4 positive, O2 and CO2 negative, for the cave balloon
-/// (2 m³, 1.5 kg).
+/// M9: the sign of the lift for the cave balloon (2 m³, 1.5 kg). H2 lifts;
+/// O2 and CO2 sink. CH4 is lighter than air but its 10.4 N of buoyancy is
+/// less than the 14.7 N payload, so it cannot lift this crate (the spec's
+/// "CH4 positive" was an arithmetic slip, lanes/B/round-1.md; corrected here
+/// by the late-puzzles lane, which owns the balloon).
 #[test]
-#[ignore = "spec error, not edited: CH4 gives (1.20 - 0.67) x 2 x 9.81 = 10.4 N < 14.7 N payload, so it cannot lift; see lanes/B/round-1.md"]
 fn lift_sign() {
     assert!(lift_n(Gas::H2, 2.0, 1.5) > 0.0);
-    assert!(lift_n(Gas::Ch4, 2.0, 1.5) > 0.0);
+    assert!(lift_n(Gas::Ch4, 2.0, 1.5) < 0.0);
+    // CH4 does lift an empty balloon (it is lighter than air).
+    assert!(lift_n(Gas::Ch4, 2.0, 0.0) > 0.0);
     assert!(lift_n(Gas::O2, 2.0, 1.5) < 0.0);
     assert!(lift_n(Gas::Co2, 2.0, 1.5) < 0.0);
     // Section 5.7's worked numbers: about +7.2 N for H2, -17.3 N for O2.
@@ -373,4 +371,120 @@ fn caps_hold() {
         full.unwrap() < m.burn_full(mat::WOOD),
         "the last cell was reached by carry-over"
     );
+}
+
+/// Round 2 (P1, spec section 7 step 1): on the generated world the workshop
+/// fire does not burn out by itself before the player can learn Water: after
+/// 3 minutes its fuel store still burns, and the fire has not left the
+/// workshop's box. Water on each burning cell then puts it out for good.
+#[test]
+fn the_workshop_burns_on_until_water_puts_it_out() {
+    use realgame_voxel::stamp;
+    let mut vox = generated_world();
+    let s = stamp::WORKSHOP;
+    let burning = |vox: &voxel::World| -> Vec<[i32; 3]> {
+        let mut out = Vec::new();
+        for z in s.min[2] - 4..s.max[2] + 4 {
+            for y in s.min[1] - 2..s.max[1] + 4 {
+                for x in s.min[0] - 4..s.max[0] + 4 {
+                    if vox.get([x, y, z]).has(Cell::BURNING) {
+                        out.push([x, y, z]);
+                    }
+                }
+            }
+        }
+        out
+    };
+    let b0 = burning(&vox);
+    assert!(b0.len() >= 6, "the workshop burns at the start: {b0:?}");
+    let mut m = World::new(1);
+    let mut ev = Vec::new();
+    step_n(&mut m, &mut vox, steps(180.0), &mut ev);
+    let b1 = burning(&vox);
+    assert!(
+        b1.len() >= 6,
+        "after 3 minutes the workshop still burns: {b1:?}"
+    );
+    assert!(
+        b1.iter().all(|&p| s.contains(p)),
+        "the fire stays in the workshop: {b1:?}"
+    );
+    let mut rounds = 0;
+    loop {
+        let b = burning(&vox);
+        if b.is_empty() {
+            break;
+        }
+        rounds += 1;
+        assert!(
+            rounds <= 12,
+            "still burning after 12 rounds of water: {b:?}"
+        );
+        for p in b {
+            let (pos, n) = air_face(&vox, p).expect("a burning cell faces air");
+            emit(&mut m, pos, n, EmitKind::Water);
+        }
+        step_n(&mut m, &mut vox, 2, &mut ev);
+    }
+    step_n(&mut m, &mut vox, steps(30.0), &mut ev);
+    assert!(burning(&vox).is_empty(), "the workshop stays out");
+}
+
+/// P1 as a player does it (I-052 round 2): standing in the plaza at the
+/// workshop door, each Water cast lands where the look ray first hits
+/// (the store's front face, through the door). Six casts, alternating two
+/// aims, put the whole fire out: the water runs over the pile and soaks the
+/// back row too, so the front is not lit again from behind.
+#[test]
+fn the_workshop_goes_out_with_six_casts_from_the_door() {
+    use realgame_voxel::raycast::{raycast, RayMode};
+    use realgame_voxel::stamp;
+    let mut vox = generated_world();
+    let s = stamp::WORKSHOP;
+    let burning = |vox: &voxel::World| -> usize {
+        let mut n = 0;
+        for z in s.min[2] - 4..s.max[2] + 4 {
+            for y in s.min[1] - 2..s.max[1] + 4 {
+                for x in s.min[0] - 4..s.max[0] + 4 {
+                    if vox.get([x, y, z]).has(Cell::BURNING) {
+                        n += 1;
+                    }
+                }
+            }
+        }
+        n
+    };
+    let mut m = World::new(1);
+    let mut ev = Vec::new();
+    step_n(&mut m, &mut vox, steps(10.0), &mut ev);
+    assert!(burning(&vox) >= 6);
+    let eye = [142.5f32, 36.6, 197.0];
+    let aims = [[142.5f32, 36.0, 189.0], [141.2, 36.3, 188.5]];
+    let mut casts = 0;
+    while burning(&vox) > 0 && casts < 6 {
+        let t = aims[casts % 2];
+        let d = [t[0] - eye[0], t[1] - eye[1], t[2] - eye[2]];
+        let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+        let dir = d.map(|v| v / l);
+        let hit = raycast(&vox, eye, dir, 30.0, RayMode::Fluids).expect("the store is in view");
+        let at = [0, 1, 2].map(|a| eye[a] + dir[a] * hit.t);
+        emit(&mut m, at, hit.normal, EmitKind::Water);
+        casts += 1;
+        // A cast every 2 s, as the cooldown and a worked cast allow.
+        step_n(&mut m, &mut vox, steps(2.0), &mut ev);
+    }
+    let left: Vec<_> = (s.min[2] - 4..s.max[2] + 4)
+        .flat_map(|z| {
+            (s.min[1] - 2..s.max[1] + 4)
+                .flat_map(move |y| (s.min[0] - 4..s.max[0] + 4).map(move |x| [x, y, z]))
+        })
+        .filter(|&p| vox.get(p).has(Cell::BURNING))
+        .collect();
+    assert_eq!(
+        burning(&vox),
+        0,
+        "out after {casts} casts from the door: {left:?}"
+    );
+    step_n(&mut m, &mut vox, steps(30.0), &mut ev);
+    assert_eq!(burning(&vox), 0, "and it stays out");
 }
