@@ -1219,6 +1219,14 @@ mod tests {
         // Deep inside a chunk: that chunk alone.
         w.set([16, 16, 16], Cell::new(mat::DIRT));
         assert_eq!(w.take_dirty_smooth(), vec![0]);
+        // A block heating up (a fire next to it) changes no surface: no
+        // smooth remesh, while the block mesh's dirty set still has it.
+        let mut hot = w.get([30, 30, 30]);
+        hot.set_temp_k(600.0);
+        w.set([30, 30, 30], hot);
+        assert!(w.take_dirty_smooth().is_empty());
+        w.set([30, 30, 30], hot);
+        assert!(w.dirty_chunks().is_empty(), "no change, nothing dirty");
     }
 
     #[test]

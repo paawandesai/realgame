@@ -244,8 +244,9 @@ impl Chunk {
 pub struct World {
     chunks: Vec<Chunk>,
     dirty: Vec<bool>,
-    /// Chunks whose smooth mesh a change reached (`smooth::MARGIN` cells
-    /// around each written cell, so diagonal neighbours too).
+    /// Chunks whose smooth mesh a change of material or liquid level
+    /// reached (`smooth::MARGIN` cells around the cell, so diagonal
+    /// neighbours too), and replaced chunks.
     near: Vec<bool>,
     protected: Vec<Aabb>,
     /// The generation seed (`generate`); 0 for `World::new`.
@@ -327,11 +328,19 @@ impl World {
             return;
         };
         let i = World::cell_index(p);
-        if self.chunks[c].get(i) == cell {
+        let old = self.chunks[c].get(i);
+        if old == cell {
             return;
         }
         self.chunks[c].set(i, cell);
         self.dirty[c] = true;
+        // The smooth surface reads only the material and the liquid level:
+        // a change of temperature or state (a burning block heating its
+        // neighbours ten times a second) leaves it as it is.
+        if old.mat == cell.mat && old.level() == cell.level() {
+            self.edge_dirty(p);
+            return;
+        }
         let m = smooth::MARGIN;
         let lo = p.map(|v| v - m);
         let hi = p.map(|v| v + m);
@@ -342,6 +351,12 @@ impl World {
                 }
             }
         }
+        self.edge_dirty(p);
+    }
+
+    /// Marks the chunks across the faces cell `p` touches dirty (their
+    /// block meshes show its faces).
+    fn edge_dirty(&mut self, p: [i32; 3]) {
         for a in 0..3 {
             let local = p[a].rem_euclid(CHUNK);
             for (edge, d) in [(0, -1), (CHUNK - 1, 1)] {
@@ -365,6 +380,7 @@ impl World {
     pub fn put_chunk(&mut self, i: usize, chunk: Chunk) {
         self.chunks[i] = chunk;
         self.dirty[i] = true;
+        self.near[i] = true;
     }
 
     /// The dirty chunks, in index order.
@@ -379,13 +395,12 @@ impl World {
         out
     }
 
-    /// The chunks whose smooth mesh is out of date (every dirty chunk, plus
-    /// the neighbours a change reached within `smooth::MARGIN` cells), in
-    /// index order, clearing both sets.
+    /// The chunks whose smooth mesh is out of date (every chunk within
+    /// `smooth::MARGIN` cells of a change of material or liquid level, and
+    /// every replaced chunk), in index order, clearing this set and the
+    /// dirty set.
     pub fn take_dirty_smooth(&mut self) -> Vec<usize> {
-        let out = (0..self.dirty.len())
-            .filter(|&i| self.dirty[i] || self.near[i])
-            .collect();
+        let out = (0..self.near.len()).filter(|&i| self.near[i]).collect();
         self.dirty.iter_mut().for_each(|d| *d = false);
         self.near.iter_mut().for_each(|d| *d = false);
         out
