@@ -502,7 +502,7 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
         }
     }
     if smooth {
-        stand_on_surface(world, &body, &mut a, jump, dt, walk);
+        stand_on_surface(world, &body, &mut a, jump, dt, walk, &solids);
     }
     // The world's edge (the protected mountains stop the player first).
     let lim = |v: f32, hi: i32| v.clamp(motion::RADIUS, hi as f32 - motion::RADIUS);
@@ -532,6 +532,7 @@ fn stand_on_surface(
     jump: bool,
     dt: f32,
     walk: &mut Walk,
+    solids: &[Box3],
 ) {
     let y = a.pos[1];
     let (x0, z0) = (from.pos[0], from.pos[2]);
@@ -575,7 +576,13 @@ fn stand_on_surface(
                 a.vel[1] = 0.0;
                 a.grounded = true;
             }
-        } else if from.grounded && !jump && a.vel[1] <= 0.0 && y - g < snap {
+        } else if from.grounded && !jump && a.vel[1] <= 0.0 && y - g < snap && {
+            // Never down into a block's box (a bevel is drawn a little
+            // below a built block's top; the box holds the feet there).
+            let mut b = *a;
+            b.pos[1] = g;
+            !solids.iter().any(|s| s.overlaps(&body_box(&b)))
+        } {
             // Down a slope: stay on it rather than hop off each bump.
             a.pos[1] = g;
             a.vel[1] = 0.0;
@@ -1321,6 +1328,27 @@ mod tests {
         let top = press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 180);
         // Up the ramp of the first block, then stopped by the second.
         assert!(top < 36.5 && p.pos.x < 40.0, "{top} {:?}", p.pos);
+    }
+
+    #[test]
+    fn w_with_space_climbs_the_kiln_terrace_steps() {
+        // The golden's E3 walk: W held, Space every 0.6 s, from the plaza.
+        let world = vox::generate(vox::DEFAULT_SEED);
+        let mut p = Player {
+            pos: Vec3::new(128.5, 35.0, 187.5),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        for f in 0..600 {
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump: f > 0 && f % 36 == 0,
+            };
+            walk(&mut p, &mut w, &world, input, 1.0 / 60.0);
+        }
+        assert!(p.pos.z < 176.0 && p.pos.y > 40.9, "{:?}", p.pos);
     }
 
     #[test]
