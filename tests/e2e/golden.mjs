@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
 // that section and the console-error check; also spellProgress, workedCasts,
-// voxelEngine, blockMatter, valleyStory, voxelCast, comma-separated), QUERY (for example `?low`,
+// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, comma-separated), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -110,6 +110,7 @@ function check(name, ok, detail = '') {
     blockMatter: () => blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
     valleyStory: () => valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
     voxelCast: () => voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
+    valleyPuzzles: () => valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -392,6 +393,8 @@ function check(name, ok, detail = '') {
   await valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
 
   await voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
+
+  await valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -5197,4 +5200,377 @@ async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
   check('voxelCast: a 1.3 s press flies at least 8 m farther than a click, each press one cast, none while held',
     flat(held) - flat(click) >= 8 && click.n === 1 && held.n === 1 && click.casts === 1 && held.casts === 1 && held.castsDuring === 0,
     `click ${flat(click).toFixed(2)} m (${click.n}), held ${flat(held).toFixed(2)} m (${held.n}), during=${held.castsDuring}`);
+}
+
+// I-052 round 2: the valley's puzzles played the way a player plays them.
+// P1: from spawn, close the intro, learn Water at the Formula Bench, walk
+// to the burning workshop and put it out with real presses (worked casts
+// at Apprentice: press, type the formula, Enter); the objective moves on.
+async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors, logs }) {
+  console.log('  -- valley puzzles (I-052 round 2) --');
+  void errors; void logs;
+  const PROG = 'rg.progress.v1';
+  const shots = process.env.SHOTS ? process.env.SHOTS.replace(/\/?$/, '/') : null;
+  const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots}${name}`, timeout: 180000 }); };
+  const load = async (url) => {
+    await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
+    await page.goto(url);
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__bench));) {
+      if (Date.now() - t0 > 120000) throw new Error(`${url} did not start within 120 s`);
+      await sleep(150);
+    }
+    await frames(3);
+  };
+  // Story commands (`quest <n>`, `give`, `bind`) go to the story's queue,
+  // not the game's debug `cmd`.
+  const story = (line) => page.evaluate((l) => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push(l); }, line);
+  const introShown = () => page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+  const poll = async (fn, ms) => { for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) if (await fn()) return true; return false; };
+  const probe = async (x, y, z) => {
+    const n0 = ((await st()).probe || { n: 0 }).n;
+    await cmd(`probe ${x} ${y} ${z}`);
+    const s = await until((v) => v.probe && v.probe.n > n0, 15000);
+    return s.probe && s.probe.n > n0 ? s.probe : null;
+  };
+  const wsOf = () => page.evaluate(() => { try { return JSON.parse(window.__workState); } catch { return null; } });
+  const bs = () => page.evaluate(() => { try { return JSON.parse(window.__benchState); } catch { return null; } });
+  const flat = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const centre = (sel) => page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, sel);
+  // Walks with W held toward (x, z) until within `near` m (face first; the
+  // view is turned again every few polls, as a player steers).
+  const walkTo = async (x, z, near = 1.0, ms = 90000, hop = false) => {
+    await page.evaluate(() => document.getElementById('game').focus());
+    let s = await st();
+    await cmd(`face ${x} ${s.pos[1] + 1.5} ${z}`);
+    await frames(1);
+    await page.keyboard.down('w');
+    let k = 0;
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) {
+      s = await st();
+      if (flat([s.pos[0], s.pos[2]], [x, z]) <= near) break;
+      if (++k % 6 === 0) await cmd(`face ${x} ${s.pos[1] + 1.5} ${z}`);
+      // A player jumps up a one-block step (W alone does not climb).
+      if (hop && k % 5 === 0) { await page.keyboard.down('Space'); await sleep(90); await page.keyboard.up('Space'); }
+    }
+    await page.keyboard.up('w');
+    return until((v) => v.frame > s.frame + 1, 5000);
+  };
+  const lockNow = async () => {
+    if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    }
+    return false;
+  };
+  // One worked cast with a real press: the press opens the builder, the
+  // formula is typed and Enter casts.
+  const workedPress = async (formula) => {
+    const s0 = await st();
+    await page.mouse.down();
+    await sleep(80);
+    await page.mouse.up();
+    const open = await poll(async () => { const w = await wsOf(); return !!(w && w.work && w.work.view); }, 20000);
+    if (!open) return { ok: false, why: 'no builder' };
+    await poll(() => page.evaluate(() => !!document.querySelector('#worked input, #worked .worked-mount')), 5000);
+    const one = await page.evaluate(() => !!document.querySelector('#worked .worked-confirm'));
+    if (one) {
+      const c = await centre('#worked .worked-confirm');
+      await page.mouse.click(c.x, c.y);
+    } else {
+      await page.keyboard.type(formula);
+      await page.keyboard.press('Enter');
+    }
+    const x = await until((v) => v.casts > s0.casts, 20000);
+    await poll(async () => { const w = await wsOf(); return !!(w && w.work === null); }, 20000);
+    // Clear of the grace after a worked cast (0.4 game s) and the cooldown.
+    await until((v) => v.gameTime >= x.gameTime + 0.6, 20000);
+    await sleep(400);
+    return { ok: x.casts === s0.casts + 1, one, x };
+  };
+
+  // ---- The intro: "Just play" takes a real mouse click at once and a
+  // Playwright click; it never comes back, and the welcome caption shows
+  // after it, not under it.
+  const url = `${base}&band=apprentice&cast=worked`;
+  await load(url);
+  await poll(introShown, 15000);
+  {
+    const c = await centre('#intro .intro-play');
+    const q0 = (await st()).quest;
+    if (c) await page.mouse.click(c.x, c.y);
+    const s1 = await until((x) => x.quest === 1, 8000);
+    const gone = !(await introShown());
+    const overlap = await page.evaluate(() => document.body.classList.contains('intro-open'));
+    await sleep(3000);
+    const s2 = await st();
+    const back = await introShown();
+    const cap = await page.evaluate(() => { const e = document.getElementById('caption'); return { text: e.textContent, vis: getComputedStyle(e).visibility }; });
+    check('puzzles: a real click on Just play closes the intro at once; it never reopens; the welcome caption shows after it',
+      !!c && q0 === 0 && s1.quest === 1 && gone && !overlap && !back && s2.quest >= 1 && /Welcome/.test(s2.caption) && cap.vis === 'visible',
+      `button=${!!c} quest ${q0} -> ${s1.quest} -> ${s2.quest} gone=${gone} back=${back} caption="${s2.caption.slice(0, 40)}" vis=${cap.vis}`);
+  }
+  await load(url);
+  await poll(introShown, 15000);
+  {
+    await page.click('#intro .intro-play');
+    const s1 = await until((x) => x.quest === 1, 8000);
+    check('puzzles: a Playwright click on Just play closes the intro', s1.quest === 1 && !(await introShown()), `quest ${s1.quest}`);
+  }
+  await shot('p1-01-start.png');
+
+  // ---- P1: learn Water at the bench.
+  let s = await walkTo(124.5, 202.0, 1.2);
+  const near = await poll(async () => { const b = await bs(); return !!(b && b.atBench); }, 8000);
+  await page.keyboard.press('KeyB');
+  await poll(async () => { const b = await bs(); return !!(b && b.open && b.spells); }, 15000);
+  {
+    const c = await centre('#bench .bench-spell[data-slot="2"]');
+    if (c) await page.mouse.click(c.x, c.y);
+    await poll(() => page.evaluate(() => document.activeElement && document.activeElement.id === 'bench-input'), 10000);
+    await page.fill('#bench-input', 'H2O(l)');
+    const m = await centre('#bench .bench-make');
+    if (m) await page.mouse.click(m.x, m.y);
+  }
+  s = await until((x) => x.progress && x.progress[1] && x.progress[1].st === 'learning', 20000);
+  const learnt = !!(s.progress && s.progress[1] && s.progress[1].st === 'learning');
+  await page.keyboard.press('Escape');
+  await poll(async () => { const b = await bs(); return !!(b && !b.open); }, 10000);
+  await until((x) => !x.paused, 10000);
+  check('puzzles: P1 the bench lights next to it and Water is learnt there', near && learnt,
+    `atBench=${near} water=${s.progress && s.progress[1] && s.progress[1].st}`);
+
+  // ---- P1: walk to the workshop door and put the fire out.
+  const line1 = (await st()).questLine;
+  const b0 = (await st()).burning;
+  s = await walkTo(142.5, 197.0, 1.0);
+  await page.evaluate(() => document.getElementById('game').focus());
+  await page.keyboard.press('2');
+  await until((x) => x.spell === 1, 10000);
+  const locked = await lockNow();
+  await shot('p1-02-fire.png');
+  const casts = [];
+  for (let k = 0; k < 8; k++) {
+    const x = await st();
+    if (x.burning === 0) break;
+    // Aim at the middle of what still burns: the store's top, then lower.
+    await cmd(k % 2 === 0 ? 'face 142.5 36.0 189.0' : 'face 141.2 36.3 188.5');
+    await frames(2);
+    const r = await workedPress('H2O(l)');
+    casts.push(r.ok ? (r.one ? 'confirm' : 'built') : r.why);
+    await until((v) => v.gameTime >= r.x?.gameTime + 1.0 || !r.ok, 15000);
+  }
+  s = await until((x) => x.burning === 0 && x.quest >= 2, 30000);
+  await shot('p1-03-out.png');
+  const store = await probe(142, 36, 189);
+  check('puzzles: P1 water on the workshop puts it out with real presses and the objective moves on',
+    locked && b0 >= 6 && s.burning === 0 && s.quest === 2 && s.questLine !== line1 && store && store.mat === 'wood' && !(store.state & 1),
+    `locked=${locked} burning ${b0} -> ${s.burning}, casts [${casts.join(',')}], quest ${s.quest}, ` +
+    `line "${line1.slice(0, 30)}" -> "${s.questLine.slice(0, 30)}", store ${store && store.mat} state ${store && store.state}`);
+  // It stays out.
+  await until((x) => x.gameTime >= s.gameTime + 5, 60000);
+  const later = await st();
+  check('puzzles: P1 the workshop stays out', later.burning === 0, `burning ${later.burning}`);
+
+  // ---- Step 4: three correct worked Water casts in the run make Water
+  // Practised; from then on a press is one confirm, not the builder.
+  let built = casts.filter((c) => c === 'built').length;
+  for (let k = 0; built < 3 && k < 4; k++) {
+    await cmd('face 142.5 34.2 194.5');
+    await frames(2);
+    const r = await workedPress('H2O(l)');
+    if (r.ok && !r.one) built += 1; else break;
+  }
+  const pst = await until((x) => x.progress && x.progress[1] && x.progress[1].st === 'practised', 20000);
+  await cmd('face 142.5 34.2 194.5');
+  await frames(2);
+  const conf = await workedPress('H2O(l)');
+  await shot('p4-01-practised.png');
+  check('puzzles: after three correct worked Water casts Water is Practised and the next press is one confirm',
+    built >= 3 && pst.progress[1].st === 'practised' && conf.ok && conf.one,
+    `built ${built}, stage ${pst.progress && pst.progress[1] && pst.progress[1].st}, next press ok=${conf.ok} confirm=${conf.one}`);
+  if (await page.evaluate(() => !!document.pointerLockElement)) {
+    await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+  }
+
+  // ---- P2 from the Village bank of the ford. A debug page casts at once
+  // (no band), and each such cast counts as practice. The ford's mouth is a
+  // runestone gate with a sign until Water is Practised (3 casts).
+  const fakeLock = () => page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  const press = async (ms = 80) => {
+    const a = await until((x) => x.cooldown <= 0 && !x.paused, 10000);
+    await page.mouse.move(VW / 2, VH / 2);
+    await page.mouse.down();
+    await sleep(ms);
+    await page.mouse.up();
+    const z = await until((x) => x.impacts > a.impacts, 15000);
+    await until((x) => x.gameTime >= z.gameTime + 0.4, 15000);
+    return z.impacts > a.impacts;
+  };
+  const sign = (id) => page.evaluate((id) => {
+    const e = document.querySelector(`.gate-sign[data-gate="${id}"]`);
+    if (!e) return null;
+    const r = e.getBoundingClientRect();
+    return { shown: !e.hidden && r.width > 0, text: e.textContent, x: r.left + r.width / 2, y: r.top };
+  }, id);
+  await load(base);
+  await poll(introShown, 15000);
+  await page.click('#intro .intro-play');
+  await until((x) => x.quest === 1 && !x.paused, 10000);
+  await story('quest 2');
+  await cmd('tp 128.5 35 163.5');
+  await cmd('face 128.5 36.5 158.5');
+  s = await until((x) => x.quest === 2 && Math.abs(x.pos[2] - 163.5) < 0.3, 15000);
+  await frames(3);
+  const wall = await probe(128, 33, 158);
+  const sg0 = await sign('frozen');
+  await shot('p2-01-gate.png');
+  // The wall holds: walking at it gets nowhere near the water.
+  s = await walkTo(128.5, 156.0, 0.5, 6000);
+  const held = s.pos[2] > 159;
+  await fakeLock();
+  await until((x) => x.locked, 5000);
+  await page.keyboard.press('2');
+  await until((x) => x.spell === 1, 10000);
+  await cmd('look 0 -30');
+  await frames(2);
+  let pressed = 0;
+  for (let k = 0; k < 3; k++) if (await press()) pressed += 1;
+  s = await until((x) => /sinks/.test(x.caption), 15000);
+  const opened = await probe(128, 33, 158);
+  const sg1 = await sign('frozen');
+  check('puzzles: P2 the ford is gated until Water is Practised; its sign counts the casts; three casts open it',
+    wall && wall.mat === 'runestone' && sg0 && sg0.shown && /Practise Water 3 times to open \(0\/3\)/.test(sg0.text) && held &&
+      pressed === 3 && opened && opened.mat === 'air' && /sinks/.test(s.caption) && sg1 && !sg1.shown,
+    `wall ${wall && wall.mat}, sign "${sg0 && sg0.text}" shown=${sg0 && sg0.shown}, held at z ${s.pos[2].toFixed(2)}, ` +
+    `presses ${pressed}, after ${opened && opened.mat}, caption "${s.caption.slice(0, 50)}", sign after shown=${sg1 && sg1.shown}`);
+
+  // Down the bank to the water's edge, then Frost on the water: the look
+  // cell is the water, and the top layer freezes into ice to walk on.
+  s = await walkTo(128.5, 158.7, 0.35, 20000);
+  await page.keyboard.press('3');
+  await until((x) => x.spell === 2, 10000);
+  await cmd('face 128.5 30.9 156.4');
+  s = await until((x) => x.lookCell && x.lookCell[3] === 12, 8000);
+  const lookWater = !!(s.lookCell && s.lookCell[3] === 12);
+  const frosts = [];
+  let iced = null;
+  for (let k = 0; k < 14; k++) {
+    s = await st();
+    if (s.pos[2] < 149.6) break;
+    const ahead = Math.max(146.5, s.pos[2] - 2.6);
+    await cmd(`face 128.5 30.9 ${ahead.toFixed(2)}`);
+    await frames(2);
+    frosts.push(await press());
+    const c = await probe(128, 30, Math.floor(ahead));
+    if (!iced && c && c.mat === 'ice') iced = c;
+    // Step onto the new ice (or the far bank).
+    s = await walkTo(128.5, Math.max(147.5, s.pos[2] - 1.6), 0.3, 8000);
+  }
+  // Up the far bank's step.
+  s = await walkTo(128.5, 146.5, 0.5, 20000, true);
+  s = await until((x) => x.quest >= 3, 10000);
+  if (!iced) for (let z = 150; z < 158 && !iced; z++) { const c = await probe(128, 30, z); if (c && c.mat === 'ice') iced = c; }
+  await shot('p2-02-across.png');
+  check('puzzles: P2 Frost aimed from the bank freezes the ford into ice; the player walks across and the objective moves on',
+    lookWater && !!iced && s.pos[2] < 150 && s.quest === 3,
+    `lookCell water=${lookWater}, first ice ${iced && iced.at}, frost presses [${frosts.join(',')}], pos z ${s.pos[2].toFixed(2)} y ${s.pos[1].toFixed(2)}, quest ${s.quest}`);
+
+  // The ice gate (P2b): Fire melts it. Teleported to the trench in front
+  // of it (the walk over the Frozen Fields' hills is not part of this check).
+  await cmd('tp 60 34 96.0');
+  await cmd('face 60 37.5 93.5');
+  await until((x) => Math.abs(x.pos[2] - 96) < 0.3, 10000);
+  await frames(3);
+  const ice0 = await probe(60, 37, 93);
+  await page.keyboard.press('1');
+  await until((x) => x.spell === 0, 10000);
+  const fires = [];
+  for (let k = 0; k < 8; k++) {
+    const gate = [await probe(58, 37, 93), await probe(59, 37, 93), await probe(60, 37, 93), await probe(61, 37, 93)];
+    const left = gate.findIndex((c) => c && c.mat === 'ice');
+    if (left < 0 && (await st()).quest >= 4) break;
+    const x = left < 0 ? 60 : 58 + left;
+    await cmd(`face ${x + 0.5} 37.0 93.9`);
+    await frames(2);
+    fires.push(await press());
+    await until((v) => v.gameTime >= 0, 1000);
+  }
+  s = await until((x) => x.quest >= 4, 20000);
+  const melted = await probe(60, 37, 93);
+  await shot('p2-03-gate-melted.png');
+  check('puzzles: P2 Fire melts the ice gate and the objective moves on',
+    ice0 && ice0.mat === 'ice' && melted && melted.mat !== 'ice' && s.quest === 4,
+    `gate ${ice0 && ice0.mat} -> ${melted && melted.mat}, fire presses [${fires.join(',')}], quest ${s.quest} "${s.questLine.slice(0, 40)}"`);
+
+  // ---- The Marsh's gate (the east pass) needs Frost Practised: three
+  // Frost casts here make it so (each cast with nothing to build counts).
+  await cmd('tp 127.5 46 70.5');
+  await cmd('face 132.5 44 70.5');
+  s = await until((x) => Math.abs(x.pos[0] - 127.5) < 0.3 && Math.abs(x.pos[2] - 70.5) < 0.3, 10000);
+  await until((x) => x.gameTime >= s.gameTime + 1.0, 20000);
+  let pass = null;
+  for (let y = 38; y < 48 && !pass; y++) { const c = await probe(132, y, 70); if (c && c.mat === 'runestone') pass = c; }
+  const sm0 = await sign('marsh');
+  await shot('p3-01-marsh-gate.png');
+  await page.keyboard.press('3');
+  await until((x) => x.spell === 2, 10000);
+  await cmd('look 0 -40');
+  await frames(2);
+  let frostN = 0;
+  for (let k = 0; k < 3; k++) if (await press()) frostN += 1;
+  s = await until((x) => /sinks/.test(x.caption) && /Marsh/.test(x.caption), 15000);
+  const passAfter = pass ? await probe(pass.at[0], pass.at[1], pass.at[2]) : null;
+  check('puzzles: the Marsh gate (east pass) holds until Frost is Practised; its sign says so; three Frost casts open it',
+    !!pass && sm0 && sm0.shown && /Practise Frost 3 times/.test(sm0.text) && frostN === 3 && passAfter && passAfter.mat === 'air',
+    `wall ${pass && pass.at}, sign "${sm0 && sm0.text}" shown=${sm0 && sm0.shown}, frost presses ${frostN}, after ${passAfter && passAfter.mat}, caption "${s.caption.slice(0, 50)}"`);
+
+  // ---- P3: the methane hollow. In the hollow, CO2 poured with the rim gap
+  // open spills out and a vent stays lit; a block in the gap, then three
+  // casts, smother every vent, and the objective moves on.
+  await story('quest 5');
+  await cmd('tp 192.5 28.2 99.5');
+  await cmd('face 192.5 28.0 101.5');
+  s = await until((x) => x.quest === 5 && Math.abs(x.pos[0] - 192.5) < 0.3, 10000);
+  await until((x) => x.ventsLit === 6, 20000);
+  await shot('p3-02-hollow.png');
+  const lit0 = (await st()).ventsLit;
+  await page.keyboard.press('4');
+  await until((x) => x.spell === 3, 10000);
+  await cmd('face 191.5 28.0 101.0');
+  await frames(2);
+  for (let k = 0; k < 3; k++) await press();
+  s = await until((x) => x.gameTime >= s.gameTime + 6, 60000);
+  const openLit = s.ventsLit;
+  // Close the gap with a block (a debug give stands in for gathering one;
+  // digging is E4's check), placed with a real press on the floor face
+  // under the gap.
+  await page.evaluate(() => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push('give dirt 2', 'bind 1 6'); });
+  await cmd('tp 195.3 28.2 101.5');
+  await until((x) => Math.abs(x.pos[0] - 195.3) < 0.3, 10000);
+  await page.keyboard.press('6');
+  await until((x) => x.hot === 6, 10000);
+  await cmd('face 196.6 28.0 101.5');
+  await frames(2);
+  await page.mouse.move(VW / 2, VH / 2);
+  await page.mouse.down();
+  await sleep(80);
+  await page.mouse.up();
+  let gap = null;
+  for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(300)) { gap = await probe(196, 28, 101); if (gap && gap.mat === 'dirt') break; }
+  await page.keyboard.press('4');
+  await until((x) => x.spell === 3, 10000);
+  await cmd('face 191.5 28.0 101.0');
+  await frames(2);
+  for (let k = 0; k < 3; k++) await press();
+  s = await until((x) => x.ventsLit === 0 && x.quest >= 6, 60000);
+  await shot('p3-03-smothered.png');
+  check('puzzles: P3 with the gap open CO2 spills and a vent stays lit; a block in the gap and three CO2 casts smother every vent; the objective moves on',
+    lit0 === 6 && openLit >= 1 && gap && gap.mat === 'dirt' && s.ventsLit === 0 && s.gasCO2Max > 0.28 && s.quest === 6,
+    `vents ${lit0}, after 3 casts with the gap open ${openLit}, gap ${gap && gap.mat}, then vents ${s.ventsLit} CO2 max ${s.gasCO2Max}, quest ${s.quest}`);
 }
