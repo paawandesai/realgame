@@ -522,6 +522,9 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     }
 }
 
+/// The steepest drawn ground W walks up (rise over run, about 50 degrees).
+const MAX_SLOPE: f32 = 1.2;
+
 /// The smooth ground's half of a walking frame: natural ground that rises
 /// more than a step (or a wall of it) stops the move, axis by axis so the
 /// body slides along it; then the feet are set on the drawn surface when
@@ -538,28 +541,58 @@ fn stand_on_surface(
     let y = a.pos[1];
     let (x0, z0) = (from.pos[0], from.pos[2]);
     let (x1, z1) = (a.pos[0], a.pos[2]);
+    // Natural ground in the way: the drawn surface at the centre or the
+    // body's leading edge is more than a step up. Built blocks are left to
+    // their boxes.
+    let natural = |px: f32, pz: f32| {
+        let (cx, cz) = (px.floor() as i32, pz.floor() as i32);
+        let lo = y.floor() as i32;
+        !(lo..=(y + STEP).floor() as i32).any(|cy| {
+            matches!(
+                smooth::kind(world.get([cx, cy, cz]).mat),
+                smooth::Kind::Hard | smooth::Kind::Organic | smooth::Kind::Clear
+            )
+        })
+    };
     let blocked = |x: f32, z: f32| -> bool {
         let (dx, dz) = (x - x0, z - z0);
         let len = (dx * dx + dz * dz).sqrt();
         if len < 1e-6 {
             return false;
         }
-        // The centre and the body's leading edge.
         let lead = motion::RADIUS * 0.9 / len;
         [(x, z), (x + dx * lead, z + dz * lead)]
             .iter()
-            .any(|&(px, pz)| vox::ground(world, px, pz, y + STEP, y - 1.5) == vox::Ground::Inside)
+            .any(|&(px, pz)| {
+                natural(px, pz)
+                    && vox::ground(world, px, pz, y + STEP, y - 1.5) == vox::Ground::Inside
+            })
     };
     if blocked(x1, z1) {
-        if !blocked(x1, z0) {
-            a.pos[2] = z0;
+        // Keep as much of the move as is clear (a long frame moves far),
+        // then try sliding along each axis.
+        let mut t = 1.0f32;
+        for _ in 0..4 {
+            t *= 0.5;
+            if !blocked(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t) {
+                break;
+            }
+        }
+        if blocked(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t) {
+            t = 0.0;
+        }
+        let (xt, zt) = (x0 + (x1 - x0) * t, z0 + (z1 - z0) * t);
+        if !blocked(x1, zt) {
+            a.pos[0] = x1;
+            a.pos[2] = zt;
             a.vel[2] = 0.0;
-        } else if !blocked(x0, z1) {
-            a.pos[0] = x0;
+        } else if !blocked(xt, z1) {
+            a.pos[0] = xt;
+            a.pos[2] = z1;
             a.vel[0] = 0.0;
         } else {
-            a.pos[0] = x0;
-            a.pos[2] = z0;
+            a.pos[0] = xt;
+            a.pos[2] = zt;
             a.vel[0] = 0.0;
             a.vel[2] = 0.0;
         }
@@ -567,7 +600,14 @@ fn stand_on_surface(
     let speed = (a.vel[0] * a.vel[0] + a.vel[2] * a.vel[2]).sqrt();
     let snap = 0.3 + speed * dt * 1.2;
     if let vox::Ground::Floor(g) = vox::ground(world, a.pos[0], a.pos[2], y + STEP, y - 3.0) {
-        if g > y {
+        let d = ((a.pos[0] - x0).powi(2) + (a.pos[2] - z0).powi(2)).sqrt();
+        if g > y && from.grounded && !jump && g - y > d * MAX_SLOPE + 0.004 {
+            // Steeper than a walkable slope (the face of a wall): stay put.
+            a.pos[0] = x0;
+            a.pos[2] = z0;
+            a.vel[0] = 0.0;
+            a.vel[2] = 0.0;
+        } else if g > y {
             // Up onto the surface (a ramp, or landing on it).
             if g - y > 0.05 {
                 walk.lag -= g - y;
@@ -1326,7 +1366,10 @@ mod tests {
             grounded: true,
             ..Player::default()
         };
-        let top = press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 180);
+        let mut top = 0f32;
+        for _ in 0..180 {
+            top = top.max(press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 1));
+        }
         // Up the ramp of the first block, then stopped by the second.
         assert!(top < 36.5 && p.pos.x < 40.0, "{top} {:?}", p.pos);
     }
@@ -1350,6 +1393,21 @@ mod tests {
             walk(&mut p, &mut w, &world, input, 1.0 / 60.0);
         }
         assert!(p.pos.z < 176.0 && p.pos.y > 40.9, "{:?}", p.pos);
+        // The same at 4 frames a second (a software GPU, long frames).
+        let mut p = Player {
+            pos: Vec3::new(128.5, 35.0, 187.5),
+            grounded: true,
+            ..Player::default()
+        };
+        for f in 0..100 {
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump: f > 0 && f % 3 == 0,
+            };
+            walk(&mut p, &mut w, &world, input, 0.25);
+        }
+        assert!(p.pos.z < 176.0 && p.pos.y > 40.9, "at 4 fps: {:?}", p.pos);
     }
 
     #[test]
