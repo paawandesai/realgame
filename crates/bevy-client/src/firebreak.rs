@@ -74,10 +74,10 @@ pub fn run_to_fire(sim: &matter::World, pos: Vec3) -> Option<Vec3> {
 }
 
 /// A Water cast landed at `pos`: it also lands on the nearest burning
-/// block, and when either landing reaches the fuel store the water sheets
+/// block, and when either landing reaches the fuel store (returns true) the water sheets
 /// over the whole store: every burning store block is wetted and the store
 /// stops being a `SOURCE`.
-pub fn douse_at(sim: &mut matter::World, w: &mut World, pos: Vec3) {
+pub fn douse_at(sim: &mut matter::World, w: &mut World, pos: Vec3) -> bool {
     let mut at = vec![pos];
     at.extend(run_to_fire(sim, pos));
     if let Some(&to) = at.get(1) {
@@ -97,7 +97,7 @@ pub fn douse_at(sim: &mut matter::World, w: &mut World, pos: Vec3) {
         .iter()
         .any(|&p| at.iter().any(|a| a.distance(centre(p)) <= r))
     {
-        return;
+        return false;
     }
     for p in store {
         let mut cell = w.get(p);
@@ -113,13 +113,25 @@ pub fn douse_at(sim: &mut matter::World, w: &mut World, pos: Vec3) {
             w.set(p, cell);
         }
     }
+    true
 }
 
-/// A landed Water cast also wets the nearest burning block.
+/// The hint after a Water cast that lands in the workshop but does not
+/// reach the fire (break-2 should-fix 5).
+pub const LOB_HINT: &str = "Throw it high so it falls onto the fire.";
+
+/// Whether a Water landing at `pos` is in or by the workshop.
+pub fn in_workshop(pos: Vec3) -> bool {
+    (0..3).all(|a| pos[a] >= WORKSHOP.min[a] as f32 - 2.0 && pos[a] <= WORKSHOP.max[a] as f32 + 2.0)
+}
+
+/// A landed Water cast also wets the nearest burning block; one that lands
+/// in the workshop and misses the fire gets the lob hint.
 pub(crate) fn douse(
     mut landed: MessageReader<crate::SpellLanded>,
     matter: Option<ResMut<crate::blockchem::Matter>>,
     vox: Option<ResMut<crate::voxel_view::VoxWorld>>,
+    mut game: ResMut<crate::Game>,
 ) {
     let (Some(mut matter), Some(mut vox)) = (matter, vox) else {
         landed.clear();
@@ -127,7 +139,11 @@ pub(crate) fn douse(
     };
     for l in landed.read() {
         if l.spell == Spell::Water && l.normal != [0, 0, 0] {
-            douse_at(&mut matter.world, &mut vox.0, l.pos);
+            let reached = douse_at(&mut matter.world, &mut vox.0, l.pos);
+            let burning = matter.world.burning_cells().any(in_store);
+            if !reached && burning && in_workshop(l.pos) {
+                game.say(LOB_HINT);
+            }
         }
     }
 }
@@ -156,6 +172,28 @@ mod tests {
     fn water(sim: &mut matter::World, w: &mut World, at: Vec3, normal: IVec3) {
         sim.emit(crate::blockchem::on_impact(Spell::Water, at, normal));
         douse_at(sim, w, at);
+    }
+
+    /// break-2 should-fix 5: a cast that lands by the workshop but too far
+    /// from the fire does not reach it (the lob hint shows); one on the
+    /// store's front face does.
+    #[test]
+    fn a_cast_that_misses_the_fire_gets_the_lob_hint() {
+        let mut w = world();
+        let mut sim = matter::World::new(DEFAULT_SEED);
+        let mut ev = Vec::new();
+        for _ in 0..20 {
+            sim.step(&mut w, &mut ev);
+        }
+        let miss = Vec3::new(137.0, 35.0, 195.5);
+        assert!(in_workshop(miss));
+        assert!(
+            !douse_at(&mut sim, &mut w, miss),
+            "too far to reach the fire"
+        );
+        assert!(sim.burning_cells().any(in_store));
+        assert!(douse_at(&mut sim, &mut w, Vec3::new(142.5, 36.5, 190.0)));
+        assert!(!in_workshop(Vec3::new(128.5, 35.0, 205.5)), "the spawn");
     }
 
     #[test]

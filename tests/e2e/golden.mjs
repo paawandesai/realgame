@@ -5439,7 +5439,10 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     const e = document.querySelector(`.gate-sign[data-gate="${id}"]`);
     if (!e) return null;
     const r = e.getBoundingClientRect();
-    return { shown: !e.hidden && r.width > 0, text: e.textContent, x: r.left + r.width / 2, y: r.top };
+    const o = document.getElementById('objective')?.getBoundingClientRect();
+    // break-2 should-fix 6: the board never covers the objective panel.
+    const overlap = !!o && o.width > 0 && r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top;
+    return { shown: !e.hidden && r.width > 0, text: e.textContent, x: r.left + r.width / 2, y: r.top, overlap };
   }, id);
   await load(base);
   await poll(introShown, 15000);
@@ -5472,9 +5475,9 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   const opened = await probe(128, 33, 158);
   const sg1 = await sign('frozen');
   check('puzzles: P2 the ford is gated until Water is Practised; its sign counts the casts; three casts open it',
-    wall && wall.mat === 'runestone' && sg0 && sg0.shown && /Practise Water 3 times to open \(0\/3\)/.test(sg0.text) && held &&
+    wall && wall.mat === 'runestone' && sg0 && sg0.shown && !sg0.overlap && /Practise Water 3 times to open \(0\/3\)/.test(sg0.text) && held &&
       pressed === 3 && opened && opened.mat === 'air' && /sinks/.test(s.caption) && sg1 && !sg1.shown,
-    `wall ${wall && wall.mat}, sign "${sg0 && sg0.text}" shown=${sg0 && sg0.shown}, held at z ${s.pos[2].toFixed(2)}, ` +
+    `wall ${wall && wall.mat}, sign "${sg0 && sg0.text}" shown=${sg0 && sg0.shown} overlap=${sg0 && sg0.overlap}, held at z ${s.pos[2].toFixed(2)}, ` +
     `presses ${pressed}, after ${opened && opened.mat}, caption "${s.caption.slice(0, 50)}", sign after shown=${sg1 && sg1.shown}`);
 
   // Down the bank to the water's edge, then Frost on the water: the look

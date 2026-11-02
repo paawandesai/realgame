@@ -201,8 +201,17 @@ export function startStory() {
       const show = !!at && at.dist < 40;
       el.hidden = !show;
       if (show && at) {
+        // Keep the board below the objective panel (break-2 should-fix 6):
+        // its bottom edge sits at `top`, so push it down when they overlap.
+        let y = at.y;
+        const obj = document.getElementById('objective');
+        if (obj && !obj.hidden) {
+          const r = obj.getBoundingClientRect();
+          const half = el.offsetWidth / 2;
+          if (at.x + half > r.left && at.x - half < r.right) y = Math.max(y, r.bottom + 8 + el.offsetHeight);
+        }
         el.style.left = `${Math.round(at.x)}px`;
-        el.style.top = `${Math.round(at.y)}px`;
+        el.style.top = `${Math.round(y)}px`;
         el.style.opacity = String(Math.max(0.35, Math.min(1, 1.4 - at.dist / 40)));
       }
     }

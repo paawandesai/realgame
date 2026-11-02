@@ -176,6 +176,8 @@ The single register of every science claim the first-person 3D client shows the 
 | `Press F to rise with the H2 lift, then hold W onto the top.` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift). |
 | `Hold W to drift onto the top of the tower!` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift). |
 | `{line} Rank up: {}!` | crates/bevy-client/src/powers.rs | Game status (a cache found and the rank it reached); it states no science. |
+| `Throw it high so it falls onto the fire.` | crates/bevy-client/src/firebreak.rs | Game instruction (how to aim a Water cast over the workshop wall); it states no science. |
+| `Put out the methane hollow's flames to open` | crates/bevy-client/src/gates.rs | Game instruction (the cave gate's sign: the quest step that opens it); the hollow's burning methane vents are covered by the P3 rows. |
 | `H2 lift` | crates/bevy-client/src/powers.rs | Power name (Water's power on F). A label; the claim is C-106. |
 | `CO2 dash` | crates/bevy-client/src/powers.rs | Power name (CO2's power on F). A label; the claim is C-108. |
 | `{} is locked. Learn {} at the Formula Bench (B) to unlock it: {}.` | crates/bevy-client/src/powers.rs | Game instruction (a locked power); the hint filled in is C-110 or a power description. |
