@@ -451,6 +451,8 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
         .map(box3)
         .collect();
     solids.extend_from_slice(&ice);
+    // The blocks themselves, without this frame's floor box.
+    let blocks = solids.len();
     // The drawn ground under the feet, as a floor box for this frame.
     let ground_at = |x: f32, z: f32, y: f32| vox::ground(world, x, z, y + STEP, y - 3.0);
     if smooth {
@@ -514,7 +516,7 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
         }
     }
     if smooth {
-        stand_on_surface(world, &body, &mut a, jump, dt, walk, &solids);
+        stand_on_surface(world, &body, &mut a, jump, dt, walk, &solids[..blocks]);
     }
     // The world's edge (the protected mountains stop the player first).
     let lim = |v: f32, hi: i32| v.clamp(motion::RADIUS, hi as f32 - motion::RADIUS);
@@ -656,6 +658,8 @@ fn stand_on_surface(
         } else if from.grounded && !jump && a.vel[1] <= 0.0 && y - g < snap && {
             // Never down into a block's box (a bevel is drawn a little
             // below a built block's top; the box holds the feet there).
+            // `solids` leaves out the frame's floor box, which is where
+            // the feet were, not where they are going.
             let mut b = *a;
             b.pos[1] = g;
             !solids.iter().any(|s| s.overlaps(&body_box(&b)))
@@ -1468,6 +1472,35 @@ mod tests {
         }
         press(&mut p, &mut w, &world, Vec2::ZERO, false, 90);
         assert!(p.pos.z < 158.9 && p.pos.y < 33.1, "{:?}", p.pos);
+    }
+
+    #[test]
+    fn a_long_frame_down_the_ford_bank_keeps_the_feet_on_it() {
+        // The ford's mouth once its gate has sunk: one 0.25 s frame from
+        // the bank's ramp lands on the ground, not a metre above it.
+        let mut world = vox::generate(vox::DEFAULT_SEED);
+        let cells = crate::gates::build(&mut world, &crate::gates::GATES[0]);
+        crate::gates::open(&mut world, &cells);
+        let mut p = Player {
+            pos: Vec3::new(128.5, 33.59, 159.35),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        let input = crate::player::MoveInput {
+            wish: Vec2::new(0.0, 1.0),
+            sprint: false,
+            jump: false,
+        };
+        walk(&mut p, &mut w, &world, input, 0.25);
+        let vox::Ground::Floor(g) = vox::ground(&world, p.pos.x, p.pos.z, 36.0, 28.0) else {
+            panic!("no ground at {:?}", p.pos);
+        };
+        assert!(
+            p.pos.z < 158.5 && (p.pos.y - g).abs() < 0.05,
+            "{:?} ground {g}",
+            p.pos
+        );
     }
 
     #[test]
