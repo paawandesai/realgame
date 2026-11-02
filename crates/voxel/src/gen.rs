@@ -198,18 +198,186 @@ impl Column {
     }
 }
 
+/// Ridged noise in 0..1: sharp crests where the noise crosses its middle
+/// (mountain ridges and peaks rather than round hills).
+fn ridged(seed: u64, x: i32, z: i32, scale: i32) -> f32 {
+    let r = 1.0 - (2.0 * noise2(seed, x, z, scale) - 1.0).abs();
+    r * r
+}
+
+/// The edge ring's height at a column `edge` blocks in from the world's
+/// border: jagged peaks and saddles (ridged noise), only gently higher
+/// towards the border, so its top reads as a mountain range and not as
+/// concentric terraces. Never below 60: the ring's inner face stays a
+/// wall that cannot be climbed from the valley (its highest ground is 50).
+const RING_MIN: i32 = 60;
+
+fn ring_top(seed: u64, x: i32, z: i32, edge: i32, n: f32) -> i32 {
+    let peaks = 22.0 * ridged(seed ^ 0xe1, x, z, 11) + 8.0 * ridged(seed ^ 0xe2, x, z, 5);
+    let h = 60 + (6.0 * n) as i32 + peaks as i32 + (EDGE - edge).max(0);
+    h.clamp(RING_MIN, WORLD[1] - 4)
+}
+
+fn ring(seed: u64, x: i32, z: i32, edge: i32, n: f32) -> Column {
+    let mut c = Column::rock(ring_top(seed, x, z, edge, n), mat::CLIFFSTONE);
+    if c.top > 74 {
+        c.surf = mat::SNOW;
+    }
+    c
+}
+
+/// Whether `(x, z)` is within `margin` of a stamp, the river canyon, the
+/// village plaza or the ford: cliff skirts and buttresses keep off them.
+fn keep_clear(x: i32, z: i32, margin: i32) -> bool {
+    let canyon = (CANYON_Z.0 - margin..CANYON_Z.1 + margin).contains(&z);
+    let plaza =
+        (100 - margin..158 + margin).contains(&x) && (176 - margin..228 + margin).contains(&z);
+    let stamp = stamp::ALL.iter().any(|s| {
+        x >= s.min[0] - margin
+            && x < s.max[0] + margin
+            && z >= s.min[2] - margin
+            && z < s.max[2] + margin
+    });
+    canyon || plaza || stamp
+}
+
+/// A steep skirt at the foot of a cliff: the cliff's top `top`, `d` blocks
+/// out from its face, over ground `ground`. It falls 3-5 blocks a block (so
+/// it can never be walked or jumped up) into a short scree of loose stone
+/// one or two blocks over the ground, so a cliff meets the valley as
+/// buttresses and rubble, not as a box. None where the skirt has already
+/// reached the ground.
+///
+/// `cap` is the highest a skirt may stand: three blocks under the lowest
+/// the cliff's top ever is. A skirt's own steps can be climbed (it is
+/// rubble), but from its highest point the cliff above is still a wall.
+fn skirt(seed: u64, x: i32, z: i32, top: i32, cap: i32, d: i32, ground: &Column) -> Option<Column> {
+    // How far out this stretch of cliff reaches (0-6), and how fast it falls.
+    let reach = (7.0 * noise2(seed ^ 0xb7, x, z, 7).powf(1.3)) as i32;
+    let fall = 3 + (hash3(seed ^ 0xb9, x, 0, z) % 3) as i32;
+    if d <= reach {
+        let h = (top - fall * d).min(cap).min(ground.top + 12);
+        if h > ground.top + 2 {
+            return Some(Column::rock(h, mat::CLIFFSTONE));
+        }
+    }
+    // The scree: just past the buttress, a block or two of loose stone.
+    if d <= reach + 2 && ground.water_top <= ground.top {
+        let rubble = 1 + (hash3(seed ^ 0xbb, x, 1, z) % 2) as i32 - (d - reach - 1).max(0);
+        if rubble > 0 {
+            let mut c = *ground;
+            c.top += rubble;
+            c.surf = mat::STONE;
+            return Some(c);
+        }
+    }
+    None
+}
+
+/// The Frozen Fields' cliff band: at least 56 (the hills reach 50), with
+/// crags and saddles along its top.
+const BAND_MIN: i32 = 56;
+fn band_top(seed: u64, x: i32, z: i32, n: f32) -> i32 {
+    BAND_MIN + (3.0 * n) as i32 + (7.0 * ridged(seed ^ 0xc1, x, z, 6)) as i32
+}
+
+/// The ridge: at least 58, with peaks along it; level (60-63, as before)
+/// for ten blocks either side of the pass, so the Marsh gate's wall stands
+/// as high as the ridge beside it.
+const RIDGE_MIN: i32 = 58;
+fn ridge_top(seed: u64, x: i32, z: i32, n: f32) -> i32 {
+    if (PASS_Z.0 - 10..PASS_Z.1 + 10).contains(&z) {
+        return 60 + (4.0 * n) as i32;
+    }
+    RIDGE_MIN + (4.0 * n) as i32 + (8.0 * ridged(seed ^ 0xc3, x, z, 7)) as i32
+}
+
+/// The cliff between the Village and the southern Marsh: at least 48.
+const EAST_MIN: i32 = 48;
+fn east_top(seed: u64, x: i32, z: i32, n: f32) -> i32 {
+    EAST_MIN + (4.0 * n) as i32 + (7.0 * ridged(seed ^ 0xc5, x, z, 6)) as i32
+}
+
+/// The skirt (buttresses, scree) at the foot of the band, the ridge or the
+/// east cliff, for a column `d` blocks out from one of them.
+fn cliff_skirt(seed: u64, x: i32, z: i32, ground: &Column) -> Option<Column> {
+    const OUT: i32 = 9;
+    let near = |a: i32, lo: i32, hi: i32| -> Option<(i32, i32)> {
+        // (distance out, the face's coordinate) on either side of [lo, hi).
+        if a < lo && lo - a <= OUT {
+            Some((lo - a, lo))
+        } else if a >= hi && a - hi < OUT {
+            Some((a - hi + 1, hi - 1))
+        } else {
+            None
+        }
+    };
+    // The band (north of the river, west of the ridge).
+    if (EDGE..RIDGE_X.0).contains(&x) && z < CANYON_Z.0 {
+        if let Some((d, fz)) = near(z, BAND_Z.0, BAND_Z.1) {
+            let top = band_top(seed, x, fz, fbm(seed, x, fz, 32));
+            if let Some(c) = skirt(seed, x, z, top, BAND_MIN - 3, d, ground) {
+                return Some(c);
+            }
+        }
+    }
+    // The ridge, away from its pass.
+    if (EDGE..CANYON_Z.0).contains(&z) && !(PASS_Z.0 - 12..PASS_Z.1 + 12).contains(&z) {
+        if let Some((d, fx)) = near(x, RIDGE_X.0, RIDGE_X.1) {
+            let top = ridge_top(seed, fx, z, fbm(seed, fx, z, 32));
+            if let Some(c) = skirt(seed, x, z, top, RIDGE_MIN - 3, d, ground) {
+                return Some(c);
+            }
+        }
+    }
+    // The east cliff, south of the river.
+    if z >= CANYON_Z.1 {
+        if let Some((d, fx)) = near(x, EAST_CLIFF_X.0, EAST_CLIFF_X.1) {
+            let top = east_top(seed, fx, z, fbm(seed, fx, z, 32));
+            if let Some(c) = skirt(seed, x, z, top, EAST_MIN - 3, d, ground) {
+                return Some(c);
+            }
+        }
+    }
+    None
+}
+
 fn column(seed: u64, x: i32, z: i32) -> Column {
     let n = fbm(seed, x, z, 32);
     // The edge ring of tall mountains.
     let edge = x.min(z).min(WORLD[0] - 1 - x).min(WORLD[2] - 1 - z);
     if edge < EDGE {
-        let h = 62 + (14.0 * n) as i32 + (EDGE - edge) * 2;
-        let mut c = Column::rock(h.min(WORLD[1] - 4), mat::CLIFFSTONE);
-        if c.top > 70 {
-            c.surf = mat::SNOW;
-        }
-        return c;
+        return ring(seed, x, z, edge, n);
     }
+    let inner = inner_column(seed, x, z, n);
+    // Buttresses and scree at the ring's foot.
+    if edge < EDGE + 9 && !keep_clear(x, z, 4) {
+        let d = edge - EDGE + 1;
+        // The ring column just outside this one, towards the border.
+        let (ox, oz) = if edge == x {
+            (EDGE - 1, z)
+        } else if edge == z {
+            (x, EDGE - 1)
+        } else if edge == WORLD[0] - 1 - x {
+            (WORLD[0] - EDGE, z)
+        } else {
+            (x, WORLD[2] - EDGE)
+        };
+        let top = ring_top(seed, ox, oz, EDGE - 1, fbm(seed, ox, oz, 32));
+        if let Some(c) = skirt(seed, x, z, top, RING_MIN - 3, d, &inner) {
+            return c;
+        }
+    }
+    let rock = |c: &Column| c.surf == mat::CLIFFSTONE && c.top > 44;
+    if !rock(&inner) && !keep_clear(x, z, 4) {
+        if let Some(c) = cliff_skirt(seed, x, z, &inner) {
+            return c;
+        }
+    }
+    inner
+}
+
+fn inner_column(seed: u64, x: i32, z: i32, n: f32) -> Column {
     // The river canyon.
     if (CANYON_Z.0..CANYON_Z.1).contains(&z) {
         if (FORD_X.0..FORD_X.1).contains(&x) {
@@ -258,7 +426,7 @@ fn south(seed: u64, x: i32, z: i32, n: f32) -> Column {
         return Column::rock(TERRACE_Y - 1 - (z - 176), mat::BRICK);
     }
     if (EAST_CLIFF_X.0..EAST_CLIFF_X.1).contains(&x) {
-        return Column::rock(50 + (4.0 * n) as i32, mat::CLIFFSTONE);
+        return Column::rock(east_top(seed, x, z, n), mat::CLIFFSTONE);
     }
     if x >= EAST_CLIFF_X.1 {
         return marsh(seed, x, z);
@@ -284,7 +452,7 @@ fn north(seed: u64, x: i32, z: i32, n: f32) -> Column {
     }
     // The cliff band across the Frozen Fields (the ice gate is a stamp).
     if (BAND_Z.0..BAND_Z.1).contains(&z) && x < RIDGE_X.0 {
-        return Column::rock(58 + (3.0 * n) as i32, mat::CLIFFSTONE);
+        return Column::rock(band_top(seed, x, z, n), mat::CLIFFSTONE);
     }
     // The ridge between the Frozen Fields and the Marsh, with the pass.
     if (RIDGE_X.0..RIDGE_X.1).contains(&x) {
@@ -292,7 +460,7 @@ fn north(seed: u64, x: i32, z: i32, n: f32) -> Column {
             let t = (x - RIDGE_X.0) as f32 / (RIDGE_X.1 - RIDGE_X.0) as f32;
             return Column::plain(lerp(42.0, 33.0, t) as i32, mat::SNOW, mat::DIRT);
         }
-        return Column::rock(60 + (4.0 * n) as i32, mat::CLIFFSTONE);
+        return Column::rock(ridge_top(seed, x, z, n), mat::CLIFFSTONE);
     }
     if x >= RIDGE_X.1 {
         return marsh(seed, x, z);
@@ -916,5 +1084,86 @@ mod tests {
         assert_eq!(biome_at([60, 40, 100]), Biome::Frozen);
         assert_eq!(biome_at([200, 31, 100]), Biome::Marsh);
         assert_eq!(biome_at([220, 12, 40]), Biome::Cave);
+    }
+
+    /// The top of each column: the highest solid cell + 1 (where feet
+    /// stand), water counted as a floor at its surface.
+    fn tops(w: &World) -> Vec<i32> {
+        let mut out = vec![0; (WORLD[0] * WORLD[2]) as usize];
+        for z in 0..WORLD[2] {
+            for x in 0..WORLD[0] {
+                let mut y = WORLD[1] - 1;
+                while y > 0 && w.get([x, y, z]).mat == mat::AIR {
+                    y -= 1;
+                }
+                out[(z * WORLD[0] + x) as usize] = y + 1;
+            }
+        }
+        out
+    }
+
+    /// Cliffs with buttresses and scree still cannot be climbed: walking
+    /// from the spawn with steps up of at most 2 blocks (a smooth ramp and
+    /// a jump), the edge ring's top is never reached, and every column
+    /// within reach of the ring stands 3 or more under the ring's lowest top.
+    #[test]
+    fn the_edge_ring_cannot_be_climbed_from_the_valley() {
+        for seed in [crate::DEFAULT_SEED, 7, 99] {
+            let w = generate(seed);
+            let top = tops(&w);
+            let at = |x: i32, z: i32| top[(z * WORLD[0] + x) as usize];
+            let edge = |x: i32, z: i32| x.min(z).min(WORLD[0] - 1 - x).min(WORLD[2] - 1 - z);
+            let mut seen = vec![false; top.len()];
+            let s = crate::SPAWN;
+            let mut stack = vec![(s[0] as i32, s[2] as i32)];
+            seen[(s[2] as i32 * WORLD[0] + s[0] as i32) as usize] = true;
+            while let Some((x, z)) = stack.pop() {
+                assert!(
+                    edge(x, z) >= EDGE,
+                    "seed {seed}: climbed onto the ring at ({x}, {z})"
+                );
+                let gate = stamp::ICE_GATE;
+                let in_band = (BAND_Z.0..BAND_Z.1).contains(&z)
+                    && x < RIDGE_X.0
+                    && !(gate.min[0] - 1..gate.max[0] + 1).contains(&x);
+                assert!(
+                    !in_band || at(x, z) < 50,
+                    "seed {seed}: up on the band at ({x}, {z}) {}",
+                    at(x, z)
+                );
+                let in_ridge = (RIDGE_X.0..RIDGE_X.1).contains(&x)
+                    && z < CANYON_Z.0
+                    && !(PASS_Z.0..PASS_Z.1).contains(&z);
+                assert!(
+                    !in_ridge || at(x, z) < 50,
+                    "seed {seed}: up on the ridge at ({x}, {z})"
+                );
+                for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                    let (nx, nz) = (x + dx, z + dz);
+                    if !(0..WORLD[0]).contains(&nx) || !(0..WORLD[2]).contains(&nz) {
+                        continue;
+                    }
+                    let i = (nz * WORLD[0] + nx) as usize;
+                    if !seen[i] && at(nx, nz) - at(x, z) <= 2 {
+                        seen[i] = true;
+                        stack.push((nx, nz));
+                    }
+                }
+            }
+            for z in 0..WORLD[2] {
+                for x in 0..WORLD[0] {
+                    if edge(x, z) >= EDGE
+                        && edge(x, z) < EDGE + 12
+                        && seen[(z * WORLD[0] + x) as usize]
+                    {
+                        assert!(
+                            at(x, z) <= RING_MIN - 2,
+                            "seed {seed}: ({x}, {z}) stands at {}",
+                            at(x, z)
+                        );
+                    }
+                }
+            }
+        }
     }
 }

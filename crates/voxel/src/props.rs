@@ -625,6 +625,80 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
 }
 
 // ---------------------------------------------------------------------------
+// The far mountains.
+// ---------------------------------------------------------------------------
+
+/// A range of far mountains all around the valley, outside the world's
+/// cells (nothing there can be reached or changed): faceted peaks of
+/// blue-grey rock with snow above y 118, rising behind the edge ring so its
+/// line is broken by higher, further summits. Rows run from 14 m to 120 m
+/// outside the border; fog softens them with distance.
+pub fn backdrop(seed: u64) -> MeshData {
+    let mut out = MeshData::default();
+    let half = [crate::WORLD[0] as f32 / 2.0, crate::WORLD[2] as f32 / 2.0];
+    let centre = [half[0], 0.0, half[1]];
+    const STEPS: usize = 220;
+    // Distances outside the border, and each row's base height and peak.
+    const ROWS: [(f32, f32, f32); 6] = [
+        (14.0, 52.0, 18.0),
+        (32.0, 64.0, 46.0),
+        (52.0, 70.0, 74.0),
+        (74.0, 66.0, 92.0),
+        (98.0, 60.0, 70.0),
+        (122.0, 44.0, 30.0),
+    ];
+    let s = (seed as u32) ^ 0x6d0;
+    // A point `out` metres outside the border, in direction `angle`.
+    let at = |k: usize, row: usize| -> V3 {
+        let a = k as f32 / STEPS as f32 * std::f32::consts::TAU;
+        let (sn, cs) = a.sin_cos();
+        // The distance from the centre to the square border along `a`.
+        let r_border = (half[0] / cs.abs().max(1e-4)).min(half[1] / sn.abs().max(1e-4));
+        let (dist, base, peak) = ROWS[row];
+        let kk = (k % STEPS) as i32;
+        // Ridged peaks along the range, a few big summits, and a jagged
+        // jitter so neighbouring facets differ.
+        let big = 1.0 - (2.0 * unit(kk / 18, row as i32, 0, s) - 1.0).abs();
+        let next = 1.0 - (2.0 * unit(kk / 18 + 1, row as i32, 0, s) - 1.0).abs();
+        let t = (kk % 18) as f32 / 18.0;
+        let t = t * t * (3.0 - 2.0 * t);
+        let ridge = big + (next - big) * t;
+        let jag = unit(kk, row as i32, 1, s);
+        let h = base + peak * (0.35 + 0.65 * ridge * ridge) + 9.0 * jag;
+        let r = r_border + dist + 6.0 * (unit(kk, row as i32, 2, s) - 0.5);
+        [centre[0] + cs * r, h, centre[2] + sn * r]
+    };
+    let rock = [0.30, 0.33, 0.42];
+    let snow = [0.86, 0.90, 0.97];
+    for k in 0..STEPS {
+        for row in 0..ROWS.len() - 1 {
+            let a = at(k, row);
+            let b = at(k + 1, row);
+            let c = at(k + 1, row + 1);
+            let d = at(k, row + 1);
+            for (p, q, r) in [(a, b, c), (a, c, d)] {
+                let mid = mul(add(add(p, q), r), 1.0 / 3.0);
+                let outward = norm([mid[0] - centre[0], 0.0, mid[2] - centre[2]]);
+                // Faces turn towards the valley (and up).
+                let inside = add(mid, add(mul(outward, 40.0), [0.0, -60.0, 0.0]));
+                let high = ((mid[1] - 112.0) / 14.0).clamp(0.0, 1.0);
+                let paint = Paint {
+                    rgb: mul(
+                        mix(rock, snow, high),
+                        0.85 + 0.3 * unit(k as i32, row as i32, 3, s),
+                    ),
+                    glow: 0.0,
+                    mat: mat::CLIFFSTONE,
+                    top: Some((snow, 0.6)),
+                };
+                tri(&mut out, p, q, r, inside, paint);
+            }
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
 // A region's models.
 // ---------------------------------------------------------------------------
 
@@ -823,6 +897,38 @@ mod tests {
             hi[1] > 30.5 && lo[1] > 29.0,
             "it grows up out of the ground: {lo:?} {hi:?}"
         );
+    }
+
+    #[test]
+    fn the_far_mountains_ring_the_valley_outside_it() {
+        let m = backdrop(crate::DEFAULT_SEED);
+        assert!(m.indices.len() / 3 > 1000);
+        let (w, d) = (crate::WORLD[0] as f32, crate::WORLD[2] as f32);
+        let mut over = 0;
+        for p in &m.positions {
+            let outside = p[0] < -5.0 || p[0] > w + 5.0 || p[2] < -5.0 || p[2] > d + 5.0;
+            assert!(outside, "inside the world: {p:?}");
+            // Within the camera's 400 m from anywhere in the valley.
+            assert!(p[0] > -140.0 && p[0] < w + 140.0 && p[2] > -140.0 && p[2] < d + 140.0);
+            if p[1] > 100.0 {
+                over += 1;
+            }
+        }
+        assert!(over > 50, "peaks rise above the edge ring: {over}");
+        // Faces are turned towards the valley or up (a few along the range
+        // turn sideways).
+        let tris = m.indices.len() / 3;
+        let facing = m
+            .indices
+            .chunks(3)
+            .filter(|t| {
+                let p = m.positions[t[0] as usize];
+                let n = m.normals[t[0] as usize];
+                let to_centre = [w / 2.0 - p[0], 0.0, d / 2.0 - p[2]];
+                dot(n, to_centre) > 0.0 || n[1] > 0.3
+            })
+            .count();
+        assert!(facing * 10 > tris * 9, "{facing} of {tris}");
     }
 
     #[test]

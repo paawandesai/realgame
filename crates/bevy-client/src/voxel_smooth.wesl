@@ -140,11 +140,14 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     let vein = smoothstep(0.035, 0.0, abs(fine - 0.5)) * glow;
     let teal = vec3<f32>(0.25, 1.0, 0.85);
     let core = col * smoothstep(0.6, 1.0, glow);
-    var emit = (teal * vein * 2.2 + core * 1.6) * breathe;
+    var emit = (teal * vein * 1.6 + core * 0.75) * breathe;
     // Rim light: a cool sky edge on every silhouette.
     let rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-    emit = emit + vec3<f32>(0.35, 0.5, 0.75) * rim * 0.12 * ao;
-    pbr_input.material.emissive = vec4<f32>(emit, 1.0);
+    emit = emit + vec3<f32>(0.35, 0.5, 0.75) * rim * 0.03 * ao;
+    // Alpha 0: the glow is already in display units, so Bevy must not scale
+    // it by the camera's exposure (about 1/1000 with the default EV100,
+    // which left crystals, torches and runes looking unlit).
+    pbr_input.material.emissive = vec4<f32>(emit, 0.0);
 
     out.color = apply_pbr_lighting(pbr_input);
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);

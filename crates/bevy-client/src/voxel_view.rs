@@ -189,6 +189,15 @@ fn setup(
         .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats, settings.low));
     if smooth.is_some() {
         let opaque = smooth.as_ref().map(|m| m.opaque.clone());
+        if let Some(rock) = opaque.clone() {
+            // The far mountains around the valley (outside the cells).
+            commands.spawn((
+                Mesh3d(meshes.add(to_smooth_mesh(&vox::props::backdrop(world.0.seed), false))),
+                MeshMaterial3d(rock),
+                Transform::IDENTITY,
+                NotShadowCaster,
+            ));
+        }
         spawn_props(&mut commands, &mut meshes, &mut std_mats, opaque);
     }
     let mut chunks = Chunks {
@@ -1218,9 +1227,10 @@ fn mesh_chunks(
     while let Some(c) = chunks.queue.pop() {
         chunks.queued[c] = false;
         let o = World::chunk_origin(c);
-        // The smooth surface may bulge a little past the chunk's cells.
-        let lo = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) - Vec3::splat(1.0);
-        let aabb = Aabb::from_min_max(lo, lo + Vec3::splat(CHUNK as f32 + 2.0));
+        // The smooth surface may bulge a little past the chunk's cells, and
+        // a tree's crown or a crystal (`props`) a few metres.
+        let lo = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) - Vec3::splat(4.0);
+        let aabb = Aabb::from_min_max(lo, lo + Vec3::splat(CHUNK as f32 + 8.0));
         let passes: [Option<(Mesh, PassMat)>; 3] = match &chunks.smooth {
             Some(sm) => {
                 let m = vox::mesh_chunk_smooth(&world.0, c);
