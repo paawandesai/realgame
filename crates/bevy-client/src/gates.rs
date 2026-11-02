@@ -121,6 +121,12 @@ pub fn is_open(biome: &str, story: &Story, saved: &crate::Progress) -> bool {
     let Some(spell) = practice::gate_spell(biome) else {
         return true;
     };
+    // The cave opens only once the methane hollow is crossed (break-2
+    // should-fix 4: spec section 7, "the hollow only when smothered"), so
+    // walking round the hollow does not skip it.
+    if biome == "cave" && !hollow_done(story) {
+        return false;
+    }
     practice::biome_open(biome, &story.practice)
         || saved
             .0
@@ -129,10 +135,21 @@ pub fn is_open(biome: &str, story: &Story, saved: &crate::Progress) -> bool {
 }
 
 /// The sign's words for a shut gate.
+/// The quest is past the methane hollow (step 5).
+fn hollow_done(story: &Story) -> bool {
+    story.quest.step() > 5
+}
+
+/// The cave gate's sign once CO2 is practised but the hollow still burns.
+pub const HOLLOW_SIGN: &str = "Put out the methane hollow's flames to open";
+
 pub fn sign_text(biome: &str, story: &Story) -> String {
     let Some(spell) = practice::gate_spell(biome) else {
         return String::new();
     };
+    if biome == "cave" && practice::biome_open(biome, &story.practice) && !hollow_done(story) {
+        return HOLLOW_SIGN.to_string();
+    }
     let name = crate::chem::Spell::ALL[spell].name();
     let n = story.practice.casts[spell].min(PRACTISE_CASTS);
     format!("Practise {name} {PRACTISE_CASTS} times to open ({n}/{PRACTISE_CASTS})")
@@ -301,5 +318,13 @@ mod tests {
         assert!(!is_open("marsh", &s, &saved), "the Marsh needs Frost");
         assert_eq!(sign_text("cave", &s), "Practise CO₂ 3 times to open (0/3)");
         assert!(is_open("village", &s, &saved), "no gate");
+        // The cave needs CO2 practised and the hollow crossed.
+        for _ in 0..3 {
+            s.practice.record(3);
+        }
+        assert!(!is_open("cave", &s, &saved), "the hollow still burns");
+        assert_eq!(sign_text("cave", &s), HOLLOW_SIGN);
+        s.quest = realgame_sim::valley::Quest::at(6);
+        assert!(is_open("cave", &s, &saved));
     }
 }
