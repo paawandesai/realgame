@@ -748,13 +748,39 @@ fn sheet(g: &Grid, i: usize, sy: usize) -> bool {
     g.mat[i] == mat::ICE && g.kinds.get(i + sy) == Some(&Kind::Empty)
 }
 
-/// Frozen surfaces over cells `[lo, hi)`: a flat top just under the block
-/// top, and a side wherever the ice is open to air.
+/// Frozen surfaces over cells `[lo, hi)`: a sheet just under the block
+/// top, its corners shared with the frozen columns around them (a stream
+/// frozen a step lower meets it in a slope, not a box edge), and a side
+/// only where the ice is open to air with no lower sheet to meet.
 fn ice_sheets(g: &Grid, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     let mut out = MeshData::default();
     let lk = look_of(mat::ICE);
     let sy = g.n[0] as usize;
-    let mut push = |p: [[f32; 3]; 4], n: [f32; 3]| {
+    let is_sheet = |p: [i32; 3]| g.idx(p).is_some_and(|i| sheet(g, i, sy));
+    // The sheet nearest level y in column (x, z), within a step.
+    let near_top = |x: i32, y: i32, z: i32| -> Option<f32> {
+        [y, y - 1, y + 1]
+            .into_iter()
+            .find(|&yy| is_sheet([x, yy, z]))
+            .map(|yy| yy as f32 + 0.97)
+    };
+    // Corner (cx, cz) of a sheet at level y: the mean of the sheets round it.
+    let corner = |cx: i32, y: i32, cz: i32| -> f32 {
+        let (mut sum, mut n) = (0.0, 0.0);
+        for (dx, dz) in [(-1, -1), (0, -1), (-1, 0), (0, 0)] {
+            if let Some(t) = near_top(cx + dx, y, cz + dz) {
+                sum += t;
+                n += 1.0;
+            }
+        }
+        if n > 0.0 {
+            sum / n
+        } else {
+            y as f32 + 0.97
+        }
+    };
+    let mut push = |p: [[f32; 3]; 4]| {
+        let n = normalize(quad_normal(&p));
         let first = out.positions.len() as u32;
         for v in p {
             out.positions.push(v);
@@ -770,42 +796,35 @@ fn ice_sheets(g: &Grid, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     for z in lo[2]..hi[2] {
         for y in lo[1]..hi[1] {
             for x in lo[0]..hi[0] {
-                let Some(i) = g.idx([x, y, z]) else {
-                    continue;
-                };
-                if !sheet(g, i, sy) {
+                if !is_sheet([x, y, z]) {
                     continue;
                 }
                 let (fx, fy, fz) = (x as f32, y as f32, z as f32);
-                let top = fy + 0.97;
-                push(
-                    [
-                        [fx, top, fz],
-                        [fx, top, fz + 1.0],
-                        [fx + 1.0, top, fz + 1.0],
-                        [fx + 1.0, top, fz],
-                    ],
-                    [0.0, 1.0, 0.0],
-                );
+                let c = |dx: i32, dz: i32| corner(x + dx, y, z + dz);
+                let (c00, c01, c11, c10) = (c(0, 0), c(0, 1), c(1, 1), c(1, 0));
+                push([
+                    [fx, c00, fz],
+                    [fx, c01, fz + 1.0],
+                    [fx + 1.0, c11, fz + 1.0],
+                    [fx + 1.0, c10, fz],
+                ]);
                 for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-                    if g.kind([x + dx, y, z + dz]) != Kind::Empty {
+                    let side = [x + dx, y, z + dz];
+                    if g.kind(side) != Kind::Empty || is_sheet([x + dx, y - 1, z + dz]) {
                         continue;
                     }
-                    let (a, b) = match (dx, dz) {
-                        (1, 0) => ([fx + 1.0, fz + 1.0], [fx + 1.0, fz]),
-                        (-1, 0) => ([fx, fz], [fx, fz + 1.0]),
-                        (0, 1) => ([fx, fz + 1.0], [fx + 1.0, fz + 1.0]),
-                        _ => ([fx + 1.0, fz], [fx, fz]),
+                    let (a, b, ta, tb) = match (dx, dz) {
+                        (1, 0) => ([fx + 1.0, fz + 1.0], [fx + 1.0, fz], c11, c10),
+                        (-1, 0) => ([fx, fz], [fx, fz + 1.0], c00, c01),
+                        (0, 1) => ([fx, fz + 1.0], [fx + 1.0, fz + 1.0], c01, c11),
+                        _ => ([fx + 1.0, fz], [fx, fz], c10, c00),
                     };
-                    push(
-                        [
-                            [a[0], fy, a[1]],
-                            [b[0], fy, b[1]],
-                            [b[0], top, b[1]],
-                            [a[0], top, a[1]],
-                        ],
-                        [dx as f32, 0.0, dz as f32],
-                    );
+                    push([
+                        [a[0], fy, a[1]],
+                        [b[0], fy, b[1]],
+                        [b[0], tb, b[1]],
+                        [a[0], ta, a[1]],
+                    ]);
                 }
             }
         }
@@ -1203,6 +1222,35 @@ mod tests {
             (max_y(&m.clear) - 31.97).abs() < 1e-4,
             "{}",
             max_y(&m.clear)
+        );
+    }
+
+    #[test]
+    fn a_stream_frozen_a_step_lower_meets_in_a_slope_not_a_box_edge() {
+        // Ice tops at y 31 for x < 16 and y 30 beyond, on sand.
+        let mut w = flat(30, mat::SAND);
+        for z in 10..14 {
+            for x in 10..22 {
+                let y = if x < 16 { 31 } else { 30 };
+                w.set([x, y, z], Cell::new(mat::ICE));
+                if x >= 16 {
+                    w.set([x, 31, z], Cell::AIR);
+                }
+            }
+        }
+        let m = mesh_region(&w, [0, 16, 0], [32, 48, 32]).clear;
+        // No vertical side at the step (x 16): every ice vertex on that
+        // line is at the shared, in-between height.
+        let at_step: Vec<f32> = m
+            .positions
+            .iter()
+            .filter(|p| p[0] == 16.0 && p[2] > 10.5 && p[2] < 13.5)
+            .map(|p| p[1])
+            .collect();
+        assert!(!at_step.is_empty());
+        assert!(
+            at_step.iter().all(|&y| (y - 31.47).abs() < 1e-3),
+            "{at_step:?}"
         );
     }
 
