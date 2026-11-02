@@ -21,6 +21,7 @@ pub mod gen;
 pub mod materials;
 pub mod mesh;
 pub mod raycast;
+pub mod smooth;
 pub mod stamp;
 
 pub use collide::{ice_boxes, solid_boxes};
@@ -28,6 +29,7 @@ pub use diff::DiffLog;
 pub use gen::{biome_at, generate, spawn_for};
 pub use mesh::{mesh_chunk, ChunkMesh, MeshData};
 pub use raycast::{raycast, Hit, RayMode};
+pub use smooth::{ground, mesh_chunk_smooth, Ground, SmoothMesh};
 pub use stamp::Aabb;
 
 /// Cells along each edge of a chunk.
@@ -242,6 +244,9 @@ impl Chunk {
 pub struct World {
     chunks: Vec<Chunk>,
     dirty: Vec<bool>,
+    /// Chunks whose smooth mesh a change reached (`smooth::MARGIN` cells
+    /// around each written cell, so diagonal neighbours too).
+    near: Vec<bool>,
     protected: Vec<Aabb>,
     /// The generation seed (`generate`); 0 for `World::new`.
     pub seed: u64,
@@ -260,6 +265,7 @@ impl World {
         World {
             chunks: vec![Chunk::Uniform(Cell::AIR); n],
             dirty: vec![false; n],
+            near: vec![false; n],
             protected: Vec::new(),
             seed: 0,
         }
@@ -326,6 +332,16 @@ impl World {
         }
         self.chunks[c].set(i, cell);
         self.dirty[c] = true;
+        let m = smooth::MARGIN;
+        let lo = p.map(|v| v - m);
+        let hi = p.map(|v| v + m);
+        for cz in lo[2].max(0) / CHUNK..=(hi[2].min(WORLD[2] - 1) / CHUNK) {
+            for cy in lo[1].max(0) / CHUNK..=(hi[1].min(WORLD[1] - 1) / CHUNK) {
+                for cx in lo[0].max(0) / CHUNK..=(hi[0].min(WORLD[0] - 1) / CHUNK) {
+                    self.near[(cx + CHUNKS[0] * (cy + CHUNKS[1] * cz)) as usize] = true;
+                }
+            }
+        }
         for a in 0..3 {
             let local = p[a].rem_euclid(CHUNK);
             for (edge, d) in [(0, -1), (CHUNK - 1, 1)] {
@@ -360,6 +376,18 @@ impl World {
     pub fn take_dirty(&mut self) -> Vec<usize> {
         let out = self.dirty_chunks();
         self.dirty.iter_mut().for_each(|d| *d = false);
+        out
+    }
+
+    /// The chunks whose smooth mesh is out of date (every dirty chunk, plus
+    /// the neighbours a change reached within `smooth::MARGIN` cells), in
+    /// index order, clearing both sets.
+    pub fn take_dirty_smooth(&mut self) -> Vec<usize> {
+        let out = (0..self.dirty.len())
+            .filter(|&i| self.dirty[i] || self.near[i])
+            .collect();
+        self.dirty.iter_mut().for_each(|d| *d = false);
+        self.near.iter_mut().for_each(|d| *d = false);
         out
     }
 
