@@ -149,10 +149,12 @@ export function startStory() {
   // that skips does not (it would lock the pointer or cast).
   const skip = (/** @type {Event} */ e) => {
     if (!open) return;
-    // "Just play" is a button the player chose: it works at once, by
-    // mouse, touch or keyboard (the 1 s guard is for stray keys only). Its
-    // press is let through to the button, and its click closes the intro.
-    const onPlay = e.target instanceof Node && play1.contains(e.target);
+    // "Just play" is a button the player chose: a click or tap on it works
+    // at once (the 1 s guard is for stray presses). Its press is let
+    // through to the button, and its click closes the intro. Keys are not
+    // (the button has focus, so every key is aimed at it): any key after
+    // 1 s skips, as before.
+    const onPlay = (e.type === 'pointerdown' || e.type === 'click') && e.target instanceof Node && play1.contains(e.target);
     if (onPlay) {
       e.stopPropagation();
       if (e.type === 'click') finish();
