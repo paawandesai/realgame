@@ -400,6 +400,9 @@ fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass) -> Net {
                 let i = row + dx;
                 let kd = k[i];
                 let v = match pass {
+                    // Surface ice (a frozen pond or ford) is a flat sheet
+                    // (`ice_sheets`), not part of the net.
+                    Pass::Clear if sheet(g, i, sy) => 0.0,
                     Pass::Clear => f32::from(u8::from(kd == Kind::Clear || opaque(kd))),
                     Pass::Opaque if opaque(kd) => 1.0,
                     Pass::Opaque if kd == Kind::Clear || !soft(i - sy) => 0.0,
@@ -739,6 +742,89 @@ fn dist2(a: [f32; 3], b: [f32; 3]) -> f32 {
     d[0] * d[0] + d[1] * d[1] + d[2] * d[2]
 }
 
+/// True for grid cell `i` (row stride `sy`) holding ice open to the sky
+/// above: a frozen surface, drawn as a flat sheet.
+fn sheet(g: &Grid, i: usize, sy: usize) -> bool {
+    g.mat[i] == mat::ICE && g.kinds.get(i + sy) == Some(&Kind::Empty)
+}
+
+/// Frozen surfaces over cells `[lo, hi)`: a flat top just under the block
+/// top, and a side wherever the ice is open to air.
+fn ice_sheets(g: &Grid, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
+    let mut out = MeshData::default();
+    let lk = look_of(mat::ICE);
+    let sy = g.n[0] as usize;
+    let mut push = |p: [[f32; 3]; 4], n: [f32; 3]| {
+        let first = out.positions.len() as u32;
+        for v in p {
+            out.positions.push(v);
+            out.normals.push(n);
+            out.colors.push([lk.rgb[0], lk.rgb[1], lk.rgb[2], 1.0]);
+            out.uvs.push([lk.glow, lk.grassy]);
+            out.mats.push(mat::ICE);
+            out.light.push(1.0);
+        }
+        out.indices
+            .extend_from_slice(&[first, first + 1, first + 2, first, first + 2, first + 3]);
+    };
+    for z in lo[2]..hi[2] {
+        for y in lo[1]..hi[1] {
+            for x in lo[0]..hi[0] {
+                let Some(i) = g.idx([x, y, z]) else {
+                    continue;
+                };
+                if !sheet(g, i, sy) {
+                    continue;
+                }
+                let (fx, fy, fz) = (x as f32, y as f32, z as f32);
+                let top = fy + 0.97;
+                push(
+                    [
+                        [fx, top, fz],
+                        [fx, top, fz + 1.0],
+                        [fx + 1.0, top, fz + 1.0],
+                        [fx + 1.0, top, fz],
+                    ],
+                    [0.0, 1.0, 0.0],
+                );
+                for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                    if g.kind([x + dx, y, z + dz]) != Kind::Empty {
+                        continue;
+                    }
+                    let (a, b) = match (dx, dz) {
+                        (1, 0) => ([fx + 1.0, fz + 1.0], [fx + 1.0, fz]),
+                        (-1, 0) => ([fx, fz], [fx, fz + 1.0]),
+                        (0, 1) => ([fx, fz + 1.0], [fx + 1.0, fz + 1.0]),
+                        _ => ([fx + 1.0, fz], [fx, fz]),
+                    };
+                    push(
+                        [
+                            [a[0], fy, a[1]],
+                            [b[0], fy, b[1]],
+                            [b[0], top, b[1]],
+                            [a[0], top, a[1]],
+                        ],
+                        [dx as f32, 0.0, dz as f32],
+                    );
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Appends mesh `b` to `a`.
+fn append(a: &mut MeshData, b: MeshData) {
+    let off = a.positions.len() as u32;
+    a.positions.extend(b.positions);
+    a.normals.extend(b.normals);
+    a.uvs.extend(b.uvs);
+    a.colors.extend(b.colors);
+    a.mats.extend(b.mats);
+    a.light.extend(b.light);
+    a.indices.extend(b.indices.into_iter().map(|i| i + off));
+}
+
 /// The water pass over cells `[lo, hi)`: a surface at each liquid column's
 /// level, its corners shared with the neighbouring liquid cells (so it is
 /// smooth), and a side wherever a liquid cell is open to air.
@@ -856,7 +942,9 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
     SmoothMesh {
         opaque: surface(&g, lo, hi, Pass::Opaque, true),
         clear: if g.has(Kind::Clear) {
-            surface(&g, lo, hi, Pass::Clear, true)
+            let mut m = surface(&g, lo, hi, Pass::Clear, true);
+            append(&mut m, ice_sheets(&g, lo, hi));
+            m
         } else {
             MeshData::default()
         },
@@ -1110,6 +1198,12 @@ mod tests {
         assert!((30.85..=30.95).contains(&top), "water top {top}");
         assert!(!m.clear.is_empty(), "ice is drawn");
         assert!(m.clear.mats.iter().all(|&k| k == mat::ICE));
+        // Surface ice is a flat sheet just under the block top.
+        assert!(
+            (max_y(&m.clear) - 31.97).abs() < 1e-4,
+            "{}",
+            max_y(&m.clear)
+        );
     }
 
     #[test]

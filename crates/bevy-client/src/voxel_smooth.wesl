@@ -96,7 +96,7 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     // Grassy colours keep to the flat tops; slopes show warm rock.
     var base = col;
     let rock = mix(col * 0.45, vec3<f32>(0.32, 0.28, 0.26), 0.65) * (0.85 + 0.3 * strata);
-    let flat_t = smoothstep(0.5, 0.78, n.y + (big - 0.5) * 0.35);
+    let flat_t = smoothstep(0.3, 0.6, n.y + (big - 0.5) * 0.3);
     base = mix(base, mix(rock, base, flat_t), grassy);
     // Patches: a sunlit yellow-green or a cool shade on grass, gentle
     // value changes elsewhere.
