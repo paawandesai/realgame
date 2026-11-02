@@ -1113,6 +1113,21 @@ mod tests {
     }
 
     #[test]
+    fn a_change_near_a_corner_remeshes_the_chunks_it_reaches() {
+        let mut w = World::new();
+        // Two cells in from the corner of chunks (0..32)^3: the smooth
+        // meshes of all 8 chunks round that corner can change.
+        w.set([30, 30, 30], Cell::new(mat::DIRT));
+        let d = w.take_dirty_smooth();
+        assert_eq!(d.len(), 8, "{d:?}");
+        assert!(w.take_dirty_smooth().is_empty());
+        assert!(w.dirty_chunks().is_empty());
+        // Deep inside a chunk: that chunk alone.
+        w.set([16, 16, 16], Cell::new(mat::DIRT));
+        assert_eq!(w.take_dirty_smooth(), vec![0]);
+    }
+
+    #[test]
     fn a_village_chunk_meshes_quickly_and_has_no_cubes() {
         let w = crate::generate(crate::DEFAULT_SEED);
         let c = World::chunk_index([128, 40, 190]).unwrap();

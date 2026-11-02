@@ -187,7 +187,8 @@ fn setup(
         .is_none()
         .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats));
     if smooth.is_some() {
-        spawn_props(&mut commands, &mut meshes, &mut std_mats);
+        let opaque = smooth.as_ref().map(|m| m.opaque.clone());
+        spawn_props(&mut commands, &mut meshes, &mut std_mats, opaque);
     }
     let mut chunks = Chunks {
         ents: vec![[None, None, None]; n],
@@ -223,7 +224,19 @@ fn spawn_props(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     mats: &mut Assets<StandardMaterial>,
+    clay: Option<Handle<crate::voxel_tex::SmoothMat>>,
 ) {
+    if let Some(clay) = clay {
+        // A round clay dome and chimney over the Kiln's brick cells (the
+        // cells stay underneath for the puzzle and for collision).
+        for mesh in [kiln_dome(), kiln_chimney()] {
+            commands.spawn((
+                Mesh3d(meshes.add(mesh)),
+                MeshMaterial3d(clay.clone()),
+                Transform::IDENTITY,
+            ));
+        }
+    }
     let rune = mats.add(StandardMaterial {
         base_color: Color::srgb(0.2, 0.9, 0.8),
         emissive: LinearRgba::rgb(0.6, 3.2, 2.7),
@@ -244,13 +257,93 @@ fn spawn_props(
             NotShadowCaster,
         ));
     }
-    let top = ring_band([128.5, 60.15, 169.5], 1.75, 1.75, 0.25);
+    let top = ring_band([128.5, 59.9, 169.5], 2.08, 2.08, 0.3);
     commands.spawn((
         Mesh3d(meshes.add(top)),
         MeshMaterial3d(rune),
         Transform::IDENTITY,
         NotShadowCaster,
     ));
+}
+
+/// Vertex streams for the smooth material: colour (rgb, AO 1) and UV_0
+/// (no glow, not grassy).
+fn clay_mesh(pos: Vec<[f32; 3]>, nrm: Vec<[f32; 3]>, idx: Vec<u32>) -> Mesh {
+    let look = smooth::look_of(vox::mat::BRICK);
+    let n = pos.len();
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0f32, 0.0]; n])
+    .with_inserted_attribute(
+        Mesh::ATTRIBUTE_COLOR,
+        vec![[look.rgb[0], look.rgb[1], look.rgb[2], 1.0]; n],
+    )
+    .with_inserted_indices(Indices::U32(idx))
+}
+
+/// The Kiln's dome: half an ellipsoid just outside its brick shell
+/// (`gen::stamps`, P5), with the runestone door left open on the south.
+fn kiln_dome() -> Mesh {
+    let (c, r) = ([128.0f32, 40.8, 169.0], [8.0f32, 9.3, 5.1]);
+    const AZ: u32 = 64;
+    const EL: u32 = 16;
+    let mut pos = Vec::new();
+    let mut nrm = Vec::new();
+    for j in 0..=EL {
+        let phi = j as f32 / EL as f32 * std::f32::consts::FRAC_PI_2;
+        for i in 0..=AZ {
+            let th = i as f32 / AZ as f32 * std::f32::consts::TAU;
+            let u = Vec3::new(phi.cos() * th.cos(), phi.sin(), phi.cos() * th.sin());
+            pos.push([c[0] + r[0] * u.x, c[1] + r[1] * u.y, c[2] + r[2] * u.z]);
+            nrm.push(
+                Vec3::new(u.x / r[0], u.y / r[1], u.z / r[2])
+                    .normalize()
+                    .to_array(),
+            );
+        }
+    }
+    let mut idx = Vec::new();
+    let door = |p: [f32; 3]| (126.8..130.2).contains(&p[0]) && p[1] < 44.2 && p[2] > 169.0;
+    for j in 0..EL {
+        for i in 0..AZ {
+            let a = j * (AZ + 1) + i;
+            let (b, cc, d) = (a + 1, a + AZ + 1, a + AZ + 2);
+            let mid = [0, 1, 2].map(|k| (pos[a as usize][k] + pos[d as usize][k]) / 2.0);
+            if door(mid) {
+                continue;
+            }
+            idx.extend_from_slice(&[a, cc, b, b, cc, d]);
+        }
+    }
+    clay_mesh(pos, nrm, idx)
+}
+
+/// The Kiln's chimney: a round stack over its square brick one, open at
+/// the top.
+fn kiln_chimney() -> Mesh {
+    let (c, r, y0, y1) = ([128.5f32, 169.5], 2.05f32, 46.0f32, 60.0f32);
+    const AZ: u32 = 32;
+    let mut pos = Vec::new();
+    let mut nrm = Vec::new();
+    let mut idx = Vec::new();
+    for i in 0..=AZ {
+        let th = i as f32 / AZ as f32 * std::f32::consts::TAU;
+        let (s, co) = th.sin_cos();
+        // A slight taper towards the top.
+        for (y, rr) in [(y0, r * 1.08), (y1, r)] {
+            pos.push([c[0] + rr * co, y, c[1] + rr * s]);
+            nrm.push([co, 0.04, s]);
+        }
+        if i < AZ {
+            let b = i * 2;
+            idx.extend_from_slice(&[b, b + 1, b + 2, b + 1, b + 3, b + 2]);
+        }
+    }
+    clay_mesh(pos, nrm, idx)
 }
 
 /// A vertical ribbon `h` tall round the ellipse with centre `c` and
