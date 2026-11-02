@@ -6,6 +6,7 @@
 // glowing teal rune veins on glowing materials, then lights the result as
 // StandardMaterial does (sun, ambient, shadows, fog).
 //
+// `params.mode.y`: 1 for `?low` (cheaper noise).
 // `params.mode.x`: 0 opaque ground, 1 the clear pass (ice, glass, crystal,
 // steam; UV_0.y is the alpha there), 2 water (animated ripples, fresnel).
 import bevy_pbr::render::{
@@ -85,13 +86,21 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
         return out;
     }
 
-    // Triplanar soft noise: big patches and a fine grain.
-    var w = pow(abs(n), vec3<f32>(4.0));
-    w = w / (w.x + w.y + w.z);
-    let big = fbm(wp * 0.18) * w.y + fbm(wp.zyx * 0.18 + 11.0) * w.x + fbm(wp.xzy * 0.18 + 23.0) * w.z;
-    let fine = fbm(wp * 1.6) * w.y + fbm(wp.zyx * 1.6 + 5.0) * w.x + fbm(wp.xzy * 1.6 + 13.0) * w.z;
-    // Horizontal strata on steep rock.
-    let strata = vnoise(vec3<f32>(wp.x * 0.15, wp.y * 2.2, wp.z * 0.15));
+    // Soft solid noise in world space (3D, so no projection seams): big
+    // patches and a fine grain. `?low` (mode.y) takes one octave each.
+    var big: f32;
+    var fine: f32;
+    var strata: f32;
+    if params.mode.y > 0.5 {
+        big = vnoise(wp * 0.25);
+        fine = vnoise(wp * 1.6);
+        strata = 0.5;
+    } else {
+        big = fbm(wp * 0.18);
+        fine = fbm(wp * 1.6 + 5.0);
+        // Horizontal strata on steep rock.
+        strata = vnoise(vec3<f32>(wp.x * 0.15, wp.y * 2.2, wp.z * 0.15));
+    }
 
     // Grassy colours keep to the flat tops; slopes show warm rock.
     var base = col;

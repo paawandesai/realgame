@@ -33,6 +33,13 @@ fn fbm2(p: vec2<f32>) -> f32 {
     return s;
 }
 
+struct SkyParams {
+    low: vec4<f32>,
+}
+
+@group(constants::MATERIAL_BIND_GROUP) @binding(0)
+var<uniform> params: SkyParams;
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let d = normalize(in.world_position.xyz - view.world_position);
@@ -55,7 +62,12 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // Clouds on a plane overhead, drifting.
     if up > 0.0 {
         let p = d.xz / (up + 0.12) * 1.6 + vec2<f32>(globals.time * 0.012, globals.time * 0.004);
-        let c = fbm2(p);
+        var c: f32;
+        if params.low.x > 0.5 {
+            c = n2(p) * 0.6 + n2(p * 2.3 + 4.0) * 0.4;
+        } else {
+            c = fbm2(p);
+        }
         let cover = smoothstep(0.5, 0.78, c) * smoothstep(0.0, 0.18, up);
         let lit = vec3<f32>(1.0, 0.98, 0.95) + vec3<f32>(0.25, 0.2, 0.1) * pow(s, 8.0);
         let shade = mix(lit, vec3<f32>(0.72, 0.78, 0.9), smoothstep(0.62, 0.95, c));

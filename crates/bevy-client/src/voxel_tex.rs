@@ -34,7 +34,7 @@ const SMOOTH_SHADER: Handle<Shader> = uuid_handle!("9d3c1e7a-4b2f-4e8d-8a61-0c5f
 pub type SmoothMat = ExtendedMaterial<StandardMaterial, SmoothLook>;
 
 /// The extension's one uniform: `mode.x` is 0 for ground, 1 for the clear
-/// pass, 2 for water (16-byte aligned for WebGL2).
+/// pass, 2 for water; `mode.y` is 1 with `?low` (16-byte aligned for WebGL2).
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]
 pub struct SmoothLook {
     #[uniform(100)]
@@ -55,7 +55,7 @@ pub struct SmoothMats {
 }
 
 /// Makes the three smooth materials.
-pub fn smooth_materials(mats: &mut Assets<SmoothMat>) -> SmoothMats {
+pub fn smooth_materials(mats: &mut Assets<SmoothMat>, low: bool) -> SmoothMats {
     let mut make = |mode: f32| {
         let see_through = mode > 0.5;
         mats.add(ExtendedMaterial {
@@ -77,7 +77,7 @@ pub fn smooth_materials(mats: &mut Assets<SmoothMat>) -> SmoothMats {
                 ..default()
             },
             extension: SmoothLook {
-                mode: Vec4::new(mode, 0.0, 0.0, 0.0),
+                mode: Vec4::new(mode, if low { 1.0 } else { 0.0 }, 0.0, 0.0),
             },
         })
     };

@@ -180,12 +180,13 @@ fn setup(
     start: Res<crate::StartBiome>,
     mut player: ResMut<Player>,
     mut game: ResMut<Game>,
+    settings: Res<Settings>,
 ) {
     let m = crate::voxel_tex::materials(&mut images, &mut mats, world.0.seed);
     let n = world.0.chunk_count();
     let smooth = crate::param("blocks")
         .is_none()
-        .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats));
+        .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats, settings.low));
     if smooth.is_some() {
         let opaque = smooth.as_ref().map(|m| m.opaque.clone());
         spawn_props(&mut commands, &mut meshes, &mut std_mats, opaque);

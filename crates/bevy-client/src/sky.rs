@@ -11,9 +11,13 @@ const SHADER: Handle<Shader> = uuid_handle!("3a8e6f12-7c4d-4b9a-b1e2-6d0f5a7c9e2
 /// Inside the camera's far plane (400 m in voxel mode).
 const RADIUS: f32 = 360.0;
 
-/// The sky's material: no data, only the shader.
+/// The sky's material.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
-pub struct SkyMat {}
+pub struct SkyMat {
+    /// `low.x` is 1 with `?low` (two-octave clouds).
+    #[uniform(0)]
+    pub low: Vec4,
+}
 
 impl Material for SkyMat {
     fn fragment_shader() -> ShaderRef {
@@ -53,10 +57,14 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<SkyMat>>,
+    settings: Res<crate::Settings>,
 ) {
+    let low = if settings.low { 1.0 } else { 0.0 };
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(RADIUS).mesh().uv(32, 16))),
-        MeshMaterial3d(mats.add(SkyMat {})),
+        MeshMaterial3d(mats.add(SkyMat {
+            low: Vec4::new(low, 0.0, 0.0, 0.0),
+        })),
         Transform::default(),
         NotShadowCaster,
         NotShadowReceiver,
