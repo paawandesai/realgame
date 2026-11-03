@@ -20,6 +20,10 @@ function show(pct, step) {
   if (fill) fill.style.width = `${p}%`;
   const s = $('load-step');
   if (s && step) s.textContent = step;
+  // The title screen (title.js) covers this one for players: its Play
+  // button, disabled until the game runs, shows the same progress.
+  const play = document.querySelector('#title .title-play:disabled');
+  if (play) play.textContent = `Loading… ${p}%`;
 }
 
 const mb = (n) => (n / 1_048_576).toFixed(1);
