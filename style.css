@@ -96,7 +96,8 @@ canvas.hover-fire { cursor: pointer; }
 .hm-star { width: 96px; height: 96px; border: 4px solid #ffd34a; border-radius: 50%; box-shadow: 0 0 6px rgba(0, 0, 0, 0.6); }
 .hm-star::before { content: ""; position: absolute; inset: 10px; background: #ffd34a;
   clip-path: polygon(50% 0, 58% 32%, 85% 15%, 68% 42%, 100% 50%, 68% 58%, 85% 85%, 58% 68%, 50% 100%, 42% 68%, 15% 85%, 32% 58%, 0 50%, 32% 42%, 15% 15%, 42% 32%); }
-#hint { position: absolute; top: 58%; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(calc(760px * var(--ui)), calc(100vw - 32px)); box-sizing: border-box; text-align: center; font-size: calc(18px * var(--ui)); line-height: 1.35; background: var(--panel); padding: 6px 14px; border-radius: 10px; }
+/* Judge panel 1: the hint sits in the bottom prompt slot, above the caption and the spell bar, never under the crosshair. */
+#hint { position: absolute; bottom: calc(172px * var(--ui)); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(calc(760px * var(--ui)), calc(100vw - 32px)); box-sizing: border-box; text-align: center; font-size: calc(18px * var(--ui)); line-height: 1.35; background: var(--panel); padding: 6px 14px; border-radius: 10px; }
 #caption { position: absolute; bottom: calc(120px * var(--ui)); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(calc(760px * var(--ui)), calc(100vw - 32px)); box-sizing: border-box; text-align: center; background: var(--panel); padding: 8px 14px; border-radius: 10px; font-size: calc(18px * var(--ui)); line-height: 1.35; opacity: 0; transition: opacity 0.25s; }
 #caption.show { opacity: 1; }
 #hotbar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; max-width: calc(100vw - 16px); pointer-events: auto; }
@@ -118,7 +119,7 @@ canvas.hover-fire { cursor: pointer; }
 #banner.lost { background: rgba(140, 34, 26, 0.92); }
 #banner .big { font-size: calc(34px * var(--ui)); font-weight: 800; }
 #banner .small { font-size: calc(18px * var(--ui)); margin-top: 6px; }
-#pause { position: fixed; inset: 0; background: rgba(10, 16, 40, 0.55); display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--ui)); }
+#pause { position: fixed; inset: 0; z-index: 865; background: rgba(10, 16, 40, 0.55); display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--ui)); }
 #pause .card { background: #1d2a52; padding: 22px 28px; border-radius: 16px; max-width: min(calc(500px * var(--ui)), calc(100vw - 32px)); box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,0.4); max-height: 92vh; overflow-y: auto; }
 #pause h1 { margin: 0 0 12px; font-size: calc(26px * var(--ui)); }
 #pause td { padding: 3px 12px 3px 0; font-size: calc(18px * var(--ui)); }
@@ -158,6 +159,7 @@ canvas.hover-fire { cursor: pointer; }
   .slot .formula { font-size: calc(12px * var(--ui)); white-space: normal; text-align: center; line-height: 1.2; }
   .icon { width: 22px; height: 22px; }
   #caption { bottom: 132px; font-size: calc(16px * var(--ui)); }
+  #hint { bottom: 186px; }
 }
 /* ------------------------------------------------------------------------
    The Formula Bench (I-028, web/bench.js). Every text size is
@@ -523,3 +525,13 @@ button:not(:disabled):hover { filter: brightness(1.12); }
 .late-credits-head { margin: 14px 0 4px; font-size: calc(17px * var(--ui)); color: #ffd54a; }
 @keyframes creditsRoll { from { transform: translateY(0); } to { transform: translateY(-100%); } }
 @media (prefers-reduced-motion: reduce) { .late-credits { height: auto; mask-image: none; } .late-credits-roll { animation: none; padding-top: 0; } }
+#pause .pause-actions { margin: 0 0 12px; }
+#worked .worked-tip { margin: 6px 0 0; font-size: calc(14px * var(--ui)); opacity: 0.8; }
+#worked .worked-tip[hidden] { display: none; }
+/* B3: the Pick's slot (key 5) in the block world. */
+.slot.pick-slot { min-width: 120px; cursor: default; }
+.icon.pick { background: linear-gradient(45deg, transparent 44%, #8a5a3b 44% 56%, transparent 56%), radial-gradient(ellipse 60% 22% at 50% 22%, #c9ced6 0 90%, transparent 92%); border-radius: 0; }
+@media (max-width: 700px) { .slot.pick-slot { width: 18%; min-width: 0; } }
+/* B3: a chip in the prompt slot lifts the caption (and the hint) above it, so neither covers the other. */
+body:has(.late-chip:not([hidden])) #caption { bottom: calc(170px * var(--ui)); }
+body:has(.late-chip:not([hidden])) #hint { bottom: calc(222px * var(--ui)); }

@@ -53,6 +53,19 @@ export function project(p, s, w, h) {
   return { x: ((nx + 1) / 2) * w, y: ((1 - ny) / 2) * h, dist: Math.hypot(d[0], d[1], d[2]) };
 }
 
+/** The Kiln keeper's face for the intro (generated here, no image file). */
+export const KEEPER_SVG = '<svg viewBox="0 0 120 120" width="100%" height="100%">'
+  + '<circle cx="60" cy="60" r="58" fill="#2a3550"/>'
+  + '<ellipse cx="60" cy="118" rx="36" ry="30" fill="#8a5a3b"/>'
+  + '<circle cx="60" cy="54" r="24" fill="#e9b98f"/>'
+  + '<ellipse cx="60" cy="74" rx="20" ry="16" fill="#eef2f5"/>'
+  + '<ellipse cx="60" cy="34" rx="27" ry="11" fill="#d99a6c"/>'
+  + '<circle cx="51" cy="52" r="3.2" fill="#1e2a44"/><circle cx="69" cy="52" r="3.2" fill="#1e2a44"/>'
+  + '<rect x="45" y="44" width="11" height="3" rx="1.5" fill="#eef2f5"/><rect x="64" y="44" width="11" height="3" rx="1.5" fill="#eef2f5"/>'
+  + '<rect x="53" y="65" width="14" height="3" rx="1.5" fill="#8a5a3b"/>'
+  + '<circle cx="60" cy="100" r="4" fill="#40ffd9"/>'
+  + '</svg>';
+
 export function startStory() {
   const w = /** @type {any} */ (window);
   const root = document.createElement('div');
@@ -67,6 +80,9 @@ export function startStory() {
     const pic = document.createElement('div');
     pic.className = `intro-pic intro-pic-${k}`;
     pic.setAttribute('aria-hidden', 'true');
+    // The speaker on the first card: a simple face drawn in code (the
+    // valley's old Kiln keeper), not a plain disc.
+    if (k === 0) pic.innerHTML = KEEPER_SVG;
     const text = document.createElement('p');
     text.className = 'intro-text';
     card.append(pic, text);
@@ -209,6 +225,12 @@ export function startStory() {
           const r = obj.getBoundingClientRect();
           const half = el.offsetWidth / 2;
           if (at.x + half > r.left && at.x - half < r.right) y = Math.max(y, r.bottom + 8 + el.offsetHeight);
+        }
+        // ...and above the spell bar (judge panel 1: a sign over the hotbar).
+        const bar = document.getElementById('hotbar');
+        if (bar) {
+          const r = bar.getBoundingClientRect();
+          if (r.height > 0) y = Math.min(y, r.top - 8);
         }
         el.style.left = `${Math.round(at.x)}px`;
         el.style.top = `${Math.round(y)}px`;
