@@ -37,6 +37,15 @@ struct Plume(usize);
 /// Plume puffs at most.
 const PLUMES: usize = 12;
 
+/// A warm point light at a fire (B4 round 3: the burning workshop and the
+/// lit vents threw no light on the ground). Full quality only.
+#[derive(Component)]
+struct FireGlow(usize);
+
+/// Fire lights at most: the nearest fires, at least `GLOW_APART` m apart.
+const GLOWS: usize = 3;
+const GLOW_APART: f32 = 4.0;
+
 #[derive(Component)]
 struct Steam {
     age: f32,
@@ -137,7 +146,23 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    settings: Option<Res<crate::Settings>>,
 ) {
+    if !settings.is_some_and(|s| s.low) {
+        for i in 0..GLOWS {
+            commands.spawn((
+                PointLight {
+                    color: Color::srgb(1.0, 0.55, 0.2),
+                    intensity: 0.0,
+                    range: 14.0,
+                    shadow_maps_enabled: false,
+                    ..default()
+                },
+                Transform::default(),
+                FireGlow(i),
+            ));
+        }
+    }
     let flame_tex = images.add(sprite(true));
     let puff_tex = images.add(sprite(false));
     let kit = FireKit {
@@ -247,6 +272,10 @@ fn draw(
     mut flames: Query<(&Flame, &mut Transform, &mut Visibility), (Without<Smoke>, Without<Plume>)>,
     mut smoke: Query<(&Smoke, &mut Transform, &mut Visibility), (Without<Flame>, Without<Plume>)>,
     mut plumes: Query<(&Plume, &mut Transform, &mut Visibility), (Without<Flame>, Without<Smoke>)>,
+    mut glows: Query<
+        (&FireGlow, &mut PointLight, &mut Transform),
+        (Without<Flame>, Without<Smoke>, Without<Plume>),
+    >,
 ) {
     let (Some(matter), Some(vox)) = (matter, vox) else {
         return;
@@ -261,6 +290,25 @@ fn draw(
     let vents = nearest(vents, eye, PLUMES);
     shown.flames = cells.len();
     let t = time.elapsed_secs();
+    // Fire light: the nearest fires, spread out.
+    let mut at: Vec<(Vec3, bool)> = Vec::new();
+    for &c in &cells {
+        let p = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 1.6, c[2] as f32 + 0.5);
+        if at.len() < GLOWS && at.iter().all(|(q, _)| q.distance(p) >= GLOW_APART) {
+            at.push((p, vents.contains(&c)));
+        }
+    }
+    for (g, mut l, mut tf) in &mut glows {
+        match at.get(g.0) {
+            Some(&(p, vent)) if p.distance(eye) < 60.0 => {
+                let j = g.0 as f32 * 1.7;
+                let flick = 1.0 + 0.18 * (t * 9.0 + j).sin() + 0.1 * (t * 23.0 + j * 2.0).sin();
+                l.intensity = if vent { 180_000.0 } else { 520_000.0 } * flick;
+                tf.translation = p;
+            }
+            _ => l.intensity = 0.0,
+        }
+    }
     let face = Quat::from_rotation_y(player.yaw);
     for (f, mut tf, mut vis) in &mut flames {
         let Some(&c) = cells.get(f.0) else {
@@ -280,7 +328,7 @@ fn draw(
             (true, true) => (0.45, 0.8),
             (false, true) => (0.7, 1.25),
         };
-        let lift = if vent { 1.38 } else { 1.0 };
+        let lift = if vent { 1.9 } else { 1.0 };
         let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + lift, c[2] as f32 + 0.5);
         let sway = 0.08 * (t * 3.0 + j * 9.0).sin();
         tf.translation = base + Vec3::new(sway, h * flick * 0.5 - 0.05, sway * 0.5);
@@ -324,7 +372,7 @@ fn draw(
         let c = vents[pl.0 % vents.len()];
         let j = jitter(c, 31 + pl.0 as u32);
         let phase = (t * 0.3 + j + pl.0 as f32 * 0.37).fract();
-        let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 2.2, c[2] as f32 + 0.5);
+        let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 2.7, c[2] as f32 + 0.5);
         tf.translation = base + Vec3::new(0.3 * (j - 0.5) * phase, phase * 4.0, 0.25 * phase);
         tf.rotation = face;
         let size = 0.6 + 1.6 * phase;

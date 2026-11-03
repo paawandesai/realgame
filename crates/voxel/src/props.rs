@@ -697,20 +697,28 @@ const SIDES: [[i32; 3]; 6] = [
     [0, 0, -1],
 ];
 
-fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
+/// The open side a crystal cell's cluster grows out of: an open side
+/// whose opposite side is rock, if there is one (`built` sets its rock
+/// collar on the same side).
+pub(crate) fn crystal_side(world: &World, p: [i32; 3]) -> Option<[i32; 3]> {
     let [x, y, z] = p;
     let solid =
         |d: [i32; 3]| crate::materials::flags(world.get([x + d[0], y + d[1], z + d[2]]).mat).solid;
     let open: Vec<[i32; 3]> = SIDES.iter().copied().filter(|&d| !solid(d)).collect();
-    // Grow out of the rock: an open side whose opposite side is rock, if
-    // there is one.
     let backed: Vec<[i32; 3]> = open
         .iter()
         .copied()
         .filter(|d| solid([-d[0], -d[1], -d[2]]))
         .collect();
     let pool = if backed.is_empty() { &open } else { &backed };
-    let Some(&d) = pool.get((hash(x, y, z, 97) as usize) % pool.len().max(1)) else {
+    pool.get((hash(x, y, z, 97) as usize) % pool.len().max(1))
+        .copied()
+}
+
+fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
+    let [x, y, z] = p;
+    // Grow out of the rock.
+    let Some(d) = crystal_side(world, p) else {
         return;
     };
     let dir = [d[0] as f32, d[1] as f32, d[2] as f32];
@@ -719,7 +727,9 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
         y as f32 + 0.5 + dir[1] * 0.42,
         z as f32 + 0.5 + dir[2] * 0.42,
     ];
-    let count = 2 + (hash(x, y, z, 101) % 3) as i32;
+    // A cluster: one tall crystal and three to five smaller ones round it
+    // (B4 round 3: lone shards read as floating).
+    let count = 4 + (hash(x, y, z, 101) % 3) as i32;
     for k in 0..count {
         let s = [x + k * 7, y, z];
         let jitter = [
@@ -727,11 +737,11 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
             unit(s[0], s[1], s[2], 107) - 0.5,
             unit(s[0], s[1], s[2], 109) - 0.5,
         ];
-        let axis = norm(add(dir, mul(jitter, if k == 0 { 0.4 } else { 1.1 })));
-        let offset = mul(sub(jitter, mul(dir, dot(jitter, dir))), 0.55);
+        let axis = norm(add(dir, mul(jitter, if k == 0 { 0.35 } else { 1.0 })));
+        let offset = mul(sub(jitter, mul(dir, dot(jitter, dir))), 0.5);
         let foot = add(add(face, offset), mul(axis, -0.15));
-        let len = if k == 0 { 0.9 } else { 0.45 } + 0.55 * unit(s[0], s[1], s[2], 113);
-        let r = if k == 0 { 0.2 } else { 0.12 } + 0.05 * unit(s[0], s[1], s[2], 127);
+        let len = if k == 0 { 1.1 } else { 0.35 } + 0.6 * unit(s[0], s[1], s[2], 113);
+        let r = if k == 0 { 0.24 } else { 0.1 } + 0.05 * unit(s[0], s[1], s[2], 127);
         let turn = unit(s[0], s[1], s[2], 131) * 1.0;
         // Science teal (#40FFD9), a few leaning a little bluer.
         let tint = mix(

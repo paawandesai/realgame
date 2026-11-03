@@ -2878,7 +2878,7 @@ fn viewmodel(
         let (cz, cx) = (charge * 0.02, charge * 0.0015 * (t * 31.0).sin());
         // The rest pose orbits up about the eye with the live vertical fov so
         // the spell gem stays on screen, unhidden, in short, wide windows
-        // (I-044); exactly (0.21, -0.18, -0.42) and no tilt at the default view.
+        // (I-044); exactly `feel::VM_REST` and no tilt at the default view.
         let (rest, tilt) = feel::vm_rest(settings.fov_y());
         tr.translation = Vec3::from(rest) + Vec3::new(bx + cx, by + r * 0.015, r * 0.05 + cz);
         tr.rotation = Quat::from_rotation_x(tilt)

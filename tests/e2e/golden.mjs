@@ -2607,7 +2607,7 @@ async function reviewFollowups({ page, st, cmd, until, frames, sleep, idx, lit, 
         const g = gemOf(s1.vm, s1.fov);
         const below = Math.atan(-g[1] / -g[2]) / DEGR;
         // The root sits where the orbit puts it (so `g` is where the gem is).
-        const vmWant = rotX(tiltOf(s1.fov), [0.21, -0.18, -0.42]);
+        const vmWant = rotX(tiltOf(s1.fov), [0.28, -0.18, -0.42]);
         const vmOk = s1.vm.every((v, i) => Math.abs(v - vmWant[i]) <= 0.002);
         const geoOk = Math.abs(s1.fov - want) <= 0.3 && vmOk && below <= s1.fov / 2 - 3;
         await setHud(true);

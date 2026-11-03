@@ -46,6 +46,92 @@ const CLAY: V3 = [0.69, 0.32, 0.15];
 const ROCK: V3 = [0.262, 0.216, 0.191];
 const CHAR: V3 = [0.07, 0.055, 0.045];
 
+/// How a house's roof is covered.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Roof {
+    /// Thick golden straw with a rolled eave.
+    Thatch,
+    /// Fired clay tiles in close courses.
+    Tile,
+    /// Timber shingles.
+    Shingle,
+}
+
+/// One Village house's look (B4 round 3: the four houses read as one
+/// family, not four copies): plaster tone, roof covering, how far the roof
+/// overhangs and how thick it is, a chimney, the shutters' paint, and a
+/// porch canopy or flower boxes. Looks only; the cells are the same.
+#[derive(Clone, Copy, Debug)]
+struct HouseStyle {
+    wall: V3,
+    roof: Roof,
+    roof_rgb: V3,
+    over: f32,
+    th: f32,
+    /// The chimney's slice (x offset from `min[0]`) and side (-1 north, 1
+    /// south), if any.
+    chimney: Option<(i32, f32)>,
+    shutter: V3,
+    porch: bool,
+    flowers: bool,
+}
+
+/// Plaster: cream (#E9D3B0), clay (#D99A6C) and ochre (#D9AE6A), linear.
+const CREAM: V3 = [0.815, 0.651, 0.431];
+const OCHRE: V3 = [0.693, 0.423, 0.144];
+
+fn house_style(h: &gen::House) -> HouseStyle {
+    let i = gen::HOUSES.iter().position(|q| q == h).unwrap_or(0);
+    // Neighbours differ: houses 0 and 3 stand together west of the plaza,
+    // 1 and 2 east of it.
+    match i % 4 {
+        0 => HouseStyle {
+            wall: CREAM,
+            roof: Roof::Thatch,
+            roof_rgb: [0.50, 0.31, 0.075],
+            over: 0.6,
+            th: 0.34,
+            chimney: None,
+            shutter: [0.06, 0.11, 0.16],
+            porch: false,
+            flowers: true,
+        },
+        1 => HouseStyle {
+            wall: OCHRE,
+            roof: Roof::Shingle,
+            roof_rgb: mix([0.36, 0.12, 0.06], TIMBER, 0.4),
+            over: 0.45,
+            th: 0.18,
+            chimney: Some((4, -1.0)),
+            shutter: [0.20, 0.06, 0.04],
+            porch: false,
+            flowers: true,
+        },
+        2 => HouseStyle {
+            wall: mix(CREAM, CLAY, 0.45),
+            roof: Roof::Thatch,
+            roof_rgb: [0.44, 0.27, 0.07],
+            over: 0.65,
+            th: 0.36,
+            chimney: Some((4, 1.0)),
+            shutter: [0.06, 0.11, 0.16],
+            porch: true,
+            flowers: false,
+        },
+        _ => HouseStyle {
+            wall: CLAY,
+            roof: Roof::Tile,
+            roof_rgb: [0.42, 0.085, 0.04],
+            over: 0.45,
+            th: 0.2,
+            chimney: Some((1, 1.0)),
+            shutter: mul(TIMBER, 0.9),
+            porch: true,
+            flowers: false,
+        },
+    }
+}
+
 /// Materials drawn as built models.
 pub fn is_built(m: u8) -> bool {
     matches!(
@@ -386,11 +472,29 @@ fn block_paint(world: &World, p: [i32; 3], m: u8) -> Paint {
     // the block grid.
     let vary = 0.97 + 0.06 * hash(p, 11);
     rgb = mul(rgb, vary);
+    let house = gen::HOUSES.iter().find(|h| h.contains(p));
+    if let (Some(h), mat::BRICK) = (house, m) {
+        // Plaster in the house's own tone, a little darker in the bottom
+        // course where rain splashes it.
+        let base = if p[1] == h.min[1] { 0.86 } else { 1.0 };
+        rgb = mul(house_style(h).wall, (0.96 + 0.06 * hash(p, 13)) * base);
+    } else if m == mat::BRICK && !stamp::WORKSHOP.contains(p) {
+        // Clay masonry (the Kiln's terrace wall and steps): courses of
+        // stone a metre high that alternate in tone, each course split into
+        // two-metre blocks offset from the course below, and a slightly
+        // redder or paler clay per block.
+        let course = p[1].rem_euclid(2);
+        let off = course;
+        let blk = [(p[0] + off).div_euclid(2), p[1], (p[2] + off).div_euclid(2)];
+        let tone = if course == 0 { 1.0 } else { 0.88 };
+        let k = 0.9 + 0.16 * hash(blk, 17);
+        rgb = mul(mix(rgb, [0.62, 0.22, 0.10], 0.35 * hash(blk, 19)), tone * k);
+    }
     // Soot: the workshop has been burning (darker higher up), and any
     // block beside fire or ash.
     let mut soot: f32 = 0.0;
     if stamp::WORKSHOP.contains(p) {
-        soot = 0.74 + 0.06 * (p[1] - 35) as f32 + 0.1 * hash(p, 5);
+        soot = 0.22 + 0.13 * (p[1] - 35) as f32 + 0.12 * hash(p, 5);
         if m == mat::WOOD {
             soot += 0.15;
         }
@@ -556,6 +660,13 @@ fn edge(
         0.8
     } else {
         1.0
+    };
+    // Clay and plaster edges are worn a little darker (B4 round 3: the
+    // steps read as flat bands).
+    let light = if paint.mat == mat::BRICK {
+        light * 0.84
+    } else {
+        light
     };
     for k in 0..SEG {
         let (d0, d1) = (dir(k), dir(k + 1));
@@ -961,8 +1072,9 @@ fn roof_slice(out: &mut MeshData, world: &World, h: &gen::House, i: i32) {
     let base = (h.min[1] + gen::House::WALL) as f32;
     let (z0, z1) = (h.min[2] as f32, h.max[2] as f32);
     let zc = (z0 + z1) / 2.0;
-    let over = 0.35f32;
-    let th = 0.16f32;
+    let style = house_style(h);
+    let over = style.over;
+    let th = style.th;
     // The top surface passes 0.12 m over the outer top corner of every
     // roof course: y = base + 1 + 0.12 + (distance in from the wall).
     let top_at = |z: f32| base + 1.12 + (zc - z0) - (z - zc).abs();
@@ -974,22 +1086,30 @@ fn roof_slice(out: &mut MeshData, world: &World, h: &gen::House, i: i32) {
     let x0 = if first { sx0 - over } else { sx0 };
     let x1 = if last { sx1 + over } else { sx1 };
     let tile = Paint {
-        rgb: mul(
-            mix([0.36, 0.12, 0.06], TIMBER, 0.4),
-            0.9 + 0.2 * hash([i, h.min[0], h.min[2]], 2),
-        ),
+        rgb: mul(style.roof_rgb, 0.9 + 0.2 * hash([i, h.min[0], h.min[2]], 2)),
         glow: 0.0,
         mat: mat::PLANKS,
     };
     let under = Paint {
-        rgb: mul(TIMBER, 0.7),
+        rgb: if style.roof == Roof::Thatch {
+            mul(style.roof_rgb, 0.55)
+        } else {
+            mul(TIMBER, 0.7)
+        },
         glow: 0.0,
         mat: mat::PLANKS,
     };
     let wall = Paint {
-        rgb: mul(CLAY, 0.95),
+        rgb: mul(style.wall, 0.95),
         glow: 0.0,
         mat: mat::BRICK,
+    };
+    // Courses on the slope: thatch in two deep layers, tiles in close
+    // rows, shingles in thirds.
+    let (courses, lip) = match style.roof {
+        Roof::Thatch => (3, 0.1f32),
+        Roof::Tile => (6, 0.05),
+        Roof::Shingle => (3, 0.04),
     };
     for side in [-1.0f32, 1.0] {
         let ze = if side < 0.0 { z0 - over } else { z1 + over };
@@ -1019,18 +1139,32 @@ fn roof_slice(out: &mut MeshData, world: &World, h: &gen::House, i: i32) {
             under,
             [0.85; 4],
         );
-        // Shingle courses: a lip every third of the slope.
-        for k in 1..3 {
-            let t = k as f32 / 3.0;
+        // Courses: a lip at each step up the slope.
+        for k in 1..courses {
+            let t = k as f32 / courses as f32;
             let a = mix(eave(x0, 0.0), ridge(x0, 0.0), t);
             let b = mix(eave(x1, 0.0), ridge(x1, 0.0), t);
-            let up = [0.0, 0.04, 0.0];
+            let up = [0.0, lip, 0.0];
             quad(
                 out,
                 [a, b, add(b, up), add(a, up)],
                 [0.0, 0.3, side],
                 tile,
                 [0.8; 4],
+            );
+        }
+        // Thatch: a thick rolled edge along the eave.
+        if style.roof == Roof::Thatch {
+            cbox(
+                out,
+                [(x0 + x1) / 2.0, ey - th * 0.45, ze - side * 0.02],
+                [X, Y, Z],
+                [(x1 - x0) / 2.0 + 0.001, th * 0.62, th * 0.5],
+                th * 0.3,
+                Paint {
+                    rgb: mul(style.roof_rgb, 0.82),
+                    ..tile
+                },
             );
         }
         // The fascia: the wall's plane from the wall top to the roof's
@@ -1050,13 +1184,19 @@ fn roof_slice(out: &mut MeshData, world: &World, h: &gen::House, i: i32) {
             [0.6, 0.6, 0.5, 0.5],
         );
     }
-    // A ridge beam.
+    // A ridge beam (a fat straw ridge on thatch, a row of capping on
+    // tiles).
+    let (rh, rw, rp) = match style.roof {
+        Roof::Thatch => (0.16, 0.34, tile),
+        Roof::Tile => (0.1, 0.18, tile),
+        Roof::Shingle => (0.07, 0.1, under),
+    };
     slab(
         out,
         [(x0 + x1) / 2.0, ridge_y + 0.03, zc],
-        [(x1 - x0) / 2.0, 0.07, 0.1],
-        0.04,
-        under,
+        [(x1 - x0) / 2.0, rh, rw],
+        rw * 0.5,
+        rp,
     );
     // Gable ends: where the house ends or the next slice is gone.
     for (lower, sx) in [(true, -1.0f32), (false, 1.0)] {
@@ -1105,7 +1245,8 @@ fn workshop_beams(out: &mut MeshData, world: &World) {
     let s = stamp::WORKSHOP;
     let (x0, x1, z0, z1) = (s.min[0], s.max[0] - 1, s.min[2], s.max[2] - 1);
     let top = 38;
-    let post = |x: i32, z: i32| world.get([x, top, z]).mat == mat::WOOD;
+    // The posts are wood, or brick once the client has fireproofed them.
+    let post = |x: i32, z: i32| matches!(world.get([x, top, z]).mat, mat::WOOD | mat::BRICK);
     let charred = Paint {
         rgb: CHAR,
         glow: 0.0,
@@ -1157,6 +1298,254 @@ fn workshop_beams(out: &mut MeshData, world: &World) {
             );
         }
     }
+    workshop_frame(out, world, (x0, x1, z0, z1), &post);
+}
+
+/// The workshop as a building (B4 round 3: it read as a pile of
+/// pillars): charred top plates on the low walls, a door frame and lintel
+/// facing the plaza, and what is left of its pitched roof: rafters up to a
+/// ridge beam, a few gone, and a patch of scorched planks on the north
+/// slope. Looks only, drawn while the posts stand.
+fn workshop_frame(
+    out: &mut MeshData,
+    world: &World,
+    (x0, x1, z0, z1): (i32, i32, i32, i32),
+    post: &dyn Fn(i32, i32) -> bool,
+) {
+    let charred = paint(mix(CHAR, TIMBER, 0.25), mat::WOOD);
+    let scorched = paint(mix(TIMBER, CHAR, 0.55), mat::PLANKS);
+    let wall = |p: [i32; 3]| matches!(world.get(p).mat, mat::BRICK | mat::WOOD | mat::STONE);
+    let (fx0, fx1) = (x0 as f32 + 0.5, x1 as f32 + 0.5);
+    let (fz0, fz1) = (z0 as f32 + 0.5, z1 as f32 + 0.5);
+    // Top plates along the wall tops (y 37), where the wall below stands.
+    for (z, fz) in [(z0, fz0), (z1, fz1)] {
+        for x in x0 + 1..x1 {
+            if wall([x, 36, z]) {
+                cbox(
+                    out,
+                    [x as f32 + 0.5, 37.08, fz],
+                    [X, Y, Z],
+                    [0.52, 0.08, 0.36],
+                    0.03,
+                    charred,
+                );
+            }
+        }
+    }
+    for (x, fx) in [(x0, fx0), (x1, fx1)] {
+        for z in z0 + 1..z1 {
+            if wall([x, 36, z]) {
+                cbox(
+                    out,
+                    [fx, 37.08, z as f32 + 0.5],
+                    [X, Y, Z],
+                    [0.36, 0.08, 0.52],
+                    0.03,
+                    charred,
+                );
+            }
+        }
+    }
+    // The door on the south wall (x 141-142): jambs and a lintel.
+    let dz = z1 as f32 + 0.5;
+    if wall([140, 35, z1]) && wall([143, 35, z1]) {
+        for jx in [141.0f32, 143.0] {
+            cbox(
+                out,
+                [jx, 36.2, dz],
+                [X, Y, Z],
+                [0.12, 1.2, 0.42],
+                0.03,
+                charred,
+            );
+        }
+        cbox(
+            out,
+            [142.0, 37.45, dz],
+            [X, Y, Z],
+            [1.25, 0.16, 0.46],
+            0.04,
+            charred,
+        );
+    }
+    // The roof: a ridge along x at the middle, rafters from the eave plates
+    // at the posts' tops up to it, every other one burnt through.
+    if !(post(x0, z0) && post(x1, z0) && post(x0, z1) && post(x1, z1)) {
+        return;
+    }
+    let ey = 39.0f32;
+    let zc = (fz0 + fz1) / 2.0;
+    let ry = ey + (zc - fz0) * 0.75;
+    let beam = |out: &mut MeshData, a: V3, b: V3, w: f32| {
+        let d = sub(b, a);
+        let len = dot(d, d).sqrt();
+        let along = mul(d, 1.0 / len);
+        let side = norm(cross(along, Y));
+        let up = cross(side, along);
+        cbox(
+            out,
+            mul(add(a, b), 0.5),
+            [along, up, side],
+            [len / 2.0, w, w],
+            w * 0.3,
+            charred,
+        );
+    };
+    beam(out, [fx0 - 0.3, ry, zc], [fx1 + 0.3, ry, zc], 0.13);
+    // Posts under the ridge at the gables.
+    for fx in [fx0, fx1] {
+        beam(out, [fx, ey - 0.1, zc], [fx, ry, zc], 0.1);
+    }
+    let n = 5;
+    for k in 0..n {
+        let fx = fx0 + (fx1 - fx0) * k as f32 / (n - 1) as f32;
+        for (side, fz) in [(-1.0f32, fz0), (1.0, fz1)] {
+            // Burnt through: the south slope's middle rafters, one north.
+            let gone = (side > 0.0 && (1..=3).contains(&k) && k != 2) || (side < 0.0 && k == 3);
+            if gone {
+                // A charred stub at the eave.
+                let a = [fx, ey, fz - side * -0.2];
+                let b = mix(a, [fx, ry, zc], 0.3);
+                beam(out, a, b, 0.08);
+                continue;
+            }
+            beam(out, [fx, ey - 0.05, fz + side * 0.25], [fx, ry, zc], 0.08);
+        }
+    }
+    // Scorched planks left on the north slope's west half.
+    let slope = norm([0.0, ry - ey, zc - fz0]);
+    let across = norm(cross(X, slope));
+    for k in 0..4 {
+        let t = 0.18 + 0.2 * k as f32;
+        let a = mix([fx0, ey, fz0 - 0.25], [fx0, ry, zc], t);
+        let len = 2.4 - 0.45 * k as f32 + 0.3 * hash([k, 0, 7], 60);
+        let c = add(add(a, [len / 2.0, 0.0, 0.0]), mul(across, 0.1));
+        cbox(
+            out,
+            c,
+            [X, slope, across],
+            [len / 2.0, 0.2, 0.035],
+            0.015,
+            scorched,
+        );
+    }
+}
+
+/// The village well (`gen::WELL`): a round, bevelled stone kerb round
+/// the water, two timber posts and a little shingled roof over a winch
+/// with its rope and bucket (B4 round 3: the bare stone cells read as a
+/// grey blob). Looks only, while the kerb's stone stands.
+fn well(out: &mut MeshData, world: &World) {
+    let w = gen::WELL;
+    if world.get([w[0] - 1, w[1] + 1, w[2] - 1]).mat != mat::STONE {
+        return;
+    }
+    let c = [w[0] as f32 + 1.0, w[1] as f32 + 1.0, w[2] as f32 + 1.0];
+    let stone = paint(mul(ROCK, 1.3), mat::STONE);
+    let cap = paint(mul(ROCK, 1.55), mat::STONE);
+    let timber = paint(mul(TIMBER, 0.95), mat::WOOD);
+    let roof = paint(mix([0.36, 0.12, 0.06], TIMBER, 0.4), mat::PLANKS);
+    let water = paint([0.012, 0.07, 0.09], mat::WATER);
+    // The kerb: a ring of 12 stones, each a bevelled block on the circle.
+    let n = 12;
+    for k in 0..n {
+        let t = (k as f32 + 0.5) / n as f32 * std::f32::consts::TAU;
+        let r = 1.72;
+        let at = [c[0] + r * t.cos(), c[1] - 0.05 + 0.45, c[2] + r * t.sin()];
+        let along = [-t.sin(), 0.0, t.cos()];
+        let out_d = [t.cos(), 0.0, t.sin()];
+        let h = 0.5 + 0.04 * hash([k, 0, 0], 70);
+        cbox(out, at, [along, Y, out_d], [0.47, h, 0.34], 0.1, stone);
+        cbox(
+            out,
+            add(at, [0.0, h + 0.05, 0.0]),
+            [along, Y, out_d],
+            [0.5, 0.07, 0.38],
+            0.04,
+            cap,
+        );
+    }
+    // Dark water inside, a little below the kerb's top.
+    let ring: Vec<V3> = (0..n)
+        .map(|k| {
+            let t = k as f32 / n as f32 * std::f32::consts::TAU;
+            [c[0] + 1.42 * t.cos(), c[1] + 0.12, c[2] + 1.42 * t.sin()]
+        })
+        .collect();
+    for k in 0..n as usize {
+        let j = (k + 1) % n as usize;
+        facet(
+            out,
+            ring[k],
+            ring[j],
+            [c[0], c[1] + 0.12, c[2]],
+            [c[0], c[1] - 1.0, c[2]],
+            water,
+        );
+    }
+    // Posts, winch and roof, along x.
+    for sx in [-1.0f32, 1.0] {
+        let b = [c[0] + sx * 1.72, c[1] + 1.0, c[2]];
+        cbox(
+            out,
+            add(b, [0.0, 0.95, 0.0]),
+            [X, Y, Z],
+            [0.1, 0.95, 0.1],
+            0.03,
+            timber,
+        );
+    }
+    let wy = c[1] + 2.25;
+    cbox(
+        out,
+        [c[0], wy, c[2]],
+        [X, Y, Z],
+        [1.75, 0.07, 0.07],
+        0.03,
+        timber,
+    );
+    cbox(
+        out,
+        [c[0] + 0.2, wy - 0.75, c[2]],
+        [X, Y, Z],
+        [0.012, 0.72, 0.012],
+        0.0,
+        paint([0.4, 0.3, 0.15], mat::WOOD),
+    );
+    column(
+        out,
+        [c[0] + 0.2, wy - 1.75, c[2]],
+        0.17,
+        0.2,
+        0.28,
+        8,
+        paint(mix(TIMBER, CLAY, 0.3), mat::WOOD),
+    );
+    let ridge = c[1] + 3.05;
+    for side in [-1.0f32, 1.0] {
+        let a = [c[0], ridge, c[2]];
+        let e = [c[0], ridge - 0.6, c[2] + side * 1.05];
+        let d = sub(e, a);
+        let len = dot(d, d).sqrt();
+        let down = mul(d, 1.0 / len);
+        let across = norm(cross(X, down));
+        cbox(
+            out,
+            mul(add(a, e), 0.5),
+            [X, down, across],
+            [2.05, len / 2.0, 0.06],
+            0.03,
+            roof,
+        );
+    }
+    cbox(
+        out,
+        [c[0], ridge + 0.02, c[2]],
+        [X, Y, Z],
+        [2.1, 0.06, 0.08],
+        0.03,
+        timber,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1253,25 +1642,36 @@ fn house_trim(out: &mut MeshData, world: &World, h: &gen::House) {
     let top = y0 + gen::House::WALL;
     let is = |p: [i32; 3], m: u8| world.get(p).mat == m;
     let wall = |p: [i32; 3]| matches!(world.get(p).mat, mat::BRICK | mat::WOOD);
+    let style = house_style(h);
     let timber = paint(mul(TIMBER, 0.9), mat::WOOD);
-    let plank = paint(mix(TIMBER, CLAY, 0.3), mat::WOOD);
+    let plank = paint(mix(style.shutter, CLAY, 0.15), mat::WOOD);
     let dark = paint([0.02, 0.025, 0.035], mat::WOOD);
     let iron = paint([0.05, 0.05, 0.055], mat::IRON);
-    // Corner posts, a little proud of both walls.
+    let plaster = paint(mul(style.wall, 0.9), mat::BRICK);
+    let stone = paint(mul(ROCK, 1.15), mat::STONE);
+    // Corners: round clay buttresses on a stone plinth, a little proud of
+    // both walls (art bible: rounded, bevelled built things, not boxes).
     for (cx, cz) in [(x0, z0), (x1 - 1, z0), (x0, z1 - 1), (x1 - 1, z1 - 1)] {
         if (y0..top).all(|y| is([cx, y, cz], mat::WOOD)) {
-            let c = [
-                cx as f32 + 0.5,
-                (y0 + top) as f32 / 2.0 + 0.05,
-                cz as f32 + 0.5,
-            ];
-            cbox(
+            let b = [cx as f32 + 0.5, y0 as f32 - 0.02, cz as f32 + 0.5];
+            column(out, b, 0.78, 0.74, 0.32, 10, stone);
+            column(
                 out,
-                c,
-                [X, Y, Z],
-                [0.58, (top - y0) as f32 / 2.0 + 0.05, 0.58],
-                0.08,
-                timber,
+                add(b, [0.0, 0.3, 0.0]),
+                0.7,
+                0.6,
+                (top - y0) as f32 - 0.3,
+                10,
+                plaster,
+            );
+            column(
+                out,
+                add(b, [0.0, (top - y0) as f32 - 0.02, 0.0]),
+                0.66,
+                0.5,
+                0.16,
+                10,
+                plaster,
             );
         }
     }
@@ -1435,6 +1835,143 @@ fn house_trim(out: &mut MeshData, world: &World, h: &gen::House) {
             }
         }
     }
+    house_extras(out, world, h, &style);
+}
+
+/// A house's chimney, porch canopy and flower boxes (B4 round 3: variety
+/// between the houses). Each is drawn while the cells it stands on stand.
+fn house_extras(out: &mut MeshData, world: &World, h: &gen::House, style: &HouseStyle) {
+    let [x0, y0, z0] = h.min;
+    let (x1, z1) = (h.max[0], h.max[2]);
+    let top = y0 + gen::House::WALL;
+    let wall = |p: [i32; 3]| matches!(world.get(p).mat, mat::BRICK | mat::WOOD);
+    let timber = paint(mul(TIMBER, 0.9), mat::WOOD);
+    let plaster = paint(mul(style.wall, 0.82), mat::BRICK);
+    let soot = paint([0.05, 0.045, 0.04], mat::BRICK);
+    // The chimney rises through the roof from its slice, near the eave
+    // side it names, and ends in a sooty cap.
+    if let Some((i, side)) = style.chimney {
+        let x = x0 + i;
+        if i < x1 - x0 && slice_whole(world, h, i) {
+            let zc = (z0 + z1) as f32 / 2.0;
+            let cz = zc + side * 1.0;
+            let ridge = top as f32 + 1.12 + (zc - z0 as f32);
+            let b = [x as f32 + 0.5, top as f32 + 0.6, cz];
+            let hgt = ridge - b[1] + 1.0;
+            cbox(
+                out,
+                add(b, [0.0, hgt / 2.0, 0.0]),
+                [X, Y, Z],
+                [0.42, hgt / 2.0, 0.42],
+                0.12,
+                plaster,
+            );
+            cbox(
+                out,
+                add(b, [0.0, hgt + 0.08, 0.0]),
+                [X, Y, Z],
+                [0.5, 0.1, 0.5],
+                0.05,
+                plaster,
+            );
+            cbox(
+                out,
+                add(b, [0.0, hgt + 0.18, 0.0]),
+                [X, Y, Z],
+                [0.28, 0.02, 0.28],
+                0.0,
+                soot,
+            );
+        }
+    }
+    // A porch canopy over the door: a sloped plank roof on two brackets.
+    let d = h.door_x();
+    let zf = z0 as f32;
+    if style.porch && wall([d - 1, y0 + 2, z0]) && wall([d + 1, y0 + 2, z0]) {
+        let y = y0 as f32 + 2.45;
+        let roof = paint(mul(style.roof_rgb, 0.95), mat::PLANKS);
+        let c = [d as f32 + 0.5, y, zf - 0.5];
+        let along = X;
+        let down = norm([0.0, -0.6, -1.0]);
+        let across = cross(along, down);
+        cbox(
+            out,
+            c,
+            [along, down, across],
+            [1.05, 0.55, 0.06],
+            0.03,
+            roof,
+        );
+        for bx in [d as f32 - 0.4, d as f32 + 1.4] {
+            let a = [bx, y - 0.6, zf - 0.08];
+            cbox(out, a, [X, Y, Z], [0.06, 0.3, 0.08], 0.02, timber);
+            cbox(
+                out,
+                [bx, y - 0.25, zf - 0.45],
+                [X, Y, Z],
+                [0.06, 0.05, 0.4],
+                0.02,
+                timber,
+            );
+        }
+    }
+    // Flower boxes under the windows: a timber trough with bushy green and
+    // a few warm blooms.
+    if style.flowers {
+        let leaf = paint([0.10, 0.26, 0.05], mat::LEAVES);
+        let bloom = paint([0.85, 0.30, 0.10], mat::LEAVES);
+        let bloom2 = paint([0.90, 0.75, 0.20], mat::LEAVES);
+        for (z, sg) in [(z0, -1.0f32), (z1 - 1, 1.0)] {
+            for x in [x0 + 1, x1 - 2] {
+                if x == d && z == z0 {
+                    continue;
+                }
+                if world.get([x, y0 + 1, z]).mat != mat::AIR || !wall([x, y0, z]) {
+                    continue;
+                }
+                let face = if sg < 0.0 { z as f32 } else { z as f32 + 1.0 };
+                let c = [x as f32 + 0.5, y0 as f32 + 0.86, face + sg * 0.22];
+                cbox(out, c, [X, Y, Z], [0.55, 0.12, 0.16], 0.03, timber);
+                for k in 0..5 {
+                    let fx = c[0] - 0.44 + 0.22 * k as f32;
+                    let r = 0.13 + 0.04 * hash([x, k, z], 50);
+                    let q = [fx, c[1] + 0.12, c[2]];
+                    column(
+                        out,
+                        q,
+                        r,
+                        r * 0.6,
+                        0.16 + 0.06 * hash([x, k, z], 51),
+                        6,
+                        leaf,
+                    );
+                    if k % 2 == 0 {
+                        let pk = if hash([x, k, z], 52) > 0.5 {
+                            bloom
+                        } else {
+                            bloom2
+                        };
+                        column(out, add(q, [0.02, 0.18, 0.0]), 0.06, 0.03, 0.06, 5, pk);
+                    }
+                }
+            }
+        }
+    }
+    // A water barrel by the back corner.
+    let bx = [x1 as f32 + 0.35, y0 as f32, z1 as f32 - 0.6];
+    if wall([x1 - 1, y0, z1 - 1]) {
+        let staves = paint(mix(TIMBER, CLAY, 0.25), mat::WOOD);
+        column(out, bx, 0.34, 0.38, 0.45, 9, staves);
+        column(out, add(bx, [0.0, 0.45, 0.0]), 0.38, 0.33, 0.45, 9, staves);
+        cbox(
+            out,
+            add(bx, [0.0, 0.3, 0.0]),
+            [X, Y, Z],
+            [0.385, 0.025, 0.385],
+            0.02,
+            paint([0.05, 0.05, 0.055], mat::IRON),
+        );
+    }
 }
 
 /// Ice (#CFE8F2) and frost rim (#9FE3FF), linear.
@@ -1447,7 +1984,12 @@ const FROST: V3 = [0.35, 0.77, 1.0];
 fn ice_gate(out: &mut MeshData, world: &World) {
     let g = stamp::ICE_GATE;
     let ice = paint(ICE, mat::ICE);
-    let frost = paint(FROST, mat::ICE);
+    // The frost facets glow softly (the gate is held shut by the cold:
+    // B4 round 3 asked for a frost glow so its silhouette reads).
+    let frost = Paint {
+        glow: 0.72,
+        ..paint(FROST, mat::ICE)
+    };
     for x in g.min[0]..g.max[0] {
         for z in g.min[2]..g.max[2] {
             // Runs of ice up the column.
@@ -1557,47 +2099,332 @@ fn ice_gate(out: &mut MeshData, world: &World) {
             0.06,
             snow,
         );
+        // A pointed gable of stone over the lintel, and icicles hanging
+        // from it while the ice stands: a carved gate, not a gap.
+        let cx = (x0 + x1) / 2.0;
+        let fz = front + 0.3;
+        let w = (x1 - x0) / 2.0 + 1.2;
+        let peak = [cx, top + 3.1, fz];
+        let l = [cx - w, top + 0.8, fz];
+        let r = [cx + w, top + 0.8, fz];
+        let back = [cx, top + 1.6, front - 0.6];
+        facet(out, l, r, peak, back, stone);
+        let lb = [cx - w, top + 0.8, front - 0.3];
+        let rb = [cx + w, top + 0.8, front - 0.3];
+        let pb = [cx, top + 3.1, front - 0.3];
+        let mid = [cx, top + 1.6, front];
+        facet(out, l, peak, pb, mid, stone);
+        facet(out, l, pb, lb, mid, stone);
+        facet(out, r, peak, pb, mid, stone);
+        facet(out, r, pb, rb, mid, stone);
+        // Snow along the gable's slopes.
+        for (a, b) in [(l, peak), (r, peak)] {
+            let d = sub(b, a);
+            let len = dot(d, d).sqrt();
+            let along = mul(d, 1.0 / len);
+            let up = norm(cross([0.0, 0.0, 1.0], along));
+            let up = if up[1] < 0.0 { mul(up, -1.0) } else { up };
+            let c = add(mul(add(a, b), 0.5), mul(up, 0.08));
+            cbox(out, c, [along, up, Z], [len / 2.0, 0.08, 0.36], 0.05, snow);
+        }
+        let iced = (g.min[0]..g.max[0])
+            .any(|x| ice_plug([x, 38, g.max[2] - 1], world.get([x, 38, g.max[2] - 1]).mat));
+        if iced {
+            for k in 0..9 {
+                let x = x0 - 0.6 + (x1 - x0 + 1.2) * (k as f32 + 0.5) / 9.0;
+                let len = 0.25 + 0.45 * hash([k, 1, 0], 77);
+                let b = [x, top - 0.02, front + 0.2 + 0.2 * hash([k, 2, 0], 78)];
+                let r = 0.06 + 0.04 * hash([k, 3, 0], 79);
+                let tip = add(b, [0.0, -len, 0.0]);
+                let pts: Vec<V3> = (0..4)
+                    .map(|i| {
+                        let t = i as f32 * std::f32::consts::FRAC_PI_2 + 0.4;
+                        [b[0] + r * t.cos(), b[1], b[2] + r * t.sin()]
+                    })
+                    .collect();
+                for i in 0..4 {
+                    facet(out, pts[i], pts[(i + 1) % 4], tip, b, frost);
+                }
+            }
+        }
+    }
+    // Ridged rock buttresses flanking the gate, frost on their tops.
+    let rock = paint(mul(ROCK, 0.95), mat::CLIFFSTONE);
+    for (k, bx) in [(0, x0 - 2.1), (1, x1 + 2.1)] {
+        let base = [bx, 34.6, front - 0.2];
+        if !materials_solid(world, [base[0].floor() as i32, 35, g.max[2] - 1]) {
+            continue;
+        }
+        let mut y = base[1];
+        for c in 0..4 {
+            let h = 1.8 + 0.6 * hash([k, c, 0], 85);
+            let r0 = 1.25 - 0.18 * c as f32;
+            let r1 = r0 - 0.15;
+            let ring = |r: f32, yy: f32, salt: u32| -> Vec<V3> {
+                (0..7)
+                    .map(|i| {
+                        let t =
+                            (i as f32 + 0.3 * hash([k, c, i], salt)) / 7.0 * std::f32::consts::TAU;
+                        let rr = r * (0.82 + 0.36 * hash([k, c, i], salt + 1));
+                        [base[0] + rr * t.cos(), yy, base[2] + rr * t.sin() * 0.7]
+                    })
+                    .collect()
+            };
+            let lo = ring(r0, y, 86);
+            let hi = ring(r1, y + h, 88);
+            let inside = [base[0], y + h / 2.0, base[2]];
+            for i in 0..7 {
+                let j = (i + 1) % 7;
+                facet(out, lo[i], lo[j], hi[j], inside, rock);
+                facet(out, lo[i], hi[j], hi[i], inside, rock);
+                let cap = if c == 3 { snow } else { rock };
+                facet(
+                    out,
+                    hi[i],
+                    hi[j],
+                    [base[0], y + h + 0.15, base[2]],
+                    inside,
+                    cap,
+                );
+            }
+            y += h - 0.1;
+        }
     }
 }
 
-/// Shallow pools of standing water on the methane hollow's mud floor,
-/// between the vents (x, z, radius). Looks only: no water cells.
-const PUDDLES: [(f32, f32, f32); 5] = [
-    (189.6, 99.4, 0.6),
-    (192.7, 99.3, 0.6),
-    (192.6, 102.2, 0.7),
-    (189.0, 104.5, 0.55),
-    (195.3, 100.4, 0.5),
+/// Pools of dark standing water on the methane hollow's mud floor, each
+/// side of the boardwalk and between the vents (x, z, half sizes along x
+/// and z). Looks only: no water cells. B4 round 3: bigger, glossy, with a
+/// shallow-to-deep ramp (art bible water #157080 to #08304D).
+const PUDDLES: [(f32, f32, f32, f32); 6] = [
+    (189.6, 99.5, 1.35, 0.55),
+    (193.1, 99.45, 1.4, 0.5),
+    (189.9, 102.5, 1.5, 0.55),
+    (193.4, 102.55, 1.25, 0.5),
+    (195.3, 97.6, 0.6, 0.5),
+    (187.7, 104.35, 0.7, 0.45),
 ];
 
-/// One pool: a dark, still disc a hair above the mud with a wet rim.
-fn puddle(out: &mut MeshData, world: &World, c: [f32; 2], r: f32) {
+/// Water deep and shallow (#08304D, #157080) and wet mud, linear. A
+/// negative glow marks a wet, glossy surface for the smooth shader.
+const WATER_DEEP: V3 = [0.0024, 0.030, 0.074];
+const WATER_SHALLOW: V3 = [0.008, 0.162, 0.216];
+const WET: f32 = -1.0;
+
+/// One pool: a ring of wet mud, a shallow band and a dark deep middle, a
+/// hair above the mud.
+fn puddle(out: &mut MeshData, world: &World, c: [f32; 2], r: [f32; 2]) {
     let cell = [c[0].floor() as i32, 27, c[1].floor() as i32];
     if world.get(cell).mat != mat::MUD || world.get([cell[0], 28, cell[2]]).mat != mat::AIR {
         return;
     }
-    let water = paint([0.012, 0.07, 0.075], mat::WATER);
-    let rim = paint([0.07, 0.065, 0.03], mat::MUD);
-    let n: usize = 10;
-    let ring = |rr: f32, y: f32| -> Vec<V3> {
+    let wet = |rgb: V3, m: u8| Paint {
+        rgb,
+        glow: WET,
+        mat: m,
+    };
+    let deep = wet(WATER_DEEP, mat::WATER);
+    let shallow = wet(mix(WATER_DEEP, WATER_SHALLOW, 0.75), mat::WATER);
+    let rim = wet([0.05, 0.045, 0.022], mat::MUD);
+    let n: usize = 14;
+    let ring = |k: f32, y: f32| -> Vec<V3> {
         (0..n)
-            .map(|k| {
-                let t = k as f32 / n as f32 * std::f32::consts::TAU;
-                let w = 1.0 + 0.18 * (hash([cell[0], k as i32, cell[2]], 40) - 0.5);
-                [c[0] + rr * w * t.cos(), y, c[1] + rr * w * t.sin()]
+            .map(|i| {
+                let t = i as f32 / n as f32 * std::f32::consts::TAU;
+                let w = 1.0 + 0.16 * (hash([cell[0], i as i32, cell[2]], 40) - 0.5);
+                [
+                    c[0] + r[0] * k * w * t.cos(),
+                    y,
+                    c[1] + r[1] * k * w * t.sin(),
+                ]
             })
             .collect()
     };
     let y = 28.0;
-    let outer = ring(r * 1.25, y + 0.01);
-    let inner = ring(r, y + 0.02);
-    let centre = [c[0], y + 0.02, c[1]];
+    let outer = ring(1.3, y + 0.01);
+    let mid = ring(1.0, y + 0.02);
+    let inner = ring(0.6, y + 0.025);
+    let centre = [c[0], y + 0.025, c[1]];
     let below = [c[0], y - 1.0, c[1]];
     for k in 0..n {
         let j = (k + 1) % n;
-        facet(out, outer[k], outer[j], inner[j], below, rim);
-        facet(out, outer[k], inner[j], inner[k], below, rim);
-        facet(out, inner[k], inner[j], centre, below, water);
+        facet(out, outer[k], outer[j], mid[j], below, rim);
+        facet(out, outer[k], mid[j], mid[k], below, rim);
+        facet(out, mid[k], mid[j], inner[j], below, shallow);
+        facet(out, mid[k], inner[j], inner[k], below, shallow);
+        facet(out, inner[k], inner[j], centre, below, deep);
+    }
+}
+
+/// A board of the hollow's boardwalk (B4 round 3: the path read as an
+/// untextured slab): four planks across the walk per metre with dark gaps
+/// and nail heads, on a stringer each side and a post at every other
+/// metre. Looks only; the plank cell is the walkway.
+fn boardwalk(out: &mut MeshData, world: &World, p: [i32; 3]) {
+    let top = p[1] as f32 + 1.0;
+    let gap = paint([0.03, 0.025, 0.02], mat::PLANKS);
+    let nail = paint([0.06, 0.06, 0.065], mat::IRON);
+    let timber = paint(mul(TIMBER, 0.8), mat::WOOD);
+    let fx = p[0] as f32;
+    let fz = p[2] as f32;
+    // The dark bed under the boards shows through the gaps.
+    cbox(
+        out,
+        [fx + 0.5, top - 0.2, fz + 0.5],
+        [X, Y, Z],
+        [0.5, 0.08, 0.5],
+        0.0,
+        gap,
+    );
+    for k in 0..4 {
+        let h = hash([p[0], k, p[2]], 90);
+        let rgb = mul(
+            mix(TIMBER, [0.42, 0.28, 0.15], 0.35 + 0.3 * h),
+            0.85 + 0.25 * h,
+        );
+        let board = paint(rgb, mat::PLANKS);
+        let cx = fx + 0.125 + 0.25 * k as f32;
+        let warp = 0.012 * (hash([p[0], k, p[2]], 91) - 0.5);
+        cbox(
+            out,
+            [cx, top - 0.05 + warp, fz + 0.5],
+            [X, Y, Z],
+            [0.112, 0.05, 0.5],
+            0.02,
+            board,
+        );
+        for nz in [0.15f32, 0.85] {
+            cbox(
+                out,
+                [cx, top + 0.002, fz + nz],
+                [X, Y, Z],
+                [0.018, 0.004, 0.018],
+                0.0,
+                nail,
+            );
+        }
+    }
+    // Stringers on the open sides, and a post every other metre.
+    for (sz, dz) in [(-1i32, 0.0f32), (1, 1.0)] {
+        let q = [p[0], p[1], p[2] + sz];
+        if world.get(q).mat == mat::PLANKS {
+            continue;
+        }
+        cbox(
+            out,
+            [fx + 0.5, top - 0.3, fz + dz],
+            [X, Y, Z],
+            [0.52, 0.16, 0.07],
+            0.03,
+            timber,
+        );
+        if p[0] % 2 == 0 {
+            column(
+                out,
+                [fx + 0.5, top - 1.3, fz + dz],
+                0.1,
+                0.09,
+                1.25,
+                6,
+                timber,
+            );
+        }
+    }
+}
+
+/// Reeds: a clump of thin blades leaning out from `base`, some with a
+/// cattail head.
+fn reeds(out: &mut MeshData, base: V3, seed: [i32; 3]) {
+    let green = [0.12, 0.17, 0.035];
+    let dry = [0.32, 0.27, 0.09];
+    let n = 6 + (hash(seed, 81) * 5.0) as i32;
+    for k in 0..n {
+        let a = hash(seed, 100 + k as u32) * std::f32::consts::TAU;
+        let rr = 0.25 * hash(seed, 120 + k as u32);
+        let lean = 0.08 + 0.22 * hash(seed, 140 + k as u32);
+        let len = 0.9 + 0.9 * hash(seed, 160 + k as u32);
+        let b = [
+            base[0] + rr * a.cos(),
+            base[1] - 0.05,
+            base[2] + rr * a.sin(),
+        ];
+        let dir = norm([lean * a.cos(), 1.0, lean * a.sin()]);
+        let tip = add(b, mul(dir, len));
+        let w = 0.035;
+        let pts: Vec<V3> = (0..3)
+            .map(|i| {
+                let t = a + i as f32 * std::f32::consts::TAU / 3.0;
+                [b[0] + w * t.cos(), b[1], b[2] + w * t.sin()]
+            })
+            .collect();
+        let c = paint(
+            mix(green, dry, hash(seed, 180 + k as u32) * 0.6),
+            mat::LEAVES,
+        );
+        let mid = mul(add(add(pts[0], pts[1]), add(pts[2], tip)), 0.25);
+        for i in 0..3 {
+            facet(out, pts[i], pts[(i + 1) % 3], tip, mid, c);
+        }
+        if k % 3 == 0 {
+            let head = add(b, mul(dir, len * 0.72));
+            column(
+                out,
+                head,
+                0.05,
+                0.05,
+                0.22,
+                5,
+                paint([0.11, 0.05, 0.02], mat::LEAVES),
+            );
+        }
+    }
+}
+
+/// Reed clumps round the methane hollow: along its inner walls and on
+/// the marsh ground round it, drawn by the chunk holding each clump.
+fn hollow_reeds(out: &mut MeshData, world: &World, lo: [i32; 3], hi: [i32; 3]) {
+    let s = stamp::HOLLOW;
+    let (ax, bx) = (lo[0].max(s.min[0] - 8), hi[0].min(s.max[0] + 8));
+    let (az, bz) = (lo[2].max(s.min[2] - 8), hi[2].min(s.max[2] + 8));
+    for z in az..bz {
+        for x in ax..bx {
+            let inside = x > s.min[0] && x < s.max[0] - 1 && z > s.min[2] && z < s.max[2] - 1;
+            let by_wall = inside
+                && (x == s.min[0] + 1
+                    || x == s.max[0] - 2
+                    || z == s.min[2] + 1
+                    || z == s.max[2] - 2);
+            let outside = !(s.min[0]..s.max[0]).contains(&x) || !(s.min[2]..s.max[2]).contains(&z);
+            let h = hash([x, 0, z], 80);
+            let want = (by_wall && h > 0.5) || (outside && h > 0.8);
+            if !want || (100..=101).contains(&z) {
+                continue;
+            }
+            // The ground's top in this chunk.
+            let mut y = hi[1] - 1;
+            let mut found = None;
+            while y >= lo[1] {
+                let m = world.get([x, y, z]).mat;
+                if m != mat::AIR {
+                    if matches!(m, mat::MUD | mat::GRASS | mat::DIRT)
+                        && world.get([x, y + 1, z]).mat == mat::AIR
+                        && y + 1 < hi[1]
+                    {
+                        found = Some(y + 1);
+                    }
+                    break;
+                }
+                y -= 1;
+            }
+            let Some(fy) = found else { continue };
+            let jx = 0.3 * (hash([x, 1, z], 82) - 0.5);
+            let jz = 0.3 * (hash([x, 2, z], 83) - 0.5);
+            reeds(
+                out,
+                [x as f32 + 0.5 + jx, fy as f32, z as f32 + 0.5 + jz],
+                [x, fy, z],
+            );
+        }
     }
 }
 
@@ -1605,25 +2432,196 @@ fn materials_solid(world: &World, p: [i32; 3]) -> bool {
     crate::materials::flags(world.get(p).mat).solid
 }
 
-/// A Marsh gas vent: a low faceted rock mound round a dark throat, on the
-/// vent cell's top (looks only; the cell is unchanged).
+/// A Marsh gas vent: a rough rock chimney (B4 round 3: the low mounds read
+/// as cones) of three jagged courses round a dark, scorched throat, on
+/// the vent cell's top, with loose stones round its foot (looks only; the
+/// cell is unchanged). The client's flame rises out of its top.
 fn vent_mound(out: &mut MeshData, world: &World, p: [i32; 3]) {
     if world.get([p[0], p[1] + 1, p[2]]).mat != mat::AIR {
         return;
     }
     let base = [p[0] as f32 + 0.5, p[1] as f32 + 1.0, p[2] as f32 + 0.5];
-    let rock = paint(mix(ROCK, [0.17, 0.15, 0.08], 0.4), mat::GAS_VENT);
-    let crust = paint([0.36, 0.30, 0.10], mat::GAS_VENT);
-    let throat = paint([0.03, 0.025, 0.02], mat::GAS_VENT);
-    column(out, add(base, [0.0, -0.05, 0.0]), 0.62, 0.34, 0.32, 7, rock);
-    column(out, add(base, [0.0, 0.27, 0.0]), 0.34, 0.24, 0.1, 7, crust);
-    column(out, add(base, [0.0, 0.3, 0.0]), 0.2, 0.2, 0.08, 7, throat);
-    // A few loose stones round it.
-    for k in 0..3 {
-        let t = (k as f32 + hash(p, 20 + k)) * std::f32::consts::TAU / 3.0;
-        let r = 0.72 + 0.12 * hash(p, 30 + k);
+    let rock = paint(mix(ROCK, [0.17, 0.15, 0.08], 0.35), mat::GAS_VENT);
+    let rock2 = paint(mix(ROCK, [0.10, 0.09, 0.06], 0.5), mat::GAS_VENT);
+    let crust = paint([0.40, 0.32, 0.09], mat::GAS_VENT);
+    let throat = paint([0.02, 0.018, 0.015], mat::GAS_VENT);
+    // Jagged courses: each a ring of 7 with its own radius per corner.
+    let course = |out: &mut MeshData, y0: f32, y1: f32, r0: f32, r1: f32, salt: u32, pt: Paint| {
+        let ring = |r: f32, y: f32, s2: u32| -> Vec<V3> {
+            (0..7)
+                .map(|k| {
+                    let t = (k as f32 + 0.3 * hash(p, salt + k)) * std::f32::consts::TAU / 7.0;
+                    let rr = r * (0.85 + 0.3 * hash(p, s2 + k));
+                    [base[0] + rr * t.cos(), y, base[2] + rr * t.sin()]
+                })
+                .collect()
+        };
+        let lo = ring(r0, base[1] + y0, salt + 10);
+        let hi = ring(r1, base[1] + y1, salt + 20);
+        let inside = [base[0], base[1] + (y0 + y1) / 2.0, base[2]];
+        for k in 0..7 {
+            let j = (k + 1) % 7;
+            facet(out, lo[k], lo[j], hi[j], inside, pt);
+            facet(out, lo[k], hi[j], hi[k], inside, pt);
+            facet(
+                out,
+                [base[0], base[1] + y1, base[2]],
+                hi[k],
+                hi[j],
+                [base[0], base[1] + y0, base[2]],
+                pt,
+            );
+        }
+    };
+    course(out, -0.08, 0.36, 0.66, 0.5, 200, rock);
+    course(out, 0.3, 0.62, 0.48, 0.38, 230, rock2);
+    course(out, 0.58, 0.84, 0.38, 0.33, 260, rock);
+    column(out, add(base, [0.0, 0.82, 0.0]), 0.32, 0.27, 0.08, 7, crust);
+    column(out, add(base, [0.0, 0.86, 0.0]), 0.2, 0.2, 0.06, 7, throat);
+    // Loose stones round its foot.
+    for k in 0..4 {
+        let t = (k as f32 + hash(p, 20 + k)) * std::f32::consts::TAU / 4.0;
+        let r = 0.78 + 0.14 * hash(p, 30 + k);
         let c = add(base, [r * t.cos(), -0.04, r * t.sin()]);
-        column(out, c, 0.12, 0.06, 0.12, 5, rock);
+        column(out, c, 0.14, 0.07, 0.14 + 0.06 * hash(p, 40 + k), 5, rock2);
+    }
+}
+
+/// The rock a crystal cluster grows from (B4 round 3: crystals read as
+/// floating shards): a low, jagged collar of dark rock on the cell's open
+/// face, round the cluster's foot.
+fn crystal_collar(out: &mut MeshData, world: &World, p: [i32; 3]) {
+    let Some(d) = crate::props::crystal_side(world, p) else {
+        return;
+    };
+    let dir = [d[0] as f32, d[1] as f32, d[2] as f32];
+    let c = add(
+        [p[0] as f32 + 0.5, p[1] as f32 + 0.5, p[2] as f32 + 0.5],
+        mul(dir, 0.36),
+    );
+    // Two axes across the face.
+    let u = if d[1] != 0 { X } else { Y };
+    let v = cross(dir, u);
+    let rock = paint([0.075, 0.08, 0.085], mat::STONE);
+    let rock2 = paint([0.12, 0.125, 0.13], mat::STONE);
+    let n = 8;
+    let ring = |r: f32, h: f32, salt: u32| -> Vec<V3> {
+        (0..n)
+            .map(|k| {
+                let t = (k as f32 + 0.4 * hash(p, salt + k)) / n as f32 * std::f32::consts::TAU;
+                let rr = r * (0.8 + 0.4 * hash(p, salt + 20 + k));
+                add(
+                    add(c, mul(dir, h)),
+                    add(mul(u, rr * t.cos()), mul(v, rr * t.sin())),
+                )
+            })
+            .collect()
+    };
+    let base = ring(0.62, 0.0, 300);
+    let top = ring(0.34, 0.2 + 0.08 * hash(p, 330), 340);
+    let inside = sub(c, mul(dir, 0.3));
+    for k in 0..n as usize {
+        let j = (k + 1) % n as usize;
+        let pt = if k % 2 == 0 { rock } else { rock2 };
+        facet(out, base[k], base[j], top[j], inside, pt);
+        facet(out, base[k], top[j], top[k], inside, pt);
+        facet(out, top[k], top[j], add(c, mul(dir, 0.18)), inside, rock);
+    }
+}
+
+/// An iron cell of the electrolysis rig (its battery terminals each side
+/// of the glass cell): a crisp, dark iron block with brass bands and a
+/// terminal post, instead of a soft masonry lump (B4 round 3).
+fn rig_cell(out: &mut MeshData, p: [i32; 3]) {
+    let c = [p[0] as f32 + 0.5, p[1] as f32 + 0.5, p[2] as f32 + 0.5];
+    let iron = paint([0.06, 0.065, 0.075], mat::IRON);
+    let brass = paint([0.42, 0.27, 0.06], mat::IRON);
+    cbox(
+        out,
+        add(c, [0.0, -0.06, 0.0]),
+        [X, Y, Z],
+        [0.44, 0.44, 0.42],
+        0.05,
+        iron,
+    );
+    for y in [-0.3f32, 0.22] {
+        cbox(
+            out,
+            add(c, [0.0, y, 0.0]),
+            [X, Y, Z],
+            [0.455, 0.035, 0.435],
+            0.01,
+            brass,
+        );
+    }
+    column(out, add(c, [0.0, 0.38, 0.0]), 0.08, 0.07, 0.16, 8, brass);
+}
+
+/// The Frozen Fields' trail (B4 round 3: no clear way from the ford to
+/// the ice gate): snow-capped timber stakes with a faded cloth band, in
+/// pairs either side of the way from the ford's north bank to the gate.
+/// Each stake stands on the ground under it, drawn by the chunk that
+/// holds its foot; looks only.
+const TRAIL: [[f32; 2]; 6] = [
+    [128.0, 145.0],
+    [118.0, 136.0],
+    [104.0, 126.0],
+    [88.0, 116.0],
+    [74.0, 108.0],
+    [64.0, 101.0],
+];
+
+fn trail(out: &mut MeshData, world: &World, lo: [i32; 3], hi: [i32; 3]) {
+    let timber = paint(mul(TIMBER, 0.85), mat::WOOD);
+    let snow = paint([0.86, 0.89, 0.92], mat::SNOW);
+    let cloth = paint([0.42, 0.10, 0.06], mat::WOOD);
+    for k in 0..TRAIL.len() - 1 {
+        let (a, b) = (TRAIL[k], TRAIL[k + 1]);
+        let d = [b[0] - a[0], b[1] - a[1]];
+        let len = (d[0] * d[0] + d[1] * d[1]).sqrt();
+        let n = (len / 7.0).ceil() as i32;
+        let side = [-d[1] / len, d[0] / len];
+        for i in 0..n {
+            let t = i as f32 / n as f32;
+            for sg in [-1.0f32, 1.0] {
+                let x = a[0] + d[0] * t + side[0] * sg * 1.8;
+                let z = a[1] + d[1] * t + side[1] * sg * 1.8;
+                let (cx, cz) = (x.floor() as i32, z.floor() as i32);
+                if cx < lo[0] || cx >= hi[0] || cz < lo[2] || cz >= hi[2] {
+                    continue;
+                }
+                let mut y = 70;
+                while y > 20 {
+                    let m = world.get([cx, y, cz]).mat;
+                    if m != mat::AIR && m != mat::LEAVES {
+                        break;
+                    }
+                    y -= 1;
+                }
+                let m = world.get([cx, y, cz]).mat;
+                let fy = y + 1;
+                if fy < lo[1]
+                    || fy >= hi[1]
+                    || !matches!(m, mat::SNOW | mat::DIRT | mat::GRASS | mat::STONE)
+                {
+                    continue;
+                }
+                let lean = 0.04 * (hash([cx, k as i32, cz], 95) - 0.5);
+                let base = [x + lean, fy as f32 - 0.25, z];
+                let h = 1.5 + 0.2 * hash([cx, 1, cz], 96);
+                column(out, base, 0.08, 0.065, h, 6, timber);
+                column(out, add(base, [0.0, h, 0.0]), 0.1, 0.03, 0.12, 6, snow);
+                column(
+                    out,
+                    add(base, [0.0, h - 0.42, 0.0]),
+                    0.095,
+                    0.09,
+                    0.16,
+                    6,
+                    cloth,
+                );
+            }
+        }
     }
 }
 
@@ -1641,9 +2639,10 @@ fn plainly_empty(world: &World, lo: [i32; 3], hi: [i32; 3]) -> bool {
         Some(c) => match world.chunk(c) {
             Chunk::Uniform(cell) => !modelled(lo, cell.mat),
             // A cheap first look: no built material and no wood at all.
-            Chunk::Array(cells) => !cells
-                .iter()
-                .any(|c| is_built(c.mat) || matches!(c.mat, mat::WOOD | mat::ICE | mat::GAS_VENT)),
+            Chunk::Array(cells) => !cells.iter().any(|c| {
+                is_built(c.mat)
+                    || matches!(c.mat, mat::WOOD | mat::ICE | mat::GAS_VENT | mat::CRYSTAL)
+            }),
         },
         None => true,
     }
@@ -1652,6 +2651,19 @@ fn plainly_empty(world: &World, lo: [i32; 3], hi: [i32; 3]) -> bool {
 /// The built models owned by the cells in `[lo, hi)`.
 pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     let mut out = MeshData::default();
+    let hs = stamp::HOLLOW;
+    let near_hollow = lo[0] < hs.max[0] + 8
+        && hi[0] > hs.min[0] - 8
+        && lo[2] < hs.max[2] + 8
+        && hi[2] > hs.min[2] - 8
+        && lo[1] < 40
+        && hi[1] > 24;
+    if near_hollow {
+        hollow_reeds(&mut out, world, lo, hi);
+    }
+    if lo[0] < 132 && hi[0] > 60 && lo[2] < 150 && hi[2] > 96 && hi[1] > 30 && lo[1] < 72 {
+        trail(&mut out, world, lo, hi);
+    }
     if plainly_empty(world, lo, hi) {
         return out;
     }
@@ -1664,7 +2676,19 @@ pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
                     vent_mound(&mut out, world, p);
                     continue;
                 }
+                if m == mat::CRYSTAL {
+                    crystal_collar(&mut out, world, p);
+                    continue;
+                }
+                if m == mat::IRON && stamp::RIG.contains(p) {
+                    rig_cell(&mut out, p);
+                    continue;
+                }
                 if !modelled(p, m) || under_dome(p, m) || kiln_door(p, m) {
+                    continue;
+                }
+                if m == mat::PLANKS && stamp::HOLLOW.contains(p) {
+                    boardwalk(&mut out, world, p);
                     continue;
                 }
                 match m {
@@ -1698,11 +2722,16 @@ pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     if (0..3).all(|a| g.min[a] >= lo[a] && g.min[a] < hi[a]) {
         ice_gate(&mut out, world);
     }
-    for &(x, z, r) in PUDDLES.iter() {
+    for &(x, z, rx, rz) in PUDDLES.iter() {
         let c = [x.floor() as i32, 27, z.floor() as i32];
         if (0..3).all(|a| c[a] >= lo[a] && c[a] < hi[a]) {
-            puddle(&mut out, world, [x, z], r);
+            puddle(&mut out, world, [x, z], [rx, rz]);
         }
+    }
+
+    let wl = gen::WELL;
+    if (0..3).all(|a| wl[a] >= lo[a] && wl[a] < hi[a]) {
+        well(&mut out, world);
     }
     let ws = [stamp::WORKSHOP.min[0], 38, stamp::WORKSHOP.min[2]];
     if (0..3).all(|a| ws[a] >= lo[a] && ws[a] < hi[a]) {

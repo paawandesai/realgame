@@ -476,8 +476,20 @@ pub fn kiln_frame() -> Mesh {
     let z = KILN_DOOR_Z + 0.1;
     for side in [-1.0f32, 1.0] {
         let x = cx + side * (r + 0.3);
-        b.rounded_box(Vec3::new(x, 42.0, z), Quat::IDENTITY, Vec3::new(0.32, 1.02, 0.62), 0.1, clay);
-        b.rounded_box(Vec3::new(x, 41.12, z + 0.04), Quat::IDENTITY, Vec3::new(0.4, 0.14, 0.68), 0.06, stone);
+        b.rounded_box(
+            Vec3::new(x, 42.0, z),
+            Quat::IDENTITY,
+            Vec3::new(0.32, 1.02, 0.62),
+            0.1,
+            clay,
+        );
+        b.rounded_box(
+            Vec3::new(x, 41.12, z + 0.04),
+            Quat::IDENTITY,
+            Vec3::new(0.4, 0.14, 0.68),
+            0.06,
+            stone,
+        );
     }
     let n = 9;
     let rm = r + 0.3;
@@ -549,10 +561,21 @@ pub fn kiln_door_leaf() -> Mesh {
         );
     }
     for y in [0.55f32, 1.75] {
-        b.rounded_box(Vec3::new(r, y, 0.08), Quat::IDENTITY, Vec3::new(r - 0.12, 0.07, 0.025), 0.02, iron);
+        b.rounded_box(
+            Vec3::new(r, y, 0.08),
+            Quat::IDENTITY,
+            Vec3::new(r - 0.12, 0.07, 0.025),
+            0.02,
+            iron,
+        );
         for k in 0..6 {
             let x = 0.3 + k as f32 * (w - 0.6) / 5.0;
-            b.sphere(Vec3::new(x, y, 0.11), Quat::IDENTITY, Vec3::splat(0.035), iron);
+            b.sphere(
+                Vec3::new(x, y, 0.11),
+                Quat::IDENTITY,
+                Vec3::splat(0.035),
+                iron,
+            );
         }
     }
     b.column(
@@ -583,6 +606,11 @@ pub fn kiln_door_runes() -> Mesh {
         let half = Vec3::new(0.018, rr * std::f32::consts::PI / n as f32 * 0.55, 0.012);
         b.rounded_box(at, Quat::from_rotation_z(a), half, 0.005, teal);
     }
-    b.sphere(c + Vec3::Z * 0.01, Quat::IDENTITY, Vec3::new(0.05, 0.05, 0.02), teal);
+    b.sphere(
+        c + Vec3::Z * 0.01,
+        Quat::IDENTITY,
+        Vec3::new(0.05, 0.05, 0.02),
+        teal,
+    );
     b.mesh()
 }

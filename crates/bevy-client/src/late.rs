@@ -665,7 +665,14 @@ pub fn plugin(app: &mut App) {
         .add_systems(Startup, (spawn, seed_start))
         .add_systems(
             Update,
-            (commands, step, light.in_set(LightSet), draw, kiln_fx, publish)
+            (
+                commands,
+                step,
+                light.in_set(LightSet),
+                draw,
+                kiln_fx,
+                publish,
+            )
                 .chain()
                 .after(crate::story::on_event)
                 .before(crate::publish),
@@ -812,7 +819,7 @@ fn spawn(
         PointLight {
             color: Color::srgb(1.0, 0.72, 0.4),
             intensity: 0.0,
-            range: 12.0,
+            range: 14.0,
             shadow_maps_enabled: false,
             ..default()
         },
@@ -1023,7 +1030,8 @@ fn spawn_kiln_door(
 
 /// A repeatable pseudo-random number in 0..1 for spark `k`, life `n`.
 fn spark_rand(k: u32, n: u32, salt: u32) -> f32 {
-    let mut h = k.wrapping_mul(0x9E37_79B1) ^ n.wrapping_mul(0x85EB_CA77) ^ salt.wrapping_mul(0xC2B2_AE3D);
+    let mut h =
+        k.wrapping_mul(0x9E37_79B1) ^ n.wrapping_mul(0x85EB_CA77) ^ salt.wrapping_mul(0xC2B2_AE3D);
     h ^= h >> 15;
     h = h.wrapping_mul(0x2C1B_3C6D);
     h ^= h >> 12;
@@ -1050,7 +1058,11 @@ fn kiln_fx(
     use crate::models::{KILN_ARCH, KILN_HINGE};
     let dt = time.delta_secs().min(0.1);
     let t = time.elapsed_secs();
-    let target = if late.door_open || late.kiln_lit { 1.0 } else { 0.0 };
+    let target = if late.door_open || late.kiln_lit {
+        1.0
+    } else {
+        0.0
+    };
     *open += (target - *open) * (dt * 1.8).min(1.0);
     let ease = *open * *open * (3.0 - 2.0 * *open);
     for mut tr in &mut q.p0() {
@@ -1068,7 +1080,11 @@ fn kiln_fx(
     let lit = late.kiln_lit;
     let (cx, _, r) = KILN_ARCH;
     for (mut tr, mut v, g) in &mut q.p2() {
-        *v = if lit { Visibility::Visible } else { Visibility::Hidden };
+        *v = if lit {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
         if !lit {
             continue;
         }
@@ -1088,7 +1104,11 @@ fn kiln_fx(
         }
     }
     for (mut tr, mut v, s) in &mut q.p3() {
-        *v = if lit { Visibility::Visible } else { Visibility::Hidden };
+        *v = if lit {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
         if !lit {
             continue;
         }
@@ -1100,9 +1120,18 @@ fn kiln_fx(
         let (x0, y0, z0, up) = if s.0 % 2 == 0 {
             (cx + (spark_rand(s.0, n, 2) - 0.5) * 2.4, 41.4, 173.6, 4.5)
         } else {
-            (128.5 + (spark_rand(s.0, n, 2) - 0.5) * 1.6, 60.4, 169.5, 9.0)
+            (
+                128.5 + (spark_rand(s.0, n, 2) - 0.5) * 1.6,
+                60.4,
+                169.5,
+                9.0,
+            )
         };
-        let drift = Vec3::new(spark_rand(s.0, n, 3) - 0.5, 0.0, spark_rand(s.0, n, 4) - 0.2) * 2.0;
+        let drift = Vec3::new(
+            spark_rand(s.0, n, 3) - 0.5,
+            0.0,
+            spark_rand(s.0, n, 4) - 0.2,
+        ) * 2.0;
         let p = Vec3::new(x0, y0, z0) + drift * phase + Vec3::Y * up * phase;
         tr.translation = p + Vec3::new((t * 6.0 + s.0 as f32).sin() * 0.08, 0.0, 0.0);
         tr.scale = Vec3::splat((1.0 - phase) * 1.4 + 0.2);
@@ -1238,12 +1267,13 @@ fn light(
     for (mut l, mut t) in &mut held {
         // Warm and strong near the player (art bible: the torch is the
         // cave's warm light; the crystals are the only other).
-        l.intensity = if has { 600_000.0 * flicker } else { 0.0 };
-        // Held a little ahead and low, as in the hand: it lights the floor
-        // and walls in front of the player.
+        l.intensity = if has { 900_000.0 * flicker } else { 0.0 };
+        // Held ahead and low, as in the hand: it throws a warm pool on the
+        // floor and walls in front of the player (B4 round 3: the pool was
+        // too small to see).
         let f = player.forward();
         let ahead = Vec3::new(f.x, 0.0, f.z).normalize_or_zero();
-        t.translation = player.eye() + ahead * 0.7 - Vec3::Y * 0.25;
+        t.translation = player.eye() + ahead * 1.0 - Vec3::Y * 0.45;
     }
     *scan -= dt;
     if *scan <= 0.0 {
@@ -1255,7 +1285,7 @@ fn light(
         for (mut l, mut t) in &mut placed {
             match at {
                 Some(p) => {
-                    l.intensity = 90_000.0;
+                    l.intensity = 320_000.0 * flicker;
                     t.translation =
                         Vec3::new(p[0] as f32 + 0.5, p[1] as f32 + 0.8, p[2] as f32 + 0.5);
                 }

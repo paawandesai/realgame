@@ -56,8 +56,10 @@ fn ground_fog(c: vec4<f32>, wp: vec3<f32>) -> vec4<f32> {
     let h = clamp((33.4 - wp.y) / 3.2, 0.0, 1.0);
     let d = distance(wp, view.world_position);
     let along = 1.0 - exp(-d * 0.06);
-    let f = amt * h * (0.4 + 0.6 * h) * along * 0.62;
-    let fog = vec3<f32>(0.50, 0.56, 0.14);
+    let f = amt * h * (0.4 + 0.6 * h) * along * 0.55;
+    // Pale yellow-green, so dark silhouettes (vents, reeds, posts) read
+    // against it (B4 round 3: the old mustard haze flattened the hollow).
+    let fog = vec3<f32>(0.62, 0.66, 0.36);
     return vec4<f32>(mix(c.rgb, fog, f), c.a);
 }
 
@@ -67,7 +69,10 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     let mode = params.mode.x;
     let col = in.color.rgb;
     let ao = in.color.a;
-    let glow = in.uv.x;
+    // A negative glow marks a wet, glossy surface (the Marsh's standing
+    // pools, `built::puddle`): no glow, low roughness, a sky sheen.
+    let wet = in.uv.x < -0.5;
+    let glow = max(in.uv.x, 0.0);
     let grassy = in.uv.y;
     let wp = in.world_position.xyz;
     var n = normalize(in.world_normal);
@@ -151,6 +156,11 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     pbr_input.diffuse_occlusion = vec3<f32>(mix(1.0, ao, 0.6));
     pbr_input.material.perceptual_roughness = select(0.88 - 0.2 * fine, 0.12, mode > 0.5);
     pbr_input.material.reflectance = vec3<f32>(select(0.25, 0.5, mode > 0.5));
+    if wet {
+        pbr_input.material.base_color = vec4<f32>(col * mix(1.0, ao, 0.5), 1.0);
+        pbr_input.material.perceptual_roughness = 0.06;
+        pbr_input.material.reflectance = vec3<f32>(0.7);
+    }
 
     // Glow: veins of teal light (runes) and a steady core (crystal, torch,
     // the hearth), breathing slowly.
@@ -162,6 +172,11 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     // Rim light: a cool sky edge on every silhouette.
     let rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
     emit = emit + vec3<f32>(0.35, 0.5, 0.75) * rim * 0.03 * ao;
+    if wet {
+        // The sky's sheen at grazing angles, and a faint ripple.
+        let ripple = vnoise(vec3<f32>(wp.x * 2.0 + globals.time * 0.3, globals.time * 0.2, wp.z * 2.0));
+        emit = emit + vec3<f32>(0.30, 0.38, 0.40) * pow(rim, 1.5) * (0.5 + 0.3 * ripple);
+    }
     // Alpha 0: the glow is already in display units, so Bevy must not scale
     // it by the camera's exposure (about 1/1000 with the default EV100,
     // which left crystals, torches and runes looking unlit).

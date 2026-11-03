@@ -30,6 +30,16 @@ const OBJ_ARROW_DEG = 35;
 const biomeName = () => {
   try { return JSON.parse(window.__storyState || 'null')?.biomeName || 'Formula'; } catch { return 'Formula'; }
 };
+// B4 round 3: the title names the area the player stands in now (the game
+// state's `biome`), not the run's start biome. The Kiln's steps up from the
+// plaza count as the Kiln Terrace (gen::biome_at gives them to the Village).
+const AREA_NAMES = { village: 'The Village', frozen: 'The Frozen Fields', marsh: 'The Marsh', cave: 'The Crystal Cave', kiln: 'The Kiln Terrace' };
+export function areaName(/** @type {any} */ state) {
+  const p = state && Array.isArray(state.pos) ? state.pos : null;
+  if (p && p[0] >= 118 && p[0] < 139 && p[2] >= 174 && p[2] < 186 && p[1] >= 35.5) return AREA_NAMES.kiln;
+  const id = state && typeof state.biome === 'string' ? state.biome : '';
+  return /** @type {Record<string, string>} */ (AREA_NAMES)[id] || biomeName();
+}
 // Shown after 45 s with no progress (GS-24). Tied to the fire quest: a new
 // quest brings its own idle hint and slot.
 const IDLE_MS = 45000;
@@ -796,7 +806,7 @@ export function startHud() {
         }
       }
       const objTitle = document.querySelector('#objective .title');
-      const titleText = voxelMode ? biomeName()
+      const titleText = voxelMode ? areaName(state)
         : state.level === 3 ? 'The Marsh' : state.level === 2 ? 'The Frozen Gate' : 'Save the Greenhouse';
       if (objTitle && objTitle.textContent !== titleText) objTitle.textContent = titleText;
       if (voxelMode) setObjective(state.quest >= 1 && state.quest <= 7 ? `${state.questLine} (${state.quest} of 7)` : state.questLine || '', 0);

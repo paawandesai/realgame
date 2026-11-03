@@ -110,9 +110,10 @@ pub const VM_GEM_MIN_DEG: f32 = 4.0;
 /// The viewmodel root's camera-space rest position at the default view,
 /// metres (before bob and recoil). The spell gem is its child at local
 /// (0, 0.05, -0.11) under the root's scale 0.55, so it sits at about
-/// (0.21, -0.1525, -0.4805): atan(0.1525 / 0.4805) = 17.61 deg below centre,
-/// which `VM_GEM_DEG` rounds to 17.6.
-pub const VM_REST: [f32; 3] = [0.21, -0.18, -0.42];
+/// (0.28, -0.1525, -0.4805): atan(0.1525 / 0.4805) = 17.61 deg below centre,
+/// which `VM_GEM_DEG` rounds to 17.6. Its x (B4 round 3: 0.28, was 0.21)
+/// keeps the hand to the right of the spell bar's CO2 card at 16:9.
+pub const VM_REST: [f32; 3] = [0.28, -0.18, -0.42];
 
 /// Seconds of a held button for the gauntlet's charge to fill.
 pub const GAUNTLET_CHARGE_S: f32 = 0.6;
