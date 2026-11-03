@@ -35,6 +35,8 @@ fn fbm2(p: vec2<f32>) -> f32 {
 
 struct SkyParams {
     low: vec4<f32>,
+    sun: vec4<f32>,
+    haze: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0)
@@ -43,11 +45,15 @@ var<uniform> params: SkyParams;
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let d = normalize(in.world_position.xyz - view.world_position);
-    let sun = normalize(vec3<f32>(-0.6, 1.0, 0.45));
+    let sun = normalize(params.sun.xyz);
+    let warm = params.sun.w;
     let up = clamp(d.y, -1.0, 1.0);
-    let horizon = vec3<f32>(0.70, 0.85, 1.0);
-    let mid = vec3<f32>(0.42, 0.66, 0.95);
-    let zenith = vec3<f32>(0.16, 0.38, 0.80);
+    // The horizon is the area's haze (the distance fog's colour, sRGB
+    // components from `mood`, here in linear light); overhead stays blue,
+    // warmed a little when the Kiln is relit.
+    let horizon = pow(params.haze.rgb, vec3<f32>(2.2)) * 1.1;
+    let mid = mix(vec3<f32>(0.42, 0.66, 0.95), horizon, 0.25) + vec3<f32>(0.12, 0.04, -0.06) * warm;
+    let zenith = vec3<f32>(0.16, 0.38, 0.80) + vec3<f32>(0.10, 0.03, -0.08) * warm;
     var col = mix(horizon, mid, smoothstep(0.0, 0.25, up));
     col = mix(col, zenith, smoothstep(0.25, 0.9, up));
     // Below the horizon: the fog colour (the far ground fades into it).
@@ -77,5 +83,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         let shade = mix(lit, vec3<f32>(0.72, 0.78, 0.9), smoothstep(0.62, 0.95, c));
         col = mix(col, shade, cover * 0.85);
     }
+    // Underground the sky is never seen lit.
+    col = col * (1.0 - 0.9 * params.haze.a);
     return vec4<f32>(col, 1.0);
 }

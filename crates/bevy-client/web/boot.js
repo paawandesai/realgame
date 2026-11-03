@@ -1,6 +1,8 @@
 // Loaded as an external module so the page works under script-src 'self'.
 import init from './bevy-client.js';
+import { loadWasm, watchWorld } from './loading.js';
 import { startHud } from './hud.js';
+import { startTitle } from './title.js';
 
 window.__bootStart = performance.now();
 
@@ -37,6 +39,8 @@ try {
 } catch { /* the check must never stop the boot */ }
 
 startHud();
+// The title screen first; the story intro waits under it (story.js).
+try { startTitle(); } catch { /* the title must never stop the boot */ }
 // Spell progress saved on this device (I-027). Dynamic, so a missing or
 // broken progress.js costs only saving, never the boot.
 try { import('./progress.js').then((m) => m.startProgress()).catch(() => {}); } catch {}
@@ -50,6 +54,9 @@ try { import('./music.js').then((m) => m.startMusic()).catch(() => {}); } catch 
 // I-052 late lane: the cave rig, the balloon crate, the Invention Bench and the ending.
 try { import('./late.js').then((m) => m.startLate()).catch(() => {}); } catch {}
 try { import('./rank.js').then((m) => m.startRank()).catch(() => {}); } catch {}
+// Submission P7/P13: footsteps, landing thuds, positioned spell sounds, UI confirms.
+try { import('./feel.js').then((m) => m.startFeel()).catch(() => {}); } catch {}
+try { import('./ambience.js').then((m) => m.startAmbience()).catch(() => {}); } catch {}
 // Anonymous analytics and the age picker (docs/ANALYTICS.md), only where the
 // page's rg-analytics switch is "on" (the built site, web/dist). Loaded on
 // demand, so web/pkg-out (switch "off") never fetches them, and wrapped so a
@@ -62,7 +69,12 @@ try {
 } catch {
   // Analytics must never break the game.
 }
-init().catch((e) => {
+// The loading screen shows real progress: the wasm download's bytes, then
+// compiling, then the world being generated and its spawn chunks meshed
+// (loading.js). If the streamed fetch fails, init() fetches as before.
+loadWasm('./bevy-client_bg.wasm')
+  .then((bytes) => { watchWorld(); return init(bytes ? { module_or_path: bytes } : undefined); })
+  .catch((e) => {
   // Bevy/winit throws a control-flow exception on purpose to hand the
   // event loop to the browser; anything else is a real error.
   if (!String(e).includes('Using exceptions for control flow')) console.error(e);

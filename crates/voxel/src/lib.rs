@@ -15,6 +15,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod built;
 pub mod collide;
 pub mod diff;
 pub mod gen;

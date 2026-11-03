@@ -114,6 +114,24 @@ pub const VM_GEM_MIN_DEG: f32 = 4.0;
 /// which `VM_GEM_DEG` rounds to 17.6.
 pub const VM_REST: [f32; 3] = [0.21, -0.18, -0.42];
 
+/// Seconds of a held button for the gauntlet's charge to fill.
+pub const GAUNTLET_CHARGE_S: f32 = 0.6;
+
+/// The gauntlet's charge (0-1) after the button has been held `held`
+/// seconds: it fills smoothly and stays full.
+pub fn gauntlet_charge(held: f32) -> f32 {
+    let t = (held / GAUNTLET_CHARGE_S).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// The rune glow's strength (a multiplier on the spell's linear colour)
+/// for a charge and a cast flash (both 0-1): a steady glow at rest,
+/// brighter while charging, a spike as the cast goes, and never past 5
+/// (the spell glow materials' level, under the bloom ceiling).
+pub fn gauntlet_glow(charge: f32, flash: f32) -> f32 {
+    (1.4 + 1.6 * charge + 2.4 * flash).min(5.0)
+}
+
 /// How far below the view centre the spell gem sits, in degrees, for a
 /// vertical field of view of `vfov_deg`: today's 17.6 deg, lifted when the
 /// view is so short that the gem would come within 5 deg of the bottom edge,
@@ -315,6 +333,17 @@ mod tests {
         let (s, c) = a.sin_cos();
         let (gy, gz) = (0.05 * 0.55, -0.11 * 0.55);
         [p[0], p[1] + gy * c - gz * s, p[2] + gy * s + gz * c]
+    }
+
+    #[test]
+    fn the_gauntlet_charges_while_held_and_flashes_on_cast() {
+        assert_eq!(gauntlet_charge(0.0), 0.0);
+        assert!(gauntlet_charge(0.3) > 0.3 && gauntlet_charge(0.3) < 0.7);
+        assert_eq!(gauntlet_charge(5.0), 1.0);
+        let rest = gauntlet_glow(0.0, 0.0);
+        assert!(gauntlet_glow(1.0, 0.0) > rest);
+        assert!(gauntlet_glow(0.0, 1.0) > rest);
+        assert!(gauntlet_glow(1.0, 1.0) <= 5.0);
     }
 
     #[test]

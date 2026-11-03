@@ -178,6 +178,9 @@ The single register of every science claim the first-person 3D client shows the 
 | `{line} Rank up: {}!` | crates/bevy-client/src/powers.rs | Game status (a cache found and the rank it reached); it states no science. |
 | `Throw it high so it falls onto the fire.` | crates/bevy-client/src/firebreak.rs | Game instruction (how to aim a Water cast over the workshop wall); it states no science. |
 | `Put out the methane hollow's flames to open` | crates/bevy-client/src/gates.rs | Game instruction (the cave gate's sign: the quest step that opens it); the hollow's burning methane vents are covered by the P3 rows. |
+| `Downloading the valley…` | crates/bevy-client/web/loading.js | Loading screen status (how far the page has loaded); it states no science. |
+| `Starting the engine…` | crates/bevy-client/web/loading.js | Loading screen status (how far the page has loaded); it states no science. |
+| `Building the valley…` | crates/bevy-client/web/loading.js | Loading screen status (how far the page has loaded); it states no science. |
 | `H2 lift` | crates/bevy-client/src/powers.rs | Power name (Water's power on F). A label; the claim is C-106. |
 | `CO2 dash` | crates/bevy-client/src/powers.rs | Power name (CO2's power on F). A label; the claim is C-108. |
 | `{} is locked. Learn {} at the Formula Bench (B) to unlock it: {}.` | crates/bevy-client/src/powers.rs | Game instruction (a locked power); the hint filled in is C-110 or a power description. |
@@ -278,6 +281,8 @@ The single register of every science claim the first-person 3D client shows the 
 | `Oxygen, O2` | crates/bevy-client/web/late.js | I-052 late lane: Button label naming the gas. Flagged by sentence shape or a formula; it states no science. |
 | `Or type the reaction` | crates/bevy-client/web/late.js | I-052 late lane: Label of the Invention Bench's text box. Flagged by sentence shape or a formula; it states no science. |
 | `You relit the Great Kiln!` | crates/bevy-client/web/late.js | I-052 late lane: Ending card title (story). Flagged by sentence shape or a formula; it states no science. |
+| `Every reaction runs in a simulation of heat, phase changes, fire, water and gases` | crates/bevy-client/web/late.js | Credits line (P9) describing how the game is built; each phase-change, fire and gas behaviour it simulates has its own claim row. |
+| `Rust and Bevy, compiled to WebAssembly, and JavaScript` | crates/bevy-client/web/late.js | Credits line (P9) naming the tools the game is built with; not science. |
 
 ## Sources
 

@@ -166,11 +166,21 @@ pub struct SmoothMesh {
     pub opaque: MeshData,
     pub clear: MeshData,
     pub water: MeshData,
+    /// The faceted props (trees, crystals: `props::models`), drawn with the
+    /// opaque material but as their own mesh, so a client can swap them
+    /// for `props_far` with distance.
+    pub props: MeshData,
+    /// The props' far level of detail (`props::models_far`).
+    pub props_far: MeshData,
 }
 
 impl SmoothMesh {
     pub fn is_empty(&self) -> bool {
-        self.opaque.is_empty() && self.clear.is_empty() && self.water.is_empty()
+        self.opaque.is_empty()
+            && self.clear.is_empty()
+            && self.water.is_empty()
+            && self.props.is_empty()
+            && self.props_far.is_empty()
     }
 }
 
@@ -184,6 +194,9 @@ struct Grid {
     mat: Vec<u8>,
     level: Vec<u8>,
     kinds: Vec<Kind>,
+    /// Built cells drawn by `built`'s models: solid to the field, but the
+    /// drawn surface leaves their faces out.
+    model: Vec<bool>,
 }
 
 impl Grid {
@@ -196,6 +209,7 @@ impl Grid {
             mat: vec![mat::AIR; len],
             level: vec![0; len],
             kinds: Vec::new(),
+            model: vec![false; len],
         };
         let mut i = 0;
         for z in lo[2]..hi[2] {
@@ -209,12 +223,17 @@ impl Grid {
                         // Trees are models (`props`): their cells are open
                         // space to the surface. Crystals are the rock they
                         // grow from.
-                        g.mat[i] = if crate::props::modelled(world, [x, y, z], c.mat) {
+                        // Benches stand on the ground like trees do: the
+                        // ground draws under them.
+                        g.mat[i] = if crate::props::modelled(world, [x, y, z], c.mat)
+                            || crate::built::free_standing(c.mat)
+                        {
                             mat::AIR
                         } else {
                             crate::props::surface_mat(c.mat)
                         };
                         g.level[i] = c.level();
+                        g.model[i] = crate::built::modelled([x, y, z], c.mat);
                     }
                     i += 1;
                 }
@@ -231,6 +250,10 @@ impl Grid {
 
     fn has(&self, k: Kind) -> bool {
         self.kinds.contains(&k)
+    }
+
+    fn is_model(&self, p: [i32; 3]) -> bool {
+        self.idx(p).is_some_and(|i| self.model[i])
     }
 
     fn idx(&self, p: [i32; 3]) -> Option<usize> {
@@ -370,6 +393,9 @@ struct Net {
     mat: Vec<u8>,
     light: Vec<f32>,
     nrm: Vec<[f32; 3]>,
+    /// Drawing (not walking): built cells' faces are left to their models
+    /// and their materials do not colour the ground beside them.
+    models: bool,
 }
 
 impl Net {
@@ -392,7 +418,7 @@ impl Net {
     }
 }
 
-fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass) -> Net {
+fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass, models: bool) -> Net {
     let n = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
     let mut val = Vec::with_capacity((n[0] * n[1] * n[2]) as usize);
     // The lattice lies inside the grid with a ring to spare, so the fill's
@@ -437,6 +463,7 @@ fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass) -> Net {
         mat: Vec::new(),
         light: Vec::new(),
         nrm: Vec::new(),
+        models,
     };
     let (ly, lz) = (n[0] as usize, (n[0] * n[1]) as usize);
     let offs = CORNERS.map(|c| c[0] as usize + c[1] as usize * ly + c[2] as usize * lz);
@@ -456,7 +483,7 @@ fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass) -> Net {
                     di += 1;
                     continue;
                 }
-                let (p, m, l) = place(g, [x, y, z], &v, inside, pass);
+                let (p, m, l) = place(g, [x, y, z], &v, inside, pass, models);
                 net.vert[di] = net.pos.len() as u32;
                 net.pos.push(p);
                 net.mat.push(m);
@@ -471,7 +498,14 @@ fn build_net(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass) -> Net {
 
 /// The vertex of dual cell `q` (corner values `v`, `inside` of them at or
 /// above the iso level): its position, material and AO light.
-fn place(g: &Grid, q: [i32; 3], v: &[f32; 8], inside: u8, pass: Pass) -> ([f32; 3], u8, f32) {
+fn place(
+    g: &Grid,
+    q: [i32; 3],
+    v: &[f32; 8],
+    inside: u8,
+    pass: Pass,
+    models: bool,
+) -> ([f32; 3], u8, f32) {
     let mut sum = [0f32; 3];
     let mut count = 0f32;
     let mut axis_sum = [0f32; 3];
@@ -513,7 +547,7 @@ fn place(g: &Grid, q: [i32; 3], v: &[f32; 8], inside: u8, pass: Pass) -> ([f32; 
         }
         occ += v[k];
         let counts = match pass {
-            Pass::Opaque => opaque(kd),
+            Pass::Opaque => opaque(kd) && !(models && g.is_model(p)),
             Pass::Clear => kd == Kind::Clear,
         };
         if counts {
@@ -600,7 +634,8 @@ fn quads(
                     // The solid end decides whether this pass draws it.
                     let (solid, open) = if ia { (p, q) } else { (q, p) };
                     let draws = match pass {
-                        Pass::Opaque => true,
+                        // Built cells are drawn by their models.
+                        Pass::Opaque => !(net.models && g.is_model(solid)),
                         Pass::Clear => g.kind(solid) == Kind::Clear && !opaque(g.kind(open)),
                     };
                     if !draws {
@@ -678,7 +713,9 @@ fn surface(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass, normals: bool) -> M
     // lattice [lo-2, hi+2).
     let llo = lo.map(|v| v - 2);
     let lhi = hi.map(|v| v + 2);
-    let mut net = build_net(g, llo, lhi, pass);
+    // Drawing a chunk (with normals) leaves built cells to their models;
+    // the walking surface (`ground`) keeps them.
+    let mut net = build_net(g, llo, lhi, pass, normals);
     let mut out = MeshData::default();
     if net.pos.is_empty() {
         return out;
@@ -1034,20 +1071,23 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
     let uniform = g.kinds.iter().all(|&k| k == first);
     if uniform && matches!(first, Kind::Empty | Kind::Soft | Kind::Hard | Kind::Organic) {
         // Open air can still hold a tree's crown.
-        return SmoothMesh {
-            opaque: if first == Kind::Empty {
-                crate::props::models(world, lo, hi)
-            } else {
-                MeshData::default()
-            },
-            ..SmoothMesh::default()
+        return if first == Kind::Empty {
+            SmoothMesh {
+                props: crate::props::models(world, lo, hi),
+                props_far: crate::props::models_far(world, lo, hi),
+                ..SmoothMesh::default()
+            }
+        } else {
+            SmoothMesh::default()
         };
     }
     let mut opaque = surface(&g, lo, hi, Pass::Opaque, true);
     craggy(&mut opaque);
-    append(&mut opaque, crate::props::models(world, lo, hi));
+    append(&mut opaque, crate::built::models(world, lo, hi));
     SmoothMesh {
         opaque,
+        props: crate::props::models(world, lo, hi),
+        props_far: crate::props::models_far(world, lo, hi),
         clear: if g.has(Kind::Clear) {
             let mut m = surface(&g, lo, hi, Pass::Clear, true);
             append(&mut m, ice_sheets(&g, lo, hi));
@@ -1404,7 +1444,11 @@ mod bench {
             let ms = t.elapsed().as_secs_f32() * 1000.0;
             worst = worst.max(ms);
             total += ms;
-            tris += (m.opaque.indices.len() + m.clear.indices.len() + m.water.indices.len()) / 3;
+            tris += (m.opaque.indices.len()
+                + m.props.indices.len()
+                + m.clear.indices.len()
+                + m.water.indices.len())
+                / 3;
         }
         println!("smooth: all chunks {total:.0} ms, worst {worst:.2} ms, {tris} triangles");
     }

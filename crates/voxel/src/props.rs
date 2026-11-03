@@ -51,7 +51,7 @@ fn unit(x: i32, y: i32, z: i32, salt: u32) -> f32 {
 /// is a trunk too, drawn as a stump). Stacked logs and wooden walls keep
 /// their smooth shape.
 pub fn is_trunk(world: &World, p: [i32; 3]) -> bool {
-    if world.get(p).mat != mat::WOOD {
+    if world.get(p).mat != mat::WOOD || crate::built::timber(p, mat::WOOD) {
         return false;
     }
     let [x, y, z] = p;
@@ -534,6 +534,96 @@ fn tree(out: &mut MeshData, world: &World, top: [i32; 3]) {
     }
 }
 
+/// A tree seen from far away: a five-sided trunk and one crown (a cone for
+/// pines and firs, a faceted ball for oaks and birches) the size of what
+/// is left of its leaves.
+fn tree_far(out: &mut MeshData, world: &World, top: [i32; 3]) {
+    let [x, ty, z] = top;
+    let mut base = ty;
+    while base > ty - 16 && world.get([x, base - 1, z]).mat == mat::WOOD {
+        base -= 1;
+    }
+    let ground = world.get([x, base - 1, z]).mat;
+    let sp = species(top, ground);
+    let axis = [x as f32 + 0.5, 0.0, z as f32 + 0.5];
+    let at = |y: f32| [axis[0], y, axis[2]];
+    let (mut lo, mut hi, mut reach, mut n) = (i32::MAX, i32::MIN, 0.0f32, 0u32);
+    for dy in -CROWN_BELOW..=CROWN_ABOVE {
+        for dz in -CROWN_REACH..=CROWN_REACH {
+            for dx in -CROWN_REACH..=CROWN_REACH {
+                if world.get([x + dx, ty + dy, z + dz]).mat == mat::LEAVES {
+                    lo = lo.min(ty + dy);
+                    hi = hi.max(ty + dy);
+                    reach = reach.max(((dx * dx + dz * dz) as f32).sqrt());
+                    n += 1;
+                }
+            }
+        }
+    }
+    let bark = match sp {
+        Species::Birch => [0.80, 0.78, 0.72],
+        _ => [0.22, 0.12, 0.06],
+    };
+    let paint = |rgb: V3| Paint {
+        rgb,
+        glow: 0.0,
+        mat: mat::WOOD,
+        top: None,
+    };
+    let y0 = base as f32 - 0.3;
+    let y1 = ty as f32 + if n > 0 { 1.5 } else { 1.0 };
+    let r0 = ring(at(y0), [0.0, 1.0, 0.0], 0.32, 5, 0.3, 0.0, top);
+    let r1 = ring(at(y1), [0.0, 1.0, 0.0], 0.18, 5, 0.3, 0.0, top);
+    band(out, &r0, &r1, at(y0 + 0.5), paint(bark));
+    if n == 0 {
+        return;
+    }
+    let leaf = |rgb: V3| Paint {
+        rgb,
+        glow: 0.0,
+        mat: mat::LEAVES,
+        top: (ground == mat::SNOW).then_some(([0.86, 0.90, 0.97], 0.4)),
+    };
+    match sp {
+        Species::Pine | Species::Fir => {
+            let green = if sp == Species::Pine {
+                [0.05, 0.19, 0.08]
+            } else {
+                [0.05, 0.20, 0.15]
+            };
+            let slim = if sp == Species::Fir { 0.8 } else { 1.0 };
+            let yb = lo as f32 - 0.15;
+            let rim = ring(
+                at(yb),
+                [0.0, 1.0, 0.0],
+                (reach + 0.45) * slim * 0.9,
+                6,
+                0.2,
+                0.0,
+                top,
+            );
+            fan(out, &rim, at(hi as f32 + 2.0), at(yb + 0.3), leaf(green));
+            fan(
+                out,
+                &rim,
+                at(yb + 0.35),
+                at(yb + 2.0),
+                leaf(mul(green, 0.6)),
+            );
+        }
+        Species::Oak | Species::Birch => {
+            let green = match sp {
+                Species::Oak => [0.13, 0.32, 0.09],
+                _ => [0.28, 0.44, 0.10],
+            };
+            let c = at((lo + hi) as f32 / 2.0 + 0.9);
+            let r = (reach + 0.9).min(3.2);
+            let h = ((hi - lo) as f32 / 2.0 + 0.9).max(1.0);
+            ball(out, c, [r, h, r], top, leaf(green));
+        }
+    }
+}
+
 /// A leaf with no trunk near it: a small clump.
 fn clump(out: &mut MeshData, p: [i32; 3]) {
     let c = [p[0] as f32 + 0.5, p[1] as f32 + 0.45, p[2] as f32 + 0.5];
@@ -705,6 +795,18 @@ pub fn backdrop(seed: u64) -> MeshData {
 /// The models owned by the cells in `[lo, hi)`: the trees whose trunk tops
 /// lie there, lone leaves, and crystals.
 pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
+    models_lod(world, lo, hi, false)
+}
+
+/// The far level of detail of the same models (art bible: beyond 60 m
+/// props drop to simpler meshes): each tree a five-sided trunk under one
+/// cone or one faceted crown, lone leaves as before, no crystals (they are
+/// underground, where nothing is seen that far).
+pub fn models_far(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
+    models_lod(world, lo, hi, true)
+}
+
+fn models_lod(world: &World, lo: [i32; 3], hi: [i32; 3], far: bool) -> MeshData {
     let mut out = MeshData::default();
     // Every trunk top a leaf in the region could belong to.
     let reach_lo = [
@@ -725,7 +827,11 @@ pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
                 match world.get(p).mat {
                     mat::WOOD => {
                         if world.get([x, y + 1, z]).mat != mat::WOOD && is_trunk(world, p) {
-                            tree(&mut out, world, p);
+                            if far {
+                                tree_far(&mut out, world, p);
+                            } else {
+                                tree(&mut out, world, p);
+                            }
                         }
                     }
                     mat::LEAVES => {
@@ -735,7 +841,7 @@ pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
                             clump(&mut out, p);
                         }
                     }
-                    mat::CRYSTAL => crystal(&mut out, world, p),
+                    mat::CRYSTAL if !far => crystal(&mut out, world, p),
                     _ => {}
                 }
             }
@@ -883,6 +989,28 @@ mod tests {
             .map(|k| species([60 + k * 3, 36, 215], mat::GRASS))
             .collect();
         assert!(village.contains(&Species::Oak) && village.contains(&Species::Birch));
+    }
+
+    #[test]
+    fn far_trees_are_much_simpler_and_keep_their_size() {
+        let w = crate::generate(crate::DEFAULT_SEED);
+        let (lo, hi) = ([96, 32, 192], [128, 64, 224]);
+        let near = models(&w, lo, hi);
+        let far = models_far(&w, lo, hi);
+        assert!(!far.is_empty());
+        assert!(
+            far.indices.len() * 3 < near.indices.len(),
+            "{} vs {}",
+            far.indices.len(),
+            near.indices.len()
+        );
+        let (a, b) = (bounds(&near), bounds(&far));
+        for k in 0..3 {
+            assert!(
+                (a.0[k] - b.0[k]).abs() < 3.0 && (a.1[k] - b.1[k]).abs() < 3.0,
+                "{a:?} {b:?}"
+            );
+        }
     }
 
     #[test]

@@ -46,9 +46,9 @@ default = ["bloom", "webgl2"]
 # JavaScript (`navigator.gpu`). Ignored on native.
 webgl2 = ["bevy/webgl2"]
 webgpu = ["bevy/webgpu"]
-# HDR bloom and the default (LUT-based) tonemapper. Without it the build is
-# smaller and uses the Reinhard tonemapper (`--no-default-features`).
-bloom = ["bevy/bevy_post_process", "bevy/tonemapping_luts", "bevy/ktx2", "bevy/zstd_rust"]
+# HDR bloom. Every build uses a tonemapper computed in the shader (no LUT
+# texture: the shipped wasm embeds no pre-made image, docs/art-bible.md).
+bloom = ["bevy/bevy_post_process"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["web"] }

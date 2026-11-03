@@ -137,7 +137,12 @@ canvas.hover-fire { cursor: pointer; }
 #settings input[type="checkbox"] { width: 28px; height: 28px; margin: 0; accent-color: var(--on); }
 #settings select { font: inherit; font-size: calc(18px * var(--ui)); min-height: 36px; padding: 2px 8px; border-radius: 8px; }
 #settings .set-val { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
-#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: #8cc8fa; }
+#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: linear-gradient(#6fa8dc, #dcebf5 70%, #6e9f4b 70%); z-index: 50; }
+#loading .load-card { background: rgba(30, 42, 68, 0.85); color: #fff; border-radius: 18px; padding: 22px 28px; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; text-align: center; }
+#loading .load-title { font-size: 34px; font-weight: 700; letter-spacing: 0.04em; color: #f2c94c; margin-bottom: 14px; }
+#loading .load-bar { height: 14px; border-radius: 7px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
+#loading #load-fill { height: 100%; width: 0%; border-radius: 7px; background: #40ffd9; transition: width 0.2s ease-out; }
+#loading #load-step { margin-top: 10px; font-size: 16px; opacity: 0.9; }
 @media (prefers-reduced-motion: reduce) {
   #warning { animation: none; }
   #crosshair.pulse, .slot.nudge, #firefinder { animation: none; }
@@ -481,3 +486,39 @@ body.intro-open #caption { visibility: hidden; }
 /* The music toggle (music.js): under the rank badge. */
 #music-btn { position: fixed; z-index: 700; top: 200px; right: 14px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--panel); color: #ffe08a; font-size: 24px; line-height: 44px; padding: 0; cursor: pointer; }
 #music-btn.music-off { color: #888; text-decoration: line-through; }
+/* Wednesday polish: the title screen, over the valley while it loads. */
+#title { position: fixed; inset: 0; z-index: 950; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(22px * var(--ui)); padding: 16px; box-sizing: border-box; overflow-y: auto; color: #fff; text-align: center;
+  background: radial-gradient(ellipse at 50% 40%, rgba(12, 18, 40, 0.45), rgba(8, 12, 24, 0.88) 80%); }
+#title[hidden] { display: none; }
+#title h1 { margin: 0; font-size: calc(84px * var(--ui)); letter-spacing: 0.04em; font-weight: 800; color: #ffe08a; text-shadow: 0 0 28px rgba(255, 200, 90, 0.55), 0 4px 0 #6b3a1f; }
+.title-sub { margin: 4px 0 0; font-size: calc(24px * var(--ui)); color: #bfe8ff; letter-spacing: 0.08em; }
+.title-play { font: inherit; font-size: calc(30px * var(--ui)); font-weight: 800; min-width: calc(220px * var(--ui)); min-height: 56px; padding: 12px 40px; border-radius: 16px; border: 3px solid #ffd54a; background: #2b3a5c; color: #fff; cursor: pointer; box-shadow: 0 0 24px rgba(255, 213, 74, 0.45); }
+.title-play:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+.title-play:not(:disabled):hover { background: #3a4d78; }
+.title-play:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.title-controls { background: rgba(20, 28, 48, 0.85); border-radius: 14px; padding: 12px 20px 14px; max-width: calc(100vw - 32px); box-sizing: border-box; }
+.title-controls h2 { margin: 0 0 8px; font-size: calc(18px * var(--ui)); color: #ffd54a; }
+.title-controls dl { display: grid; grid-template-columns: auto auto; gap: 6px 16px; margin: 0; text-align: left; font-size: calc(17px * var(--ui)); }
+.title-controls dt { text-align: right; white-space: nowrap; }
+.title-controls dd { margin: 0; }
+.title-controls kbd { display: inline-block; min-width: 1.4em; margin-left: 4px; padding: 1px 6px; border-radius: 6px; border: 1px solid #8fa3c8; border-bottom-width: 3px; background: #1d2a52; font: inherit; font-size: 0.9em; text-align: center; }
+#bench-chip[hidden] { display: none; }
+/* While the title shows, the HUD behind it stays out of the way. */
+body.title-open #hud, body.title-open .rank-badge, body.title-open #benchbtn, body.title-open #music-btn, body.title-open #bench-chip { visibility: hidden; }
+/* P7: the rank-up burst, and UI motion. */
+.rank-spark { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: radial-gradient(circle, #fff6c8, #ffb347 60%, rgba(255, 140, 40, 0) 70%); pointer-events: none; animation: rankspark 0.9s ease-out forwards; }
+@keyframes rankspark { from { transform: rotate(var(--a)) translateX(0) scale(1.4); opacity: 1; } to { transform: rotate(var(--a)) translateX(var(--d)) scale(0.3); opacity: 0; } }
+button { transition: transform 0.08s ease-out, filter 0.12s ease-out; }
+:is(.title-play, .intro-play, .worked-confirm, #benchbtn, #resume, #pointmode, .age-choice):not(:disabled):active { transform: scale(0.95); }
+button:not(:disabled):hover { filter: brightness(1.12); }
+#bench:not([hidden]) > *, .late-modal:not([hidden]) > *, #pack:not([hidden]) > *, #pause:not(.hidden) .card { animation: uiIn 0.18s ease-out; }
+@keyframes uiIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+#objective { transition: background-color 0.4s ease-out; }
+@media (prefers-reduced-motion: reduce) { .rank-spark, #bench > *, .late-modal > *, #pack > *, #pause .card { animation: none !important; } button { transition: none; } }
+/* P9: the ending's rolling credits. */
+.late-credits { position: relative; height: calc(150px * var(--ui)); overflow: hidden; margin: 10px 0 12px; border-radius: 10px; background: rgba(8, 12, 24, 0.45); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent); }
+.late-credits-roll { padding: calc(150px * var(--ui)) 16px 0; text-align: center; animation: creditsRoll 34s linear 1.2s infinite; }
+.late-credits-roll p { margin: 2px 0; font-size: calc(15px * var(--ui)); opacity: 0.9; }
+.late-credits-head { margin: 14px 0 4px; font-size: calc(17px * var(--ui)); color: #ffd54a; }
+@keyframes creditsRoll { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+@media (prefers-reduced-motion: reduce) { .late-credits { height: auto; mask-image: none; } .late-credits-roll { animation: none; padding-top: 0; } }
