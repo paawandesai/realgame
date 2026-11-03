@@ -739,8 +739,9 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
         ];
         let axis = norm(add(dir, mul(jitter, if k == 0 { 0.35 } else { 1.0 })));
         let offset = mul(sub(jitter, mul(dir, dot(jitter, dir))), 0.5);
-        let foot = add(add(face, offset), mul(axis, -0.15));
-        let len = if k == 0 { 1.1 } else { 0.35 } + 0.6 * unit(s[0], s[1], s[2], 113);
+        // Rooted well into the collar's rock (B4 round 3: shards floated).
+        let foot = add(add(face, offset), mul(axis, -0.4));
+        let len = if k == 0 { 1.35 } else { 0.6 } + 0.6 * unit(s[0], s[1], s[2], 113);
         let r = if k == 0 { 0.24 } else { 0.1 } + 0.05 * unit(s[0], s[1], s[2], 127);
         let turn = unit(s[0], s[1], s[2], 131) * 1.0;
         // Science teal (#40FFD9), a few leaning a little bluer.
@@ -752,7 +753,7 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
         let paint = Paint {
             // Brighter than any wall: the glow is the colour (kept under
             // the bloom ceiling, so it reads teal, not white).
-            rgb: mul(tint, 1.2),
+            rgb: mul(tint, 0.95),
             glow: 1.0,
             mat: mat::CRYSTAL,
             top: None,

@@ -73,17 +73,19 @@ const DAY: Mood = Mood {
     ground_fog: 0.0,
 };
 
-/// Cooler and brighter: a low, warm-white sun from the west for long
-/// shadows across the snow, and a blue sky fill so the shadows read blue.
+/// Cooler and brighter: a low, warm sun from the south-west for long
+/// shadows across the snow and on the cliff faces that look south, a
+/// gentler blue fill so the snow reads white (#EEF2F5) and the shadows
+/// blue, and little haze (B4 round 3: the frame read as a blue-grey wash).
 const FROZEN: Mood = Mood {
-    sun: Vec3::new(1.0, 0.95, 0.86),
-    sun_lux: 13_000.0,
-    elevation: 0.30,
-    azimuth: -1.25,
-    fill: Vec3::new(0.62, 0.76, 1.0),
-    fill_lux: 2_100.0,
-    haze: Vec3::new(0.86, 0.92, 1.0),
-    fog: Vec2::new(120.0, 230.0),
+    sun: Vec3::new(1.0, 0.92, 0.80),
+    sun_lux: 17_000.0,
+    elevation: 0.42,
+    azimuth: -0.75,
+    fill: Vec3::new(0.78, 0.86, 1.0),
+    fill_lux: 1_700.0,
+    haze: Vec3::new(0.90, 0.94, 0.98),
+    fog: Vec2::new(170.0, 300.0),
     ground_fog: 0.0,
 };
 
@@ -111,7 +113,7 @@ const CAVE: Mood = Mood {
     fill: Vec3::new(0.45, 0.52, 0.70),
     fill_lux: 650.0,
     haze: Vec3::new(0.03, 0.04, 0.05),
-    fog: Vec2::new(8.0, 55.0),
+    fog: Vec2::new(14.0, 70.0),
     ground_fog: 0.0,
 };
 
@@ -324,7 +326,7 @@ fn apply(
             Some((c, n)) if cover > 0.01 && c.distance(p) < 30.0 => {
                 // Teal light round each cluster, enough to colour the rock
                 // round it (art bible: crystals light their surroundings).
-                l.intensity = 80_000.0 * (*n as f32).min(6.0) * cover;
+                l.intensity = 42_000.0 * (*n as f32).min(6.0) * cover;
                 t.translation = *c;
             }
             _ => l.intensity = 0.0,

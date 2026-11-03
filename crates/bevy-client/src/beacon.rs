@@ -25,8 +25,11 @@ const FULL: f32 = 26.0;
 /// Peak alpha of the core and the halo (additive, so "brightness"). B4
 /// round 3: dimmer, shorter and gone sooner up close (judges: the shafts
 /// crowded the spawn view).
-const CORE_A: f32 = 0.22;
-const HALO_A: f32 = 0.05;
+/// The core is blended, not added (B4 round 3: an added pale gold over a
+/// bright sky read as pale blue-white, while the HUD says "the gold
+/// light"); the faint halo stays additive.
+const CORE_A: f32 = 0.5;
+const HALO_A: f32 = 0.06;
 
 #[derive(Component)]
 struct Beam;
@@ -72,10 +75,14 @@ fn setup(
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
     let mat = |a: f32| StandardMaterial {
-        base_color: Color::srgba(1.0, 0.86, 0.45, a),
+        base_color: Color::srgba(1.0, 0.72, 0.16, a),
         unlit: true,
         fog_enabled: false,
-        alpha_mode: AlphaMode::Add,
+        alpha_mode: if a >= CORE_A {
+            AlphaMode::Blend
+        } else {
+            AlphaMode::Add
+        },
         double_sided: true,
         cull_mode: None,
         ..default()
