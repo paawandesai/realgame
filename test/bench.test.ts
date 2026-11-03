@@ -87,9 +87,9 @@ const TABLE: Record<string, [string, string, string]> = {
   ],
   element: ['"Xx" is not an element symbol.', '"Xx" is not an element symbol.', '"Xx" is not an element symbol.'],
   parse: [
-    "Use element symbols, numbers, + and an arrow.",
-    "Use element symbols, numbers, + and an arrow.",
-    "Use element symbols, numbers, + and an arrow.",
+    "Write element symbols and numbers, like NaCl. Each symbol starts with a capital letter.",
+    "Write element symbols and numbers, like NaCl. Each symbol starts with a capital letter.",
+    "Write element symbols and numbers, like NaCl. Each symbol starts with a capital letter.",
   ],
   not_for_band: ["Pick a spell from the list.", "Pick a spell from the list.", "Pick a spell from the list."],
 };
@@ -117,6 +117,9 @@ test("10: reasonFor returns the Contract table's string for every code and band"
   assert.equal(reasonFor("apprentice", unb, NAMES, 1), app);
   assert.equal(reasonFor("sprout", unb, NAMES, 1), app);
   assert.equal(reasonFor("adept", unb, NAMES, 1), app);
+  // P10: parse on a reaction (Fire) asks for the arrow; on one substance it does not.
+  assert.equal(reasonFor("apprentice", res({ slot: 1, code: "parse" }), NAMES, 1),
+    "Use element symbols (capital first letter), numbers, + and an arrow ->.");
   // Every code is covered: 13.
   assert.equal(Object.keys(TABLE).length + 1, 13);
   // Seedling ok has no state symbol; Fire at Apprentice has subscripts and an arrow.

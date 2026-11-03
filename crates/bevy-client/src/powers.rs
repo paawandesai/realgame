@@ -966,9 +966,13 @@ fn run(
     mut boost: ResMut<Boost>,
     prog: Res<crate::Progress>,
     working: Res<crate::Working>,
+    story: Option<Res<crate::story::Keys>>,
 ) {
     let st = stages(&prog, &working);
     boost.0 = st.map(|s| scale(s).range);
+    // P10 clarity: the guided first lift waits while the workshop still
+    // burns, so it never pulls a new player away from the first objective.
+    let fire_first = story.as_ref().is_some_and(|k| k.quest <= 1);
     // A cast this frame: a Practised or Mastered spell recharges faster.
     if game.casts != pw.last_casts {
         if game.cooldown > 0.0 {
@@ -1014,8 +1018,10 @@ fn run(
     if !line.is_empty() {
         game.say(&line);
     }
-    // The guided first lift.
-    pw.guide -= dt;
+    // The guided first lift (held while the first fire burns).
+    if !fire_first {
+        pw.guide -= dt;
+    }
     let hint = match pw.built.first().filter(|_| !pw.found[0]) {
         Some(b) => {
             let d = Vec2::new(player.pos.x - b.orb.x, player.pos.z - b.orb.z).length();
@@ -1024,7 +1030,7 @@ fn run(
                 game.spell == 1,
                 d,
                 pw.motion.floating,
-                pw.guide > 0.0,
+                pw.guide > 0.0 && !fire_first,
             )
         }
         None => String::new(),

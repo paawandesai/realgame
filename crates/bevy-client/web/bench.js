@@ -217,7 +217,11 @@ export function reasonFor(band, result, names, tries) {
       return 'Pick a spell from the list.';
     case 'parse':
     default:
-      return 'Use element symbols, numbers, + and an arrow.';
+      // P10: a one-substance spell needs no arrow, and lower-case symbols
+      // are the commonest slip, so say both plainly.
+      return /->|→/.test(me.formula || '')
+        ? 'Use element symbols (capital first letter), numbers, + and an arrow ->.'
+        : 'Write element symbols and numbers, like NaCl. Each symbol starts with a capital letter.';
   }
 }
 
@@ -1110,7 +1114,8 @@ export function startBench() {
   };
   const onKey = (/** @type {KeyboardEvent} */ e) => {
     if (!ui.open) {
-      if (e.type === 'keydown' && e.code === 'KeyB' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !editable(e.target) && !gateBlocked()) {
+      // P10: E (the game's use key) opens it too while standing at a Bench.
+      if (e.type === 'keydown' && (e.code === 'KeyB' || (e.code === 'KeyE' && !!rust.atBench)) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !editable(e.target) && !gateBlocked()) {
         e.stopImmediatePropagation();
         e.preventDefault();
         wakeAudio();
@@ -1200,7 +1205,7 @@ export function startBench() {
         }
       } else setCls('hint', false);
       const chipOn = !!rust.atBench && !ui.open && !document.body.classList.contains('title-open');
-      const chipText = hintDone ? 'B: open the Formula Bench' : 'Press B to learn Water at the Formula Bench';
+      const chipText = hintDone ? 'E or B: open the Formula Bench' : 'Press E to learn Water at the Formula Bench';
       if (chip.hidden === chipOn) chip.hidden = !chipOn;
       if (chipOn && chip.textContent !== chipText) chip.textContent = chipText;
     } catch {

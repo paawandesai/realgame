@@ -391,7 +391,8 @@ canvas.hover-fire { cursor: pointer; }
 /* I-052 Lane C: the block valley's intro, pack, Make section and objective arrow. */
 #intro { position: fixed; inset: 0; z-index: 880; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 0 16px calc(48px * var(--ui)); background: linear-gradient(to top, rgba(8, 12, 24, 0.85), rgba(8, 12, 24, 0.15) 60%, rgba(8, 12, 24, 0)); color: #fff; }
 #intro[hidden] { display: none; }
-body.intro-open #caption { visibility: hidden; }
+/* The intro owns the screen: the look hint, spell bar and HUD chips wait until it closes (P10). */
+body.intro-open #caption, body.intro-open #hint, body.intro-open #hotbar, body.intro-open #bench-chip, body.intro-open .rank-badge, body.intro-open #benchbtn, body.intro-open #music-btn, body.intro-open .rank-guide { visibility: hidden; }
 /* I-052 round 2: the sign over a shut biome gate. */
 .gate-sign { position: fixed; z-index: 40; transform: translate(-50%, -100%); pointer-events: none; padding: 8px 14px; border-radius: 6px; border: 3px solid #6b4a2b; background: #c99a5b; color: #2a1a0c; font-weight: 700; font-size: calc(18px * var(--ui)); line-height: 1.25; text-align: center; max-width: calc(320px * var(--ui)); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); }
 .gate-sign[hidden] { display: none; }
