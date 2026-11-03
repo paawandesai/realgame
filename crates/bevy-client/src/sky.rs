@@ -4,19 +4,31 @@
 use bevy::asset::uuid_handle;
 use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
-use bevy::render::render_resource::AsBindGroup;
+use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy::shader::{Shader, ShaderRef};
 
 const SHADER: Handle<Shader> = uuid_handle!("3a8e6f12-7c4d-4b9a-b1e2-6d0f5a7c9e21");
 /// Inside the camera's far plane (400 m in voxel mode).
 const RADIUS: f32 = 360.0;
 
-/// The sky's material.
+/// The sky's uniform.
+#[derive(ShaderType, Debug, Clone, Default)]
+pub struct SkyParams {
+    /// `low.x` is 1 with `?low` (one-octave clouds, a still aurora).
+    pub low: Vec4,
+    /// Towards the sun (xyz), and the relit Kiln's warmth (w, 0-1).
+    pub sun: Vec4,
+    /// The horizon haze (rgb, the distance fog's colour) and how dark the
+    /// cave makes the sky (a).
+    pub haze: Vec4,
+}
+
+/// The sky's material (`mood` keeps its sun and haze in step with the
+/// area's light).
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
 pub struct SkyMat {
-    /// `low.x` is 1 with `?low` (one-octave clouds, a still aurora).
     #[uniform(0)]
-    pub low: Vec4,
+    pub params: SkyParams,
 }
 
 impl Material for SkyMat {
@@ -63,7 +75,11 @@ fn setup(
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(RADIUS).mesh().uv(32, 16))),
         MeshMaterial3d(mats.add(SkyMat {
-            low: Vec4::new(low, 0.0, 0.0, 0.0),
+            params: SkyParams {
+                low: Vec4::new(low, 0.0, 0.0, 0.0),
+                sun: Vec3::new(-0.6, 1.0, 0.45).normalize().extend(0.0),
+                haze: Vec4::new(0.86, 0.92, 0.96, 0.0),
+            },
         })),
         Transform::default(),
         NotShadowCaster,

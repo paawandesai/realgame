@@ -7,6 +7,8 @@
 // StandardMaterial does (sun, ambient, shadows, fog).
 //
 // `params.mode.y`: 1 for `?low` (one noise octave, one water ripple).
+// `params.mode.z`: the Marsh's yellow-green ground fog (0-1, from `mood`):
+// it lies in the lowlands under y 31.5 and thickens with distance.
 // `params.mode.x`: 0 opaque ground, 1 the clear pass (ice, glass, crystal,
 // steam; UV_0.y is the alpha there), 2 water (animated ripples, fresnel).
 import bevy_pbr::render::{
@@ -42,6 +44,21 @@ fn vnoise(p: vec3<f32>) -> f32 {
 
 fn fbm(p: vec3<f32>) -> f32 {
     return vnoise(p) * 0.55 + vnoise(p * 2.03 + 7.1) * 0.3 + vnoise(p * 4.1 + 3.7) * 0.15;
+}
+
+// The low ground fog (art bible, Marsh): yellow-green, lying under y
+// 31.5, thicker with depth and distance.
+fn ground_fog(c: vec4<f32>, wp: vec3<f32>) -> vec4<f32> {
+    let amt = params.mode.z;
+    if amt < 0.01 {
+        return c;
+    }
+    let h = clamp((31.5 - wp.y) / 3.5, 0.0, 1.0);
+    let d = distance(wp, view.world_position);
+    let along = 1.0 - exp(-d * 0.05);
+    let f = amt * h * (0.35 + 0.65 * h) * along * 0.7;
+    let fog = vec3<f32>(0.40, 0.45, 0.26);
+    return vec4<f32>(mix(c.rgb, fog, f), c.a);
 }
 
 @fragment
@@ -87,6 +104,7 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
         pbr_input.material.emissive = vec4<f32>(vec3<f32>(0.1, 0.5, 0.55) * crest * 0.6 + vec3<f32>(0.4, 0.55, 0.7) * fres * 0.25, 1.0);
         out.color = apply_pbr_lighting(pbr_input);
         out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+        out.color = ground_fog(out.color, wp);
         return out;
     }
 
@@ -151,5 +169,6 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
 
     out.color = apply_pbr_lighting(pbr_input);
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+    out.color = ground_fog(out.color, wp);
     return out;
 }

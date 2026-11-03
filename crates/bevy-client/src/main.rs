@@ -29,9 +29,10 @@ mod firebreak;
 mod fx;
 mod gates;
 mod late;
-mod models;
 mod level2;
 mod level3;
+mod models;
+mod mood;
 mod motion;
 mod player;
 mod powers;
@@ -50,7 +51,6 @@ use bevy::anti_alias::fxaa::Fxaa;
 use bevy::asset::AssetMetaCheck;
 #[cfg(feature = "bloom")]
 use bevy::camera::Hdr;
-#[cfg(not(feature = "bloom"))]
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::light::{
@@ -398,6 +398,10 @@ impl Settings {
 const ASSIST: f32 = 4.0 * std::f32::consts::PI / 180.0;
 /// Seconds between casts.
 const COOLDOWN: f32 = 0.3;
+/// The camera's tonemapper: a display transform done in the shader (no LUT
+/// texture), close to Bevy's default in how it rolls off bright colours.
+pub const TONEMAPPING: Tonemapping = Tonemapping::SomewhatBoringDisplayTransform;
+
 /// A spell's stream stays this long (game seconds) after its impact.
 const STREAM_AFTER: f32 = 0.2;
 /// ...and is drawn in at least this many frames, so it is seen at 4 fps too.
@@ -848,6 +852,7 @@ fn main() {
             story::plugin,
             voxel_cast::plugin,
             late::plugin,
+            mood::plugin,
             powers::plugin,
             firebreak::plugin,
         ));
@@ -1085,8 +1090,10 @@ fn setup(
     if !settings.low {
         camera.insert((Hdr, Bloom::NATURAL));
     }
-    #[cfg(not(feature = "bloom"))]
-    camera.insert(Tonemapping::Reinhard);
+    // A tonemapper computed in the shader, in every build: the LUT-based
+    // default (TonyMcMapface) needs a pre-made KTX2 texture embedded in the
+    // wasm, and every asset must be generated (docs/art-bible.md).
+    camera.insert(TONEMAPPING);
     camera.insert(if settings.msaa {
         Msaa::Sample4
     } else {

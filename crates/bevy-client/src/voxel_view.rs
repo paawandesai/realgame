@@ -53,6 +53,10 @@ pub struct Keys {
 #[derive(Resource)]
 pub struct VoxWorld(pub World);
 
+/// The smooth look's three materials (opaque, clear, water), for `mood`.
+#[derive(Resource)]
+pub struct SmoothHandles(pub Vec<Handle<crate::voxel_tex::SmoothMat>>);
+
 /// How far the Pick and placing reach, metres from the eye.
 pub const REACH: f32 = 5.0;
 /// How far a spell's aim looks for a block.
@@ -188,6 +192,13 @@ fn setup(
     let smooth = crate::param("blocks")
         .is_none()
         .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats, settings.low));
+    if let Some(s) = smooth.as_ref() {
+        commands.insert_resource(SmoothHandles(vec![
+            s.opaque.clone(),
+            s.clear.clone(),
+            s.water.clone(),
+        ]));
+    }
     if smooth.is_some() {
         let opaque = smooth.as_ref().map(|m| m.opaque.clone());
         if let Some(rock) = opaque.clone() {

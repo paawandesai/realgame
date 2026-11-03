@@ -56,12 +56,6 @@ pub const LOWER_MS: f32 = 2.5;
 /// A sinking balloon is untied after this long (s) and comes back.
 pub const SINK_S: f32 = 3.0;
 
-/// Ambient brightness in the open and deep in the cave (spec 5.9: dim,
-/// never black), and the sun's share left under rock.
-pub const AMBIENT_OPEN: f32 = 700.0;
-pub const AMBIENT_CAVE: f32 = 120.0;
-pub const SUN_CAVE: f32 = 0.08;
-
 // ---------------------------------------------------------------------------
 // The model (pure, tested natively).
 // ---------------------------------------------------------------------------
@@ -640,18 +634,23 @@ struct KilnFire;
 #[derive(Component)]
 struct Smoke(f32);
 
-/// The sun's full strength, read once.
+/// How far into the cave's dark the view is (0 open sky, 1 covered),
+/// eased over about a second. `mood` dims the sun and the sky fill by it.
 #[derive(Resource, Default)]
-struct Sun(Option<f32>);
+pub struct CaveCover(pub f32);
+
+/// The cave light system (`mood` applies the area light after it).
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LightSet;
 
 /// Registers the late lane (Voxel mode only).
 pub fn plugin(app: &mut App) {
     app.init_resource::<Late>()
-        .init_resource::<Sun>()
+        .init_resource::<CaveCover>()
         .add_systems(Startup, (spawn, seed_start))
         .add_systems(
             Update,
-            (commands, step, light, draw, publish)
+            (commands, step, light.in_set(LightSet), draw, publish)
                 .chain()
                 .after(crate::story::on_event)
                 .before(crate::publish),
@@ -703,7 +702,8 @@ fn spawn(
     });
     let flame = materials.add(StandardMaterial {
         base_color: Color::srgb(1.0, 0.6, 0.2),
-        emissive: LinearRgba::rgb(12.0, 5.0, 1.0),
+        // Under the bloom ceiling: reads as fire, not a white blob.
+        emissive: LinearRgba::rgb(4.5, 2.0, 0.45),
         ..default()
     });
     let smoke = materials.add(StandardMaterial {
@@ -944,26 +944,21 @@ fn light(
     late: Res<Late>,
     player: Res<Player>,
     world: Option<Res<VoxWorld>>,
-    mut ambient: ResMut<GlobalAmbientLight>,
-    mut sun: ResMut<Sun>,
-    mut suns: Query<&mut DirectionalLight>,
+    mut cave: ResMut<CaveCover>,
     mut held: Query<(&mut PointLight, &mut Transform), (With<HeldTorch>, Without<PlacedTorch>)>,
     mut placed: Query<(&mut PointLight, &mut Transform), (With<PlacedTorch>, Without<HeldTorch>)>,
-    mut cover: Local<f32>,
     mut scan: Local<f32>,
 ) {
     let dt = time.delta_secs().min(0.1);
-    // Ease in and out of the cave over about a second.
+    // Ease in and out of the cave over about a second (`mood` applies it).
     let target = if late.dark { 1.0 } else { 0.0 };
-    *cover += (target - *cover) * (dt * 2.5).min(1.0);
-    ambient.brightness = AMBIENT_OPEN + (AMBIENT_CAVE - AMBIENT_OPEN) * *cover;
-    for mut s in &mut suns {
-        let full = *sun.0.get_or_insert(s.illuminance);
-        s.illuminance = full * (1.0 - (1.0 - SUN_CAVE) * *cover);
-    }
+    cave.0 += (target - cave.0) * (dt * 2.5).min(1.0);
     let has = late.light && late.dark;
+    // A torch flickers a little.
+    let t = time.elapsed_secs();
+    let flicker = 0.9 + 0.06 * (t * 9.1).sin() + 0.04 * (t * 23.7).sin();
     for (mut l, mut t) in &mut held {
-        l.intensity = if has { 120_000.0 } else { 0.0 };
+        l.intensity = if has { 120_000.0 * flicker } else { 0.0 };
         t.translation = player.eye() + Vec3::Y * 0.3;
     }
     *scan -= dt;
