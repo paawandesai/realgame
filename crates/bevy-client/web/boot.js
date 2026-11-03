@@ -1,6 +1,7 @@
 // Loaded as an external module so the page works under script-src 'self'.
 import init from './bevy-client.js';
 import { startHud } from './hud.js';
+import { startTitle } from './title.js';
 
 window.__bootStart = performance.now();
 
@@ -37,6 +38,8 @@ try {
 } catch { /* the check must never stop the boot */ }
 
 startHud();
+// The title screen first; the story intro waits under it (story.js).
+try { startTitle(); } catch { /* the title must never stop the boot */ }
 // Spell progress saved on this device (I-027). Dynamic, so a missing or
 // broken progress.js costs only saving, never the boot.
 try { import('./progress.js').then((m) => m.startProgress()).catch(() => {}); } catch {}

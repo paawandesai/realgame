@@ -236,7 +236,7 @@ export function startStory() {
       }
       const story = parse(w.__storyState);
       const band = parse(w.__benchState)?.band || null;
-      if (!done && !open && s.quest === 0 && story) openIntro(story, band);
+      if (!done && !open && s.quest === 0 && story && !document.body.classList.contains('title-open')) openIntro(story, band);
       if (open) {
         if (story && Array.isArray(story.intro)) setText(story.intro);
         const hold = card === 0 && sprout ? Math.max(CARD_S, SPROUT_FIRST_S) : CARD_S;
