@@ -396,7 +396,7 @@ canvas.hover-fire { cursor: pointer; }
 /* The intro owns the screen: the look hint, spell bar and HUD chips wait until it closes (P10). */
 body.intro-open #caption, body.intro-open #hint, body.intro-open #hotbar, body.intro-open #bench-chip, body.intro-open .rank-badge, body.intro-open #benchbtn, body.intro-open #music-btn, body.intro-open .rank-guide { visibility: hidden; }
 /* I-052 round 2: the sign over a shut biome gate. */
-.gate-sign { position: fixed; z-index: 40; transform: translate(-50%, -100%); pointer-events: none; padding: 8px 14px; border-radius: 6px; border: 3px solid #6b4a2b; background: #c99a5b; color: #2a1a0c; font-weight: 700; font-size: calc(18px * var(--ui)); line-height: 1.25; text-align: center; max-width: calc(320px * var(--ui)); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); }
+.gate-sign { position: fixed; z-index: 40; transform: translate(-50%, -100%); pointer-events: none; padding: 8px 14px; border-radius: 12px; border: 2px solid #f2c94c; background: rgba(30, 42, 68, 0.85); color: #fff; font-weight: 700; font-size: calc(18px * var(--ui)); line-height: 1.25; text-align: center; max-width: calc(320px * var(--ui)); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); }
 .gate-sign[hidden] { display: none; }
 /* I-052 round 2: a Practised spell's one-step worked cast. */
 .worked-known { margin: 8px 0 12px; font-size: calc(20px * var(--ui)); text-align: center; }
@@ -438,7 +438,15 @@ body.intro-open #caption, body.intro-open #hint, body.intro-open #hotbar, body.i
 .bench-craft-name { font-size: calc(18px * var(--ui)); font-weight: 700; }
 .bench-craft-needs { font-size: calc(18px * var(--ui)); opacity: 0.85; }
 
-#firefinder.objective .ff-flame { filter: hue-rotate(160deg) saturate(1.4); }
+/* B4 round 3: the objective arrow is a gold marker (the gold light it
+   points to) in a gold-rimmed navy badge, inset from the screen edge so
+   its pulse never clips. */
+#firefinder.objective { border: 2px solid #f2c94c; background: rgba(30, 42, 68, 0.85); width: 76px; }
+#firefinder.objective.left { left: 22px; }
+#firefinder.objective.right { right: 22px; }
+#firefinder.objective .ff-flame { filter: none; width: 26px; height: 26px; background: radial-gradient(circle, #fff6c8 0 22%, #f2c94c 24% 58%, rgba(242, 201, 76, 0) 62%), radial-gradient(circle, transparent 0 66%, #f2c94c 68% 80%, transparent 82%); clip-path: none; border-radius: 50%; }
+#firefinder.objective.left .ff-chev { border-right-color: #f2c94c; }
+#firefinder.objective.right .ff-chev { border-left-color: #f2c94c; }
 #nogl { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 16px; background: #1e2740; color: #fff; font-size: 22px; text-align: center; }
 
 /* I-052 late lane: the cave rig, the balloon crate, the Invention Bench and the ending (web/late.js). */
@@ -535,3 +543,5 @@ button:not(:disabled):hover { filter: brightness(1.12); }
 /* B3: a chip in the prompt slot lifts the caption (and the hint) above it, so neither covers the other. */
 body:has(.late-chip:not([hidden])) #caption { bottom: calc(170px * var(--ui)); }
 body:has(.late-chip:not([hidden])) #hint { bottom: calc(222px * var(--ui)); }
+/* B4 round 3: an E prompt (a chip in the prompt slot) says what to do here, so the coaching hint steps aside instead of stacking on it. */
+body:has(#bench-chip:not([hidden])) #hint, body:has(.late-chip:not([hidden])) #hint { visibility: hidden; }
