@@ -5547,14 +5547,34 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
 
   // ---- The Marsh's gate (the east pass) needs Frost Practised: it was
   // shut at the start of P2 and the Frost casts that froze the ford opened
-  // it (each correct cast counts).
+  // it (each correct cast counts). The ford may freeze in fewer than 3
+  // casts: then the gate must still be shut at n/3, and more Frost casts
+  // (anywhere) bring it to 3/3 and open it.
+  const marshSign = () => page.evaluate(() => { const e = document.querySelector('.gate-sign[data-gate="marsh"]'); return e ? e.textContent : null; });
+  const marshCount = (t) => { const m = /\((\d)\/3\)/.exec(t || ''); return m ? +m[1] : 3; };
+  const signMid = await marshSign();
+  const nMid = marshCount(signMid);
+  const passMid = pass && nMid < 3 ? await probe(pass.at[0], pass.at[1], pass.at[2]) : null;
+  const shutMid = nMid >= 3 || (!!passMid && passMid.mat === 'runestone');
+  const extraFrost = [];
+  if (nMid < 3) {
+    await page.keyboard.press('3');
+    await until((x) => x.spell === 2, 10000);
+    await cmd('face 60 33.5 99');
+    for (let k = 0; k < 5 && marshCount(await marshSign()) < 3; k++) {
+      await frames(2);
+      extraFrost.push(await press());
+      const g = await st();
+      await until((v) => v.gameTime >= g.gameTime + 1.2, 20000);
+    }
+  }
   const passAfter = pass ? await probe(pass.at[0], pass.at[1], pass.at[2]) : null;
-  const marshSign1 = await page.evaluate(() => { const e = document.querySelector('.gate-sign[data-gate="marsh"]'); return e ? e.textContent : null; });
+  const marshSign1 = await marshSign();
   const gates = await page.evaluate(() => { try { return JSON.parse(window.__storyState).gates; } catch { return null; } });
   const marshOpen = Array.isArray(gates) && gates.some((g) => g.id === 'marsh' && g.open);
-  check('puzzles: the Marsh gate (east pass) holds until Frost is Practised; its sign says so; the ford\'s Frost casts open it',
-    !!pass && /Cast Frost 3 times anywhere to open \(0\/3\)/.test(marshSign0 || '') && passAfter && passAfter.mat === 'air' && marshOpen,
-    `wall ${pass && pass.at}, sign at start "${marshSign0}", after "${marshSign1}", cell after ${passAfter && passAfter.mat}, open=${marshOpen}`);
+  check('puzzles: the Marsh gate (east pass) holds until Frost is Practised; its sign says so; Frost casts (the ford\'s, then more if needed) open it at 3',
+    !!pass && /Cast Frost 3 times anywhere to open \(0\/3\)/.test(marshSign0 || '') && shutMid && passAfter && passAfter.mat === 'air' && marshOpen,
+    `wall ${pass && pass.at}, sign at start "${marshSign0}", after the ford "${signMid}" (shut=${shutMid}), extra frost [${extraFrost.join(',')}], after "${marshSign1}", cell after ${passAfter && passAfter.mat}, open=${marshOpen}`);
 
   // ---- P3: the methane hollow. In the hollow, CO2 poured with the rim gap
   // open spills out and a vent stays lit; a block in the gap, then three

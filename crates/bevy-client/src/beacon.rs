@@ -9,7 +9,7 @@ use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 
 use crate::player::Player;
-use crate::story::{target, water_known, Story, TARGETS};
+use crate::story::{water_known, Story, TARGETS};
 use crate::voxel_view::VoxWorld;
 
 /// How tall the beam stands above the ground (m).
@@ -106,7 +106,7 @@ fn place(
     mut top: Local<Option<((f32, f32), f32)>>,
 ) {
     let step = story.quest.step();
-    let Some((tx, tz)) = target(step, water_known(&progress)) else {
+    let Some((tx, tz)) = crate::story::aim(&story, water_known(&progress)) else {
         for (_, mut v) in &mut beams {
             *v = Visibility::Hidden;
         }

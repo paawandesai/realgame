@@ -35,6 +35,12 @@
 <div id="pause" class="hidden">
   <div class="card">
     <h1>Paused</h1>
+    <!-- P10 follow-up: the buttons sit under the title, so the card never
+         has to scroll down to show them (which cut the title off). -->
+    <div class="pause-actions">
+    <button id="resume">Click to play</button>
+    <button id="pointmode" class="ghost">Point and click mode</button>
+    </div>
     <table>
       <tr><td>Move</td><td>W A S D or arrow keys</td></tr>
       <tr><td>Look</td><td>Mouse</td></tr>
@@ -47,8 +53,6 @@
     </table>
     <p>Without locking the mouse you can also click (or tap) a glowing target to cast at it.</p>
     <div id="history-box" class="hidden"><h2>Recent messages</h2><ol id="history"></ol></div>
-    <button id="resume">Click to play</button>
-    <button id="pointmode" class="ghost">Point and click mode</button>
   </div>
 </div>
 <div id="loading" role="progressbar" aria-label="Loading the valley" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">

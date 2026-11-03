@@ -99,6 +99,23 @@ pub(crate) fn target(step: u8, water_known: bool) -> Option<(f32, f32)> {
         .copied()
 }
 
+/// `target`, plus one turn of the cave step (B3 breaker: after the rig the
+/// arrow kept pointing at it): once a hydrogen balloon is in the pack, the
+/// arrow and the beam move on to the crate under the ledge.
+pub(crate) fn aim(story: &Story, water_known: bool) -> Option<(f32, f32)> {
+    let step = story.quest.step();
+    let balloon = story
+        .pack
+        .entries()
+        .into_iter()
+        .any(|(k, n)| k == "h2_balloon" && n > 0);
+    if step == 6 && balloon {
+        let [x, _, z] = crate::late::CRATE_FLOOR;
+        return Some((x, z));
+    }
+    target(step, water_known)
+}
+
 /// Whether Water (slot 2) has been learned at a Bench (any stage past
 /// Unknown), in this browser's saved progress.
 pub(crate) fn water_known(progress: &crate::Progress) -> bool {
@@ -402,7 +419,7 @@ fn fill_keys(
         .into_iter()
         .map(|(k, n)| (k.to_string(), n))
         .collect();
-    keys.obj_bearing = target(step, water).map(|(tx, tz)| {
+    keys.obj_bearing = aim(story, water).map(|(tx, tz)| {
         let eye = player.eye();
         crate::cues::bearing_deg(eye.x, eye.z, player.yaw, tx, tz)
     });
@@ -558,6 +575,21 @@ mod tests {
             mat::COUNT,
             "the furnace is appended"
         );
+    }
+
+    #[test]
+    fn after_the_rig_the_arrow_moves_on_to_the_crate() {
+        let mut s = Story {
+            debug: true,
+            ..Story::default()
+        };
+        run_command(&mut s, "quest 6");
+        assert_eq!(aim(&s, true), Some(TARGETS[5]), "the rig first");
+        s.pack.add(Item::H2Balloon, 1);
+        let [x, _, z] = crate::late::CRATE_FLOOR;
+        assert_eq!(aim(&s, true), Some((x, z)), "then the crate");
+        run_command(&mut s, "quest 7");
+        assert_eq!(aim(&s, true), Some(TARGETS[6]), "other steps unchanged");
     }
 
     #[test]
