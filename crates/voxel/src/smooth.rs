@@ -131,7 +131,7 @@ pub const LOOKS: [Look; mat::COUNT] = [
     look(0.10, 0.38, 0.62, 0.0, 0.0),  // water
     look(0.95, 0.96, 0.98, 0.0, 0.0),  // steam
     look(0.13, 0.12, 0.06, 0.3, 0.0),  // mud (#5E5A3E)
-    look(0.13, 0.13, 0.15, 0.0, 0.0),  // coal_ore
+    look(0.03, 0.03, 0.04, 0.0, 0.0),  // coal_ore (near black, reads in snow light)
     look(0.50, 0.33, 0.25, 0.0, 0.0),  // iron_ore
     look(0.35, 0.90, 0.95, 0.0, 1.0),  // crystal
     look(0.80, 0.92, 1.00, 0.0, 0.0),  // glass
@@ -581,8 +581,9 @@ fn place(
             Pass::Clear => kd == Kind::Clear,
         };
         if counts {
-            // The top-most cell wins (grass over dirt), then the first.
-            let score = c[1];
+            // The top-most cell wins (grass over dirt), then coal (so a
+            // seam shows its ore), then the first.
+            let score = c[1] * 2 + i32::from(g.mat(p) == mat::COAL_ORE);
             if best.is_none_or(|(_, s)| score > s) {
                 best = Some((g.mat(p), score));
             }

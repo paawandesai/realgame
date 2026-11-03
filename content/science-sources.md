@@ -170,6 +170,7 @@ The single register of every science claim the first-person 3D client shows the 
 
 | text | where | reason |
 |---|---|---|
+| `That was stone. Coal is the black rock in the seam.` | crates/bevy-client/src/voxel_view.rs | Game instruction (digging plain stone at the coal seam); it states no science. |
 | `Something glows up there. Learn Water at the Formula Bench (B) to rise up to it.` | crates/bevy-client/src/powers.rs | Game instruction (the Plaza Tower before Water is learned); it states no science. |
 | `New power: H2 lift! Press 2 for Water, then F by the glowing tower.` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift); the science of the lift is C-106. |
 | `Walk to the glowing tower ({dist:.0} m), then press F to rise.` | crates/bevy-client/src/powers.rs | Game instruction with a distance (the guided first lift). |
