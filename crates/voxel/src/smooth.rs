@@ -126,11 +126,11 @@ pub const LOOKS: [Look; mat::COUNT] = [
     look(0.36, 0.21, 0.11, 0.0, 0.0),  // wood
     look(0.13, 0.40, 0.17, 0.6, 0.0),  // leaves
     look(0.58, 0.40, 0.21, 0.0, 0.0),  // planks
-    look(0.88, 0.93, 1.00, 1.0, 0.0),  // snow
+    look(0.86, 0.89, 0.92, 1.0, 0.0),  // snow (#EEF2F5)
     look(0.55, 0.82, 1.00, 0.0, 0.10), // ice
     look(0.10, 0.38, 0.62, 0.0, 0.0),  // water
     look(0.95, 0.96, 0.98, 0.0, 0.0),  // steam
-    look(0.21, 0.15, 0.09, 0.3, 0.0),  // mud
+    look(0.13, 0.12, 0.06, 0.3, 0.0),  // mud (#5E5A3E)
     look(0.13, 0.13, 0.15, 0.0, 0.0),  // coal_ore
     look(0.50, 0.33, 0.25, 0.0, 0.0),  // iron_ore
     look(0.35, 0.90, 0.95, 0.0, 1.0),  // crystal
@@ -144,6 +144,35 @@ pub const LOOKS: [Look; mat::COUNT] = [
     look(0.40, 0.14, 0.08, 0.0, 0.8),  // kiln_hearth
     look(0.38, 0.30, 0.18, 0.0, 0.0),  // gas_vent
 ];
+
+/// Marsh grass (art bible: toward the dry grass and mud of the palette,
+/// #A3A35A and #5E5A3E), linear.
+pub const MARSH_GRASS: [f32; 3] = [0.17, 0.23, 0.065];
+/// Marsh rock and the sunken pond's walls: dark, wet, olive-brown, so the
+/// pit reads as earth and not as a pale blob in the haze.
+pub const MARSH_STONE: [f32; 3] = [0.14, 0.13, 0.08];
+/// Cave rock: darker than the valley's stone, so the teal crystals and the
+/// torch carry the light (art bible, "Crystal Cave").
+pub const CAVE_STONE: [f32; 3] = [0.15, 0.15, 0.18];
+
+/// The colour of material `m` at `p`, tinted by area: Marsh grass turns
+/// olive, cave stone darker. Looks only: the cells are unchanged.
+pub fn area_tint(m: u8, p: [f32; 3], rgb: [f32; 3]) -> [f32; 3] {
+    if !matches!(m, mat::GRASS | mat::STONE | mat::CLIFFSTONE | mat::DIRT) {
+        return rgb;
+    }
+    let b = crate::gen::biome_at([
+        p[0].floor() as i32,
+        p[1].floor() as i32,
+        p[2].floor() as i32,
+    ]);
+    match (m, b) {
+        (mat::GRASS, crate::Biome::Marsh) => MARSH_GRASS,
+        (mat::STONE | mat::DIRT, crate::Biome::Marsh) => MARSH_STONE,
+        (mat::STONE | mat::CLIFFSTONE, crate::Biome::Cave) => CAVE_STONE,
+        _ => rgb,
+    }
+}
 
 /// The look of material `id` (magenta past the table, so a missing row
 /// shows).
@@ -227,6 +256,7 @@ impl Grid {
                         // ground draws under them.
                         g.mat[i] = if crate::props::modelled(world, [x, y, z], c.mat)
                             || crate::built::free_standing(c.mat)
+                            || crate::built::ice_plug([x, y, z], c.mat)
                         {
                             mat::AIR
                         } else {
@@ -755,9 +785,10 @@ fn surface(g: &Grid, lo: [i32; 3], hi: [i32; 3], pass: Pass, normals: bool) -> M
                 let m = net.mat[i];
                 let lk = look_of(m);
                 let l = net.light[i];
+                let rgb = area_tint(m, net.pos[i], lk.rgb);
                 out.positions.push(net.pos[i]);
                 out.normals.push(normalize(net.nrm[i]));
-                out.colors.push([lk.rgb[0], lk.rgb[1], lk.rgb[2], l]);
+                out.colors.push([rgb[0], rgb[1], rgb[2], l]);
                 out.uvs.push([lk.glow, lk.grassy]);
                 out.mats.push(m);
                 out.light.push(l);

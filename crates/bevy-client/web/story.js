@@ -200,6 +200,7 @@ export function startStory() {
   // where the gate is on screen while it is near and in view.
   /** @type {Record<string, HTMLElement>} */
   const signs = {};
+  const SIGN_NEAR_M = 16;
   const drawSigns = (/** @type {any} */ s, /** @type {any} */ story) => {
     const gates = story && Array.isArray(story.gates) ? story.gates : [];
     for (const g of gates) {
@@ -213,8 +214,10 @@ export function startStory() {
         signs[g.id] = el;
       }
       if (el.textContent !== g.text) el.textContent = g.text;
-      const at = !g.open && !open ? project(g.at, s, innerWidth, innerHeight) : null;
-      const show = !!at && at.dist < 40;
+      // B4 round 3: only near its own gate (16 m), never through the Kiln
+      // from the terrace, and never over the ending.
+      const at = !g.open && !open && !s.ending ? project(g.at, s, innerWidth, innerHeight) : null;
+      const show = !!at && at.dist < SIGN_NEAR_M;
       el.hidden = !show;
       if (show && at) {
         // Keep the board below the objective panel (break-2 should-fix 6):
@@ -234,7 +237,7 @@ export function startStory() {
         }
         el.style.left = `${Math.round(at.x)}px`;
         el.style.top = `${Math.round(y)}px`;
-        el.style.opacity = String(Math.max(0.35, Math.min(1, 1.4 - at.dist / 40)));
+        el.style.opacity = String(Math.max(0.35, Math.min(1, 1.4 - at.dist / SIGN_NEAR_M)));
       }
     }
   };

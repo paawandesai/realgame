@@ -52,8 +52,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // components from `mood`, here in linear light); overhead stays blue,
     // warmed a little when the Kiln is relit.
     let horizon = pow(params.haze.rgb, vec3<f32>(2.2)) * 1.1;
-    let mid = mix(vec3<f32>(0.42, 0.66, 0.95), horizon, 0.25) + vec3<f32>(0.12, 0.04, -0.06) * warm;
-    let zenith = vec3<f32>(0.16, 0.38, 0.80) + vec3<f32>(0.10, 0.03, -0.08) * warm;
+    // Relit Kiln: dusk. The band above the horizon turns orange and the
+    // zenith a deep dusky blue-violet.
+    let mid = mix(mix(vec3<f32>(0.42, 0.66, 0.95), horizon, 0.25), vec3<f32>(0.95, 0.42, 0.20), warm * 0.8);
+    let zenith = mix(vec3<f32>(0.16, 0.38, 0.80), vec3<f32>(0.14, 0.12, 0.34), warm * 0.85);
     var col = mix(horizon, mid, smoothstep(0.0, 0.25, up));
     col = mix(col, zenith, smoothstep(0.25, 0.9, up));
     // Below the horizon: the fog colour (the far ground fades into it).
@@ -68,7 +70,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     // The sun: a disc, a halo, and warm light low around it.
     let s = max(dot(d, sun), 0.0);
-    col = col + vec3<f32>(1.0, 0.9, 0.7) * (pow(s, 900.0) * 6.0 + pow(s, 40.0) * 0.35 + pow(s, 6.0) * 0.12);
+    let sun_col = mix(vec3<f32>(1.0, 0.9, 0.7), vec3<f32>(1.0, 0.55, 0.25), warm);
+    col = col + sun_col * (pow(s, 900.0) * 6.0 + pow(s, 40.0) * (0.35 + 0.5 * warm) + pow(s, 6.0) * (0.12 + 0.35 * warm));
     // Clouds on a plane overhead, drifting.
     if up > 0.0 {
         let p = d.xz / (up + 0.12) * 1.6 + vec2<f32>(globals.time * 0.012, globals.time * 0.004);
@@ -79,8 +82,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
             c = fbm2(p);
         }
         let cover = smoothstep(0.5, 0.78, c) * smoothstep(0.0, 0.18, up);
-        let lit = vec3<f32>(1.0, 0.98, 0.95) + vec3<f32>(0.25, 0.2, 0.1) * pow(s, 8.0);
-        let shade = mix(lit, vec3<f32>(0.72, 0.78, 0.9), smoothstep(0.62, 0.95, c));
+        let lit = mix(vec3<f32>(1.0, 0.98, 0.95), vec3<f32>(1.0, 0.62, 0.40), warm) + vec3<f32>(0.25, 0.2, 0.1) * pow(s, 8.0);
+        let shade = mix(lit, mix(vec3<f32>(0.72, 0.78, 0.9), vec3<f32>(0.45, 0.32, 0.45), warm), smoothstep(0.62, 0.95, c));
         col = mix(col, shade, cover * 0.85);
     }
     // Underground the sky is never seen lit.

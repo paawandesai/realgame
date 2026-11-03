@@ -265,7 +265,9 @@ fn spawn_props(
     }
     let rune = mats.add(StandardMaterial {
         base_color: Color::srgb(0.2, 0.9, 0.8),
-        emissive: LinearRgba::rgb(0.6, 3.2, 2.7),
+        // Thin rune lines, under the bloom ceiling (B4 judges: the first
+        // bands read as screen-wide strips).
+        emissive: LinearRgba::rgb(0.3, 1.6, 1.35),
         unlit: true,
         cull_mode: None,
         double_sided: true,
@@ -273,7 +275,8 @@ fn spawn_props(
     });
     // Round the clay dome (`kiln_dome`: centre y 40.8, half-axes 8.0 x 9.3
     // x 5.1), a hair outside it.
-    for (y, h) in [(43.2f32, 0.34f32), (44.3, 0.12)] {
+    // Above the doorway's arch (`models::kiln_frame`, top y 45.2).
+    for (y, h) in [(45.75f32, 0.13f32), (46.15, 0.06)] {
         let k = (1.0 - ((y - 40.8) / 9.3).powi(2)).sqrt();
         let band = ring_band([128.0, y, 169.0], 8.0 * k + 0.06, 5.1 * k + 0.06, h);
         commands.spawn((
@@ -283,7 +286,7 @@ fn spawn_props(
             NotShadowCaster,
         ));
     }
-    let top = ring_band([128.5, 59.9, 169.5], 2.08, 2.08, 0.3);
+    let top = ring_band([128.5, 59.6, 169.5], 2.08, 2.08, 0.07);
     commands.spawn((
         Mesh3d(meshes.add(top)),
         MeshMaterial3d(rune),
@@ -297,6 +300,27 @@ fn spawn_props(
 fn clay_mesh(pos: Vec<[f32; 3]>, nrm: Vec<[f32; 3]>, idx: Vec<u32>) -> Mesh {
     let look = smooth::look_of(vox::mat::BRICK);
     let n = pos.len();
+    // B4 round 3 (the Kiln read as one flat orange): clay courses about a
+    // metre high that alternate a little in tone, a darker, damp foot,
+    // and soot round the chimney's mouth.
+    let colors: Vec<[f32; 4]> = pos
+        .iter()
+        .map(|p| {
+            let course = (p[1] / 0.95).floor() as i32;
+            let tone = if course.rem_euclid(2) == 0 { 1.0 } else { 0.9 };
+            let foot = 0.8 + 0.2 * ((p[1] - 40.8) / 2.0).clamp(0.0, 1.0);
+            let soot = ((p[1] - 56.5) / 3.5).clamp(0.0, 1.0) * 0.7;
+            let k = tone * foot;
+            let c = [look.rgb[0] * k, look.rgb[1] * k, look.rgb[2] * k];
+            let ch = [0.07, 0.055, 0.045];
+            [
+                c[0] + (ch[0] - c[0]) * soot,
+                c[1] + (ch[1] - c[1]) * soot,
+                c[2] + (ch[2] - c[2]) * soot,
+                1.0,
+            ]
+        })
+        .collect();
     Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::RENDER_WORLD,
@@ -304,10 +328,7 @@ fn clay_mesh(pos: Vec<[f32; 3]>, nrm: Vec<[f32; 3]>, idx: Vec<u32>) -> Mesh {
     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
     .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0f32, 0.0]; n])
-    .with_inserted_attribute(
-        Mesh::ATTRIBUTE_COLOR,
-        vec![[look.rgb[0], look.rgb[1], look.rgb[2], 1.0]; n],
-    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
     .with_inserted_indices(Indices::U32(idx))
 }
 
@@ -1198,9 +1219,12 @@ fn ring(p: Vec3) -> Vec<usize> {
 
 /// Remeshes dirty chunks, nearest first, within the frame's time budget
 /// (4 ms, 2 ms with `?low`; at least one chunk a frame). Until the spawn
-/// ring is meshed the budget is larger, while the intro shows.
+/// ring is meshed the budget is larger, while the intro shows. With
+/// `?debug&meshms=N` (capture scripts on software GPUs, where a frame takes
+/// seconds) the budget is N ms.
 #[allow(clippy::too_many_arguments)]
 fn mesh_chunks(
+    mut debug_budget: Local<Option<Option<f32>>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     settings: Res<Settings>,
@@ -1222,7 +1246,16 @@ fn mesh_chunks(
             chunks.queue.push(c);
         }
     }
-    let budget_ms = if !chunks.ring_done {
+    let debug_ms = *debug_budget.get_or_insert_with(|| {
+        settings
+            .debug
+            .then(|| crate::param("meshms").and_then(|v| v.parse::<f32>().ok()))
+            .flatten()
+            .filter(|v| v.is_finite() && *v > 0.0)
+    });
+    let budget_ms = if let Some(ms) = debug_ms {
+        ms
+    } else if !chunks.ring_done {
         40.0
     } else if settings.low {
         2.0

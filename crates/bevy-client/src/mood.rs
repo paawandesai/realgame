@@ -73,30 +73,32 @@ const DAY: Mood = Mood {
     ground_fog: 0.0,
 };
 
-/// Cooler and brighter, a low sun for long shadows.
+/// Cooler and brighter: a low, warm-white sun from the west for long
+/// shadows across the snow, and a blue sky fill so the shadows read blue.
 const FROZEN: Mood = Mood {
-    sun: Vec3::new(0.93, 0.96, 1.0),
-    sun_lux: 12_500.0,
-    elevation: 0.42,
-    azimuth: -0.95,
-    fill: Vec3::new(0.70, 0.83, 1.0),
-    fill_lux: 2_000.0,
-    haze: Vec3::new(0.88, 0.94, 1.0),
-    fog: Vec2::new(140.0, 230.0),
+    sun: Vec3::new(1.0, 0.95, 0.86),
+    sun_lux: 13_000.0,
+    elevation: 0.30,
+    azimuth: -1.25,
+    fill: Vec3::new(0.62, 0.76, 1.0),
+    fill_lux: 2_100.0,
+    haze: Vec3::new(0.86, 0.92, 1.0),
+    fog: Vec2::new(120.0, 230.0),
     ground_fog: 0.0,
 };
 
-/// Hazy, low contrast, yellow-green.
+/// Hazy, low contrast, yellow-green; the haze is pale enough that the
+/// vents and reeds still stand out against it.
 const MARSH: Mood = Mood {
-    sun: Vec3::new(0.97, 0.95, 0.80),
-    sun_lux: 6_800.0,
-    elevation: 0.8,
+    sun: Vec3::new(0.98, 0.94, 0.80),
+    sun_lux: 7_600.0,
+    elevation: 0.75,
     azimuth: -0.6,
-    fill: Vec3::new(0.80, 0.84, 0.66),
+    fill: Vec3::new(0.82, 0.86, 0.70),
     fill_lux: 1_500.0,
-    haze: Vec3::new(0.58, 0.64, 0.38),
-    fog: Vec2::new(35.0, 160.0),
-    ground_fog: 1.0,
+    haze: Vec3::new(0.74, 0.78, 0.55),
+    fog: Vec2::new(45.0, 170.0),
+    ground_fog: 0.7,
 };
 
 /// Underground: the cover dims sun and fill to almost nothing; the haze is
@@ -113,23 +115,25 @@ const CAVE: Mood = Mood {
     ground_fog: 0.0,
 };
 
-/// What the relit Kiln does to the valley's light.
+/// What the relit Kiln does to the valley's light: dusk. A low orange sun
+/// from the west, a dim warm fill and orange haze, so the hearth's glow,
+/// flames and sparks are the brightest things in view (B4 round 3).
 const KILN_WARM: Mood = Mood {
-    sun: Vec3::new(1.0, 0.70, 0.45),
-    sun_lux: 11_000.0,
-    elevation: 0.6,
-    azimuth: -0.75,
-    fill: Vec3::new(1.0, 0.78, 0.58),
-    fill_lux: 1_900.0,
-    haze: Vec3::new(1.0, 0.80, 0.60),
-    fog: Vec2::new(150.0, 230.0),
+    sun: Vec3::new(1.0, 0.56, 0.30),
+    sun_lux: 5_200.0,
+    elevation: 0.20,
+    azimuth: -1.35,
+    fill: Vec3::new(0.95, 0.68, 0.62),
+    fill_lux: 750.0,
+    haze: Vec3::new(0.98, 0.64, 0.42),
+    fog: Vec2::new(90.0, 220.0),
     ground_fog: 0.0,
 };
 
 /// How much of the sun and fill is left deep in the cave (spec 5.9: dim,
 /// never black).
 const CAVE_SUN: f32 = 0.06;
-const CAVE_FILL: f32 = 0.16;
+const CAVE_FILL: f32 = 0.08;
 
 /// The target mood for an area.
 pub fn area_mood(b: Biome) -> Mood {
@@ -148,6 +152,8 @@ struct Live {
     warm: f32,
     /// Fog distances at `?low` are cut to the shorter view distance.
     low: bool,
+    /// The player's position last frame.
+    last: Option<Vec3>,
 }
 
 /// A teal point light that sits at one of the nearest crystal clusters.
@@ -168,6 +174,7 @@ fn setup(mut commands: Commands, settings: Res<crate::Settings>, world: Option<R
         mood: DAY,
         warm: 0.0,
         low: settings.low,
+        last: None,
     });
     // Crystal clusters: the cave's crystals binned on a 6 m grid.
     let mut bins: Vec<([i32; 3], Vec3, u32)> = Vec::new();
@@ -197,13 +204,13 @@ fn setup(mut commands: Commands, settings: Res<crate::Settings>, world: Option<R
             .map(|b| (b.1 / b.2 as f32, b.2))
             .collect(),
     ));
-    let n = if settings.low { 2 } else { 4 };
+    let n = if settings.low { 3 } else { 5 };
     for _ in 0..n {
         commands.spawn((
             PointLight {
                 color: Color::srgb(0.25, 1.0, 0.85),
                 intensity: 0.0,
-                range: 10.0,
+                range: 16.0,
                 shadow_maps_enabled: false,
                 ..default()
             },
@@ -240,7 +247,11 @@ fn apply(
     let target = area_mood(b);
     let lit = late.as_ref().is_some_and(|l| l.kiln_lit);
     live.warm += ((if lit { 1.0 } else { 0.0 }) - live.warm) * (dt * 0.6).min(1.0);
-    let k = (dt * 1.2).min(1.0);
+    // A jump of more than 20 m in a frame (a respawn or a teleport) takes
+    // the new area's light at once instead of easing in from the old one.
+    let jumped = live.last.is_some_and(|q: Vec3| q.distance(p) > 20.0);
+    live.last = Some(p);
+    let k = if jumped { 1.0 } else { (dt * 1.2).min(1.0) };
     let mood = live.mood.lerp(&target, k);
     live.mood = mood;
     let mut m = mood.lerp(
@@ -311,7 +322,9 @@ fn apply(
     for (i, (mut l, mut t)) in crystal.iter_mut().enumerate() {
         match near.get(i) {
             Some((c, n)) if cover > 0.01 && c.distance(p) < 30.0 => {
-                l.intensity = 9_000.0 * (*n as f32).min(6.0) * cover;
+                // Teal light round each cluster, enough to colour the rock
+                // round it (art bible: crystals light their surroundings).
+                l.intensity = 80_000.0 * (*n as f32).min(6.0) * cover;
                 t.translation = *c;
             }
             _ => l.intensity = 0.0,

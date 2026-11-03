@@ -206,6 +206,41 @@ fn fan(out: &mut MeshData, rim: &[V3], tip: V3, inside: V3, paint: Paint) {
     }
 }
 
+/// Snow (#EEF2F5) on a pine tier's upper half: a shell just outside the
+/// tier from part way up its side to its top, with a ragged lower edge.
+fn snow_cap(out: &mut MeshData, rim: &[V3], cap: &[V3], tip: V3, base: V3) {
+    let snow = Paint {
+        rgb: [0.86, 0.89, 0.92],
+        glow: 0.0,
+        mat: mat::SNOW,
+        top: None,
+    };
+    let axis_at = |p: V3| [base[0], p[1], base[2]];
+    let out_by = |p: V3, k: f32| add(p, mul(sub(p, axis_at(p)), k));
+    let n = rim.len();
+    let lo: Vec<V3> = (0..n)
+        .map(|k| {
+            // Ragged: each point starts a little higher or lower.
+            let f = 0.42 + 0.16 * (((k * 7919) % 5) as f32 / 4.0);
+            out_by(mix(rim[k], cap[k], f), 0.06)
+        })
+        .collect();
+    let hi: Vec<V3> = cap
+        .iter()
+        .map(|&c| add(out_by(c, 0.06), [0.0, 0.02, 0.0]))
+        .collect();
+    let inside = mix(base, tip, 0.5);
+    band(out, &lo, &hi, inside, snow);
+    if hi.iter().any(|h| dist(*h, tip) > 1e-3) {
+        fan(out, &hi, add(tip, [0.0, 0.03, 0.0]), inside, snow);
+    }
+}
+
+fn dist(a: V3, b: V3) -> f32 {
+    let d = sub(a, b);
+    dot(d, d).sqrt()
+}
+
 /// A faceted, slightly lumpy ball (an icosahedron).
 fn ball(out: &mut MeshData, c: V3, r: V3, seed: [i32; 3], paint: Paint) {
     const T: f32 = std::f32::consts::GOLDEN_RATIO;
@@ -464,8 +499,15 @@ fn tree(out: &mut MeshData, world: &World, top: [i32; 3]) {
                     let cap = ring(at(top_y), [0.0, 1.0, 0.0], tip_r, 9, turn, 0.0, [x, y, z]);
                     band(out, &rim, &cap, at(yb + 0.3), paint);
                     fan(out, &cap, at(top_y + 0.15), at(top_y - 0.5), paint);
+                    if snowy {
+                        snow_cap(out, &rim, &cap, at(top_y + 0.15), at(yb));
+                    }
                 } else {
                     fan(out, &rim, at(top_y), at(yb + 0.3), paint);
+                    if snowy {
+                        let tip = vec![at(top_y); rim.len()];
+                        snow_cap(out, &rim, &tip, at(top_y), at(yb));
+                    }
                 }
                 // The tier's underside, up to the trunk.
                 let under = Paint {
@@ -655,20 +697,28 @@ const SIDES: [[i32; 3]; 6] = [
     [0, 0, -1],
 ];
 
-fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
+/// The open side a crystal cell's cluster grows out of: an open side
+/// whose opposite side is rock, if there is one (`built` sets its rock
+/// collar on the same side).
+pub(crate) fn crystal_side(world: &World, p: [i32; 3]) -> Option<[i32; 3]> {
     let [x, y, z] = p;
     let solid =
         |d: [i32; 3]| crate::materials::flags(world.get([x + d[0], y + d[1], z + d[2]]).mat).solid;
     let open: Vec<[i32; 3]> = SIDES.iter().copied().filter(|&d| !solid(d)).collect();
-    // Grow out of the rock: an open side whose opposite side is rock, if
-    // there is one.
     let backed: Vec<[i32; 3]> = open
         .iter()
         .copied()
         .filter(|d| solid([-d[0], -d[1], -d[2]]))
         .collect();
     let pool = if backed.is_empty() { &open } else { &backed };
-    let Some(&d) = pool.get((hash(x, y, z, 97) as usize) % pool.len().max(1)) else {
+    pool.get((hash(x, y, z, 97) as usize) % pool.len().max(1))
+        .copied()
+}
+
+fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
+    let [x, y, z] = p;
+    // Grow out of the rock.
+    let Some(d) = crystal_side(world, p) else {
         return;
     };
     let dir = [d[0] as f32, d[1] as f32, d[2] as f32];
@@ -677,7 +727,9 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
         y as f32 + 0.5 + dir[1] * 0.42,
         z as f32 + 0.5 + dir[2] * 0.42,
     ];
-    let count = 2 + (hash(x, y, z, 101) % 3) as i32;
+    // A cluster: one tall crystal and three to five smaller ones round it
+    // (B4 round 3: lone shards read as floating).
+    let count = 4 + (hash(x, y, z, 101) % 3) as i32;
     for k in 0..count {
         let s = [x + k * 7, y, z];
         let jitter = [
@@ -685,20 +737,22 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
             unit(s[0], s[1], s[2], 107) - 0.5,
             unit(s[0], s[1], s[2], 109) - 0.5,
         ];
-        let axis = norm(add(dir, mul(jitter, if k == 0 { 0.4 } else { 1.1 })));
-        let offset = mul(sub(jitter, mul(dir, dot(jitter, dir))), 0.55);
+        let axis = norm(add(dir, mul(jitter, if k == 0 { 0.35 } else { 1.0 })));
+        let offset = mul(sub(jitter, mul(dir, dot(jitter, dir))), 0.5);
         let foot = add(add(face, offset), mul(axis, -0.15));
-        let len = if k == 0 { 0.9 } else { 0.45 } + 0.55 * unit(s[0], s[1], s[2], 113);
-        let r = if k == 0 { 0.2 } else { 0.12 } + 0.05 * unit(s[0], s[1], s[2], 127);
+        let len = if k == 0 { 1.1 } else { 0.35 } + 0.6 * unit(s[0], s[1], s[2], 113);
+        let r = if k == 0 { 0.24 } else { 0.1 } + 0.05 * unit(s[0], s[1], s[2], 127);
         let turn = unit(s[0], s[1], s[2], 131) * 1.0;
+        // Science teal (#40FFD9), a few leaning a little bluer.
         let tint = mix(
-            [0.35, 0.90, 0.95],
-            [0.62, 0.55, 1.0],
-            unit(s[0], s[1], s[2], 137) * 0.6,
+            [0.06, 1.0, 0.70],
+            [0.20, 0.80, 1.0],
+            unit(s[0], s[1], s[2], 137) * 0.5,
         );
         let paint = Paint {
-            // Brighter than any wall: the glow is the colour.
-            rgb: mul(tint, 1.7),
+            // Brighter than any wall: the glow is the colour (kept under
+            // the bloom ceiling, so it reads teal, not white).
+            rgb: mul(tint, 1.2),
             glow: 1.0,
             mat: mat::CRYSTAL,
             top: None,
