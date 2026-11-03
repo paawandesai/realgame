@@ -312,6 +312,7 @@ canvas.hover-fire { cursor: pointer; }
 #worked .worked-stage { padding: 1px 10px; border-radius: 999px; background: #0f1830; font-size: calc(18px * var(--ui)); }
 #worked .worked-close { margin-left: auto; min-width: 48px; min-height: 48px; font-weight: 800; }
 #worked .worked-new { margin: 4px 0; line-height: 1.3; }
+#worked .worked-left { margin: 4px 0; line-height: 1.3; color: #ffd54a; font-weight: 700; }
 #worked .worked-copy { margin: 4px 0; font-size: calc(22px * var(--ui)); font-weight: 800; color: var(--on); }
 #worked .worked-reason { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; white-space: pre-line; line-height: 1.3; }
 #worked .worked-reason:empty { display: none; }
@@ -399,9 +400,6 @@ body.intro-open #caption, body.intro-open #hint, body.intro-open #hotbar, body.i
 .gate-sign { position: fixed; z-index: 40; transform: translate(-50%, -100%); pointer-events: none; padding: 8px 14px; border-radius: 12px; border: 2px solid #f2c94c; background: rgba(30, 42, 68, 0.85); color: #fff; font-weight: 700; font-size: calc(18px * var(--ui)); line-height: 1.25; text-align: center; max-width: calc(320px * var(--ui)); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); }
 .gate-sign[hidden] { display: none; }
 /* I-052 round 2: a Practised spell's one-step worked cast. */
-.worked-known { margin: 8px 0 12px; font-size: calc(20px * var(--ui)); text-align: center; }
-.worked-confirm { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 auto 8px; min-width: calc(200px * var(--ui)); min-height: 48px; padding: 10px 22px; font: inherit; font-size: calc(22px * var(--ui)); font-weight: 700; border-radius: 12px; border: 2px solid #ffd54a; background: #2b3a5c; color: #fff; cursor: pointer; }
-.worked-confirm:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .intro-card { display: none; max-width: calc(760px * var(--ui)); text-align: center; }
 .intro-card.on { display: block; animation: introIn 0.6s ease-out; }
 .intro-pic { width: calc(120px * var(--ui)); height: calc(120px * var(--ui)); margin: 0 auto calc(14px * var(--ui)); border-radius: 50%; }
@@ -520,7 +518,7 @@ body.title-open #hud, body.title-open .rank-badge, body.title-open #benchbtn, bo
 .rank-spark { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: radial-gradient(circle, #fff6c8, #ffb347 60%, rgba(255, 140, 40, 0) 70%); pointer-events: none; animation: rankspark 0.9s ease-out forwards; }
 @keyframes rankspark { from { transform: rotate(var(--a)) translateX(0) scale(1.4); opacity: 1; } to { transform: rotate(var(--a)) translateX(var(--d)) scale(0.3); opacity: 0; } }
 button { transition: transform 0.08s ease-out, filter 0.12s ease-out; }
-:is(.title-play, .intro-play, .worked-confirm, #benchbtn, #resume, #pointmode, .age-choice):not(:disabled):active { transform: scale(0.95); }
+:is(.title-play, .intro-play, #benchbtn, #resume, #pointmode, .age-choice):not(:disabled):active { transform: scale(0.95); }
 button:not(:disabled):hover { filter: brightness(1.12); }
 #bench:not([hidden]) > *, .late-modal:not([hidden]) > *, #pack:not([hidden]) > *, #pause:not(.hidden) .card { animation: uiIn 0.18s ease-out; }
 @keyframes uiIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -537,8 +535,8 @@ button:not(:disabled):hover { filter: brightness(1.12); }
 #worked .worked-tip { margin: 6px 0 0; font-size: calc(14px * var(--ui)); opacity: 0.8; }
 #worked .worked-tip[hidden] { display: none; }
 /* B3: the Pick's slot (key 5) in the block world. */
-.slot.pick-slot { min-width: 120px; cursor: default; }
-.slot.bound-slot { min-width: 72px; cursor: default; }
+.slot.pick-slot { min-width: 120px; cursor: pointer; }
+.slot.bound-slot { min-width: 72px; cursor: pointer; }
 .slot.bound-slot[hidden] { display: none; }
 .icon.pick { background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M9 27 L22 11' stroke='%2321140c' stroke-width='5.2' stroke-linecap='round'/><path d='M9 27 L22 11' stroke='%23b07a4f' stroke-width='3.2' stroke-linecap='round'/><path d='M5 10 Q16 1 28 9 Q26 11.5 24 11 Q16 6 7 12.5 Q5 12.5 5 10 Z' fill='%23dfe4ea' stroke='%2321140c' stroke-width='1.6' stroke-linejoin='round'/><circle cx='21.5' cy='9.6' r='1.6' fill='%237b8796'/></svg>") center / contain no-repeat; border-radius: 0; }
 @media (max-width: 700px) { .slot.pick-slot { width: 18%; min-width: 0; } }
@@ -547,3 +545,19 @@ body:has(.late-chip:not([hidden])) #caption { bottom: calc(170px * var(--ui)); }
 body:has(.late-chip:not([hidden])) #hint { bottom: calc(222px * var(--ui)); }
 /* B4 round 3: an E prompt (a chip in the prompt slot) says what to do here, so the coaching hint steps aside instead of stacking on it. */
 body:has(#bench-chip:not([hidden])) #hint, body:has(.late-chip:not([hidden])) #hint { visibility: hidden; }
+
+/* "+1 Coal" over the hotbar (Paawan's walkthrough). */
+#pickup-chips { position: fixed; left: 50%; bottom: calc(120px * var(--ui, 1)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; z-index: 30; }
+.pickup-chip { padding: 4px 14px; border-radius: 999px; background: rgba(20, 28, 44, 0.85); border: 2px solid #ffd54a; color: #fff; font-weight: 700; font-size: calc(20px * var(--ui, 1)); animation: pickup-rise 1.8s ease-out forwards; }
+@keyframes pickup-rise { 0% { opacity: 0; transform: translateY(8px); } 12% { opacity: 1; transform: translateY(0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-18px); } }
+@media (prefers-reduced-motion: reduce) { .pickup-chip { animation: none; } }
+
+/* Big moments: the Kiln Spark found, the Kiln door open (Paawan's walkthrough). */
+.late-moment { position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%); z-index: 45; padding: 18px 34px 20px; border-radius: 18px; background: radial-gradient(ellipse at top, rgba(90, 62, 20, 0.95), rgba(26, 22, 34, 0.94)); border: 3px solid #ffd54a; box-shadow: 0 0 40px rgba(255, 196, 74, 0.55); color: #fff; text-align: center; pointer-events: none; max-width: min(92vw, calc(640px * var(--ui, 1))); }
+.late-moment[hidden] { display: none; }
+.late-moment h2 { margin: 2px 0 6px; font-size: calc(32px * var(--ui, 1)); color: #ffe08a; }
+.late-moment p { margin: 0; font-size: calc(20px * var(--ui, 1)); }
+.late-moment-star { font-size: calc(40px * var(--ui, 1)); color: #ffd54a; line-height: 1; }
+.late-moment.go { animation: late-moment-in 4.5s ease-out forwards; }
+@keyframes late-moment-in { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 8% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); } 14% { transform: translate(-50%, -50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .late-moment.go { animation: none; } }

@@ -272,6 +272,25 @@ export function startLate() {
     else push('use');
   }, true);
 
+  // Big moments (Paawan's walkthrough: taking the Kiln Spark had no sense
+  // of achievement): a banner in the middle of the screen and a fanfare.
+  const moment = mk('div', 'late-moment');
+  moment.setAttribute('role', 'status');
+  moment.hidden = true;
+  document.body.append(moment);
+  let momentTimer = 0;
+  const showMoment = (/** @type {string} */ head, /** @type {string} */ line) => {
+    moment.replaceChildren(mk('div', 'late-moment-star', '✦'), mk('h2', '', head), mk('p', '', line));
+    moment.hidden = false;
+    moment.classList.remove('go');
+    void moment.offsetWidth;
+    moment.classList.add('go');
+    play('fanfare');
+    clearTimeout(momentTimer);
+    momentTimer = setTimeout(() => { moment.hidden = true; }, 4500);
+  };
+  let lastCrate = '';
+  let lastDoor = /** @type {boolean | null} */ (null);
   let sayN = 0;
   let sayTimer = 0;
   let openSeen = -1;
@@ -298,6 +317,11 @@ export function startLate() {
         }
         sayN = st.sayN;
       }
+      const crate = st.crate ? String(st.crate.state) : '';
+      if (lastCrate === 'loaded' && crate === 'empty') showMoment('You found the Kiln Spark!', 'Follow the arrow back out of the cave and home to the Great Kiln.');
+      lastCrate = crate;
+      if (lastDoor === false && st.door === true && !st.lit) showMoment('The Kiln door is open', 'Now invent a reaction hot enough to relight it, at the Invention Bench.');
+      lastDoor = !!st.door;
       if (openSeen < 0) openSeen = st.openBench;
       if (st.openBench !== openSeen) {
         openSeen = st.openBench;
