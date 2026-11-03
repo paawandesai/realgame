@@ -14,16 +14,17 @@ use crate::voxel_view::VoxWorld;
 
 /// How tall the beam stands above the ground (m).
 const HEIGHT: f32 = 70.0;
-/// Inner core and outer halo radii (m).
-const CORE_R: f32 = 0.35;
-const HALO_R: f32 = 1.2;
+/// Inner core and outer halo radii (m): a core about half a metre across
+/// (B4 judges: the first beam read as a wide searchlight).
+const CORE_R: f32 = 0.25;
+const HALO_R: f32 = 0.6;
 /// Closer than `NEAR` (horizontal m) the beam is gone; past `FULL` it is at
 /// full strength, with a smooth ramp between.
 const NEAR: f32 = 3.0;
 const FULL: f32 = 14.0;
 /// Peak alpha of the core and the halo (additive, so "brightness").
-const CORE_A: f32 = 0.55;
-const HALO_A: f32 = 0.16;
+const CORE_A: f32 = 0.32;
+const HALO_A: f32 = 0.09;
 
 #[derive(Component)]
 struct Beam;
