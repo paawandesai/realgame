@@ -75,8 +75,9 @@ pub const PROTECTED_LINE: &str = "This old runestone will not budge. Try chemist
 /// queue, and the materials.
 #[derive(Resource)]
 struct Chunks {
-    /// Each chunk's pass entities: opaque, clear and (smooth) water.
-    ents: Vec<[Option<Entity>; 3]>,
+    /// Each chunk's pass entities: opaque, clear, (smooth) water, and the
+    /// props near and far (`PROP_LOD_M`).
+    ents: Vec<[Option<Entity>; 5]>,
     /// Waiting to be meshed (index order; sorted by distance when picked).
     queue: Vec<usize>,
     queued: Vec<bool>,
@@ -201,7 +202,7 @@ fn setup(
         spawn_props(&mut commands, &mut meshes, &mut std_mats, opaque);
     }
     let mut chunks = Chunks {
-        ents: vec![[None, None, None]; n],
+        ents: vec![[None; 5]; n],
         queue: Vec::new(),
         queued: vec![false; n],
         opaque: m.opaque,
@@ -1231,13 +1232,15 @@ fn mesh_chunks(
         // a tree's crown or a crystal (`props`) a few metres.
         let lo = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) - Vec3::splat(4.0);
         let aabb = Aabb::from_min_max(lo, lo + Vec3::splat(CHUNK as f32 + 8.0));
-        let passes: [Option<(Mesh, PassMat)>; 3] = match &chunks.smooth {
+        let passes: [Option<(Mesh, PassMat)>; 5] = match &chunks.smooth {
             Some(sm) => {
                 let m = vox::mesh_chunk_smooth(&world.0, c);
                 [
                     (&m.opaque, PassMat::Smooth(sm.opaque.clone()), false),
                     (&m.clear, PassMat::Smooth(sm.clear.clone()), true),
                     (&m.water, PassMat::Smooth(sm.water.clone()), false),
+                    (&m.props, PassMat::Smooth(sm.opaque.clone()), false),
+                    (&m.props_far, PassMat::Smooth(sm.opaque.clone()), false),
                 ]
                 .map(|(d, mat, clear)| (!d.is_empty()).then(|| (to_smooth_mesh(d, clear), mat)))
             }
@@ -1248,6 +1251,8 @@ fn mesh_chunks(
                         .then(|| (to_mesh(&m.opaque), PassMat::Atlas(chunks.opaque.clone()))),
                     (!m.clear.is_empty())
                         .then(|| (to_mesh(&m.clear), PassMat::Atlas(chunks.clear.clone()))),
+                    None,
+                    None,
                     None,
                 ]
             }

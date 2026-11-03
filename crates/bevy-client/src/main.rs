@@ -29,6 +29,7 @@ mod firebreak;
 mod fx;
 mod gates;
 mod late;
+mod models;
 mod level2;
 mod level3;
 mod motion;

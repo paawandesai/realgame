@@ -663,9 +663,10 @@ fn spawn(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    // Generated models (`models`) carry their colours per vertex.
     let wood = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.62, 0.42, 0.24),
-        perceptual_roughness: 0.9,
+        base_color: Color::WHITE,
+        perceptual_roughness: 0.85,
         ..default()
     });
     let rope = materials.add(StandardMaterial {
@@ -713,8 +714,8 @@ fn spawn(
     });
     let [cx, cy, cz] = CRATE_FLOOR;
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.9, 0.9, 0.9))),
-        MeshMaterial3d(wood),
+        Mesh3d(meshes.add(crate::models::balloon_crate())),
+        MeshMaterial3d(wood.clone()),
         Transform::from_xyz(cx, cy + 0.45, cz),
         CrateBox,
         NotShadowCaster,
@@ -750,6 +751,13 @@ fn spawn(
             shadow_maps_enabled: false,
             ..default()
         },
+    ));
+    // The rig's stand: basin, rack, electrodes and wires.
+    commands.spawn((
+        Mesh3d(meshes.add(crate::models::rig_stand())),
+        MeshMaterial3d(wood),
+        Transform::from_xyz(RIG[0], RIG[1] + 1.0, RIG[2]),
+        NotShadowCaster,
     ));
     // The rig's two tubes (H2 over the cathode on the left, O2 on the right),
     // each a glass tube with a coloured column that grows as gas collects.
