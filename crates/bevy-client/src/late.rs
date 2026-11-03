@@ -520,11 +520,16 @@ pub fn near(feet: Vec3) -> Option<&'static str> {
     }
 }
 
-/// Rock overhead: a solid block within 30 above the eye.
+/// Rock overhead in the Crystal Cave: a solid block within 12 above the
+/// eye, only in the cave's area (Paawan's walkthrough: trees, eaves and the
+/// Kiln dome used to dim the world anywhere, so light came and went).
 pub fn covered(world: &World, eye: Vec3) -> bool {
     let (x, z) = (eye.x.floor() as i32, eye.z.floor() as i32);
     let y0 = eye.y.floor() as i32 + 1;
-    (y0..y0 + 30).any(|y| {
+    if realgame_voxel::biome_at([x, y0 - 1, z]) != realgame_voxel::Biome::Cave {
+        return false;
+    }
+    (y0..y0 + 12).any(|y| {
         let m = world.get([x, y, z]).mat;
         m != mat::AIR && realgame_voxel::materials::flags(m).solid
     })
@@ -1315,9 +1320,10 @@ fn light(
     mut scan: Local<f32>,
 ) {
     let dt = time.delta_secs().min(0.1);
-    // Ease in and out of the cave over about a second (`mood` applies it).
+    // Ease in and out of the cave over about two seconds (`mood` applies it;
+    // Paawan's walkthrough: light changes should never snap).
     let target = if late.dark { 1.0 } else { 0.0 };
-    cave.0 += (target - cave.0) * (dt * 2.5).min(1.0);
+    cave.0 += (target - cave.0) * (dt * 1.5).min(1.0);
     let has = late.light && late.dark;
     // A torch flickers a little.
     let t = time.elapsed_secs();

@@ -261,7 +261,14 @@ The single register of every science claim the first-person 3D client shows the 
 | `frozen` | crates/bevy-client/src/gates.rs | I-052 round 2: the Frozen Fields' biome id, naming which gate a sign belongs to. Flagged by the word `frozen`; it states no science. |
 | `The Frozen Fields` | crates/bevy-client/web/hud.js | B4 round 3: the area title in the objective panel (the area the player stands in). A place name, flagged by the word `frozen`; it states no science. |
 | `The runestone gate to {} sinks into the ground!` | crates/bevy-client/src/gates.rs | I-052 round 2: game narration when a biome gate opens (partial mastery). Flagged by sentence shape; it states no science. |
-| `{name}: Practised! Its cast is now one quick confirm.` | crates/bevy-client/src/story.rs | I-052 round 2: UI instruction when a spell becomes Practised in the run; states no science (as the worked.js Practised toast above). |
+| `{name}: Practised! It casts instantly now.` | crates/bevy-client/src/story.rs | I-052 round 2: UI instruction when a spell becomes Practised in the run; states no science (as the worked.js Practised toast above). |
+| `${word} and it casts instantly.` | crates/bevy-client/web/worked.js | UI instruction: how many correct builds are left before a spell casts instantly (Paawan's walkthrough); states no science. |
+| `Build it 1 more time` | crates/bevy-client/web/worked.js | UI instruction, part of the builds-left line above; states no science. |
+| `Read lines aloud` | crates/bevy-client/web/hud.js | Settings label for the opt-in spoken lines; states no science. |
+| `You found the Kiln Spark!` | crates/bevy-client/web/late.js | Moment banner when the Spark is taken (Paawan's walkthrough); states no science. |
+| `Follow the arrow back out of the cave and home to the Great Kiln.` | crates/bevy-client/web/late.js | Game instruction under the Spark banner; states no science. |
+| `The Kiln door is open` | crates/bevy-client/web/late.js | Moment banner when the Kiln door opens; states no science. |
+| `Now invent a reaction hot enough to relight it, at the Invention Bench.` | crates/bevy-client/web/late.js | Game instruction under the door banner; the 1700 °C need is sourced with the Invention Bench lines; states no new science. |
 | `It's too dark to see the rig. Make a torch at the Formula Bench (wood + coal).` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction in the dark cave; the torch recipe is a game recipe. Flagged by sentence shape or a formula; it states no science. |
 | `You already carry a hydrogen balloon and an oxygen flask.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction (the rig will not run again while you carry both). Flagged by sentence shape or a formula; it states no science. |
 | `Choose a gas to fill the balloon.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction (the balloon chooser). Flagged by sentence shape or a formula; it states no science. |

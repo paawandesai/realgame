@@ -1,8 +1,9 @@
 //! Worked casts, then instant casts (I-029).
 //!
-//! Before a spell is Mastered, a click opens a small builder (`web/worked.js`)
+//! Before a spell is Practised, a click opens a small builder (`web/worked.js`)
 //! and the world holds until the player rebuilds the formula; a correct build
-//! casts at the click's target. A Mastered spell, a spell the player's band
+//! casts at the click's target. A Practised or Mastered spell (Paawan's
+//! walkthrough, 2026-11-03: rebuilding N2 every Frost cast was a chore), a spell the player's band
 //! cannot learn (the Sprout rule) and every spell while no band is known cast
 //! at once. See `docs/loop/items/I-029/spec.md`.
 //!
@@ -55,9 +56,10 @@ pub const HELP_AFTER: u8 = 2;
 /// (Unknown, Learning, Practised, Mastered); `learnable` is `None` while no
 /// band is known.
 pub fn route(stage: u8, learnable: Option<bool>, mode: CastMode, ready: bool) -> Route {
-    // Rows 1-4 of the table: instant mode or no overlay, Mastered, no band,
-    // and a spell the band cannot learn (the Sprout rule) all cast at once.
-    if mode == CastMode::Worked && ready && stage < 3 && learnable == Some(true) {
+    // Rows 1-4 of the table: instant mode or no overlay, Practised or
+    // Mastered, no band, and a spell the band cannot learn (the Sprout rule)
+    // all cast at once.
+    if mode == CastMode::Worked && ready && stage < 2 && learnable == Some(true) {
         Route::Worked
     } else {
         Route::Instant
@@ -259,8 +261,8 @@ mod tests {
                 ] {
                     let want = if mode == CastMode::Instant || !ready {
                         Route::Instant // row 1
-                    } else if stage == 3 {
-                        Route::Instant // row 2: Mastered
+                    } else if stage >= 2 {
+                        Route::Instant // row 2: Practised or Mastered
                     } else if learnable.is_none() {
                         Route::Instant // row 3: no band
                     } else if learnable == Some(false) {

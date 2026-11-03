@@ -465,14 +465,16 @@ struct Working {
     /// practice (`valley::practice`): `(spell, true)` for a correct worked
     /// cast, or a cast that needed no build; `story` drains it.
     cast_log: Vec<(usize, bool)>,
-    /// Spells Practised in this run (`story` sets it): their worked cast
-    /// is a one-step confirm.
+    /// Spells Practised in this run (`story` sets it): they cast instantly.
     practised: [bool; 4],
+    /// Correct worked casts per spell in this run (`story` sets it), so the
+    /// builder can say how many builds are left before instant cast.
+    casts: [u8; 4],
 }
 
 impl Working {
-    /// The stage worked casts use for spell `i`: Practised (the one-step
-    /// confirm) only once the spell is practised in this run, 3 correct
+    /// The stage worked casts use for spell `i`: Practised (instant cast)
+    /// only once the spell is practised in this run, 3 correct
     /// casts (break-2 should-fix 2; saved XP alone reached it after the
     /// Bench and 2 casts). Mastered stays Mastered.
     fn stage(&self, prog: &Progress, i: usize) -> progress::Stage {
@@ -818,6 +820,7 @@ fn main() {
             last_json: String::new(),
             cast_log: Vec::new(),
             practised: [false; 4],
+            casts: [0; 4],
         })
         .init_resource::<Stats>()
         .init_resource::<Game>()
@@ -2359,15 +2362,18 @@ fn publish_work(wk: &mut WorkCtx, game: &Game) {
     let stages: Vec<String> = (0..4)
         .map(|i| format!("\"{}\"", wk.working.stage(&wk.prog, i).as_str()))
         .collect();
+    let casts: Vec<String> = wk.working.casts.iter().map(u8::to_string).collect();
     let mode = match wk.working.mode {
         worked::CastMode::Worked => "worked",
         worked::CastMode::Instant => "instant",
     };
     let json = format!(
-        "{{\"v\":1,\"mode\":\"{mode}\",\"ready\":{},\"band\":{band},\"routes\":[{}],\"stages\":[{}],\"work\":{},\"done\":{},\"wrong\":{}}}",
+        "{{\"v\":1,\"mode\":\"{mode}\",\"ready\":{},\"band\":{band},\"routes\":[{}],\"stages\":[{}],\"casts\":[{}],\"need\":{},\"work\":{},\"done\":{},\"wrong\":{}}}",
         wk.working.ready,
         routes.join(","),
         stages.join(","),
+        casts.join(","),
+        realgame_sim::valley::practice::PRACTISE_CASTS,
         game.work.state_json(),
         wk.working.done,
         wk.working.wrong,
@@ -3105,10 +3111,10 @@ mod practice_tests {
     use super::*;
     use progress::Stage::*;
 
-    /// break-2 should-fix 2: the one-step confirm comes from 3 correct
+    /// break-2 should-fix 2: instant cast comes from 3 correct
     /// casts in this run, never from saved XP alone.
     #[test]
-    fn the_confirm_needs_practice_in_this_run() {
+    fn instant_cast_needs_practice_in_this_run() {
         assert_eq!(run_stage(Practised, false), Learning);
         assert_eq!(run_stage(Learning, true), Practised);
         assert_eq!(run_stage(Practised, true), Practised);

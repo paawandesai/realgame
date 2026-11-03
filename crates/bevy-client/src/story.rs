@@ -120,6 +120,12 @@ pub(crate) fn aim(story: &Story, water_known: bool) -> Option<(f32, f32)> {
         let [x, _, z] = realgame_voxel::gen::CAVE_MOUTH;
         return Some((x as f32 + 0.5, z as f32 + 0.5));
     }
+    // With the Spark, inside the cave the way home is back out of the mouth
+    // (the Kiln is straight through the rock from there).
+    if step == 7 && story.biome == "cave" {
+        let [x, _, z] = realgame_voxel::gen::CAVE_MOUTH;
+        return Some((x as f32 + 0.5, z as f32 + 0.5));
+    }
     target(step, water_known)
 }
 
@@ -329,8 +335,8 @@ pub fn fire_progress(
 
 /// Run practice (Paawan, 2026-11-01): each correct worked cast this frame
 /// (or a cast with nothing to build) counts toward its spell; three make it
-/// Practised for this run, which turns its worked cast into a one-step
-/// confirm (`Working::practised`) and opens the biome gate that needs it.
+/// Practised for this run, which makes it cast instantly
+/// (`Working::practised`) and opens the biome gate that needs it.
 fn practice_sync(
     mut story: ResMut<Story>,
     mut working: ResMut<crate::Working>,
@@ -339,13 +345,12 @@ fn practice_sync(
     for (spell, ok) in std::mem::take(&mut working.cast_log) {
         if ok && story.practice.record(spell) {
             let name = crate::chem::Spell::ALL.get(spell).map_or("", |s| s.name());
-            game.say(&format!(
-                "{name}: Practised! Its cast is now one quick confirm."
-            ));
+            game.say(&format!("{name}: Practised! It casts instantly now."));
         }
     }
     for i in 0..4 {
         working.practised[i] = story.practice.practised(i);
+        working.casts[i] = story.practice.casts[i];
     }
 }
 
@@ -603,7 +608,13 @@ mod tests {
         let [x, _, z] = crate::late::CRATE_FLOOR;
         assert_eq!(aim(&s, true), Some((x, z)), "then the crate");
         run_command(&mut s, "quest 7");
-        assert_eq!(aim(&s, true), Some(TARGETS[6]), "other steps unchanged");
+        assert_eq!(
+            aim(&s, true),
+            Some((mx as f32 + 0.5, mz as f32 + 0.5)),
+            "with the Spark, out of the cave first"
+        );
+        s.biome = "village".to_string();
+        assert_eq!(aim(&s, true), Some(TARGETS[6]), "then home to the Kiln");
     }
 
     #[test]
