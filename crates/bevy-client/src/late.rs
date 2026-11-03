@@ -52,9 +52,11 @@ pub const CHAR_S: f32 = 7.0;
 /// Charcoal lumps one clamp gives.
 pub const CLAMP_GIVES: u16 = 3;
 /// Said when a Fire cast lights the clamp (`content/science-sources.md`).
-pub const CLAMP_LIT_LINE: &str = "The logs smoulder under the earth. With little air they char instead of burning away.";
+pub const CLAMP_LIT_LINE: &str =
+    "The logs smoulder under the earth. With little air they char instead of burning away.";
 /// Said when the charring is done.
-pub const CLAMP_READY_LINE: &str = "The smoke has cleared. Press E at the mound to take the charcoal.";
+pub const CLAMP_READY_LINE: &str =
+    "The smoke has cleared. Press E at the mound to take the charcoal.";
 /// Said when the charcoal is taken.
 pub const CLAMP_TAKE_LINE: &str = "You got charcoal! Heat drove the water and gases out of the wood. What's left is mostly carbon, C.";
 
@@ -1019,7 +1021,10 @@ fn spawn_kiln_door(
         perceptual_roughness: 0.92,
         ..default()
     });
-    commands.spawn((Mesh3d(meshes.add(models::kiln_firebox())), MeshMaterial3d(firebox)));
+    commands.spawn((
+        Mesh3d(meshes.add(models::kiln_firebox())),
+        MeshMaterial3d(firebox),
+    ));
     // Once relit, the firebox glows hot: an additive orange wash over the
     // bricks, so the courses still show through it.
     let hot = materials.add(StandardMaterial {
@@ -1197,9 +1202,15 @@ fn spawn_clamp(
     let log = meshes.add(Cylinder::new(0.22, 1.8).mesh().resolution(10));
     let end = meshes.add(Cylinder::new(0.2, 0.02).mesh().resolution(10));
     // A small stack of logs on the east side: three below, two above.
-    for (k, (dy, dz)) in [(0.0, -0.45), (0.0, 0.0), (0.0, 0.45), (0.4, -0.22), (0.4, 0.22)]
-        .into_iter()
-        .enumerate()
+    for (k, (dy, dz)) in [
+        (0.0, -0.45),
+        (0.0, 0.0),
+        (0.0, 0.45),
+        (0.4, -0.22),
+        (0.4, 0.22),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let p = Vec3::new(cx + 3.9, cy + 0.22 + dy, cz + dz + 0.04 * k as f32);
         let rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
@@ -1281,8 +1292,12 @@ fn spawn_clamp(
         commands.spawn((
             Mesh3d(lump.clone()),
             MeshMaterial3d(char_mat.clone()),
-            Transform::from_xyz(cx - 0.5 + 0.22 * k as f32, cy + 0.12, cz + 3.0 + 0.12 * a.sin())
-                .with_scale(Vec3::new(1.2, 0.8, 1.0)),
+            Transform::from_xyz(
+                cx - 0.5 + 0.22 * k as f32,
+                cy + 0.12,
+                cz + 3.0 + 0.12 * a.sin(),
+            )
+            .with_scale(Vec3::new(1.2, 0.8, 1.0)),
             Visibility::Hidden,
             ClampLump,
         ));
@@ -1317,7 +1332,13 @@ fn clamp_fx(
         Clamp::Charring(s) => (true, (s / CHAR_S).clamp(0.0, 1.0)),
         _ => (false, 0.0),
     };
-    let show = |on: bool| if on { Visibility::Visible } else { Visibility::Hidden };
+    let show = |on: bool| {
+        if on {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        }
+    };
     for mut v in &mut q.p0() {
         *v = show(charring);
     }

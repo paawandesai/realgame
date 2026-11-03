@@ -586,15 +586,27 @@ pub fn kiln_firebox() -> Mesh {
     }
     // Three logs on the grate, two side by side and one across them.
     for (at, rot) in [
-        (Vec3::new(128.1, y0 + 0.48, z + 0.85), Quat::from_rotation_y(0.15)),
-        (Vec3::new(128.9, y0 + 0.48, z + 0.85), Quat::from_rotation_y(-0.12)),
+        (
+            Vec3::new(128.1, y0 + 0.48, z + 0.85),
+            Quat::from_rotation_y(0.15),
+        ),
+        (
+            Vec3::new(128.9, y0 + 0.48, z + 0.85),
+            Quat::from_rotation_y(-0.12),
+        ),
         (
             Vec3::new(128.5, y0 + 0.78, z + 0.8),
             Quat::from_rotation_y(std::f32::consts::FRAC_PI_2 + 0.2),
         ),
     ] {
         b.rounded_box(at, rot, Vec3::new(0.16, 0.15, 0.6), 0.12, char_log);
-        b.rounded_box(at + rot * Vec3::new(0.0, 0.0, 0.6), rot, Vec3::new(0.13, 0.12, 0.02), 0.05, bark);
+        b.rounded_box(
+            at + rot * Vec3::new(0.0, 0.0, 0.6),
+            rot,
+            Vec3::new(0.13, 0.12, 0.02),
+            0.05,
+            bark,
+        );
     }
     b.mesh()
 }
