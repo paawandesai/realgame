@@ -7,7 +7,7 @@
 // runs) skip it, so every existing test still starts at the intro; `?title`
 // shows it there too, for its own golden.
 
-/** Rows of the controls card: [keys, what they do]. */
+/** Rows of the controls card: [keys, what they do]. @type {[string, string][]} */
 export const CONTROLS = [
   ['W A S D', 'Walk'],
   ['Mouse', 'Look around'],

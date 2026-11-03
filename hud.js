@@ -52,13 +52,27 @@ const PEAK = 0.15;
 // first fire is out); how to start. No Hints input: the Hints setting gates
 // the result downstream (setHint), and `note` comes back unchanged so status
 // notes stay with Hints off.
-function pickHint({ playing, idle, note, locked, extinguished, casts }) {
+// P10 clarity: in the block world the locked hint follows the story, so it
+// never says to aim at a fire before Water is learned.
+const BENCH_HINT = 'Follow the gold light to the Formula Bench, then press E.';
+const WORKSHOP_HINT = 'Follow the gold light to the burning workshop. Aim at the flames and click.';
+export function pickHint({ playing, idle, note, locked, extinguished, casts, voxel = false, quest = 0, waterKnown = true }) {
   if (!playing) return '';
+  if (voxel) {
+    if (note) return note;
+    if (!locked) return casts > 0 ? '' : START_HINT;
+    if (quest !== 1) return '';
+    return waterKnown ? WORKSHOP_HINT : BENCH_HINT;
+  }
   if (idle) return IDLE_HINT;
   if (note) return note;
   if (locked) return extinguished === 0 ? AIM_HINT : '';
   return casts > 0 ? '' : START_HINT;
 }
+
+/** Water (spell 1) is past Unknown in the game state's `progress`. */
+export const waterKnown = (/** @type {any} */ state) => Array.isArray(state && state.progress)
+  && state.progress.some((/** @type {any} */ p) => p && p.id === 'water' && p.st && p.st !== 'unknown');
 
 const reducedMotion = () => {
   try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
@@ -726,7 +740,9 @@ export function startHud() {
       // Levels 2 and 3 have no courtyard fires (level 3's gas flames need
       // CO2, not Water), so the fire aiming hint never applies there.
       const extinguished = state.level >= 2 ? 1 : state.extinguished;
-      setHint(pickHint({ playing, idle: idleOn, note, locked: state.locked, extinguished, casts: state.casts }));
+      const voxel = state.mode === 'voxel';
+      setHint(pickHint({ playing, idle: idleOn && !voxel, note, locked: state.locked, extinguished, casts: state.casts,
+        voxel, quest: state.quest, waterKnown: waterKnown(state) }));
       // The arrow to the nearest fire, while it is off screen and no fire is
       // in view or aimed at (I-025).
       // I-035: after the courtyard is saved, the same arrow points at the open

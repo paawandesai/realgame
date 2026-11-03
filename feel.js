@@ -16,7 +16,7 @@ const HEAR_M = 45;
  * Where a sound at `at` sits for a listener at `cam` facing `yawDeg`
  * (the game's yaw: forward is (-sin, -cos) in x, z): `pan` -1..1 and a
  * `volume` that falls with distance.
- * @param {number[]} cam @param {number} yawDeg @param {number[]} at
+ * @param {[number, number, number]} cam @param {number} yawDeg @param {[number, number, number]} at
  */
 export function place(cam, yawDeg, at) {
   const dx = at[0] - cam[0], dz = at[2] - cam[2];
@@ -30,14 +30,14 @@ export function place(cam, yawDeg, at) {
   return { pan, volume };
 }
 
-/** How many footsteps fall between stride `from` and `to` (metres). */
+/** How many footsteps fall between stride `from` and `to` (metres). @param {number} from @param {number} to */
 export function stepsBetween(from, to) {
   if (!(to > from)) return 0;
   return Math.floor(to / STEP_M) - Math.floor(from / STEP_M);
 }
 
 /** A landing's volume for a fall speed (m/s). */
-export const landVolume = (v) => Math.max(0.35, Math.min(1, (v - 3) / 8));
+export const landVolume = (/** @type {number} */ v) => Math.max(0.35, Math.min(1, (v - 3) / 8));
 
 export function startFeel() {
   const w = /** @type {any} */ (window);
