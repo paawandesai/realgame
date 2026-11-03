@@ -2815,11 +2815,15 @@ fn viewmodel(
     let charge = feel::gauntlet_charge(game.held);
     let r = game.recoil * game.recoil;
     let glow = feel::gauntlet_glow(charge, r);
-    if let Some(mut m) = rune.and_then(|h| materials.get_mut(&h.0)) {
-        let e = LinearRgba::rgb(l.red * glow, l.green * glow, l.blue * glow);
-        if m.emissive != e {
-            m.emissive = e;
-            m.base_color = col;
+    // Touch the material only when its glow changes (a changed material is
+    // prepared again).
+    let e = LinearRgba::rgb(l.red * glow, l.green * glow, l.blue * glow);
+    if let Some(h) = rune {
+        if materials.get(&h.0).is_some_and(|m| m.emissive != e) {
+            if let Some(mut m) = materials.get_mut(&h.0) {
+                m.emissive = e;
+                m.base_color = col;
+            }
         }
     }
     let t = time.elapsed_secs();

@@ -258,7 +258,10 @@ fn apply(
         let (se, ce) = m.elevation.sin_cos();
         let (sa, ca) = m.azimuth.sin_cos();
         let from = Vec3::new(sa * ce, se, ca * ce);
-        *t = Transform::from_translation(from).looking_at(Vec3::ZERO, Vec3::Y);
+        // Only when it moves: a new sun transform re-renders its shadows.
+        if t.translation.distance(from) > 1e-3 {
+            *t = Transform::from_translation(from).looking_at(Vec3::ZERO, Vec3::Y);
+        }
     }
     ambient.color = srgb(m.fill);
     ambient.brightness = m.fill_lux;
@@ -273,26 +276,29 @@ fn apply(
     }
     // The ground fog and the sky's haze follow the mood.
     if let Some(h) = chunks.as_ref() {
+        // (Touch an asset only when it changes: a changed material is
+        // prepared and uploaded again.)
         for id in h.0.iter() {
-            if let Some(mut mat) = smooth.get_mut(id) {
-                if (mat.extension.mode.z - m.ground_fog).abs() > 0.01 {
-                    mat.extension.mode.z = m.ground_fog;
-                }
+            let stale = smooth
+                .get(id)
+                .is_some_and(|mat| (mat.extension.mode.z - m.ground_fog).abs() > 0.01);
+            if let Some(mut mat) = stale.then(|| smooth.get_mut(id)).flatten() {
+                mat.extension.mode.z = m.ground_fog;
             }
         }
     }
+    let haze = m.haze.extend(cover);
+    let (se, ce) = m.elevation.sin_cos();
+    let (sa, ca) = m.azimuth.sin_cos();
+    let sun = Vec4::new(sa * ce, se, ca * ce, live.warm);
     for handle in &sky {
-        if let Some(mut s) = sky_mats.get_mut(&handle.0) {
-            let haze = m.haze.extend(cover);
-            if (s.params.haze - haze).abs().max_element() > 0.005 {
-                s.params.haze = haze;
-            }
-            let (se, ce) = m.elevation.sin_cos();
-            let (sa, ca) = m.azimuth.sin_cos();
-            let sun = Vec4::new(sa * ce, se, ca * ce, live.warm);
-            if (s.params.sun - sun).abs().max_element() > 0.005 {
-                s.params.sun = sun;
-            }
+        let stale = sky_mats.get(&handle.0).is_some_and(|s| {
+            (s.params.haze - haze).abs().max_element() > 0.005
+                || (s.params.sun - sun).abs().max_element() > 0.005
+        });
+        if let Some(mut s) = stale.then(|| sky_mats.get_mut(&handle.0)).flatten() {
+            s.params.haze = haze;
+            s.params.sun = sun;
         }
     }
     // Teal light at the nearest crystal clusters, only in the dark.
