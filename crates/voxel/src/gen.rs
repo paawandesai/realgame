@@ -43,6 +43,132 @@ pub const WELL: [i32; 3] = [114, 34, 206];
 /// The Crystal Cave's mouth in the Marsh (section 4).
 pub const CAVE_MOUTH: [i32; 3] = [220, 32, 58];
 
+/// A Village house (docs/art-bible.md, "Built things"): clay walls three
+/// high with timber corner posts, a door on the north side and a window in
+/// each long wall, under a pitched roof of planks whose ridge runs along x.
+/// `min` is the footprint's corner at the floor (feet height); `max` is
+/// exclusive in x and z. The cells are ordinary blocks (they burn and dig
+/// like any other); `built` draws them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct House {
+    pub min: [i32; 3],
+    pub max: [i32; 3],
+}
+
+impl House {
+    /// Wall height in blocks; the roof starts on top.
+    pub const WALL: i32 = 3;
+
+    /// Whether `p` is in the house's box, walls to ridge.
+    pub fn contains(&self, p: [i32; 3]) -> bool {
+        let top = self.min[1] + House::WALL + (self.max[2] - self.min[2] + 1) / 2;
+        (self.min[0]..self.max[0]).contains(&p[0])
+            && (self.min[1]..top).contains(&p[1])
+            && (self.min[2]..self.max[2]).contains(&p[2])
+    }
+
+    /// Whether `p` is one of the roof's cells: course `k` above the walls
+    /// covers rows `k ..= depth - 1 - k`.
+    pub fn in_roof(&self, p: [i32; 3]) -> bool {
+        let k = p[1] - self.min[1] - House::WALL;
+        k >= 0
+            && (self.min[0]..self.max[0]).contains(&p[0])
+            && p[2] >= self.min[2] + k
+            && p[2] < self.max[2] - k
+    }
+
+    /// The roof cells of slice `i` (x = `min[0] + i`), eave course first.
+    pub fn roof_cells(&self, i: i32) -> Vec<[i32; 3]> {
+        let x = self.min[0] + i;
+        let mut v = Vec::new();
+        let mut k = 0;
+        while self.min[2] + k < self.max[2] - k {
+            for z in self.min[2] + k..self.max[2] - k {
+                v.push([x, self.min[1] + House::WALL + k, z]);
+            }
+            k += 1;
+        }
+        v
+    }
+
+    /// The door's column (x) on the north wall.
+    pub fn door_x(&self) -> i32 {
+        (self.min[0] + self.max[0]) / 2
+    }
+}
+
+/// The Village's houses, round the plaza and clear of the paths, the
+/// caches' pads, the workshop's fire and the trees.
+pub const HOUSES: [House; 4] = [
+    House {
+        min: [104, 35, 212],
+        max: [110, 35, 217],
+    },
+    House {
+        min: [140, 35, 206],
+        max: [146, 35, 211],
+    },
+    House {
+        min: [150, 35, 210],
+        max: [156, 35, 215],
+    },
+    House {
+        min: [112, 35, 216],
+        max: [118, 35, 221],
+    },
+];
+
+/// Builds the houses: levels their plots, then walls, posts, door,
+/// windows and roof.
+fn houses(w: &mut World) {
+    let c = Cell::new;
+    for h in HOUSES {
+        let [x0, y0, z0] = h.min;
+        let (x1, z1) = (h.max[0], h.max[2]);
+        // The plot, a block wider all round: ground to y0 - 1, air above.
+        for z in z0 - 1..=z1 {
+            for x in x0 - 1..=x1 {
+                for y in y0 - 4..y0 {
+                    if w.get([x, y, z]).mat == mat::AIR {
+                        w.set([x, y, z], c(mat::DIRT));
+                    }
+                }
+                for y in y0..y0 + 8 {
+                    w.set([x, y, z], Cell::AIR);
+                }
+            }
+        }
+        let door = h.door_x();
+        for z in z0..z1 {
+            for x in x0..x1 {
+                let ex = x == x0 || x == x1 - 1;
+                let ez = z == z0 || z == z1 - 1;
+                w.set([x, y0 - 1, z], c(mat::PLANKS));
+                for y in y0..y0 + House::WALL {
+                    let cell = if ex && ez {
+                        c(mat::WOOD)
+                    } else if z == z0 && x == door && y < y0 + 2 {
+                        Cell::AIR
+                    } else if ez && y == y0 + 1 && (x == x0 + 1 || x == x1 - 2) && x != door {
+                        // A window each side of the door, and in the back.
+                        Cell::AIR
+                    } else if ex || ez {
+                        c(mat::BRICK)
+                    } else {
+                        Cell::AIR
+                    };
+                    w.set([x, y, z], cell);
+                }
+            }
+        }
+        for i in 0..x1 - x0 {
+            for q in h.roof_cells(i) {
+                w.set(q, c(mat::PLANKS));
+            }
+        }
+    }
+}
+
 /// Which biome a block is in (the `biome` state key and `?biome=` spawns).
 pub fn biome_at(p: [i32; 3]) -> Biome {
     let [x, y, z] = p;
@@ -1055,6 +1181,7 @@ pub fn generate(seed: u64) -> World {
     plant_trees(&mut w, seed, &cols);
     carve_cave(&mut w, seed);
     stamps(&mut w);
+    houses(&mut w);
     // 4. Protection.
     protect(&mut w);
     w

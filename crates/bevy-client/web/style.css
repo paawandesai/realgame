@@ -137,7 +137,12 @@ canvas.hover-fire { cursor: pointer; }
 #settings input[type="checkbox"] { width: 28px; height: 28px; margin: 0; accent-color: var(--on); }
 #settings select { font: inherit; font-size: calc(18px * var(--ui)); min-height: 36px; padding: 2px 8px; border-radius: 8px; }
 #settings .set-val { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
-#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: #8cc8fa; }
+#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: linear-gradient(#6fa8dc, #dcebf5 70%, #6e9f4b 70%); z-index: 50; }
+#loading .load-card { background: rgba(30, 42, 68, 0.85); color: #fff; border-radius: 18px; padding: 22px 28px; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; text-align: center; }
+#loading .load-title { font-size: 34px; font-weight: 700; letter-spacing: 0.04em; color: #f2c94c; margin-bottom: 14px; }
+#loading .load-bar { height: 14px; border-radius: 7px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
+#loading #load-fill { height: 100%; width: 0%; border-radius: 7px; background: #40ffd9; transition: width 0.2s ease-out; }
+#loading #load-step { margin-top: 10px; font-size: 16px; opacity: 0.9; }
 @media (prefers-reduced-motion: reduce) {
   #warning { animation: none; }
   #crosshair.pulse, .slot.nudge, #firefinder { animation: none; }

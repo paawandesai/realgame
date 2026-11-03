@@ -33,6 +33,8 @@ mod gates;
 mod late;
 mod level2;
 mod level3;
+mod models;
+mod mood;
 mod motion;
 mod player;
 mod powers;
@@ -53,7 +55,6 @@ use bevy::anti_alias::fxaa::Fxaa;
 use bevy::asset::AssetMetaCheck;
 #[cfg(feature = "bloom")]
 use bevy::camera::Hdr;
-#[cfg(not(feature = "bloom"))]
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::light::{
@@ -415,6 +416,10 @@ impl Settings {
 const ASSIST: f32 = 4.0 * std::f32::consts::PI / 180.0;
 /// Seconds between casts.
 const COOLDOWN: f32 = 0.3;
+/// The camera's tonemapper: a display transform done in the shader (no LUT
+/// texture), close to Bevy's default in how it rolls off bright colours.
+pub const TONEMAPPING: Tonemapping = Tonemapping::SomewhatBoringDisplayTransform;
+
 /// A spell's stream stays this long (game seconds) after its impact.
 const STREAM_AFTER: f32 = 0.2;
 /// ...and is drawn in at least this many frames, so it is seen at 4 fps too.
@@ -619,8 +624,16 @@ impl Game {
 struct FpsCam;
 #[derive(Component)]
 struct Viewmodel;
+/// The gauntlet's gem (it swells while a cast charges).
 #[derive(Component)]
-struct SpellGlow;
+struct GauntletGem;
+/// The gauntlet's flash light (on for a moment when a cast goes).
+#[derive(Component)]
+struct GauntletFlash;
+/// The gauntlet's rune material: its glow follows the spell, the charge
+/// and the cast.
+#[derive(Resource)]
+struct GauntletRune(Handle<StandardMaterial>);
 #[derive(Component)]
 struct FireLight;
 
@@ -865,6 +878,7 @@ fn main() {
             story::plugin,
             voxel_cast::plugin,
             late::plugin,
+            mood::plugin,
             powers::plugin,
             firebreak::plugin,
         ));
@@ -981,7 +995,7 @@ fn setup(
         progress::SPELL_IDS,
         "content/spells.json ids must match progress::SPELL_IDS"
     );
-    let (kit, colliders, chem) =
+    let (_kit, colliders, chem) =
         world::build(&mut commands, &mut meshes, &mut materials, &mut images);
     commands.insert_resource(colliders);
     commands.insert_resource(chem);
@@ -1102,8 +1116,10 @@ fn setup(
     if !settings.low {
         camera.insert((Hdr, Bloom::NATURAL));
     }
-    #[cfg(not(feature = "bloom"))]
-    camera.insert(Tonemapping::Reinhard);
+    // A tonemapper computed in the shader, in every build: the LUT-based
+    // default (TonyMcMapface) needs a pre-made KTX2 texture embedded in the
+    // wasm, and every asset must be generated (docs/art-bible.md).
+    camera.insert(TONEMAPPING);
     camera.insert(if settings.msaa {
         Msaa::Sample4
     } else {
@@ -1113,25 +1129,24 @@ fn setup(
         camera.insert(Fxaa::default());
     }
 
-    // The gauntlet viewmodel: bronze forearm, cuff, hand and fingers, with a
-    // glowing gem and rune bands in the selected spell's colour.
-    let bronze = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.78, 0.52, 0.28),
-        metallic: 0.6,
-        perceptual_roughness: 0.35,
+    // The gauntlet viewmodel (`models::gauntlet`): a rounded bronze and gold
+    // forearm, cuff, hand and fingers, with a rune inlay and gem that glow
+    // in the selected spell's colour, brighten while a cast is held and
+    // flash when it goes (`viewmodel`).
+    let body = materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        metallic: 0.2,
+        perceptual_roughness: 0.45,
         ..default()
     });
-    let gold = materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.8, 0.35),
-        metallic: 0.8,
-        perceptual_roughness: 0.3,
+    let rune = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.25, 1.0, 0.85),
+        emissive: LinearRgba::rgb(0.2, 2.0, 1.6),
         ..default()
     });
-    let cube = kit.cube.clone();
-    let ball = kit.ball.clone();
-    let vm = |t: Transform, m: &Handle<StandardMaterial>, mesh: &Handle<Mesh>| {
+    let vm = |t: Transform, m: &Handle<StandardMaterial>, mesh: Handle<Mesh>| {
         (
-            Mesh3d(mesh.clone()),
+            Mesh3d(mesh),
             MeshMaterial3d(m.clone()),
             t,
             NotShadowCaster,
@@ -1140,6 +1155,9 @@ fn setup(
     };
     let cam_id = camera.id();
     let (vm_rest, vm_tilt) = feel::vm_rest(settings.fov_y());
+    let gauntlet = meshes.add(models::gauntlet());
+    let inlay = meshes.add(models::gauntlet_runes());
+    let gem = meshes.add(models::gem());
     let root = commands
         .spawn((
             Transform::from_translation(Vec3::from(vm_rest))
@@ -1149,52 +1167,31 @@ fn setup(
             Viewmodel,
         ))
         .with_children(|c| {
-            let s = |x, y, z| Vec3::new(x, y, z);
-            c.spawn(vm(
-                Transform::from_xyz(0.0, 0.0, 0.14).with_scale(s(0.1, 0.1, 0.32)),
-                &bronze,
-                &cube,
-            ));
-            c.spawn(vm(
-                Transform::from_xyz(0.0, 0.0, -0.03).with_scale(s(0.13, 0.13, 0.06)),
-                &gold,
-                &cube,
-            ));
-            c.spawn(vm(
-                Transform::from_xyz(0.0, 0.01, -0.12).with_scale(s(0.11, 0.06, 0.12)),
-                &bronze,
-                &cube,
-            ));
-            for k in 0..4 {
-                let x = -0.039 + k as f32 * 0.026;
-                c.spawn(vm(
-                    Transform::from_xyz(x, 0.005, -0.21)
-                        .with_rotation(Quat::from_rotation_x(-0.35))
-                        .with_scale(s(0.02, 0.025, 0.08)),
-                    &gold,
-                    &cube,
-                ));
-            }
+            c.spawn(vm(Transform::IDENTITY, &body, gauntlet));
+            c.spawn(vm(Transform::IDENTITY, &rune, inlay));
             c.spawn((
                 vm(
-                    Transform::from_xyz(0.0, 0.05, -0.11).with_scale(Vec3::splat(0.05)),
-                    &glow[0],
-                    &ball,
+                    Transform::from_xyz(0.0, 0.05, -0.11).with_scale(Vec3::splat(0.024)),
+                    &rune,
+                    gem,
                 ),
-                SpellGlow,
+                GauntletGem,
             ));
-            for z in [0.06, 0.2] {
-                c.spawn((
-                    vm(
-                        Transform::from_xyz(0.0, 0.052, z).with_scale(s(0.104, 0.01, 0.02)),
-                        &glow[0],
-                        &cube,
-                    ),
-                    SpellGlow,
-                ));
-            }
+            // The cast's flash lights the hand for a moment.
+            c.spawn((
+                PointLight {
+                    color: Color::WHITE,
+                    intensity: 0.0,
+                    range: 1.2,
+                    shadow_maps_enabled: false,
+                    ..default()
+                },
+                Transform::from_xyz(0.0, 0.09, -0.16),
+                GauntletFlash,
+            ));
         })
         .id();
+    commands.insert_resource(GauntletRune(rune));
     commands.entity(cam_id).add_child(root);
     // Water is ready on boot (a reset keeps whatever spell is selected).
     game.spell = 1;
@@ -2826,21 +2823,47 @@ pub(crate) fn cam_kick(recoil: f32) -> f32 {
 /// The gauntlet: spell colour, recoil kick and a little walk bob ("Hand
 /// sway", off in the settings: then the bob is exactly zero). The recoil
 /// kick stays: it is the response to the player's own click.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn viewmodel(
     mut game: ResMut<Game>,
     settings: Res<Settings>,
     player: Res<Player>,
-    mats: Res<SpellMats>,
-    mut root: Query<&mut Transform, With<Viewmodel>>,
-    mut glows: Query<&mut MeshMaterial3d<StandardMaterial>, With<SpellGlow>>,
+    time: Res<Time>,
+    rune: Option<Res<GauntletRune>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut root: Query<&mut Transform, (With<Viewmodel>, Without<GauntletGem>)>,
+    mut gem: Query<&mut Transform, (With<GauntletGem>, Without<Viewmodel>)>,
+    mut flash: Query<&mut PointLight, With<GauntletFlash>>,
 ) {
-    for mut m in &mut glows {
-        if m.0 != mats.glow[game.spell] {
-            m.0 = mats.glow[game.spell].clone();
+    let spell = Spell::ALL[game.spell.min(Spell::ALL.len() - 1)];
+    let col = spell_color(spell);
+    let l = col.to_linear();
+    // Charge: the button held (up to `feel::GAUNTLET_CHARGE_S`); flash: the
+    // recoil of the latest cast.
+    let charge = feel::gauntlet_charge(game.held);
+    let r = game.recoil * game.recoil;
+    let glow = feel::gauntlet_glow(charge, r);
+    // Touch the material only when its glow changes (a changed material is
+    // prepared again).
+    let e = LinearRgba::rgb(l.red * glow, l.green * glow, l.blue * glow);
+    if let Some(h) = rune {
+        if materials.get(&h.0).is_some_and(|m| m.emissive != e) {
+            if let Some(mut m) = materials.get_mut(&h.0) {
+                m.emissive = e;
+                m.base_color = col;
+            }
         }
     }
-    if let Ok(mut t) = root.single_mut() {
-        let r = game.recoil * game.recoil;
+    let t = time.elapsed_secs();
+    for mut g in &mut gem {
+        let pulse = 1.0 + charge * (0.3 + 0.06 * (t * 18.0).sin()) + r * 0.25;
+        g.scale = Vec3::splat(0.024 * pulse);
+    }
+    for mut f in &mut flash {
+        f.color = col;
+        f.intensity = 1_800.0 * r + 500.0 * charge;
+    }
+    if let Ok(mut tr) = root.single_mut() {
         let speed = player.vel.xz().length().min(9.0) / 9.0;
         let bob = player.stride * 1.6;
         let (bx, by) = if settings.sway {
@@ -2851,15 +2874,17 @@ fn viewmodel(
         } else {
             (0.0, 0.0)
         };
+        // Charging draws the hand back a little and it trembles.
+        let (cz, cx) = (charge * 0.02, charge * 0.0015 * (t * 31.0).sin());
         // The rest pose orbits up about the eye with the live vertical fov so
         // the spell gem stays on screen, unhidden, in short, wide windows
         // (I-044); exactly (0.21, -0.18, -0.42) and no tilt at the default view.
         let (rest, tilt) = feel::vm_rest(settings.fov_y());
-        t.translation = Vec3::from(rest) + Vec3::new(bx, by + r * 0.015, r * 0.05);
-        t.rotation = Quat::from_rotation_x(tilt)
-            * Quat::from_rotation_x(r * 0.35)
+        tr.translation = Vec3::from(rest) + Vec3::new(bx + cx, by + r * 0.015, r * 0.05 + cz);
+        tr.rotation = Quat::from_rotation_x(tilt)
+            * Quat::from_rotation_x(r * 0.35 - charge * 0.08)
             * Quat::from_rotation_y(0.1);
-        game.vm = t.translation;
+        game.vm = tr.translation;
     }
 }
 

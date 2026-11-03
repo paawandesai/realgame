@@ -53,6 +53,10 @@ pub struct Keys {
 #[derive(Resource)]
 pub struct VoxWorld(pub World);
 
+/// The smooth look's three materials (opaque, clear, water), for `mood`.
+#[derive(Resource)]
+pub struct SmoothHandles(pub Vec<Handle<crate::voxel_tex::SmoothMat>>);
+
 /// How far the Pick and placing reach, metres from the eye.
 pub const REACH: f32 = 5.0;
 /// How far a spell's aim looks for a block.
@@ -75,8 +79,12 @@ pub const PROTECTED_LINE: &str = "This old runestone will not budge. Try chemist
 /// queue, and the materials.
 #[derive(Resource)]
 struct Chunks {
-    /// Each chunk's pass entities: opaque, clear and (smooth) water.
-    ents: Vec<[Option<Entity>; 3]>,
+    /// Each chunk's pass entities: opaque, clear, (smooth) water, and the
+    /// props near and far (`PROP_LOD_M`).
+    ents: Vec<[Option<Entity>; 5]>,
+    /// Each chunk's props level of detail as last set (`Some(true)` far),
+    /// `None` when a props entity is new and needs setting.
+    far: Vec<Option<bool>>,
     /// Waiting to be meshed (index order; sorted by distance when picked).
     queue: Vec<usize>,
     queued: Vec<bool>,
@@ -154,7 +162,7 @@ pub fn plugin(app: &mut App) {
     .add_systems(PostStartup, hide_courtyard)
     .add_systems(
         Update,
-        (tools, mesh_chunks)
+        (tools, mesh_chunks, prop_lod)
             .chain()
             .after(crate::control)
             .before(crate::aim_and_cast),
@@ -187,6 +195,13 @@ fn setup(
     let smooth = crate::param("blocks")
         .is_none()
         .then(|| crate::voxel_tex::smooth_materials(&mut smooth_mats, settings.low));
+    if let Some(s) = smooth.as_ref() {
+        commands.insert_resource(SmoothHandles(vec![
+            s.opaque.clone(),
+            s.clear.clone(),
+            s.water.clone(),
+        ]));
+    }
     if smooth.is_some() {
         let opaque = smooth.as_ref().map(|m| m.opaque.clone());
         if let Some(rock) = opaque.clone() {
@@ -201,7 +216,8 @@ fn setup(
         spawn_props(&mut commands, &mut meshes, &mut std_mats, opaque);
     }
     let mut chunks = Chunks {
-        ents: vec![[None, None, None]; n],
+        ents: vec![[None; 5]; n],
+        far: vec![None; n],
         queue: Vec::new(),
         queued: vec![false; n],
         opaque: m.opaque,
@@ -1231,13 +1247,15 @@ fn mesh_chunks(
         // a tree's crown or a crystal (`props`) a few metres.
         let lo = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) - Vec3::splat(4.0);
         let aabb = Aabb::from_min_max(lo, lo + Vec3::splat(CHUNK as f32 + 8.0));
-        let passes: [Option<(Mesh, PassMat)>; 3] = match &chunks.smooth {
+        let passes: [Option<(Mesh, PassMat)>; 5] = match &chunks.smooth {
             Some(sm) => {
                 let m = vox::mesh_chunk_smooth(&world.0, c);
                 [
                     (&m.opaque, PassMat::Smooth(sm.opaque.clone()), false),
                     (&m.clear, PassMat::Smooth(sm.clear.clone()), true),
                     (&m.water, PassMat::Smooth(sm.water.clone()), false),
+                    (&m.props, PassMat::Smooth(sm.opaque.clone()), false),
+                    (&m.props_far, PassMat::Smooth(sm.opaque.clone()), false),
                 ]
                 .map(|(d, mat, clear)| (!d.is_empty()).then(|| (to_smooth_mesh(d, clear), mat)))
             }
@@ -1248,6 +1266,8 @@ fn mesh_chunks(
                         .then(|| (to_mesh(&m.opaque), PassMat::Atlas(chunks.opaque.clone()))),
                     (!m.clear.is_empty())
                         .then(|| (to_mesh(&m.clear), PassMat::Atlas(chunks.clear.clone()))),
+                    None,
+                    None,
                     None,
                 ]
             }
@@ -1278,8 +1298,13 @@ fn mesh_chunks(
                         PassMat::Atlas(h) => e.insert(MeshMaterial3d(h)),
                         PassMat::Smooth(h) => e.insert(MeshMaterial3d(h)),
                     };
-                    if pass > 0 || settings.low {
+                    if (pass > 0 && pass != PROPS_NEAR) || settings.low {
                         e.insert(NotShadowCaster);
+                    }
+                    if pass == PROPS_NEAR || pass == PROPS_FAR {
+                        // `prop_lod` shows one of the two.
+                        e.insert(Visibility::Hidden);
+                        chunks.far[c] = None;
                     }
                     chunks.ents[c][pass] = Some(e.id());
                 }
@@ -1304,6 +1329,50 @@ fn mesh_chunks(
     keys.mesh_q = chunks.queue.len() as u32;
     keys.mesh_ms = t0.elapsed().as_secs_f32() * 1000.0;
 }
+
+/// Props swap to their simpler meshes with distance from the chunk's
+/// centre, with 10 m of hysteresis so a chunk at the edge does not flicker.
+/// (Done by hand rather than with `VisibilityRange`, whose dithering needs a
+/// storage buffer in the vertex stage that some WebGPU adapters lack.)
+fn prop_lod(player: Res<Player>, mut chunks: ResMut<Chunks>, mut vis: Query<&mut Visibility>) {
+    let me = player.pos;
+    for c in 0..chunks.ents.len() {
+        let [.., near, far] = chunks.ents[c];
+        if near.is_none() && far.is_none() {
+            continue;
+        }
+        let o = World::chunk_origin(c);
+        let centre =
+            Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) + Vec3::splat(CHUNK as f32 / 2.0);
+        let d = centre.distance(me);
+        let was = chunks.far[c];
+        let want = match was {
+            Some(true) => d > PROP_LOD_M - 5.0,
+            _ => d > PROP_LOD_M + 5.0,
+        };
+        if was == Some(want) {
+            continue;
+        }
+        chunks.far[c] = Some(want);
+        for (e, show) in [(near, !want), (far, want)] {
+            if let Some(mut v) = e.and_then(|e| vis.get_mut(e).ok()) {
+                *v = if show {
+                    Visibility::Inherited
+                } else {
+                    Visibility::Hidden
+                };
+            }
+        }
+    }
+}
+
+/// Chunk passes holding the props near and far.
+const PROPS_NEAR: usize = 3;
+const PROPS_FAR: usize = 4;
+/// Where props swap to their far meshes: metres from the chunk's centre to
+/// the camera (a chunk reaches 16 m either side, so the swap happens
+/// between about 45 m and 75 m from the props themselves).
+const PROP_LOD_M: f32 = 60.0;
 
 /// A chunk pass's material: the block atlas (`?blocks`) or the smooth look.
 enum PassMat {

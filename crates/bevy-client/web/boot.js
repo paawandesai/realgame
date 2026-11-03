@@ -1,5 +1,6 @@
 // Loaded as an external module so the page works under script-src 'self'.
 import init from './bevy-client.js';
+import { loadWasm, watchWorld } from './loading.js';
 import { startHud } from './hud.js';
 import { startTitle } from './title.js';
 
@@ -68,7 +69,12 @@ try {
 } catch {
   // Analytics must never break the game.
 }
-init().catch((e) => {
+// The loading screen shows real progress: the wasm download's bytes, then
+// compiling, then the world being generated and its spawn chunks meshed
+// (loading.js). If the streamed fetch fails, init() fetches as before.
+loadWasm('./bevy-client_bg.wasm')
+  .then((bytes) => { watchWorld(); return init(bytes ? { module_or_path: bytes } : undefined); })
+  .catch((e) => {
   // Bevy/winit throws a control-flow exception on purpose to hand the
   // event loop to the browser; anything else is a real error.
   if (!String(e).includes('Using exceptions for control flow')) console.error(e);

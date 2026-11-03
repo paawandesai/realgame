@@ -680,7 +680,9 @@ export function startHud() {
     if (raw && raw !== lastRaw) {
       lastRaw = raw;
       state = JSON.parse(raw);
-      $('loading').classList.add('hidden');
+      // The block world's loading screen stays until its spawn is meshed
+      // (loading.js hides it).
+      if (state.mode !== 'voxel') $('loading').classList.add('hidden');
       $('hud').classList.remove('hidden');
       const now = performance.now();
       expireMark(now, now - lastFrameAt);
