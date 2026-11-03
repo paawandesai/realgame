@@ -51,7 +51,13 @@
     <button id="pointmode" class="ghost">Point and click mode</button>
   </div>
 </div>
-<div id="loading">Loading…</div>
+<div id="loading" role="progressbar" aria-label="Loading the valley" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="load-card">
+    <div class="load-title">Formula</div>
+    <div class="load-bar"><div id="load-fill"></div></div>
+    <div id="load-step">Loading…</div>
+  </div>
+</div>
 <div id="age" role="dialog" aria-modal="true" aria-labelledby="age-title" hidden>
   <div class="age-card">
     <h1 id="age-title">Pick your age</h1>

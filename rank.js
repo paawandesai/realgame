@@ -123,6 +123,14 @@ export function startRank() {
         up.textContent = '';
         up.append(mk('div', 'rank-up-title', 'Rank up!'), mk('div', 'rank-up-name', st.rankName),
           mk('div', 'rank-up-small', st.next ? `Next: ${st.next} at ${st.nextAt} points` : 'The top rank'));
+        // P7: a burst of sparks flying out from the card.
+        for (let k = 0; k < 14; k++) {
+          const sp = mk('span', 'rank-spark');
+          sp.setAttribute('aria-hidden', 'true');
+          sp.style.setProperty('--a', `${(k / 14) * 360 + (k % 2) * 9}deg`);
+          sp.style.setProperty('--d', `${110 + (k % 3) * 45}px`);
+          up.append(sp);
+        }
         up.hidden = false;
         up.classList.remove('rank-pop');
         void up.offsetWidth;

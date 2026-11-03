@@ -44,7 +44,7 @@ const placeMaterial = (m) => (m ? PLACE_ALIAS[m] || m : '');
 
 /**
  * @typedef {{ stop(): void }} Handle
- * @typedef {{ volume?: number, pitch?: number, material?: string, duration?: number }} Opts
+ * @typedef {{ volume?: number, pitch?: number, material?: string, duration?: number, pan?: number }} Opts
  * @typedef {{ ctx: AudioContext, out: AudioNode, t: number, v: number, p: number, noise: AudioBuffer, o: Opts }} Ctx
  */
 
@@ -116,8 +116,18 @@ export function createSfx(deps = {}) {
     if (!fn || !ctx || !master || !noise) return null;
     const v = clamp01(o.volume ?? 1);
     const p = Number.isFinite(o.pitch) && /** @type {number} */ (o.pitch) > 0 ? /** @type {number} */ (o.pitch) : 1;
+    // Positioned sounds (P7): `pan` -1 (left) .. 1 (right) through a
+    // stereo panner made for this one sound.
+    /** @type {AudioNode} */
+    let out = master;
+    if (Number.isFinite(o.pan) && o.pan !== 0 && ctx.createStereoPanner) {
+      const sp = ctx.createStereoPanner();
+      sp.pan.value = Math.max(-1, Math.min(1, /** @type {number} */ (o.pan)));
+      sp.connect(master);
+      out = sp;
+    }
     try {
-      return fn({ ctx, out: master, t: ctx.currentTime + 0.005, v, p, noise, o }, crackle) || NOOP;
+      return fn({ ctx, out, t: ctx.currentTime + 0.005, v, p, noise, o }, crackle) || NOOP;
     } catch (_) {
       return null;
     }
@@ -498,6 +508,18 @@ const SOUNDS = {
   step_crystal: (c) => step(c, 'crystal'),
   step_mud: (c) => step(c, 'mud'),
   step_leaves: (c) => step(c, 'leaves'),
+  // Landing from a jump or a fall: a soft low thump with the ground's own
+  // step on top (P7). `volume` scales with the fall speed.
+  land: (c) => {
+    osc(c, 'sine', 120, 55, 0.18, env(c, 0.004, 0.18, 0.55));
+    noisy(c, 'lowpass', 500, 200, 0.8, 0.12, env(c, 0.003, 0.12, 0.3));
+    step(c, stepMaterial(c.o.material) || 'grass');
+  },
+  // Every UI button (P13): a short, soft wooden tick and a high bell.
+  ui_confirm: (c) => {
+    osc(c, 'sine', 880, 660, 0.06, env(c, 0.002, 0.06, 0.18));
+    bell(c, 1320, c.t + 0.02, 0.12, 0.06);
+  },
   pickup: (c) => {
     bell(c, 660, c.t, 0.18, 0.3);
     bell(c, 990, c.t + 0.08, 0.25, 0.3);
