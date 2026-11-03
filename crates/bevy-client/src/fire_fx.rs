@@ -29,6 +29,14 @@ struct Flame(usize);
 #[derive(Component)]
 struct Smoke(usize);
 
+/// A soft heat plume over a lit Marsh vent (methane burns clean: no
+/// grey smoke there).
+#[derive(Component)]
+struct Plume(usize);
+
+/// Plume puffs at most.
+const PLUMES: usize = 12;
+
 #[derive(Component)]
 struct Steam {
     age: f32,
@@ -43,6 +51,7 @@ struct FireKit {
     core: Handle<StandardMaterial>,
     smoke: Handle<StandardMaterial>,
     steam: Handle<StandardMaterial>,
+    plume: Handle<StandardMaterial>,
 }
 
 /// The cells drawn burning this frame (nearest first), for tests and logs.
@@ -83,7 +92,7 @@ pub fn sprite_alpha(flame: bool, u: f32, v: f32) -> f32 {
     }
 }
 
-fn sprite(flame: bool) -> Image {
+pub(crate) fn sprite(flame: bool) -> Image {
     use bevy::asset::RenderAssetUsages;
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
     const N: u32 = 64;
@@ -153,12 +162,18 @@ fn setup(
             Color::srgba(0.95, 0.97, 1.0, 0.55),
             LinearRgba::rgb(0.3, 0.3, 0.32),
         ),
+        plume: glow(
+            &mut mats,
+            Color::srgba(0.95, 0.85, 0.6, 0.16),
+            LinearRgba::rgb(0.12, 0.08, 0.02),
+        ),
     };
     for (h, tex) in [
         (&kit.flame, &flame_tex),
         (&kit.core, &flame_tex),
         (&kit.smoke, &puff_tex),
         (&kit.steam, &puff_tex),
+        (&kit.plume, &puff_tex),
     ] {
         if let Some(mut m) = mats.get_mut(h) {
             m.base_color_texture = Some(tex.clone());
@@ -187,6 +202,17 @@ fn setup(
             Smoke(i),
         ));
     }
+    for i in 0..PLUMES {
+        commands.spawn((
+            Mesh3d(kit.quad.clone()),
+            MeshMaterial3d(kit.plume.clone()),
+            Transform::default(),
+            Visibility::Hidden,
+            NotShadowCaster,
+            NotShadowReceiver,
+            Plume(i),
+        ));
+    }
     commands.insert_resource(kit);
 }
 
@@ -211,23 +237,28 @@ pub fn nearest(mut cells: Vec<[i32; 3]>, eye: Vec3, n: usize) -> Vec<[i32; 3]> {
 
 /// Places the flame and smoke quads on the nearest burning cells, facing
 /// the player, flickering and rising.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn draw(
     time: Res<Time>,
     player: Res<Player>,
     matter: Option<Res<Matter>>,
     vox: Option<Res<VoxWorld>>,
     mut shown: ResMut<Shown>,
-    mut flames: Query<(&Flame, &mut Transform, &mut Visibility), Without<Smoke>>,
-    mut smoke: Query<(&Smoke, &mut Transform, &mut Visibility), Without<Flame>>,
+    mut flames: Query<(&Flame, &mut Transform, &mut Visibility), (Without<Smoke>, Without<Plume>)>,
+    mut smoke: Query<(&Smoke, &mut Transform, &mut Visibility), (Without<Flame>, Without<Plume>)>,
+    mut plumes: Query<(&Plume, &mut Transform, &mut Visibility), (Without<Flame>, Without<Smoke>)>,
 ) {
     let (Some(matter), Some(vox)) = (matter, vox) else {
         return;
     };
     let eye = player.eye();
-    let mut cells: Vec<[i32; 3]> = matter.world.burning_cells().collect();
-    cells.extend(matter.world.lit_vents(&vox.0));
+    let burning: Vec<[i32; 3]> = matter.world.burning_cells().collect();
+    let vents: Vec<[i32; 3]> = matter.world.lit_vents(&vox.0).collect();
+    let mut cells = burning.clone();
+    cells.extend(vents.iter().copied());
     let cells = nearest(cells, eye, FLAMES);
+    let smoky = nearest(burning, eye, 8);
+    let vents = nearest(vents, eye, PLUMES);
     shown.flames = cells.len();
     let t = time.elapsed_secs();
     let face = Quat::from_rotation_y(player.yaw);
@@ -241,8 +272,16 @@ fn draw(
         let j = jitter(c, 1);
         let flick = 0.8 + 0.25 * (t * (7.0 + 3.0 * j) + j * std::f32::consts::TAU).sin();
         let core = f.0 % 3 == 0;
-        let (w, h) = if core { (0.8, 1.3) } else { (1.3, 2.2) };
-        let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 1.0, c[2] as f32 + 0.5);
+        // A vent's flame is a smaller tongue out of its mound's throat.
+        let vent = vents.contains(&c);
+        let (w, h) = match (core, vent) {
+            (true, false) => (0.8, 1.3),
+            (false, false) => (1.3, 2.2),
+            (true, true) => (0.45, 0.8),
+            (false, true) => (0.7, 1.25),
+        };
+        let lift = if vent { 1.38 } else { 1.0 };
+        let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + lift, c[2] as f32 + 0.5);
         let sway = 0.08 * (t * 3.0 + j * 9.0).sin();
         tf.translation = base + Vec3::new(sway, h * flick * 0.5 - 0.05, sway * 0.5);
         tf.rotation = face;
@@ -252,13 +291,13 @@ fn draw(
         }
     }
     for (s, mut tf, mut vis) in &mut smoke {
-        if cells.is_empty() {
+        if smoky.is_empty() {
             if *vis != Visibility::Hidden {
                 *vis = Visibility::Hidden;
             }
             continue;
         }
-        let c = cells[s.0 % cells.len().min(8)];
+        let c = smoky[s.0 % smoky.len()];
         let j = jitter(c, 7 + s.0 as u32);
         let phase = (t * 0.35 + j + s.0 as f32 * 0.41).fract();
         let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 1.8, c[2] as f32 + 0.5);
@@ -271,6 +310,25 @@ fn draw(
         tf.rotation = face;
         let size = 1.0 + 3.2 * phase;
         tf.scale = Vec3::new(size, size, 1.0);
+        if *vis != Visibility::Visible {
+            *vis = Visibility::Visible;
+        }
+    }
+    for (pl, mut tf, mut vis) in &mut plumes {
+        if vents.is_empty() {
+            if *vis != Visibility::Hidden {
+                *vis = Visibility::Hidden;
+            }
+            continue;
+        }
+        let c = vents[pl.0 % vents.len()];
+        let j = jitter(c, 31 + pl.0 as u32);
+        let phase = (t * 0.3 + j + pl.0 as f32 * 0.37).fract();
+        let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 2.2, c[2] as f32 + 0.5);
+        tf.translation = base + Vec3::new(0.3 * (j - 0.5) * phase, phase * 4.0, 0.25 * phase);
+        tf.rotation = face;
+        let size = 0.6 + 1.6 * phase;
+        tf.scale = Vec3::new(size, size * 1.2, 1.0);
         if *vis != Visibility::Visible {
             *vis = Visibility::Visible;
         }

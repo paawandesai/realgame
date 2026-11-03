@@ -456,3 +456,133 @@ pub fn gem() -> Mesh {
     );
     b.mesh()
 }
+
+/// The Kiln doorway (art bible: "an arched, bevelled timber door in a clay
+/// frame"): the opening is cells x 127..130, y 41..44 in the dome's south
+/// side (`gen::stamps`); its arch springs at y 43 with a 1.5 m radius.
+pub const KILN_ARCH: (f32, f32, f32) = (128.5, 43.0, 1.5);
+/// The door's front plane (z) and its hinge on the west side.
+pub const KILN_DOOR_Z: f32 = 173.75;
+pub const KILN_HINGE: [f32; 3] = [127.0, 41.0, 173.75];
+
+/// The clay frame round the Kiln doorway, in world space: two jambs on
+/// plinths, nine voussoirs round the arch and a keystone.
+pub fn kiln_frame() -> Mesh {
+    let mut b = Builder::default();
+    let clay = hex(0xB9784F);
+    let light = hex(0xD08A5E);
+    let stone = hex(0x8C8079);
+    let (cx, sy, r) = KILN_ARCH;
+    let z = KILN_DOOR_Z + 0.1;
+    for side in [-1.0f32, 1.0] {
+        let x = cx + side * (r + 0.3);
+        b.rounded_box(Vec3::new(x, 42.0, z), Quat::IDENTITY, Vec3::new(0.32, 1.02, 0.62), 0.1, clay);
+        b.rounded_box(Vec3::new(x, 41.12, z + 0.04), Quat::IDENTITY, Vec3::new(0.4, 0.14, 0.68), 0.06, stone);
+    }
+    let n = 9;
+    let rm = r + 0.3;
+    for k in 0..n {
+        let a = (k as f32 + 0.5) / n as f32 * std::f32::consts::PI;
+        let at = Vec3::new(cx + rm * a.cos(), sy + rm * a.sin(), z);
+        let rot = Quat::from_rotation_z(a);
+        let key = k == n / 2;
+        let half = Vec3::new(
+            if key { 0.42 } else { 0.32 },
+            rm * std::f32::consts::PI / n as f32 * 0.5 * if key { 1.15 } else { 0.96 },
+            if key { 0.68 } else { 0.62 },
+        );
+        b.rounded_box(at, rot, half, 0.08, if k % 2 == 0 { clay } else { light });
+    }
+    b.mesh()
+}
+
+/// The thin teal rune line round the inside of the frame (drawn with the
+/// glowing rune material): one hair-thin bar per voussoir and up each jamb.
+pub fn kiln_frame_runes() -> Mesh {
+    let mut b = Builder::default();
+    let teal = hex(0x40FFD9);
+    let (cx, sy, r) = KILN_ARCH;
+    let z = KILN_DOOR_Z + 0.73;
+    let rl = r + 0.12;
+    let n = 18;
+    for k in 0..n {
+        let a = (k as f32 + 0.5) / n as f32 * std::f32::consts::PI;
+        let at = Vec3::new(cx + rl * a.cos(), sy + rl * a.sin(), z);
+        let half = Vec3::new(0.022, rl * std::f32::consts::PI / n as f32 * 0.5, 0.01);
+        b.rounded_box(at, Quat::from_rotation_z(a), half, 0.005, teal);
+    }
+    for side in [-1.0f32, 1.0] {
+        b.rounded_box(
+            Vec3::new(cx + side * rl, 42.05, z),
+            Quat::IDENTITY,
+            Vec3::new(0.022, 0.95, 0.01),
+            0.005,
+            teal,
+        );
+    }
+    b.mesh()
+}
+
+/// The plank door leaf, in the hinge's space (+x across the doorway, +z
+/// out of the Kiln): five bevelled planks cut to the arch, two iron straps
+/// with studs and a ring pull.
+pub fn kiln_door_leaf() -> Mesh {
+    let mut b = Builder::default();
+    let timber = hex(0x8A5A3B);
+    let timber2 = hex(0x7A4E32);
+    let iron = hex(0x34353A);
+    let (_, sy, r) = KILN_ARCH;
+    let w = 2.0 * r;
+    let n = 5;
+    let pw = w / n as f32;
+    for k in 0..n {
+        let xc = (k as f32 + 0.5) * pw;
+        let dx = (xc - r).abs() + pw * 0.25;
+        let top = sy - 41.0 + (r * r - dx.min(r) * dx.min(r)).sqrt() - 0.04;
+        let c = if k % 2 == 0 { timber } else { timber2 };
+        b.rounded_box(
+            Vec3::new(xc, top / 2.0, 0.0),
+            Quat::IDENTITY,
+            Vec3::new(pw * 0.5 - 0.012, top / 2.0, 0.07),
+            0.035,
+            c,
+        );
+    }
+    for y in [0.55f32, 1.75] {
+        b.rounded_box(Vec3::new(r, y, 0.08), Quat::IDENTITY, Vec3::new(r - 0.12, 0.07, 0.025), 0.02, iron);
+        for k in 0..6 {
+            let x = 0.3 + k as f32 * (w - 0.6) / 5.0;
+            b.sphere(Vec3::new(x, y, 0.11), Quat::IDENTITY, Vec3::splat(0.035), iron);
+        }
+    }
+    b.column(
+        Vec3::new(w - 0.45, 1.2, 0.08),
+        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+        0.11,
+        0.11,
+        0.04,
+        10,
+        0.015,
+        iron,
+    );
+    b.mesh()
+}
+
+/// The Kiln Spark's socket on the door: a thin teal ring and dot (rune
+/// material), in the hinge's space.
+pub fn kiln_door_runes() -> Mesh {
+    let mut b = Builder::default();
+    let teal = hex(0x40FFD9);
+    let (_, _, r) = KILN_ARCH;
+    let c = Vec3::new(r, 1.2, 0.08);
+    let n = 12;
+    let rr = 0.2;
+    for k in 0..n {
+        let a = k as f32 / n as f32 * std::f32::consts::TAU;
+        let at = c + Vec3::new(rr * a.cos(), rr * a.sin(), 0.0);
+        let half = Vec3::new(0.018, rr * std::f32::consts::PI / n as f32 * 0.55, 0.012);
+        b.rounded_box(at, Quat::from_rotation_z(a), half, 0.005, teal);
+    }
+    b.sphere(c + Vec3::Z * 0.01, Quat::IDENTITY, Vec3::new(0.05, 0.05, 0.02), teal);
+    b.mesh()
+}
