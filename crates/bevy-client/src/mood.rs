@@ -210,7 +210,7 @@ fn setup(mut commands: Commands, settings: Res<crate::Settings>, world: Option<R
             PointLight {
                 color: Color::srgb(0.25, 1.0, 0.85),
                 intensity: 0.0,
-                range: 13.0,
+                range: 16.0,
                 shadow_maps_enabled: false,
                 ..default()
             },

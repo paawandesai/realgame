@@ -1456,6 +1456,20 @@ mod tests {
     }
 
     #[test]
+    fn the_tower_trim_stands_on_the_brick_caches() {
+        // `voxel::built` trims the brick caches' towers; its list must name
+        // these sites' centres.
+        for (x, z, _) in realgame_voxel::built::CACHE_TOWERS {
+            assert!(
+                SITES
+                    .iter()
+                    .any(|s| s.at == [x, z] && s.id != "isle" && s.id != "ravine"),
+                "no brick cache at {x},{z}"
+            );
+        }
+    }
+
+    #[test]
     fn the_plaza_tower_needs_the_lift() {
         lift_onto("ledge", TOWER_H);
     }

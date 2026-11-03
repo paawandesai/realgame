@@ -1446,6 +1446,25 @@ fn well(out: &mut MeshData, world: &World) {
     let timber = paint(mul(TIMBER, 0.95), mat::WOOD);
     let roof = paint(mix([0.36, 0.12, 0.06], TIMBER, 0.4), mat::PLANKS);
     let water = paint([0.012, 0.07, 0.09], mat::WATER);
+    // Paving round it: flagstones in two rings, so the stone under the
+    // kerb reads as a laid floor, not a lump.
+    for (ring_r, count, salt) in [(2.25f32, 14, 60u32), (2.95, 18, 64)] {
+        for k in 0..count {
+            let t = (k as f32 + 0.5 + 0.2 * hash([k, 0, 1], salt)) / count as f32
+                * std::f32::consts::TAU;
+            let at = [
+                c[0] + ring_r * t.cos(),
+                c[1] - 0.02,
+                c[2] + ring_r * t.sin(),
+            ];
+            let along = [-t.sin(), 0.0, t.cos()];
+            let out_d = [t.cos(), 0.0, t.sin()];
+            let tone = 0.85 + 0.3 * hash([k, 1, 1], salt + 1);
+            let flag = paint(mul(ROCK, 1.2 * tone), mat::STONE);
+            let w = ring_r * std::f32::consts::PI / count as f32 - 0.05;
+            cbox(out, at, [along, Y, out_d], [w, 0.07, 0.34], 0.04, flag);
+        }
+    }
     // The kerb: a ring of 12 stones, each a bevelled block on the circle.
     let n = 12;
     for k in 0..n {
@@ -2502,8 +2521,8 @@ fn crystal_collar(out: &mut MeshData, world: &World, p: [i32; 3]) {
     // Two axes across the face.
     let u = if d[1] != 0 { X } else { Y };
     let v = cross(dir, u);
-    let rock = paint([0.075, 0.08, 0.085], mat::STONE);
-    let rock2 = paint([0.12, 0.125, 0.13], mat::STONE);
+    let rock = paint([0.13, 0.13, 0.14], mat::STONE);
+    let rock2 = paint([0.2, 0.2, 0.21], mat::STONE);
     let n = 8;
     let ring = |r: f32, h: f32, salt: u32| -> Vec<V3> {
         (0..n)
@@ -2517,8 +2536,8 @@ fn crystal_collar(out: &mut MeshData, world: &World, p: [i32; 3]) {
             })
             .collect()
     };
-    let base = ring(0.62, 0.0, 300);
-    let top = ring(0.34, 0.2 + 0.08 * hash(p, 330), 340);
+    let base = ring(0.78, 0.0, 300);
+    let top = ring(0.4, 0.28 + 0.1 * hash(p, 330), 340);
     let inside = sub(c, mul(dir, 0.3));
     for k in 0..n as usize {
         let j = (k + 1) % n as usize;
@@ -2625,6 +2644,99 @@ fn trail(out: &mut MeshData, world: &World, lo: [i32; 3], hi: [i32; 3]) {
     }
 }
 
+/// The caches' built towers and walls (the client's `powers::SITES` that
+/// are built of brick): centre column and half width in blocks. The
+/// client's tests pin these to its sites.
+pub const CACHE_TOWERS: [(i32, i32, i32); 3] = [(134, 196, 1), (112, 190, 2), (176, 128, 1)];
+
+/// A cache tower's trim (B4 round 3: the plaza's towers read as sharp clay
+/// boxes): a stone plinth, round clay pilasters on the corners, a timber
+/// string course and a stepped, overhanging cornice. Looks only, drawn
+/// while its corner column stands, by the chunk that holds its south-west
+/// foot.
+fn cache_trim(
+    out: &mut MeshData,
+    world: &World,
+    (cx, cz, r): (i32, i32, i32),
+    lo: [i32; 3],
+    hi: [i32; 3],
+) {
+    let (x0, z0) = (cx - r, cz - r);
+    if x0 < lo[0] || x0 >= hi[0] || z0 < lo[2] || z0 >= hi[2] {
+        return;
+    }
+    // The corner column's brick run.
+    let mut y = 20;
+    while y < 70 && world.get([x0, y, z0]).mat != mat::BRICK {
+        y += 1;
+    }
+    if y >= 70 || y < lo[1] || y >= hi[1] {
+        return;
+    }
+    let y0 = y;
+    while world.get([x0, y, z0]).mat == mat::BRICK {
+        y += 1;
+    }
+    let y1 = y;
+    if y1 - y0 < 3 {
+        return;
+    }
+    let corners_up = [(x0, z0), (cx + r, z0), (x0, cz + r), (cx + r, cz + r)]
+        .iter()
+        .all(|&(x, z)| (y0..y1).all(|yy| world.get([x, yy, z]).mat == mat::BRICK));
+    if !corners_up {
+        return;
+    }
+    let c = [cx as f32 + 0.5, 0.0, cz as f32 + 0.5];
+    let half = r as f32 + 0.5;
+    let stone = paint(mul(ROCK, 1.15), mat::STONE);
+    let plaster = paint(mul(CLAY, 0.9), mat::BRICK);
+    let cap = paint(mul(CLAY, 0.78), mat::BRICK);
+    let timber = paint(mul(TIMBER, 0.9), mat::WOOD);
+    let (fy0, fy1) = (y0 as f32, y1 as f32);
+    cbox(
+        out,
+        [c[0], fy0 + 0.18, c[2]],
+        [X, Y, Z],
+        [half + 0.16, 0.2, half + 0.16],
+        0.06,
+        stone,
+    );
+    let mid = (fy0 + fy1) / 2.0 + 0.5;
+    cbox(
+        out,
+        [c[0], mid, c[2]],
+        [X, Y, Z],
+        [half + 0.05, 0.07, half + 0.05],
+        0.02,
+        timber,
+    );
+    cbox(
+        out,
+        [c[0], fy1 - 0.12, c[2]],
+        [X, Y, Z],
+        [half + 0.12, 0.12, half + 0.12],
+        0.05,
+        cap,
+    );
+    cbox(
+        out,
+        [c[0], fy1 + 0.06, c[2]],
+        [X, Y, Z],
+        [half + 0.24, 0.08, half + 0.24],
+        0.04,
+        cap,
+    );
+    for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        let b = [
+            c[0] + sx * (half - 0.45),
+            fy0 + 0.3,
+            c[2] + sz * (half - 0.45),
+        ];
+        column(out, b, 0.62, 0.55, fy1 - fy0 - 0.45, 10, plaster);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // A region's models.
 // ---------------------------------------------------------------------------
@@ -2666,6 +2778,9 @@ pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     }
     if plainly_empty(world, lo, hi) {
         return out;
+    }
+    for t in CACHE_TOWERS {
+        cache_trim(&mut out, world, t, lo, hi);
     }
     for z in lo[2]..hi[2] {
         for y in lo[1]..hi[1] {
