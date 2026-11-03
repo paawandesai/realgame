@@ -93,6 +93,7 @@ fn setup(
     commands.insert_resource(BeamMats { core, halo });
 }
 
+#[allow(clippy::too_many_arguments)]
 fn place(
     time: Res<Time>,
     story: Res<Story>,

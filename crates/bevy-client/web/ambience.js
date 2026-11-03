@@ -84,7 +84,8 @@ export function startAmbience() {
   };
 
   /** A looping filtered noise into `dest`; returns its stop. */
-  const bedNoise = (/** @type {AudioContext} */ c, /** @type {AudioNode} */ dest, type, f, q, level) => {
+  /** @param {AudioContext} c @param {AudioNode} dest @param {BiquadFilterType} type @param {number} f @param {number} q @param {number} level */
+  const bedNoise = (c, dest, type, f, q, level) => {
     const s = c.createBufferSource();
     s.buffer = noise;
     s.loop = true;
@@ -103,7 +104,7 @@ export function startAmbience() {
 
   const startLayer = (/** @type {string} */ area) => {
     const c = /** @type {AudioContext} */ (ctx);
-    const a = AREAS[area];
+    const a = /** @type {NonNullable<typeof AREAS[string]>} */ (AREAS[area]);
     const gain = c.createGain();
     gain.gain.setValueAtTime(0.0001, c.currentTime);
     gain.gain.linearRampToValueAtTime(1, c.currentTime + FADE_S);
@@ -149,7 +150,8 @@ export function startAmbience() {
   };
 
   // ---- details ----
-  const env = (/** @type {AudioContext} */ c, /** @type {AudioNode} */ dest, t, a, d, peak) => {
+  /** @param {AudioContext} c @param {AudioNode} dest @param {number} t @param {number} a @param {number} d @param {number} peak */
+  const env = (c, dest, t, a, d, peak) => {
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(peak, t + a);
@@ -157,6 +159,7 @@ export function startAmbience() {
     g.connect(dest);
     return g;
   };
+  /** @param {AudioContext} c @param {AudioNode} dest @param {OscillatorType} type @param {number} f0 @param {number} f1 @param {number} t @param {number} dur @param {number} peak */
   const tone = (c, dest, type, f0, f1, t, dur, peak) => {
     const o = c.createOscillator();
     o.type = type;
@@ -166,6 +169,7 @@ export function startAmbience() {
     o.start(t);
     o.stop(t + dur + 0.05);
   };
+  /** @param {AudioContext} c @param {AudioNode} dest @param {BiquadFilterType} type @param {number} f @param {number} q @param {number} t @param {number} dur @param {number} peak */
   const burst = (c, dest, type, f, q, t, dur, peak) => {
     const s = c.createBufferSource();
     s.buffer = noise;
@@ -208,13 +212,16 @@ export function startAmbience() {
 
   const schedule = () => {
     if (!ctx || !layer) return;
-    const a = AREAS[layer.area];
+    const a = /** @type {NonNullable<typeof AREAS[string]>} */ (AREAS[layer.area]);
     for (const [n, lo, hi] of a.details) {
-      while (layer.next[n] < ctx.currentTime + 0.3) {
-        try { DETAILS[n](ctx, layer.gain, Math.max(ctx.currentTime, layer.next[n])); } catch { /* skip */ }
+      const play = DETAILS[n];
+      let at = layer.next[n] ?? ctx.currentTime;
+      while (at < ctx.currentTime + 0.3) {
+        try { if (play) play(ctx, layer.gain, Math.max(ctx.currentTime, at)); } catch { /* skip */ }
         state.details++;
-        layer.next[n] += gap(lo, hi, Math.random());
+        at += gap(lo, hi, Math.random());
       }
+      layer.next[n] = at;
     }
   };
 
