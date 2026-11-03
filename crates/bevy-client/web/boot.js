@@ -53,6 +53,8 @@ try { import('./music.js').then((m) => m.startMusic()).catch(() => {}); } catch 
 // I-052 late lane: the cave rig, the balloon crate, the Invention Bench and the ending.
 try { import('./late.js').then((m) => m.startLate()).catch(() => {}); } catch {}
 try { import('./rank.js').then((m) => m.startRank()).catch(() => {}); } catch {}
+// Submission P7/P13: footsteps, landing thuds, positioned spell sounds, UI confirms.
+try { import('./feel.js').then((m) => m.startFeel()).catch(() => {}); } catch {}
 // Anonymous analytics and the age picker (docs/ANALYTICS.md), only where the
 // page's rg-analytics switch is "on" (the built site, web/dist). Loaded on
 // demand, so web/pkg-out (switch "off") never fetches them, and wrapped so a

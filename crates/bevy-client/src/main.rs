@@ -39,6 +39,7 @@ mod progress;
 mod sky;
 mod spell_fx;
 mod spells;
+mod steps;
 mod story;
 mod tuning;
 mod voxel_cast;
@@ -239,6 +240,7 @@ struct ModeKeys<'w> {
     view: Res<'w, voxel_view::Keys>,
     matter: Res<'w, blockchem::Keys>,
     story: Res<'w, story::Keys>,
+    steps: Option<Res<'w, steps::Keys>>,
 }
 
 impl ModeKeys<'_> {
@@ -275,7 +277,20 @@ impl ModeKeys<'_> {
             m.matter_ms,
             m.gas_co2_max,
             s.ending,
-        ) + &v
+        ) + &self.steps.as_ref().map_or(String::new(), |k| {
+            format!(
+                ",\"stepMat\":\"{}\",\"stride\":{:.2},\"lands\":{},\"landV\":{:.2},\"hits\":{},\"hitAt\":[{:.2},{:.2},{:.2}],\"hitSpell\":{}",
+                k.step_mat,
+                k.stride,
+                k.lands,
+                k.land_v,
+                k.hits,
+                k.hit_at[0],
+                k.hit_at[1],
+                k.hit_at[2],
+                k.hit_spell
+            )
+        }) + &v
             .probe
             .as_ref()
             .map_or(String::new(), |p| format!(",\"probe\":{p}"))
@@ -1569,7 +1584,9 @@ fn control(
     if let Ok((mut t, mut proj)) = cam.single_mut() {
         let lag = vx.walk.as_ref().map_or(0.0, |w| w.lag);
         t.translation = player.eye() + Vec3::Y * lag;
-        t.rotation = player.rotation();
+        // P7: a light kick up on each cast, easing back as the recoil fades
+        // (the camera only: aiming still uses the player's own rotation).
+        t.rotation = player.rotation() * Quat::from_rotation_x(cam_kick(game.recoil));
         game.cam = t.translation;
         let fov = settings.fov_y().to_radians();
         if matches!(&*proj, Projection::Perspective(p) if (p.fov - fov).abs() > 1e-6) {
@@ -2798,6 +2815,13 @@ fn sync_visuals(
     }
 }
 
+/// The camera's pitch kick (radians) for a recoil of 1 (just cast) to 0:
+/// at most about 0.7°, easing out.
+pub(crate) fn cam_kick(recoil: f32) -> f32 {
+    let r = recoil.clamp(0.0, 1.0);
+    0.012 * r * r
+}
+
 /// The gauntlet: spell colour, recoil kick and a little walk bob ("Hand
 /// sway", off in the settings: then the bob is exactly zero). The recoil
 /// kick stays: it is the response to the player's own click.
@@ -3079,6 +3103,17 @@ mod practice_tests {
         assert!(instant_counts(1, None, Worked), "no band");
         assert!(instant_counts(1, Some(true), Instant), "instant mode");
         assert!(instant_counts(3, Some(true), Worked), "Mastered");
+    }
+}
+
+#[cfg(test)]
+mod kick_tests {
+    #[test]
+    fn the_cast_kick_is_small_and_settles() {
+        let k = super::cam_kick(1.0);
+        assert!(k > 0.0 && k < 0.02, "{k}");
+        assert_eq!(super::cam_kick(0.0), 0.0);
+        assert!(super::cam_kick(0.5) < k);
     }
 }
 

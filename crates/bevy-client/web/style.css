@@ -500,3 +500,13 @@ body.intro-open #caption { visibility: hidden; }
 #bench-chip[hidden] { display: none; }
 /* While the title shows, the HUD behind it stays out of the way. */
 body.title-open #hud, body.title-open .rank-badge, body.title-open #benchbtn, body.title-open #music-btn, body.title-open #bench-chip { visibility: hidden; }
+/* P7: the rank-up burst, and UI motion. */
+.rank-spark { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: radial-gradient(circle, #fff6c8, #ffb347 60%, rgba(255, 140, 40, 0) 70%); pointer-events: none; animation: rankspark 0.9s ease-out forwards; }
+@keyframes rankspark { from { transform: rotate(var(--a)) translateX(0) scale(1.4); opacity: 1; } to { transform: rotate(var(--a)) translateX(var(--d)) scale(0.3); opacity: 0; } }
+button { transition: transform 0.08s ease-out, filter 0.12s ease-out; }
+:is(.title-play, .intro-play, .worked-confirm, #benchbtn, #resume, #pointmode, .age-choice):not(:disabled):active { transform: scale(0.95); }
+button:not(:disabled):hover { filter: brightness(1.12); }
+#bench:not([hidden]) > *, .late-modal:not([hidden]) > *, #pack:not([hidden]) > *, #pause:not(.hidden) .card { animation: uiIn 0.18s ease-out; }
+@keyframes uiIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+#objective { transition: background-color 0.4s ease-out; }
+@media (prefers-reduced-motion: reduce) { .rank-spark, #bench > *, .late-modal > *, #pack > *, #pause .card { animation: none !important; } button { transition: none; } }

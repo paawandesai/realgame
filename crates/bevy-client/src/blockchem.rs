@@ -306,6 +306,7 @@ pub fn plugin(app: &mut App) {
     app.add_plugins((
         crate::fire_fx::plugin,
         crate::spell_fx::plugin,
+        crate::steps::plugin,
     ))
     .init_resource::<Keys>()
     .init_resource::<Matter>()
