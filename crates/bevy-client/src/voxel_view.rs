@@ -265,7 +265,9 @@ fn spawn_props(
     }
     let rune = mats.add(StandardMaterial {
         base_color: Color::srgb(0.2, 0.9, 0.8),
-        emissive: LinearRgba::rgb(0.6, 3.2, 2.7),
+        // Thin rune lines, under the bloom ceiling (B4 judges: the first
+        // bands read as screen-wide strips).
+        emissive: LinearRgba::rgb(0.3, 1.6, 1.35),
         unlit: true,
         cull_mode: None,
         double_sided: true,
@@ -273,7 +275,8 @@ fn spawn_props(
     });
     // Round the clay dome (`kiln_dome`: centre y 40.8, half-axes 8.0 x 9.3
     // x 5.1), a hair outside it.
-    for (y, h) in [(43.2f32, 0.34f32), (44.3, 0.12)] {
+    // Above the doorway's arch (`models::kiln_frame`, top y 45.2).
+    for (y, h) in [(45.75f32, 0.13f32), (46.15, 0.06)] {
         let k = (1.0 - ((y - 40.8) / 9.3).powi(2)).sqrt();
         let band = ring_band([128.0, y, 169.0], 8.0 * k + 0.06, 5.1 * k + 0.06, h);
         commands.spawn((
@@ -283,7 +286,7 @@ fn spawn_props(
             NotShadowCaster,
         ));
     }
-    let top = ring_band([128.5, 59.9, 169.5], 2.08, 2.08, 0.3);
+    let top = ring_band([128.5, 59.6, 169.5], 2.08, 2.08, 0.07);
     commands.spawn((
         Mesh3d(meshes.add(top)),
         MeshMaterial3d(rune),

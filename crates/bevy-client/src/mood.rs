@@ -129,7 +129,7 @@ const KILN_WARM: Mood = Mood {
 /// How much of the sun and fill is left deep in the cave (spec 5.9: dim,
 /// never black).
 const CAVE_SUN: f32 = 0.06;
-const CAVE_FILL: f32 = 0.16;
+const CAVE_FILL: f32 = 0.08;
 
 /// The target mood for an area.
 pub fn area_mood(b: Biome) -> Mood {
@@ -197,13 +197,13 @@ fn setup(mut commands: Commands, settings: Res<crate::Settings>, world: Option<R
             .map(|b| (b.1 / b.2 as f32, b.2))
             .collect(),
     ));
-    let n = if settings.low { 2 } else { 4 };
+    let n = if settings.low { 3 } else { 5 };
     for _ in 0..n {
         commands.spawn((
             PointLight {
                 color: Color::srgb(0.25, 1.0, 0.85),
                 intensity: 0.0,
-                range: 10.0,
+                range: 11.0,
                 shadow_maps_enabled: false,
                 ..default()
             },
@@ -311,7 +311,9 @@ fn apply(
     for (i, (mut l, mut t)) in crystal.iter_mut().enumerate() {
         match near.get(i) {
             Some((c, n)) if cover > 0.01 && c.distance(p) < 30.0 => {
-                l.intensity = 9_000.0 * (*n as f32).min(6.0) * cover;
+                // Teal light round each cluster, enough to colour the rock
+                // round it (art bible: crystals light their surroundings).
+                l.intensity = 22_000.0 * (*n as f32).min(6.0) * cover;
                 t.translation = *c;
             }
             _ => l.intensity = 0.0,
