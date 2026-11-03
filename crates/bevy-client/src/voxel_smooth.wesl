@@ -155,10 +155,10 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     // Glow: veins of teal light (runes) and a steady core (crystal, torch,
     // the hearth), breathing slowly.
     let breathe = 0.8 + 0.2 * sin(globals.time * 1.3 + wp.x * 0.2 + wp.z * 0.15);
-    let vein = smoothstep(0.035, 0.0, abs(fine - 0.5)) * glow;
+    let vein = smoothstep(0.022, 0.0, abs(fine - 0.5)) * glow;
     let teal = vec3<f32>(0.25, 1.0, 0.85);
     let core = col * smoothstep(0.6, 1.0, glow);
-    var emit = (teal * vein * 1.6 + core * 0.75) * breathe;
+    var emit = (teal * vein * 1.1 + core * 0.75) * breathe;
     // Rim light: a cool sky edge on every silhouette.
     let rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
     emit = emit + vec3<f32>(0.35, 0.5, 0.75) * rim * 0.03 * ao;

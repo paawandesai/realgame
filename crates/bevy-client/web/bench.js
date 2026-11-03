@@ -1166,6 +1166,15 @@ export function startBench() {
   };
   /** @type {unknown} */
   let storyJson = null;
+  // Wednesday polish: next to a Bench, a chip says what B does there (the
+  // first time, what to learn), so the first objective's "learn Water at
+  // the Formula Bench" has an obvious next key.
+  const chip = document.createElement('div');
+  chip.id = 'bench-chip';
+  chip.className = 'late-chip';
+  chip.setAttribute('role', 'status');
+  chip.hidden = true;
+  document.body.append(chip);
   const poll = () => {
     try {
       const js = w.__benchState;
@@ -1190,6 +1199,10 @@ export function startBench() {
           setCls('hint', !hintDone && !!m && +(m[1] || 0) >= 1);
         }
       } else setCls('hint', false);
+      const chipOn = !!rust.atBench && !ui.open && !document.body.classList.contains('title-open');
+      const chipText = hintDone ? 'B: open the Formula Bench' : 'Press B to learn Water at the Formula Bench';
+      if (chip.hidden === chipOn) chip.hidden = !chipOn;
+      if (chipOn && chip.textContent !== chipText) chip.textContent = chipText;
     } catch {
       // The poll must never stop.
     }
