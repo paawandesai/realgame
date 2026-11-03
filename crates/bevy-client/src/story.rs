@@ -113,16 +113,20 @@ const INTRO_PAN: f32 = 0.08;
 
 /// Registers the story (Voxel mode only).
 pub fn plugin(app: &mut App) {
-    app.add_plugins((crate::gates::plugin, crate::beacon::plugin))
-        .init_resource::<Keys>()
-        .init_resource::<Story>()
-        .add_systems(
-            Update,
-            (commands, on_event, practice_sync, intro_camera, keys)
-                .chain()
-                .after(crate::aim_and_cast)
-                .before(crate::publish),
-        );
+    app.add_plugins((
+        crate::gates::plugin,
+        crate::beacon::plugin,
+        crate::ending::plugin,
+    ))
+    .init_resource::<Keys>()
+    .init_resource::<Story>()
+    .add_systems(
+        Update,
+        (commands, on_event, practice_sync, intro_camera, keys)
+            .chain()
+            .after(crate::aim_and_cast)
+            .before(crate::publish),
+    );
 }
 
 /// The item digging block `mat` gives, if any (ice melts in your hand;

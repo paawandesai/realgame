@@ -29,6 +29,25 @@ export const PROMPTS = {
   invention: 'E: use the Invention Bench',
 };
 
+/** The ending's credits: ['h', heading] or ['', line]. Every asset is
+ * made by the game's own code (docs/submission.md, tests/asset-audit.mjs). */
+export const CREDITS = [
+  ['h', 'Formula, a RealGame world'],
+  ['', 'Made for Game Week, November 2026'],
+  ['h', 'Every asset is generated in code'],
+  ['', 'The valley, its trees, crystals, cliffs and mountains are built by code as the game runs'],
+  ['', 'Materials, the sky and the glow are shaders written for this game'],
+  ['', 'Every sound effect is synthesised in the browser: no recordings'],
+  ['', 'The music for each area is composed and played by code'],
+  ['', 'No images, models, sounds or fonts were downloaded or bought'],
+  ['h', 'Real science'],
+  ['', 'Every reaction runs in a simulation of heat, phase changes, fire, water and gases'],
+  ['', 'Each science claim is listed with its source in content/science-sources.md'],
+  ['h', 'Built with'],
+  ['', 'Rust and Bevy, compiled to WebAssembly, and JavaScript'],
+  ['h', 'Thank you for playing'],
+];
+
 /** The five puzzles the ending lists. */
 export const PUZZLES = [
   'Put out the workshop fire',
@@ -213,7 +232,13 @@ export function startLate() {
   again.type = 'button';
   const endRow = mk('div', 'late-row');
   endRow.append(keep, again);
-  end.card.append(endTitle, endTime, mk('p', 'late-help', 'Puzzles solved:'), endList, endSpells, endRow);
+  // P9: the credits, rolling slowly under the summary.
+  const credits = mk('div', 'late-credits');
+  credits.setAttribute('aria-label', 'Credits');
+  const roll = mk('div', 'late-credits-roll');
+  for (const [cls, text] of CREDITS) roll.append(mk(cls === 'h' ? 'h3' : 'p', cls === 'h' ? 'late-credits-head' : '', text));
+  credits.append(roll);
+  end.card.append(endTitle, endTime, mk('p', 'late-help', 'Puzzles solved:'), endList, endSpells, credits, endRow);
   keep.addEventListener('click', () => { push('keep_exploring'); hide(); });
   again.addEventListener('click', () => { location.reload(); });
 

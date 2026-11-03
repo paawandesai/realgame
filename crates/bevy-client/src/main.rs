@@ -24,6 +24,7 @@ mod bridge;
 mod chem;
 mod clock;
 mod cues;
+mod ending;
 mod feel;
 mod fire_fx;
 mod firebreak;

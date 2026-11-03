@@ -510,3 +510,10 @@ button:not(:disabled):hover { filter: brightness(1.12); }
 @keyframes uiIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 #objective { transition: background-color 0.4s ease-out; }
 @media (prefers-reduced-motion: reduce) { .rank-spark, #bench > *, .late-modal > *, #pack > *, #pause .card { animation: none !important; } button { transition: none; } }
+/* P9: the ending's rolling credits. */
+.late-credits { position: relative; height: calc(150px * var(--ui)); overflow: hidden; margin: 10px 0 12px; border-radius: 10px; background: rgba(8, 12, 24, 0.45); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent); }
+.late-credits-roll { padding: calc(150px * var(--ui)) 16px 0; text-align: center; animation: creditsRoll 34s linear 1.2s infinite; }
+.late-credits-roll p { margin: 2px 0; font-size: calc(15px * var(--ui)); opacity: 0.9; }
+.late-credits-head { margin: 14px 0 4px; font-size: calc(17px * var(--ui)); color: #ffd54a; }
+@keyframes creditsRoll { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+@media (prefers-reduced-motion: reduce) { .late-credits { height: auto; mask-image: none; } .late-credits-roll { animation: none; padding-top: 0; } }
