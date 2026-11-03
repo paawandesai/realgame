@@ -810,7 +810,7 @@ fn spawn(
     // The torch you carry: a warm light at the hand, off until you have one.
     commands.spawn((
         PointLight {
-            color: Color::srgb(1.0, 0.62, 0.3),
+            color: Color::srgb(1.0, 0.74, 0.48),
             intensity: 0.0,
             range: 18.0,
             shadow_maps_enabled: false,
@@ -1325,7 +1325,7 @@ fn light(
     for (mut l, mut t) in &mut held {
         // Warm and strong near the player (art bible: the torch is the
         // cave's warm light; the crystals are the only other).
-        l.intensity = if has { 420_000.0 * flicker } else { 0.0 };
+        l.intensity = if has { 330_000.0 * flicker } else { 0.0 };
         // Held ahead, as in the hand: it throws a warm pool on the floor
         // and walls in front of the player (B4 round 3: first too small to
         // see, then a blown-out blob; now softer and a little higher).

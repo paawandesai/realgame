@@ -753,7 +753,7 @@ fn crystal(out: &mut MeshData, world: &World, p: [i32; 3]) {
         let paint = Paint {
             // Brighter than any wall: the glow is the colour (kept under
             // the bloom ceiling, so it reads teal, not white).
-            rgb: mul(tint, 0.95),
+            rgb: mul(tint, 0.7),
             glow: 1.0,
             mat: mat::CRYSTAL,
             top: None,

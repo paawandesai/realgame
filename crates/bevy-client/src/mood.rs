@@ -326,7 +326,7 @@ fn apply(
             Some((c, n)) if cover > 0.01 && c.distance(p) < 30.0 => {
                 // Teal light round each cluster, enough to colour the rock
                 // round it (art bible: crystals light their surroundings).
-                l.intensity = 42_000.0 * (*n as f32).min(6.0) * cover;
+                l.intensity = 60_000.0 * (*n as f32).min(6.0) * cover;
                 t.translation = *c;
             }
             _ => l.intensity = 0.0,
