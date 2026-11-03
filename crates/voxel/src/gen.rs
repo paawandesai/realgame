@@ -894,7 +894,7 @@ fn stamps(w: &mut World) {
     let s = stamp::COAL_SEAM;
     stamp_box(w, &s, |[x, y, z]| {
         let h = hash3(0xc0a1, x, y, z);
-        if unit(h) < 0.28 || (y == s.max[1] - 1 && unit(h) < 0.4) {
+        if unit(h) < 0.28 || (y == s.max[1] - 1 && unit(h) < 0.7) {
             c(mat::COAL_ORE)
         } else if unit(h) > 0.985 {
             c(mat::IRON_ORE)

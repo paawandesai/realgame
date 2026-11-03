@@ -59,6 +59,8 @@ pub struct SmoothHandles(pub Vec<Handle<crate::voxel_tex::SmoothMat>>);
 
 /// How far the Pick and placing reach, metres from the eye.
 pub const REACH: f32 = 5.0;
+/// Said when the Pick digs plain stone in the coal seam.
+pub const SEAM_STONE_LINE: &str = "That was stone. Coal is the black rock in the seam.";
 /// How far a spell's aim looks for a block.
 pub const SPELL_RANGE: f32 = 120.0;
 /// The pause after a block breaks, while `digT` shows 1 (so a held button
@@ -1073,7 +1075,10 @@ fn tools(
         }
         // Which block the Pick works on this frame.
         let target = if held || clicked {
-            dig.auto = false;
+            // A click alone digs too: the Pick keeps working on the block
+            // clicked after the button comes up (Paawan's playtest: a
+            // click at the coal seam seemed to do nothing).
+            dig.auto = true;
             look.map(|h| h.cell)
         } else if let Some(t) = auto_target {
             dig.told = false;
@@ -1134,6 +1139,9 @@ fn tools(
             // Water next to the hole flows in, gas finds the new path.
             if let Some(mt) = matter.as_mut() {
                 mt.world.touch(world, cell);
+            }
+            if m == vox::mat::STONE && vox::stamp::COAL_SEAM.contains(cell) {
+                game.say(SEAM_STONE_LINE);
             }
             events.write(PlayerEvent::Dug { mat: m });
             dig.t = 0.0;

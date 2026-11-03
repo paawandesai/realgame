@@ -33,9 +33,11 @@ weekly_budget_tokens: 30000000   # confirm with Paawan
 - Waves run as Workflow scripts or background agents in git worktrees.
 - Real-GPU checks run via the Remote Control session on Paawan's Mac (MacBook Pro M5 Pro, Chrome 155).
   - Clone: ~/Documents/realgame
-  - Spike worktree: ~/realgame-bevy-spike
-  - Target dir: ~/bevy-target
-  - Bench harness: ~/bevy-bench
+  - Spike worktree: ~/Documents/realgame/bevy-spike
+  - Target dir: ~/Documents/realgame/bevy-target
+  - Bench harness: ~/Documents/realgame/bevy-bench
+  - Play build (preview/play-build, served on 8081): ~/Documents/realgame/play
+  - Old lane worktrees: ~/Documents/realgame/lanes (git-excluded, like the folders above)
   - Opening browser windows there is allowed (Paawan, 22:11 UTC).
 
 ## Model routing
