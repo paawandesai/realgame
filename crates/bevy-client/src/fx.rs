@@ -17,9 +17,17 @@ pub enum P {
     /// Level 2 (I-035): a liquid nitrogen bead skating on the stream on its
     /// own vapour (the Leidenfrost effect), shrinking as it boils away.
     Bead,
+    /// Frost's ice crystals: small bright shards that fall and glint.
+    Shard,
+    /// CO2's cold fog: dense, so it spreads low and sinks.
+    Fog,
+    /// Fire's embers: tiny hot sparks drifting up from a flame.
+    Ember,
+    /// The hit flash where a spell lands: big, bright and gone in a blink.
+    Flash,
 }
 
-const KINDS: [P; 8] = [
+const KINDS: [P; 12] = [
     P::Fire,
     P::Smoke,
     P::Steam,
@@ -28,6 +36,10 @@ const KINDS: [P; 8] = [
     P::Water,
     P::Spark,
     P::Bead,
+    P::Shard,
+    P::Fog,
+    P::Ember,
+    P::Flash,
 ];
 
 #[derive(Component)]
@@ -38,6 +50,8 @@ pub struct Particle {
     pub size: f32,
     pub grow: f32,
     pub gravity: f32,
+    /// The height it cannot fall below (the ground where it started).
+    pub floor: f32,
     pub kind: P,
 }
 
@@ -57,6 +71,9 @@ pub struct Fx {
     pub water_live: u32,
     /// Live `Bead` particles after this frame's update (`fxBeads`, I-035).
     pub bead_live: u32,
+    /// The block world (P5): particles rest on the ground near where they
+    /// were emitted (a little under it) instead of on the plane y = 0.
+    pub floors: bool,
 }
 
 impl Fx {
@@ -129,13 +146,29 @@ pub fn setup_fx(
                 P::Water => (Color::srgb(0.3, 0.6, 1.0), 0.4, false),
                 P::Spark => (Color::srgb(1.0, 0.9, 0.5), 10.0, false),
                 P::Bead => (Color::srgb(0.97, 0.99, 1.0), 1.2, false),
+                P::Shard => (Color::srgb(0.85, 0.97, 1.0), 2.5, false),
+                P::Fog => (Color::srgba(0.79, 0.81, 0.84, 0.4), 0.0, true),
+                P::Ember => (Color::srgb(1.0, 0.45, 0.1), 9.0, false),
+                P::Flash => (Color::srgba(1.0, 0.96, 0.85, 0.3), 1.5, true),
             };
             let l = c.to_linear();
             materials.add(StandardMaterial {
                 base_color: c,
                 emissive: LinearRgba::rgb(l.red * e, l.green * e, l.blue * e),
-                unlit: matches!(k, P::Fire | P::Spark | P::Steam | P::Frost | P::Bead),
-                alpha_mode: if blend {
+                unlit: matches!(
+                    k,
+                    P::Fire
+                        | P::Spark
+                        | P::Steam
+                        | P::Frost
+                        | P::Bead
+                        | P::Shard
+                        | P::Ember
+                        | P::Flash
+                ),
+                alpha_mode: if *k == P::Flash {
+                    AlphaMode::Add
+                } else if blend {
                     AlphaMode::Blend
                 } else {
                     AlphaMode::Opaque
@@ -162,6 +195,7 @@ pub fn setup_fx(
                         size: 0.0,
                         grow: 1.0,
                         gravity: 0.0,
+                        floor: 0.02,
                         kind: P::Fire,
                     },
                 ))
@@ -178,7 +212,23 @@ pub fn setup_fx(
         epoch: 0,
         water_live: 0,
         bead_live: 0,
+        floors: false,
     });
+}
+
+/// How a kind falls (negative) or rises (positive), m/s².
+pub fn gravity(k: P) -> f32 {
+    match k {
+        P::Water | P::Foam | P::Spark => -9.0,
+        P::Shard => -4.0,
+        P::Fire => 2.5,
+        P::Ember => 1.4,
+        P::Smoke | P::Steam => 1.2,
+        P::Frost => -0.6,
+        // CO2 is about 1.5 times as dense as air: its fog sinks.
+        P::Fog => -0.9,
+        P::Bead | P::Flash => 0.0,
+    }
 }
 
 /// Starts queued particles and moves live ones.
@@ -216,16 +266,14 @@ pub fn update_fx(
                 size,
                 grow: match k {
                     P::Smoke | P::Steam | P::Frost => 2.2,
-                    P::Fire | P::Bead => 0.2,
+                    P::Fog => 3.5,
+                    P::Flash => 2.2,
+                    P::Fire | P::Bead | P::Ember => 0.2,
+                    P::Shard => 0.5,
                     _ => 0.6,
                 },
-                gravity: match k {
-                    P::Water | P::Foam | P::Spark => -9.0,
-                    P::Fire => 2.5,
-                    P::Smoke | P::Steam => 1.2,
-                    P::Frost => -0.6,
-                    P::Bead => 0.0,
-                },
+                gravity: gravity(k),
+                floor: if fx.floors { pos.y - 0.25 } else { 0.02 },
                 kind: k,
             };
             t.translation = pos;
@@ -254,8 +302,8 @@ pub fn update_fx(
         p.vel.y += g * dt;
         p.vel *= 1.0 - 1.5 * dt;
         t.translation += p.vel * dt;
-        if t.translation.y < 0.02 {
-            t.translation.y = 0.02;
+        if t.translation.y < p.floor {
+            t.translation.y = p.floor;
             p.vel.y = 0.0;
         }
         let a = 1.0 - p.life / p.max;

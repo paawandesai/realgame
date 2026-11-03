@@ -303,21 +303,24 @@ fn wade_push(
 /// Registers block chemistry (Voxel mode only). Matter events go out as
 /// `crate::MatterEvent` messages.
 pub fn plugin(app: &mut App) {
-    app.add_plugins(crate::fire_fx::plugin)
-        .init_resource::<Keys>()
-        .init_resource::<Matter>()
-        .init_resource::<Wade>()
-        .add_systems(
-            Update,
-            wade_push.after(crate::control).before(crate::aim_and_cast),
-        )
-        .add_systems(
-            Update,
-            drive
-                .after(crate::projectiles)
-                .before(crate::publish)
-                .before(crate::story::on_event),
-        );
+    app.add_plugins((
+        crate::fire_fx::plugin,
+        crate::spell_fx::plugin,
+    ))
+    .init_resource::<Keys>()
+    .init_resource::<Matter>()
+    .init_resource::<Wade>()
+    .add_systems(
+        Update,
+        wade_push.after(crate::control).before(crate::aim_and_cast),
+    )
+    .add_systems(
+        Update,
+        drive
+            .after(crate::projectiles)
+            .before(crate::publish)
+            .before(crate::story::on_event),
+    );
 }
 
 /// Once a frame (integration, round 1): each `SpellLanded` from

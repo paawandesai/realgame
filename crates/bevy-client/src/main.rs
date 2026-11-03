@@ -37,6 +37,7 @@ mod player;
 mod powers;
 mod progress;
 mod sky;
+mod spell_fx;
 mod spells;
 mod story;
 mod tuning;
@@ -1454,6 +1455,8 @@ fn control(
                 || c == "fire"
                 || c.starts_with("work ")
                 || c.starts_with("castmode ")
+                // P5: `fxshow <n>` (`?debug`, spell_fx.rs).
+                || c.starts_with("fxshow ")
         })
         .collect();
     if let Some(m) = cmd_move {

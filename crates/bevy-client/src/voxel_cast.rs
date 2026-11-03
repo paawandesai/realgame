@@ -312,6 +312,7 @@ fn fly(
     mut flying: Query<(Entity, &mut Transform, &mut Flying)>,
     mut landed: MessageWriter<crate::SpellLanded>,
     boost: Option<Res<crate::powers::Boost>>,
+    mut fx: ResMut<crate::fx::Fx>,
 ) {
     let world = blocks.as_deref().map(|b| &b.0);
     let k = |s: u8| boost.as_ref().map_or(1.0, |b| b.0[(s as usize).min(3)]);
@@ -353,6 +354,14 @@ fn fly(
         }
         f.t += dt;
         tf.translation = ballistics::along(&f.path, (f.t / f.dur).min(1.0));
+        if dt > 0.0 {
+            crate::spell_fx::emit_trail(
+                &mut fx,
+                Spell::ALL[f.spell as usize],
+                tf.translation,
+                f.path[0],
+            );
+        }
         if f.t < f.dur {
             continue;
         }
