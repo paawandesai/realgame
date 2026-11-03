@@ -405,7 +405,7 @@ const LINES: [[&str; 4]; 9] = [
     [
         "Fire at the workshop! Learn Water at the Bench, then splash it.",
         "The workshop is on fire! Learn Water at the Formula Bench, then put it out.",
-        "The workshop is burning. Learn Water at the Formula Bench and cool it out.",
+        "The workshop is burning. Learn Water at the Formula Bench and put the fire out.",
         "The workshop is burning. Build H₂O at the Formula Bench and cool the wood below ignition.",
     ],
     [

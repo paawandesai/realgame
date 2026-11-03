@@ -287,6 +287,7 @@ The single register of every science claim the first-person 3D client shows the 
 | `Write element symbols and numbers, like NaCl. Each symbol starts with a capital letter.` | crates/bevy-client/web/bench.js | P10: Formula Bench typing help for one substance. Notation only (IUPAC symbols are capitalised; NaCl is an example of the format, not the answer); no physical claim. |
 | `Follow the gold light to the Formula Bench, then press E.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, before Water is learned); it states no science. |
 | `Follow the gold light to the burning workshop. Aim at the flames and click.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, after Water is learned); it states no science. |
+| `Move the mouse to steer the white cursor, then click. Esc closes.` | crates/bevy-client/web/worked.js | B3: Game instruction on the cast panel while the mouse is captured; it states no science. |
 
 ## Sources
 
