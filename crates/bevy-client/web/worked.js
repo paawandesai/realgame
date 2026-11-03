@@ -90,7 +90,11 @@ export function createWorked({ doc, win, cmd, bench }) {
     reasonBox = el('div', 'worked-reason');
     vcursor = el('span', 'vcursor', '', H);
     vcursor.hidden = !doc.pointerLockElement;
-    p.append(copyLine, mount, reasonBox, vcursor);
+    // B3 breakers: with the mouse captured, say how to use the panel (its
+    // own cursor follows the mouse; Esc leaves it).
+    const tip = el('p', 'worked-tip', 'Move the mouse to steer the white cursor, then click. Esc closes.');
+    tip.hidden = !doc.pointerLockElement;
+    p.append(copyLine, mount, reasonBox, tip, vcursor);
     doc.body.append(panel = p);
     // Practised in the block world (I-052 round 2, partial mastery): the
     // spell is known well, so its worked cast is one step: the formula is

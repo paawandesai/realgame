@@ -494,6 +494,8 @@ export function startHud() {
   });
 
   const slots = [...document.querySelectorAll('.slot')];
+  /** @type {HTMLElement | null} */
+  let pickSlot = null;
   const cross = $('crosshair');
   const hudEl = $('hud');
   const hint = $('hint');
@@ -725,7 +727,22 @@ export function startHud() {
       const cd = state.cooldownMax > 0 ? Math.min(1, Math.max(0, state.cooldown / state.cooldownMax)) : 0;
       cross.style.setProperty('--cd', cd.toFixed(3));
       cross.classList.toggle('cooling', state.cooldown > 0);
-      slots.forEach((s, i) => s.classList.toggle('sel', i === state.spell));
+      // B3 breakers: key 5 (the Pick) had no slot to show it was picked.
+      if (state.mode === 'voxel' && !pickSlot) {
+        pickSlot = document.createElement('div');
+        pickSlot.className = 'slot pick-slot';
+        pickSlot.setAttribute('aria-label', 'Pick: press 5, hold the mouse button to dig');
+        for (const [cls, text] of [['key', '5'], ['icon pick', ''], ['name', 'Pick'], ['formula', 'hold to dig']]) {
+          const sp = document.createElement('span');
+          sp.className = cls;
+          sp.textContent = text;
+          pickSlot.append(sp);
+        }
+        document.getElementById('hotbar')?.append(pickSlot);
+      }
+      const hot = state.mode === 'voxel' && Number.isFinite(state.hot) ? state.hot : 0;
+      slots.forEach((s, i) => s.classList.toggle('sel', hot > 4 ? false : i === state.spell));
+      if (pickSlot) pickSlot.classList.toggle('sel', hot === 5);
       if (wheelSpell === state.spell) wheelSpell = null;
       const burningAt = (i) => i >= 0 && !!state.objs[i] && state.objs[i].burning;
       cross.classList.toggle('on', state.aimObj >= 0 && state.locked);

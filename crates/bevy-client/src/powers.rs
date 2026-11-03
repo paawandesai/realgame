@@ -580,6 +580,9 @@ pub struct Powers {
     pub hint: String,
 }
 
+/// The guided first lift speaks only within this many metres of the tower.
+pub const GUIDE_NEAR_M: f32 = 25.0;
+
 /// Seconds the guided first lift stays up.
 pub const GUIDE_S: f32 = 150.0;
 
@@ -596,6 +599,11 @@ pub fn guide_line(water: Stage, held: bool, dist: f32, floating: bool, guided: b
         };
     }
     if !guided {
+        return String::new();
+    }
+    // B3 breakers: far from the tower the guide stays quiet, so it never
+    // talks over the current objective elsewhere in the valley.
+    if !floating && dist > GUIDE_NEAR_M {
         return String::new();
     }
     if floating {
@@ -1250,6 +1258,11 @@ mod tests {
         assert!(guide_line(Learning, true, 2.0, false, true).contains("Press F"));
         assert!(guide_line(Learning, true, 1.0, true, true).contains("Hold W"));
         assert_eq!(guide_line(Learning, true, 2.0, false, false), "");
+        assert_eq!(
+            guide_line(Learning, true, 40.0, false, true),
+            "",
+            "quiet far away"
+        );
         // Before learning: a tease next to the tower only.
         assert!(guide_line(Unknown, false, 3.0, false, false).contains("Formula Bench"));
         assert_eq!(guide_line(Unknown, false, 30.0, false, false), "");
