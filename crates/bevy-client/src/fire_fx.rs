@@ -154,7 +154,7 @@ fn setup(
                 PointLight {
                     color: Color::srgb(1.0, 0.55, 0.2),
                     intensity: 0.0,
-                    range: 14.0,
+                    range: 18.0,
                     shadow_maps_enabled: false,
                     ..default()
                 },
@@ -286,6 +286,20 @@ fn draw(
     let mut cells = burning.clone();
     cells.extend(vents.iter().copied());
     let cells = nearest(cells, eye, FLAMES);
+    // Spare flame quads go to the burning blocks again, as taller tongues
+    // round each one (B4 round 3: the workshop's dozen burning cells read
+    // as a small fire from the plaza).
+    let mut drawn: Vec<([i32; 3], u32)> = cells.iter().map(|&c| (c, 0)).collect();
+    let fuel: Vec<[i32; 3]> = cells
+        .iter()
+        .copied()
+        .filter(|c| !vents.contains(c))
+        .collect();
+    let mut k = 0usize;
+    while !fuel.is_empty() && drawn.len() < FLAMES && k < FLAMES * 3 {
+        drawn.push((fuel[k % fuel.len()], 1 + (k / fuel.len()) as u32));
+        k += 1;
+    }
     let smoky = nearest(burning, eye, 8);
     let vents = nearest(vents, eye, PLUMES);
     shown.flames = cells.len();
@@ -303,7 +317,7 @@ fn draw(
             Some(&(p, vent)) if p.distance(eye) < 60.0 => {
                 let j = g.0 as f32 * 1.7;
                 let flick = 1.0 + 0.18 * (t * 9.0 + j).sin() + 0.1 * (t * 23.0 + j * 2.0).sin();
-                l.intensity = if vent { 180_000.0 } else { 520_000.0 } * flick;
+                l.intensity = if vent { 180_000.0 } else { 1_300_000.0 } * flick;
                 tf.translation = p;
             }
             _ => l.intensity = 0.0,
@@ -311,27 +325,36 @@ fn draw(
     }
     let face = Quat::from_rotation_y(player.yaw);
     for (f, mut tf, mut vis) in &mut flames {
-        let Some(&c) = cells.get(f.0) else {
+        let Some(&(c, extra)) = drawn.get(f.0) else {
             if *vis != Visibility::Hidden {
                 *vis = Visibility::Hidden;
             }
             continue;
         };
-        let j = jitter(c, 1);
+        let j = jitter(c, 1 + extra * 13);
         let flick = 0.8 + 0.25 * (t * (7.0 + 3.0 * j) + j * std::f32::consts::TAU).sin();
         let core = f.0 % 3 == 0;
         // A vent's flame is a smaller tongue out of its mound's throat.
         let vent = vents.contains(&c);
         let (w, h) = match (core, vent) {
-            (true, false) => (0.8, 1.3),
-            (false, false) => (1.3, 2.2),
+            (true, false) => (1.0, 1.7),
+            (false, false) => (1.6, 2.8),
             (true, true) => (0.45, 0.8),
             (false, true) => (0.7, 1.25),
         };
         let lift = if vent { 1.9 } else { 1.0 };
         let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + lift, c[2] as f32 + 0.5);
         let sway = 0.08 * (t * 3.0 + j * 9.0).sin();
-        tf.translation = base + Vec3::new(sway, h * flick * 0.5 - 0.05, sway * 0.5);
+        // A repeat tongue stands a little off the block and higher.
+        let (h, spread) = if extra > 0 {
+            (
+                h * (1.15 + 0.25 * j),
+                Vec3::new(j - 0.5, 0.25 * extra as f32, jitter(c, 5 + extra) - 0.5) * 0.9,
+            )
+        } else {
+            (h, Vec3::ZERO)
+        };
+        tf.translation = base + spread + Vec3::new(sway, h * flick * 0.5 - 0.05, sway * 0.5);
         tf.rotation = face;
         tf.scale = Vec3::new(w * (0.9 + 0.2 * j), h * flick, 1.0);
         if *vis != Visibility::Visible {

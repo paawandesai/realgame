@@ -167,7 +167,10 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     let breathe = 0.8 + 0.2 * sin(globals.time * 1.3 + wp.x * 0.2 + wp.z * 0.15);
     let vein = smoothstep(0.022, 0.0, abs(fine - 0.5)) * glow;
     let teal = vec3<f32>(0.25, 1.0, 0.85);
-    let core = col * smoothstep(0.6, 1.0, glow);
+    // Facets facing the eye glow brightest, so a crystal reads as a cut
+    // gem and not a flat mint shape (B4 round 3 judges).
+    let facing = max(dot(n, V), 0.0);
+    let core = col * smoothstep(0.6, 1.0, glow) * (0.25 + 0.75 * facing * facing);
     var emit = (teal * vein * 1.1 + core * 0.75) * breathe;
     // Rim light: a cool sky edge on every silhouette.
     let rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);

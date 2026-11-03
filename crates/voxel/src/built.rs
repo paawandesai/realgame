@@ -179,6 +179,13 @@ pub fn ice_plug(p: [i32; 3], m: u8) -> bool {
     m == mat::ICE && stamp::ICE_GATE.contains(p)
 }
 
+/// The electrolysis rig's glass cell between its iron terminals: the
+/// client's rig stand (basin, tubes) is its drawing; the clear pass's grey
+/// glass box read as a stray beam between the terminals (B4 round 3).
+pub fn rig_glass(p: [i32; 3], m: u8) -> bool {
+    m == mat::GLASS && stamp::RIG.contains(p)
+}
+
 /// The Kiln's runestone door cells: the client draws the arched timber
 /// door over them (`voxel_view::kiln_door`), which swings open with them.
 fn kiln_door(p: [i32; 3], m: u8) -> bool {
@@ -1368,6 +1375,43 @@ fn workshop_frame(
             charred,
         );
     }
+    // The village kit (B4 round 3 judges: the workshop read as a box with
+    // plank strips beside the cottages): a stone plinth round its foot and
+    // round clay buttresses at the corner posts, as on the houses.
+    let stone = paint(mul(ROCK, 1.15), mat::STONE);
+    let plaster = paint(mix(mul(CLAY, 0.85), CHAR, 0.12), mat::BRICK);
+    let (ox0, ox1) = (x0 as f32, x1 as f32 + 1.0);
+    let (oz0, oz1) = (z0 as f32, z1 as f32 + 1.0);
+    let (mx, mz) = ((ox0 + ox1) / 2.0, (oz0 + oz1) / 2.0);
+    for (cz, hz) in [(oz0, 0.12f32), (oz1, 0.12)] {
+        cbox(
+            out,
+            [mx, 35.16, cz],
+            [X, Y, Z],
+            [(ox1 - ox0) / 2.0 + 0.12, 0.17, hz],
+            0.05,
+            stone,
+        );
+    }
+    for cx in [ox0, ox1] {
+        cbox(
+            out,
+            [cx, 35.16, mz],
+            [X, Y, Z],
+            [0.12, 0.17, (oz1 - oz0) / 2.0 + 0.12],
+            0.05,
+            stone,
+        );
+    }
+    for (cx, cz) in [(x0, z0), (x1, z0), (x0, z1), (x1, z1)] {
+        if !post(cx, cz) {
+            continue;
+        }
+        let b = [cx as f32 + 0.5, 34.98, cz as f32 + 0.5];
+        column(out, b, 0.74, 0.7, 0.3, 10, stone);
+        column(out, add(b, [0.0, 0.28, 0.0]), 0.66, 0.56, 2.0, 10, plaster);
+        column(out, add(b, [0.0, 2.26, 0.0]), 0.62, 0.48, 0.14, 10, plaster);
+    }
     // The roof: a ridge along x at the middle, rafters from the eave plates
     // at the posts' tops up to it, every other one burnt through.
     if !(post(x0, z0) && post(x1, z0) && post(x0, z1) && post(x1, z1)) {
@@ -1428,6 +1472,78 @@ fn workshop_frame(
             0.015,
             scorched,
         );
+    }
+    // What is left of the tiles: the north slope's east two thirds, and
+    // the south slope's two end bays, scorched towards the burnt hole.
+    let tile = paint([0.42, 0.085, 0.04], mat::PLANKS);
+    let tile_burnt = paint(mix([0.42, 0.085, 0.04], CHAR, 0.55), mat::PLANKS);
+    let span = fx1 - fx0;
+    for (side, fz, xs) in [
+        (-1.0f32, fz0, vec![(fx0 + span * 0.36, fx1 + 0.45)]),
+        (
+            1.0,
+            fz1,
+            vec![
+                (fx0 - 0.45, fx0 + span * 0.2),
+                (fx1 - span * 0.2, fx1 + 0.45),
+            ],
+        ),
+    ] {
+        let eave = [0.0, ey - 0.25, fz + side * 0.55];
+        let ridge = [0.0, ry + 0.12, zc];
+        let d = sub(ridge, eave);
+        let len = dot(d, d).sqrt();
+        let slope = mul(d, 1.0 / len);
+        let up = norm(cross(slope, X));
+        let up = if up[1] < 0.0 { mul(up, -1.0) } else { up };
+        for (a, b) in xs {
+            let mid_x = (fx0 + fx1) / 2.0;
+            let ex = if (a - mid_x).abs() < (b - mid_x).abs() {
+                a
+            } else {
+                b
+            };
+            let cx = (a + b) / 2.0;
+            let c = add([cx, 0.0, 0.0], mul(add(eave, ridge), 0.5));
+            let c = add(c, mul(up, 0.12));
+            cbox(
+                out,
+                c,
+                [X, slope, up],
+                [(b - a) / 2.0, len / 2.0, 0.07],
+                0.03,
+                tile,
+            );
+            // Courses across the slope.
+            for k in 0..5 {
+                let t = -0.4 + 0.2 * k as f32;
+                cbox(
+                    out,
+                    add(add(c, mul(slope, t * len)), mul(up, 0.075)),
+                    [X, slope, up],
+                    [(b - a) / 2.0 - 0.02, 0.035, 0.025],
+                    0.01,
+                    tile_dark_of(tile),
+                );
+            }
+            // A scorched edge where the fire ate the rest.
+            cbox(
+                out,
+                add([ex - cx, 0.0, 0.0], add(c, mul(up, 0.02))),
+                [X, slope, up],
+                [0.22, len / 2.0 - 0.05, 0.08],
+                0.03,
+                tile_burnt,
+            );
+        }
+    }
+}
+
+/// A darker tone of a roof tile paint, for its courses.
+fn tile_dark_of(p: Paint) -> Paint {
+    Paint {
+        rgb: mul(p.rgb, 0.68),
+        ..p
     }
 }
 
@@ -2118,34 +2234,9 @@ fn ice_gate(out: &mut MeshData, world: &World) {
             0.06,
             snow,
         );
-        // A pointed gable of stone over the lintel, and icicles hanging
-        // from it while the ice stands: a carved gate, not a gap.
-        let cx = (x0 + x1) / 2.0;
-        let fz = front + 0.3;
-        let w = (x1 - x0) / 2.0 + 1.2;
-        let peak = [cx, top + 3.1, fz];
-        let l = [cx - w, top + 0.8, fz];
-        let r = [cx + w, top + 0.8, fz];
-        let back = [cx, top + 1.6, front - 0.6];
-        facet(out, l, r, peak, back, stone);
-        let lb = [cx - w, top + 0.8, front - 0.3];
-        let rb = [cx + w, top + 0.8, front - 0.3];
-        let pb = [cx, top + 3.1, front - 0.3];
-        let mid = [cx, top + 1.6, front];
-        facet(out, l, peak, pb, mid, stone);
-        facet(out, l, pb, lb, mid, stone);
-        facet(out, r, peak, pb, mid, stone);
-        facet(out, r, pb, rb, mid, stone);
-        // Snow along the gable's slopes.
-        for (a, b) in [(l, peak), (r, peak)] {
-            let d = sub(b, a);
-            let len = dot(d, d).sqrt();
-            let along = mul(d, 1.0 / len);
-            let up = norm(cross([0.0, 0.0, 1.0], along));
-            let up = if up[1] < 0.0 { mul(up, -1.0) } else { up };
-            let c = add(mul(add(a, b), 0.5), mul(up, 0.08));
-            cbox(out, c, [along, up, Z], [len / 2.0, 0.08, 0.36], 0.05, snow);
-        }
+        // Icicles hang from the lintel while the ice stands: a carved gate
+        // in the cliff (B4 round 3: a pointed stone gable over it read as
+        // a hut roof, so the lintel stays flush with the rock).
         let iced = (g.min[0]..g.max[0])
             .any(|x| ice_plug([x, 38, g.max[2] - 1], world.get([x, 38, g.max[2] - 1]).mat));
         if iced {
@@ -2521,8 +2612,19 @@ fn crystal_collar(out: &mut MeshData, world: &World, p: [i32; 3]) {
     // Two axes across the face.
     let u = if d[1] != 0 { X } else { Y };
     let v = cross(dir, u);
-    let rock = paint([0.13, 0.13, 0.14], mat::STONE);
-    let rock2 = paint([0.2, 0.2, 0.21], mat::STONE);
+    // Rock lit from within by its crystals: a faint teal core and rune-like
+    // veins, so the cluster's foot shows in the dark and the shards read as
+    // set in rock, not floating (B4 round 3 judges).
+    let rock = Paint {
+        rgb: [0.07, 0.26, 0.23],
+        glow: 0.8,
+        mat: mat::STONE,
+    };
+    let rock2 = Paint {
+        rgb: [0.1, 0.32, 0.28],
+        glow: 0.8,
+        mat: mat::STONE,
+    };
     let n = 8;
     let ring = |r: f32, h: f32, salt: u32| -> Vec<V3> {
         (0..n)
@@ -2536,16 +2638,47 @@ fn crystal_collar(out: &mut MeshData, world: &World, p: [i32; 3]) {
             })
             .collect()
     };
-    let base = ring(0.78, 0.0, 300);
-    let top = ring(0.4, 0.28 + 0.1 * hash(p, 330), 340);
+    let base = ring(1.0, 0.0, 300);
+    let top = ring(0.5, 0.28 + 0.1 * hash(p, 330), 340);
     let inside = sub(c, mul(dir, 0.3));
+    // A boss of rock under the collar, back into the cell and the wall
+    // behind it, so a cluster on a thin or rounded-off wall still sits on
+    // rock instead of floating (B4 round 3 judges).
+    let root = ring(0.8, -0.95, 360);
+    let tail = add(c, mul(dir, -1.35));
     for k in 0..n as usize {
         let j = (k + 1) % n as usize;
         let pt = if k % 2 == 0 { rock } else { rock2 };
         facet(out, base[k], base[j], top[j], inside, pt);
         facet(out, base[k], top[j], top[k], inside, pt);
         facet(out, top[k], top[j], add(c, mul(dir, 0.18)), inside, rock);
+        facet(out, root[k], root[j], base[j], inside, pt);
+        facet(out, root[k], base[j], base[k], inside, pt);
+        facet(out, root[k], root[j], tail, inside, rock2);
     }
+}
+
+/// A placed torch: a timber stake with a pitch-wrapped head and a small
+/// glowing flame, instead of a whole glowing block (B4 round 3 judges: the
+/// cave's torch read as a blown-out lump). Its light is the client's.
+fn torch(out: &mut MeshData, p: [i32; 3]) {
+    let b = [p[0] as f32 + 0.5, p[1] as f32, p[2] as f32 + 0.5];
+    let stake = paint(mul(TIMBER, 0.9), mat::WOOD);
+    let pitch = paint([0.04, 0.03, 0.025], mat::WOOD);
+    let flame = Paint {
+        rgb: [1.0, 0.45, 0.08],
+        glow: 1.0,
+        mat: mat::TORCH,
+    };
+    let core = Paint {
+        rgb: [1.0, 0.75, 0.3],
+        glow: 1.0,
+        mat: mat::TORCH,
+    };
+    column(out, b, 0.08, 0.06, 0.62, 6, stake);
+    column(out, add(b, [0.0, 0.6, 0.0]), 0.1, 0.11, 0.14, 6, pitch);
+    column(out, add(b, [0.0, 0.74, 0.0]), 0.11, 0.0, 0.42, 6, flame);
+    column(out, add(b, [0.0, 0.74, 0.0]), 0.06, 0.0, 0.26, 5, core);
 }
 
 /// An iron cell of the electrolysis rig (its battery terminals each side
@@ -2692,7 +2825,6 @@ fn cache_trim(
     let stone = paint(mul(ROCK, 1.15), mat::STONE);
     let plaster = paint(mul(CLAY, 0.9), mat::BRICK);
     let cap = paint(mul(CLAY, 0.78), mat::BRICK);
-    let timber = paint(mul(TIMBER, 0.9), mat::WOOD);
     let (fy0, fy1) = (y0 as f32, y1 as f32);
     cbox(
         out,
@@ -2701,15 +2833,6 @@ fn cache_trim(
         [half + 0.16, 0.2, half + 0.16],
         0.06,
         stone,
-    );
-    let mid = (fy0 + fy1) / 2.0 + 0.5;
-    cbox(
-        out,
-        [c[0], mid, c[2]],
-        [X, Y, Z],
-        [half + 0.05, 0.07, half + 0.05],
-        0.02,
-        timber,
     );
     cbox(
         out,
@@ -2735,6 +2858,110 @@ fn cache_trim(
         ];
         column(out, b, 0.62, 0.55, fy1 - fy0 - 0.45, 10, plaster);
     }
+    tower_cottage(out, c, half, r, fy0, fy1);
+}
+
+/// The village kit on a cache tower (B4 round 3 judges: the towers read as
+/// flat-sided boxes with plank strips beside the bevelled, roofed
+/// cottages): a tiled pent roof skirting the tower over its string course,
+/// and a framed, shuttered window on each face below it. Looks only.
+fn tower_cottage(out: &mut MeshData, c: V3, half: f32, r: i32, fy0: f32, fy1: f32) {
+    let tile = paint([0.42, 0.085, 0.04], mat::PLANKS);
+    let tile_dark = paint([0.3, 0.06, 0.03], mat::PLANKS);
+    let timber = paint(mul(TIMBER, 0.9), mat::WOOD);
+    let dark = paint([0.02, 0.025, 0.035], mat::WOOD);
+    let shutter = paint(mix([0.06, 0.11, 0.16], CLAY, 0.15), mat::WOOD);
+    let mid = (fy0 + fy1) / 2.0 + 0.5;
+    let (out_by, rise) = (0.78f32, 0.42f32);
+    // The skirt: one sloped, tiled board per side, its corners lapped.
+    for (n, along) in [(X, Z), (mul(X, -1.0), Z), (Z, X), (mul(Z, -1.0), X)] {
+        let slope = norm(add(mul(n, out_by), [0.0, -rise, 0.0]));
+        let up = norm(cross(along, slope));
+        let up = if up[1] < 0.0 { mul(up, -1.0) } else { up };
+        let len = (out_by * out_by + rise * rise).sqrt();
+        let base = add(c, add(mul(n, half + out_by / 2.0), [0.0, mid + 0.12, 0.0]));
+        cbox(
+            out,
+            base,
+            [slope, up, along],
+            [len / 2.0 + 0.04, 0.07, half + out_by + 0.02],
+            0.03,
+            tile,
+        );
+        // Tile courses: three ridges down the slope, and a dark drip edge.
+        for k in 0..3 {
+            let t = -0.3 + 0.3 * k as f32;
+            cbox(
+                out,
+                add(add(base, mul(slope, t * len)), mul(up, 0.075)),
+                [slope, up, along],
+                [0.035, 0.025, half + out_by - 0.05],
+                0.01,
+                tile_dark,
+            );
+        }
+        cbox(
+            out,
+            add(add(base, mul(slope, len / 2.0)), mul(up, -0.02)),
+            [slope, up, along],
+            [0.05, 0.09, half + out_by + 0.03],
+            0.02,
+            tile_dark,
+        );
+        // A window under the skirt, if the wall below it is tall enough.
+        let wy = mid - 1.2;
+        if wy - 0.45 < fy0 + 0.45 {
+            continue;
+        }
+        let w = if r >= 2 { 0.48 } else { 0.3 };
+        let face = add(c, add(mul(n, half), [0.0, wy, 0.0]));
+        cbox(
+            out,
+            add(face, mul(n, -0.02)),
+            [along, Y, n],
+            [w, 0.42, 0.04],
+            0.0,
+            dark,
+        );
+        for dy in [-0.46f32, 0.46] {
+            cbox(
+                out,
+                add(face, add(mul(n, 0.05), [0.0, dy, 0.0])),
+                [along, Y, n],
+                [w + 0.1, 0.06, 0.09],
+                0.02,
+                timber,
+            );
+        }
+        for sx in [-1.0f32, 1.0] {
+            cbox(
+                out,
+                add(face, add(mul(n, 0.04), mul(along, sx * (w + 0.04)))),
+                [along, Y, n],
+                [0.06, 0.42, 0.08],
+                0.02,
+                timber,
+            );
+            if r >= 2 {
+                cbox(
+                    out,
+                    add(face, add(mul(n, 0.05), mul(along, sx * (w + 0.36)))),
+                    [along, Y, n],
+                    [0.25, 0.42, 0.035],
+                    0.02,
+                    shutter,
+                );
+            }
+        }
+        cbox(
+            out,
+            add(face, mul(n, 0.03)),
+            [along, Y, n],
+            [0.03, 0.4, 0.03],
+            0.01,
+            timber,
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2753,7 +2980,10 @@ fn plainly_empty(world: &World, lo: [i32; 3], hi: [i32; 3]) -> bool {
             // A cheap first look: no built material and no wood at all.
             Chunk::Array(cells) => !cells.iter().any(|c| {
                 is_built(c.mat)
-                    || matches!(c.mat, mat::WOOD | mat::ICE | mat::GAS_VENT | mat::CRYSTAL)
+                    || matches!(
+                        c.mat,
+                        mat::WOOD | mat::ICE | mat::GAS_VENT | mat::CRYSTAL | mat::TORCH
+                    )
             }),
         },
         None => true,
@@ -2793,6 +3023,10 @@ pub fn models(world: &World, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
                 }
                 if m == mat::CRYSTAL {
                     crystal_collar(&mut out, world, p);
+                    continue;
+                }
+                if m == mat::TORCH {
+                    torch(&mut out, p);
                     continue;
                 }
                 if m == mat::IRON && stamp::RIG.contains(p) {

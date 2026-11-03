@@ -881,11 +881,13 @@ fn spawn(
                 ..default()
             });
     }
-    // A beam of light over the Plaza Tower until its cache is taken.
+    // A beam of light over the Plaza Tower until its cache is taken: the
+    // same gold as the objective beam (B4 round 3: a pale blue shaft beside
+    // "Follow the gold light" read as a mismatch).
     if let Some(b) = pw.built.first() {
         let beam = materials.add(StandardMaterial {
-            base_color: Color::srgba(0.5, 0.8, 1.0, 0.35),
-            emissive: LinearRgba::rgb(0.6, 1.2, 2.0),
+            base_color: Color::srgba(1.0, 0.72, 0.16, 0.45),
+            emissive: LinearRgba::rgb(1.6, 0.95, 0.2),
             alpha_mode: AlphaMode::Blend,
             unlit: true,
             ..default()

@@ -155,10 +155,16 @@ pub const MARSH_STONE: [f32; 3] = [0.14, 0.13, 0.08];
 /// torch carry the light (art bible, "Crystal Cave").
 pub const CAVE_STONE: [f32; 3] = [0.15, 0.15, 0.18];
 
+/// Frozen Fields rock (#A39C96-ish), linear.
+pub const FROZEN_STONE: [f32; 3] = [0.40, 0.37, 0.35];
+
 /// The colour of material `m` at `p`, tinted by area: Marsh grass turns
 /// olive, cave stone darker. Looks only: the cells are unchanged.
 pub fn area_tint(m: u8, p: [f32; 3], rgb: [f32; 3]) -> [f32; 3] {
-    if !matches!(m, mat::GRASS | mat::STONE | mat::CLIFFSTONE | mat::DIRT) {
+    if !matches!(
+        m,
+        mat::GRASS | mat::STONE | mat::CLIFFSTONE | mat::DIRT | mat::MUD
+    ) {
         return rgb;
     }
     let b = crate::gen::biome_at([
@@ -170,6 +176,14 @@ pub fn area_tint(m: u8, p: [f32; 3], rgb: [f32; 3]) -> [f32; 3] {
         (mat::GRASS, crate::Biome::Marsh) => MARSH_GRASS,
         (mat::STONE | mat::DIRT, crate::Biome::Marsh) => MARSH_STONE,
         (mat::STONE | mat::CLIFFSTONE, crate::Biome::Cave) => CAVE_STONE,
+        // Frozen rock: a lighter, warmer grey than the valley's violet
+        // cliffstone, so the cliffs under the snow read as sunlit rock
+        // and not a blue-grey wash (B4 round 3 judges).
+        (mat::STONE | mat::CLIFFSTONE, crate::Biome::Frozen) => FROZEN_STONE,
+        // The Plaza Tower's pad is levelled in mud (`powers::level`): in
+        // the Village it reads as the plaza's grass, not a dark square
+        // decal (B4 round 3).
+        (mat::MUD, crate::Biome::Village | crate::Biome::Kiln) => LOOKS[mat::GRASS as usize].rgb,
         _ => rgb,
     }
 }
@@ -257,6 +271,8 @@ impl Grid {
                         g.mat[i] = if crate::props::modelled(world, [x, y, z], c.mat)
                             || crate::built::free_standing(c.mat)
                             || crate::built::ice_plug([x, y, z], c.mat)
+                            || crate::built::rig_glass([x, y, z], c.mat)
+                            || c.mat == mat::TORCH
                         {
                             mat::AIR
                         } else {
