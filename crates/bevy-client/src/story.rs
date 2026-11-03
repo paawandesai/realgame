@@ -74,7 +74,7 @@ impl Default for Story {
 
 /// Where each step's target is (x, z), for the objective arrow (spec section
 /// 4): workshop, ford, ice gate, coal seam, hollow, rig, Kiln.
-const TARGETS: [(f32, f32); 7] = [
+pub(crate) const TARGETS: [(f32, f32); 7] = [
     (142.0, 190.0),
     (128.0, 154.0),
     (60.0, 90.0),
@@ -84,12 +84,36 @@ const TARGETS: [(f32, f32); 7] = [
     (128.0, 169.0),
 ];
 
+/// Where the objective arrow and beacon point for quest `step`: the step's
+/// target, except that the first step (put out the workshop) points at the
+/// Formula Bench until Water is learned there, so the first thing a new
+/// player is led to is the Bench, then the fire. `None` before the intro
+/// closes and after the ending.
+pub(crate) fn target(step: u8, water_known: bool) -> Option<(f32, f32)> {
+    if step == 1 && !water_known {
+        return Some(crate::bench::VOXEL_STATION);
+    }
+    (step as usize)
+        .checked_sub(1)
+        .and_then(|i| TARGETS.get(i))
+        .copied()
+}
+
+/// Whether Water (slot 2) has been learned at a Bench (any stage past
+/// Unknown), in this browser's saved progress.
+pub(crate) fn water_known(progress: &crate::Progress) -> bool {
+    progress
+        .0
+        .get(1)
+        .is_some_and(|p| p.stage != crate::progress::Stage::Unknown)
+}
+
 /// How fast the intro camera pans while the intro cards show, radians/s.
 const INTRO_PAN: f32 = 0.08;
 
 /// Registers the story (Voxel mode only).
 pub fn plugin(app: &mut App) {
-    app.add_plugins(crate::gates::plugin)
+    app.add_plugins((crate::gates::plugin, crate::beacon::plugin))
         .init_resource::<Keys>()
         .init_resource::<Story>()
         .add_systems(
@@ -344,9 +368,11 @@ fn keys(
     player: Res<Player>,
     bench: Option<Res<BenchState>>,
     view: Option<Res<crate::voxel_view::Keys>>,
+    progress: Res<crate::Progress>,
 ) {
+    let water = water_known(&progress);
     with_pack(&mut story, &mut pack, |s| {
-        fill_keys(s, keys, &player, bench, view)
+        fill_keys(s, keys, &player, bench, view, water)
     });
 }
 
@@ -356,6 +382,7 @@ fn fill_keys(
     player: &Player,
     bench: Option<Res<BenchState>>,
     view: Option<Res<crate::voxel_view::Keys>>,
+    water: bool,
 ) {
     story.biome = view.map_or("village".to_string(), |v| v.biome.to_string());
     let band: Option<Tier> = bench.as_ref().and_then(|b| b.band);
@@ -371,8 +398,7 @@ fn fill_keys(
         .into_iter()
         .map(|(k, n)| (k.to_string(), n))
         .collect();
-    keys.obj_bearing = (1..=7).contains(&step).then(|| {
-        let (tx, tz) = TARGETS[step as usize - 1];
+    keys.obj_bearing = target(step, water).map(|(tx, tz)| {
         let eye = player.eye();
         crate::cues::bearing_deg(eye.x, eye.z, player.yaw, tx, tz)
     });
@@ -504,6 +530,16 @@ fn publish(_json: &str) {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_first_objective_leads_to_the_bench_until_water_is_learned() {
+        assert_eq!(target(0, false), None, "nothing during the intro");
+        assert_eq!(target(1, false), Some(crate::bench::VOXEL_STATION));
+        assert_eq!(target(1, true), Some(TARGETS[0]), "then the workshop");
+        assert_eq!(target(2, false), Some(TARGETS[1]));
+        assert_eq!(target(7, true), Some(TARGETS[6]));
+        assert_eq!(target(8, true), None, "nothing after the ending");
+    }
 
     #[test]
     fn valley_material_ids_match_the_voxel_table() {

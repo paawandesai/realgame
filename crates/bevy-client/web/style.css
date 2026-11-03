@@ -481,3 +481,22 @@ body.intro-open #caption { visibility: hidden; }
 /* The music toggle (music.js): under the rank badge. */
 #music-btn { position: fixed; z-index: 700; top: 200px; right: 14px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--panel); color: #ffe08a; font-size: 24px; line-height: 44px; padding: 0; cursor: pointer; }
 #music-btn.music-off { color: #888; text-decoration: line-through; }
+/* Wednesday polish: the title screen, over the valley while it loads. */
+#title { position: fixed; inset: 0; z-index: 950; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(22px * var(--ui)); padding: 16px; box-sizing: border-box; overflow-y: auto; color: #fff; text-align: center;
+  background: radial-gradient(ellipse at 50% 40%, rgba(12, 18, 40, 0.45), rgba(8, 12, 24, 0.88) 80%); }
+#title[hidden] { display: none; }
+#title h1 { margin: 0; font-size: calc(84px * var(--ui)); letter-spacing: 0.04em; font-weight: 800; color: #ffe08a; text-shadow: 0 0 28px rgba(255, 200, 90, 0.55), 0 4px 0 #6b3a1f; }
+.title-sub { margin: 4px 0 0; font-size: calc(24px * var(--ui)); color: #bfe8ff; letter-spacing: 0.08em; }
+.title-play { font: inherit; font-size: calc(30px * var(--ui)); font-weight: 800; min-width: calc(220px * var(--ui)); min-height: 56px; padding: 12px 40px; border-radius: 16px; border: 3px solid #ffd54a; background: #2b3a5c; color: #fff; cursor: pointer; box-shadow: 0 0 24px rgba(255, 213, 74, 0.45); }
+.title-play:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+.title-play:not(:disabled):hover { background: #3a4d78; }
+.title-play:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.title-controls { background: rgba(20, 28, 48, 0.85); border-radius: 14px; padding: 12px 20px 14px; max-width: calc(100vw - 32px); box-sizing: border-box; }
+.title-controls h2 { margin: 0 0 8px; font-size: calc(18px * var(--ui)); color: #ffd54a; }
+.title-controls dl { display: grid; grid-template-columns: auto auto; gap: 6px 16px; margin: 0; text-align: left; font-size: calc(17px * var(--ui)); }
+.title-controls dt { text-align: right; white-space: nowrap; }
+.title-controls dd { margin: 0; }
+.title-controls kbd { display: inline-block; min-width: 1.4em; margin-left: 4px; padding: 1px 6px; border-radius: 6px; border: 1px solid #8fa3c8; border-bottom-width: 3px; background: #1d2a52; font: inherit; font-size: 0.9em; text-align: center; }
+#bench-chip[hidden] { display: none; }
+/* While the title shows, the HUD behind it stays out of the way. */
+body.title-open #hud, body.title-open .rank-badge, body.title-open #benchbtn, body.title-open #music-btn, body.title-open #bench-chip { visibility: hidden; }

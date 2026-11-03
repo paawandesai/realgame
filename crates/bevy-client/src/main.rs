@@ -17,6 +17,7 @@ mod atlas_gen;
 // The courtyard's planner (loop/I-051) uses the aim solver and cones too.
 #[allow(dead_code)]
 mod ballistics;
+mod beacon;
 mod bench;
 mod blockchem;
 mod bridge;
