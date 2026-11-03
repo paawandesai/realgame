@@ -1011,30 +1011,28 @@ fn spawn_kiln_door(
             NotShadowCaster,
         ));
     let (cx, sy, r) = KILN_ARCH;
-    let inside = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.16, 0.08, 0.05),
-        perceptual_roughness: 1.0,
+    // The firebox behind the door (Paawan's walkthrough: the bare dome
+    // inside looked awful): brick back wall, grate and logs. It sits in
+    // the doorway's alcove, so the door leaf hides it until it opens.
+    let firebox = materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        perceptual_roughness: 0.92,
         ..default()
     });
+    commands.spawn((Mesh3d(meshes.add(models::kiln_firebox())), MeshMaterial3d(firebox)));
+    // Once relit, the firebox glows hot: an additive orange wash over the
+    // bricks, so the courses still show through it.
     let hot = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.5, 0.18, 0.05),
-        emissive: LinearRgba::rgb(2.6, 0.9, 0.12),
+        base_color: Color::srgba(1.0, 0.45, 0.12, 0.55),
+        emissive: LinearRgba::rgb(1.6, 0.55, 0.08),
         unlit: true,
+        alpha_mode: AlphaMode::Add,
         ..default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(2.0 * r + 0.6, 4.2, 0.2))),
-        MeshMaterial3d(inside),
-        Transform::from_xyz(cx, 42.9, 171.4),
-        Visibility::Hidden,
-        KilnInside,
-        NotShadowCaster,
-    ));
-    // Once relit, the inside glows hot (drawn over the dark one).
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(2.0 * r + 0.6, 4.2, 0.2))),
+        Mesh3d(meshes.add(Rectangle::new(2.0 * r, 3.0))),
         MeshMaterial3d(hot),
-        Transform::from_xyz(cx, 42.9, 171.55),
+        Transform::from_xyz(cx, 42.5, 172.12),
         Visibility::Hidden,
         KilnGlow(100),
         NotShadowCaster,

@@ -1002,6 +1002,12 @@ fn stamps(w: &mut World) {
                 c(mat::BRICK)
             };
         }
+        // The firebox's back wall (Paawan's walkthrough: through the open
+        // door you walked into the bare dome): the doorway is a 2-deep
+        // alcove, dressed by the client (`models::kiln_firebox`).
+        if (127..=129).contains(&x) && (41..=43).contains(&y) && z == 171 {
+            return c(mat::BRICK);
+        }
         let door = (127..=129).contains(&x) && (41..=43).contains(&y) && z >= 172;
         if door && r2 <= 1.0 {
             return c(mat::RUNESTONE);
