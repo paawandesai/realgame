@@ -14,6 +14,7 @@
 
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::primitives::Aabb;
+use bevy::camera::visibility::VisibilityRange;
 use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::platform::time::Instant;
@@ -1294,8 +1295,24 @@ fn mesh_chunks(
                         PassMat::Atlas(h) => e.insert(MeshMaterial3d(h)),
                         PassMat::Smooth(h) => e.insert(MeshMaterial3d(h)),
                     };
-                    if pass > 0 || settings.low {
+                    if (pass > 0 && pass != PROPS_NEAR) || settings.low {
                         e.insert(NotShadowCaster);
+                    }
+                    // Props swap to their simpler meshes with distance
+                    // (from the chunk's centre), with a 10 m crossfade.
+                    let (a, b) = (PROP_LOD_M - 5.0, PROP_LOD_M + 5.0);
+                    if pass == PROPS_NEAR {
+                        e.insert(VisibilityRange {
+                            start_margin: 0.0..0.0,
+                            end_margin: a..b,
+                            use_aabb: true,
+                        });
+                    } else if pass == PROPS_FAR {
+                        e.insert(VisibilityRange {
+                            start_margin: a..b,
+                            end_margin: 1000.0..1001.0,
+                            use_aabb: true,
+                        });
                     }
                     chunks.ents[c][pass] = Some(e.id());
                 }
@@ -1320,6 +1337,14 @@ fn mesh_chunks(
     keys.mesh_q = chunks.queue.len() as u32;
     keys.mesh_ms = t0.elapsed().as_secs_f32() * 1000.0;
 }
+
+/// Chunk passes holding the props near and far.
+const PROPS_NEAR: usize = 3;
+const PROPS_FAR: usize = 4;
+/// Where props swap to their far meshes: metres from the chunk's centre to
+/// the camera (a chunk reaches 16 m either side, so the swap happens
+/// between about 45 m and 75 m from the props themselves).
+const PROP_LOD_M: f32 = 60.0;
 
 /// A chunk pass's material: the block atlas (`?blocks`) or the smooth look.
 enum PassMat {
