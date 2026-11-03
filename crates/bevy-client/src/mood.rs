@@ -94,7 +94,7 @@ const MARSH: Mood = Mood {
     azimuth: -0.6,
     fill: Vec3::new(0.80, 0.84, 0.66),
     fill_lux: 1_500.0,
-    haze: Vec3::new(0.58, 0.64, 0.38),
+    haze: Vec3::new(0.60, 0.66, 0.32),
     fog: Vec2::new(35.0, 160.0),
     ground_fog: 1.0,
 };
@@ -203,7 +203,7 @@ fn setup(mut commands: Commands, settings: Res<crate::Settings>, world: Option<R
             PointLight {
                 color: Color::srgb(0.25, 1.0, 0.85),
                 intensity: 0.0,
-                range: 11.0,
+                range: 13.0,
                 shadow_maps_enabled: false,
                 ..default()
             },
@@ -313,7 +313,7 @@ fn apply(
             Some((c, n)) if cover > 0.01 && c.distance(p) < 30.0 => {
                 // Teal light round each cluster, enough to colour the rock
                 // round it (art bible: crystals light their surroundings).
-                l.intensity = 22_000.0 * (*n as f32).min(6.0) * cover;
+                l.intensity = 45_000.0 * (*n as f32).min(6.0) * cover;
                 t.translation = *c;
             }
             _ => l.intensity = 0.0,

@@ -148,6 +148,9 @@ pub const LOOKS: [Look; mat::COUNT] = [
 /// Marsh grass (art bible: toward the dry grass and mud of the palette,
 /// #A3A35A and #5E5A3E), linear.
 pub const MARSH_GRASS: [f32; 3] = [0.17, 0.23, 0.065];
+/// Marsh rock and the sunken pond's walls: dark, wet, olive-brown, so the
+/// pit reads as earth and not as a pale blob in the haze.
+pub const MARSH_STONE: [f32; 3] = [0.14, 0.13, 0.08];
 /// Cave rock: darker than the valley's stone, so the teal crystals and the
 /// torch carry the light (art bible, "Crystal Cave").
 pub const CAVE_STONE: [f32; 3] = [0.15, 0.15, 0.18];
@@ -155,7 +158,7 @@ pub const CAVE_STONE: [f32; 3] = [0.15, 0.15, 0.18];
 /// The colour of material `m` at `p`, tinted by area: Marsh grass turns
 /// olive, cave stone darker. Looks only: the cells are unchanged.
 pub fn area_tint(m: u8, p: [f32; 3], rgb: [f32; 3]) -> [f32; 3] {
-    if m != mat::GRASS && m != mat::STONE && m != mat::CLIFFSTONE {
+    if !matches!(m, mat::GRASS | mat::STONE | mat::CLIFFSTONE | mat::DIRT) {
         return rgb;
     }
     let b = crate::gen::biome_at([
@@ -165,6 +168,7 @@ pub fn area_tint(m: u8, p: [f32; 3], rgb: [f32; 3]) -> [f32; 3] {
     ]);
     match (m, b) {
         (mat::GRASS, crate::Biome::Marsh) => MARSH_GRASS,
+        (mat::STONE | mat::DIRT, crate::Biome::Marsh) => MARSH_STONE,
         (mat::STONE | mat::CLIFFSTONE, crate::Biome::Cave) => CAVE_STONE,
         _ => rgb,
     }

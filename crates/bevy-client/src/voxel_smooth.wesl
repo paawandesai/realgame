@@ -56,8 +56,8 @@ fn ground_fog(c: vec4<f32>, wp: vec3<f32>) -> vec4<f32> {
     let h = clamp((33.4 - wp.y) / 3.2, 0.0, 1.0);
     let d = distance(wp, view.world_position);
     let along = 1.0 - exp(-d * 0.06);
-    let f = amt * h * (0.4 + 0.6 * h) * along * 0.75;
-    let fog = vec3<f32>(0.42, 0.48, 0.19);
+    let f = amt * h * (0.4 + 0.6 * h) * along * 0.62;
+    let fog = vec3<f32>(0.50, 0.56, 0.14);
     return vec4<f32>(mix(c.rgb, fog, f), c.a);
 }
 

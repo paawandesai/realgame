@@ -801,7 +801,7 @@ fn spawn(
         PointLight {
             color: Color::srgb(1.0, 0.62, 0.3),
             intensity: 0.0,
-            range: 16.0,
+            range: 18.0,
             shadow_maps_enabled: false,
             ..default()
         },
@@ -909,6 +909,12 @@ fn spawn_kiln_door(
         perceptual_roughness: 1.0,
         ..default()
     });
+    let hot = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.5, 0.18, 0.05),
+        emissive: LinearRgba::rgb(1.6, 0.5, 0.08),
+        unlit: true,
+        ..default()
+    });
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(2.0 * r + 0.6, 4.2, 0.2))),
         MeshMaterial3d(inside),
@@ -917,6 +923,16 @@ fn spawn_kiln_door(
         KilnInside,
         NotShadowCaster,
     ));
+    // Once relit, the inside glows hot (drawn over the dark one).
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(2.0 * r + 0.6, 4.2, 0.2))),
+        MeshMaterial3d(hot),
+        Transform::from_xyz(cx, 42.9, 171.55),
+        Visibility::Hidden,
+        KilnGlow(100),
+        NotShadowCaster,
+        NotShadowReceiver,
+    ));
     // The relit hearth: a soft orange glow filling the doorway, flames on
     // its floor, a strong warm light just outside and sparks.
     let disc = images.add(crate::fire_fx::sprite(false));
@@ -924,7 +940,7 @@ fn spawn_kiln_door(
     let glow = materials.add(StandardMaterial {
         base_color: Color::srgba(1.0, 0.55, 0.15, 0.9),
         base_color_texture: Some(disc),
-        emissive: LinearRgba::rgb(2.6, 1.0, 0.18),
+        emissive: LinearRgba::rgb(3.0, 1.15, 0.2),
         unlit: true,
         alpha_mode: AlphaMode::Add,
         double_sided: true,
@@ -943,6 +959,17 @@ fn spawn_kiln_door(
         ..default()
     });
     let quad = meshes.add(Rectangle::new(1.0, 1.0));
+    // A wide halo out in front of the doorway, so the glow spills over
+    // the frame and the terrace even in daylight.
+    commands.spawn((
+        Mesh3d(quad.clone()),
+        MeshMaterial3d(glow.clone()),
+        Transform::from_xyz(cx, sy - 0.4, 175.4).with_scale(Vec3::new(8.0, 7.0, 1.0)),
+        Visibility::Hidden,
+        KilnGlow(101),
+        NotShadowCaster,
+        NotShadowReceiver,
+    ));
     commands.spawn((
         Mesh3d(quad.clone()),
         MeshMaterial3d(glow),
@@ -1045,15 +1072,19 @@ fn kiln_fx(
         if !lit {
             continue;
         }
+        let pulse = 1.0 + 0.05 * (t * 3.1).sin() + 0.03 * (t * 7.3).sin();
         if g.0 == 0 {
-            let pulse = 1.0 + 0.05 * (t * 3.1).sin() + 0.03 * (t * 7.3).sin();
             tr.scale = Vec3::new(4.6 * pulse, 5.0 * pulse, 1.0);
+        } else if g.0 == 101 {
+            tr.scale = Vec3::new(8.0 * pulse, 7.0 * pulse, 1.0);
+        } else if g.0 >= 100 {
+            // The hot inside wall: it does not move.
         } else {
             let k = g.0 as f32;
             let x = cx + (k - 3.0) * 0.52 * r / 1.5;
-            let hgt = 1.5 + 0.5 * ((t * (5.0 + k)).sin() * 0.5 + 0.5) - 0.25 * (k - 3.0).abs();
+            let hgt = 2.1 + 0.6 * ((t * (5.0 + k)).sin() * 0.5 + 0.5) - 0.3 * (k - 3.0).abs();
             tr.translation = Vec3::new(x, 41.0 + hgt / 2.0, 172.7 + 0.02 * k);
-            tr.scale = Vec3::new(0.8 + 0.1 * (t * 4.0 + k).sin(), hgt, 1.0);
+            tr.scale = Vec3::new(1.0 + 0.12 * (t * 4.0 + k).sin(), hgt, 1.0);
         }
     }
     for (mut tr, mut v, s) in &mut q.p3() {
@@ -1207,8 +1238,12 @@ fn light(
     for (mut l, mut t) in &mut held {
         // Warm and strong near the player (art bible: the torch is the
         // cave's warm light; the crystals are the only other).
-        l.intensity = if has { 260_000.0 * flicker } else { 0.0 };
-        t.translation = player.eye() + Vec3::Y * 0.3;
+        l.intensity = if has { 600_000.0 * flicker } else { 0.0 };
+        // Held a little ahead and low, as in the hand: it lights the floor
+        // and walls in front of the player.
+        let f = player.forward();
+        let ahead = Vec3::new(f.x, 0.0, f.z).normalize_or_zero();
+        t.translation = player.eye() + ahead * 0.7 - Vec3::Y * 0.25;
     }
     *scan -= dt;
     if *scan <= 0.0 {
