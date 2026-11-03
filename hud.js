@@ -504,6 +504,45 @@ export function startHud() {
   });
 
   const slots = [...document.querySelectorAll('.slot')];
+  /** @type {HTMLElement[]} */
+  const boundSlots = [];
+  let boundKey = '';
+  /** Keys 6-9 on the hotbar, from the pack's bindings in `__storyState`. */
+  const drawBound = (/** @type {number} */ hot) => {
+    /** @type {any} */
+    let st = null;
+    try { st = JSON.parse(/** @type {any} */ (window).__storyState || 'null'); } catch { st = null; }
+    if (!st || !Array.isArray(st.hot) || !Array.isArray(st.slots)) return;
+    const items = st.hot.map((/** @type {any} */ s) => (s === null || s === undefined ? null : st.slots[s] || null));
+    const key = JSON.stringify(items.map((/** @type {any} */ it) => (it ? [it.label, it.n] : null)));
+    if (key !== boundKey) {
+      boundKey = key;
+      const bar = document.getElementById('hotbar');
+      items.forEach((/** @type {any} */ it, /** @type {number} */ k) => {
+        let el = boundSlots[k];
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'slot bound-slot';
+          for (const cls of ['key', 'name', 'formula']) {
+            const sp = document.createElement('span');
+            sp.className = cls;
+            el.append(sp);
+          }
+          boundSlots[k] = el;
+          bar?.append(el);
+        }
+        el.hidden = !it;
+        if (it) {
+          const [kk, nm, fm] = /** @type {HTMLElement[]} */ (Array.from(el.children));
+          if (kk) kk.textContent = String(6 + k);
+          if (nm) nm.textContent = it.label;
+          if (fm) fm.textContent = `×${it.n}`;
+          el.setAttribute('aria-label', `${it.label}: press ${6 + k}, click to place`);
+        }
+      });
+    }
+    boundSlots.forEach((el, k) => el.classList.toggle('sel', hot === 6 + k));
+  };
   /** @type {HTMLElement | null} */
   let pickSlot = null;
   const cross = $('crosshair');
@@ -753,6 +792,9 @@ export function startHud() {
       const hot = state.mode === 'voxel' && Number.isFinite(state.hot) ? state.hot : 0;
       slots.forEach((s, i) => s.classList.toggle('sel', hot > 4 ? false : i === state.spell));
       if (pickSlot) pickSlot.classList.toggle('sel', hot === 5);
+      // Keys 6-9: what the pack bound to them (Paawan's playtest: a torch
+      // bound in the pack never showed, so the keys seemed not to work).
+      if (state.mode === 'voxel') drawBound(hot);
       if (wheelSpell === state.spell) wheelSpell = null;
       const burningAt = (i) => i >= 0 && !!state.objs[i] && state.objs[i].burning;
       cross.classList.toggle('on', state.aimObj >= 0 && state.locked);
