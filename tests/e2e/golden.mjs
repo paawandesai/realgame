@@ -5475,7 +5475,7 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   const opened = await probe(128, 33, 158);
   const sg1 = await sign('frozen');
   check('puzzles: P2 the ford is gated until Water is Practised; its sign counts the casts; three casts open it',
-    wall && wall.mat === 'runestone' && sg0 && sg0.shown && !sg0.overlap && /Practise Water 3 times to open \(0\/3\)/.test(sg0.text) && held &&
+    wall && wall.mat === 'runestone' && sg0 && sg0.shown && !sg0.overlap && /Cast Water 3 times anywhere to open \(0\/3\)/.test(sg0.text) && held &&
       pressed === 3 && opened && opened.mat === 'air' && /sinks/.test(s.caption) && sg1 && !sg1.shown,
     `wall ${wall && wall.mat}, sign "${sg0 && sg0.text}" shown=${sg0 && sg0.shown} overlap=${sg0 && sg0.overlap}, held at z ${s.pos[2].toFixed(2)}, ` +
     `presses ${pressed}, after ${opened && opened.mat}, caption "${s.caption.slice(0, 50)}", sign after shown=${sg1 && sg1.shown}`);
@@ -5553,7 +5553,7 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   const gates = await page.evaluate(() => { try { return JSON.parse(window.__storyState).gates; } catch { return null; } });
   const marshOpen = Array.isArray(gates) && gates.some((g) => g.id === 'marsh' && g.open);
   check('puzzles: the Marsh gate (east pass) holds until Frost is Practised; its sign says so; the ford\'s Frost casts open it',
-    !!pass && /Practise Frost 3 times to open \(0\/3\)/.test(marshSign0 || '') && passAfter && passAfter.mat === 'air' && marshOpen,
+    !!pass && /Cast Frost 3 times anywhere to open \(0\/3\)/.test(marshSign0 || '') && passAfter && passAfter.mat === 'air' && marshOpen,
     `wall ${pass && pass.at}, sign at start "${marshSign0}", after "${marshSign1}", cell after ${passAfter && passAfter.mat}, open=${marshOpen}`);
 
   // ---- P3: the methane hollow. In the hollow, CO2 poured with the rim gap
@@ -5930,8 +5930,16 @@ async function valleyFirstLift({ page, st, cmd, until, frames, sleep, base }) {
     /Learn Water at the Formula Bench/.test(tease) && tower.h > 0 && !tower.found,
     `card=${tease} tower=${JSON.stringify(tower)}`);
   // F2. Learning Water starts the guide: press 2, then F by the tower.
+  // P10: it waits while the workshop still burns (quest 1), so first check
+  // it stays quiet, then move the story on past the fire.
   await cmd('tp 124.5 35 202.5');
   await cmd('prog learn 1');
+  await cmd('select 1');
+  await frames(6);
+  const quiet = (await pw()).guide;
+  check('first lift: after learning Water the guide waits while the workshop still burns',
+    !/Press 2|glowing tower/.test(quiet), `guide=${quiet}`);
+  await page.evaluate(() => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push('quest 2'); });
   // (If Water is already the selected spell, the guide skips "press 2".)
   await cmd('select 1');
   P = await untilPw((x) => /Press 2/.test(x.guide), 15000);

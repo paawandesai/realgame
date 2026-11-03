@@ -21,7 +21,7 @@ pub const STEAM: usize = 32;
 /// How long a steam puff lives, seconds.
 const STEAM_S: f32 = 1.6;
 /// How far smoke rises before it starts again, metres.
-const SMOKE_RISE: f32 = 6.0;
+const SMOKE_RISE: f32 = 10.0;
 
 #[derive(Component)]
 struct Flame(usize);
@@ -63,6 +63,54 @@ pub fn plugin(app: &mut App) {
         );
 }
 
+/// P10: soft sprite shapes made in code, so flames and smoke read as fire
+/// from across the plaza instead of as square tiles. `flame`: a teardrop,
+/// wide and solid at the bottom, tapering to a point; else a soft disc.
+pub fn sprite_alpha(flame: bool, u: f32, v: f32) -> f32 {
+    // u, v in 0..1; v = 0 is the top of the quad.
+    let x = (u - 0.5) * 2.0;
+    if flame {
+        let up = 1.0 - v; // 0 at the bottom, 1 at the top
+                          // Half-width: round at the base, narrowing to a tip.
+        let w = (1.0 - up).powf(0.8) * (0.55 + 0.45 * (up * 3.0).min(1.0));
+        let edge = if w <= 0.0 { 1.0 } else { x.abs() / w };
+        let base = ((1.0 - up) * 6.0).min(1.0) * (up * 8.0).clamp(0.6, 1.0);
+        (1.0 - edge.powf(1.6)).clamp(0.0, 1.0) * base
+    } else {
+        let y = (v - 0.5) * 2.0;
+        let r = (x * x + y * y).sqrt();
+        (1.0 - r).clamp(0.0, 1.0).powf(1.4)
+    }
+}
+
+fn sprite(flame: bool) -> Image {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    const N: u32 = 64;
+    let mut data = Vec::with_capacity((N * N * 4) as usize);
+    for y in 0..N {
+        for x in 0..N {
+            let a = sprite_alpha(
+                flame,
+                (x as f32 + 0.5) / N as f32,
+                (y as f32 + 0.5) / N as f32,
+            );
+            data.extend_from_slice(&[255, 255, 255, (a * 255.0) as u8]);
+        }
+    }
+    Image::new(
+        Extent3d {
+            width: N,
+            height: N,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+}
+
 fn glow(mats: &mut Assets<StandardMaterial>, c: Color, e: LinearRgba) -> Handle<StandardMaterial> {
     mats.add(StandardMaterial {
         base_color: c,
@@ -79,7 +127,10 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
+    let flame_tex = images.add(sprite(true));
+    let puff_tex = images.add(sprite(false));
     let kit = FireKit {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         flame: glow(
@@ -94,7 +145,7 @@ fn setup(
         ),
         smoke: glow(
             &mut mats,
-            Color::srgba(0.25, 0.24, 0.23, 0.35),
+            Color::srgba(0.22, 0.21, 0.2, 0.55),
             LinearRgba::BLACK,
         ),
         steam: glow(
@@ -103,6 +154,16 @@ fn setup(
             LinearRgba::rgb(0.3, 0.3, 0.32),
         ),
     };
+    for (h, tex) in [
+        (&kit.flame, &flame_tex),
+        (&kit.core, &flame_tex),
+        (&kit.smoke, &puff_tex),
+        (&kit.steam, &puff_tex),
+    ] {
+        if let Some(mut m) = mats.get_mut(h) {
+            m.base_color_texture = Some(tex.clone());
+        }
+    }
     for i in 0..FLAMES {
         let m = if i % 3 == 0 { &kit.core } else { &kit.flame };
         commands.spawn((
@@ -180,7 +241,7 @@ fn draw(
         let j = jitter(c, 1);
         let flick = 0.8 + 0.25 * (t * (7.0 + 3.0 * j) + j * std::f32::consts::TAU).sin();
         let core = f.0 % 3 == 0;
-        let (w, h) = if core { (0.55, 0.8) } else { (0.95, 1.35) };
+        let (w, h) = if core { (0.8, 1.3) } else { (1.3, 2.2) };
         let base = Vec3::new(c[0] as f32 + 0.5, c[1] as f32 + 1.0, c[2] as f32 + 0.5);
         let sway = 0.08 * (t * 3.0 + j * 9.0).sin();
         tf.translation = base + Vec3::new(sway, h * flick * 0.5 - 0.05, sway * 0.5);
@@ -208,7 +269,7 @@ fn draw(
         );
         tf.translation = base + drift;
         tf.rotation = face;
-        let size = 0.6 + 1.8 * phase;
+        let size = 1.0 + 3.2 * phase;
         tf.scale = Vec3::new(size, size, 1.0);
         if *vis != Visibility::Visible {
             *vis = Visibility::Visible;
@@ -281,6 +342,20 @@ fn steam(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_flame_sprite_is_a_soft_teardrop_and_smoke_a_soft_disc() {
+        use super::sprite_alpha;
+        // Solid low in the middle, clear at the corners and the tip's sides.
+        assert!(sprite_alpha(true, 0.5, 0.75) > 0.7);
+        assert!(sprite_alpha(true, 0.02, 0.98) < 0.1);
+        assert!(sprite_alpha(true, 0.1, 0.1) < 0.05);
+        assert!(sprite_alpha(true, 0.5, 0.75) > sprite_alpha(true, 0.5, 0.15));
+        // Smoke: solid centre, clear corners, no hard edge.
+        assert!(sprite_alpha(false, 0.5, 0.5) > 0.9);
+        assert_eq!(sprite_alpha(false, 0.0, 0.0), 0.0);
+        assert!(sprite_alpha(false, 0.5, 0.06) < 0.2);
+    }
+
     use super::*;
 
     #[test]

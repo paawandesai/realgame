@@ -283,6 +283,10 @@ The single register of every science claim the first-person 3D client shows the 
 | `You relit the Great Kiln!` | crates/bevy-client/web/late.js | I-052 late lane: Ending card title (story). Flagged by sentence shape or a formula; it states no science. |
 | `Every reaction runs in a simulation of heat, phase changes, fire, water and gases` | crates/bevy-client/web/late.js | Credits line (P9) describing how the game is built; each phase-change, fire and gas behaviour it simulates has its own claim row. |
 | `Rust and Bevy, compiled to WebAssembly, and JavaScript` | crates/bevy-client/web/late.js | Credits line (P9) naming the tools the game is built with; not science. |
+| `Use element symbols (capital first letter), numbers, + and an arrow ->.` | crates/bevy-client/web/bench.js | P10: Formula Bench typing help for a reaction. Notation only: element symbols start with a capital letter (IUPAC), and an equation needs an arrow; no physical claim. |
+| `Write element symbols and numbers, like NaCl. Each symbol starts with a capital letter.` | crates/bevy-client/web/bench.js | P10: Formula Bench typing help for one substance. Notation only (IUPAC symbols are capitalised; NaCl is an example of the format, not the answer); no physical claim. |
+| `Follow the gold light to the Formula Bench, then press E.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, before Water is learned); it states no science. |
+| `Follow the gold light to the burning workshop. Aim at the flames and click.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, after Water is learned); it states no science. |
 
 ## Sources
 

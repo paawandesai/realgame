@@ -89,7 +89,7 @@ pub fn at_bench(pos: Vec3) -> bool {
 /// The Formula Bench on the block world's plaza (`voxel::gen::BENCH`): the
 /// centre of its block, and the radius (m) within which `atBench` lights.
 pub const VOXEL_STATION: (f32, f32) = (124.5, 200.5);
-pub const VOXEL_RADIUS: f32 = 2.5;
+pub const VOXEL_RADIUS: f32 = 3.5;
 
 /// Field Benches (small stone shrines stamped by `powers.rs`): at the
 /// Village's ford approach and on the Frozen side of the Marsh gate. They
