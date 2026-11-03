@@ -91,14 +91,14 @@ const reducedMotion = () => {
 // Effective settings: URL, then saved, then default. Every storage access
 // can throw (private windows, blocked site data), so each is guarded.
 function loadSettings() {
-  const s = { sens: 1, hfov: 90, sway: !reducedMotion(), assist: true, hints: true, sound: true, text: 1 };
+  const s = { sens: 1, hfov: 90, sway: !reducedMotion(), assist: true, hints: true, sound: true, voice: false, text: 1 };
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { saved = null; }
   if (saved && typeof saved === 'object') {
     const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null);
     const sens = num(saved.sens, 0.25, 3); if (sens !== null) s.sens = sens;
     const hfov = num(saved.hfov, 70, 110); if (hfov !== null) s.hfov = Math.round(hfov / 5) * 5;
-    for (const k of ['sway', 'assist', 'hints', 'sound']) if (typeof saved[k] === 'boolean') s[k] = saved[k];
+    for (const k of ['sway', 'assist', 'hints', 'sound', 'voice']) if (typeof saved[k] === 'boolean') s[k] = saved[k];
     if ([1, 1.5, 2].includes(saved.text)) s.text = saved.text;
   }
   const us = parseFloat(params.get('sens'));
@@ -529,6 +529,8 @@ export function startHud() {
             el.append(sp);
           }
           boundSlots[k] = el;
+          // Paawan's walkthrough: a click on the slot picks it, like its key.
+          el.addEventListener('pointerdown', (e) => { e.stopPropagation(); cmd(`select ${6 + k}`); canvas.focus(); });
           bar?.append(el);
         }
         el.hidden = !it;
@@ -537,7 +539,7 @@ export function startHud() {
           if (kk) kk.textContent = String(6 + k);
           if (nm) nm.textContent = it.label;
           if (fm) fm.textContent = `×${it.n}`;
-          el.setAttribute('aria-label', `${it.label}: press ${6 + k}, click to place`);
+          el.setAttribute('aria-label', `${it.label}: press ${6 + k} or click here, then click to place`);
         }
       });
     }
@@ -579,7 +581,7 @@ export function startHud() {
   const fovIn = el('input', { type: 'range', id: 'fov', min: '70', max: '110', step: '5' });
   const fovVal = el('span', { id: 'fov-val', className: 'set-val' });
   const checks = {};
-  for (const [k, id] of [['sway', 'sway'], ['assist', 'assist'], ['hints', 'hints'], ['sound', 'sound']]) {
+  for (const [k, id] of [['sway', 'sway'], ['assist', 'assist'], ['hints', 'hints'], ['sound', 'sound'], ['voice', 'voice']]) {
     checks[k] = el('input', { type: 'checkbox', id });
   }
   const textIn = el('select', { id: 'textsize' });
@@ -590,6 +592,8 @@ export function startHud() {
   row('Aim help', checks.assist);
   row('Hints', checks.hints);
   row('Sound', checks.sound);
+  // Walkthrough: the Bench's spoken lines are opt-in (off by default).
+  row('Read lines aloud', checks.voice);
   row('Text size', textIn);
   // Settings go at the end of the card (the play buttons sit under the title).
   ($('pause').querySelector('.card') || $('pause')).append(box);
@@ -780,13 +784,15 @@ export function startHud() {
       if (state.mode === 'voxel' && !pickSlot) {
         pickSlot = document.createElement('div');
         pickSlot.className = 'slot pick-slot';
-        pickSlot.setAttribute('aria-label', 'Pick: press 5, hold the mouse button to dig');
+        pickSlot.setAttribute('aria-label', 'Pick: press 5 or click here, then hold the mouse button to dig');
         for (const [cls, text] of [['key', '5'], ['icon pick', ''], ['name', 'Pick'], ['formula', 'hold to dig']]) {
           const sp = document.createElement('span');
           sp.className = cls;
           sp.textContent = text;
           pickSlot.append(sp);
         }
+        // Paawan's walkthrough: clicking the Pick slot picks it, like key 5.
+        pickSlot.addEventListener('pointerdown', (e) => { e.stopPropagation(); cmd('select 5'); canvas.focus(); });
         document.getElementById('hotbar')?.append(pickSlot);
       }
       const hot = state.mode === 'voxel' && Number.isFinite(state.hot) ? state.hot : 0;

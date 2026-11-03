@@ -10,6 +10,49 @@ let sfx = null;
 let sfxLoading = false;
 const play = (/** @type {string} */ name) => { if (sfx) sfx.play(name); };
 
+// "+1 Coal" (Paawan's walkthrough: you could not tell what a dig gave you).
+// Compares the pack's per-item counts in `__storyState` between frames and
+// floats a short chip over the hotbar for each gain.
+/** @type {Record<string, number> | null} */
+let lastCounts = null;
+/** @param {any} story */
+function chips(story) {
+  if (!story || !Array.isArray(story.slots)) return;
+  /** @type {Record<string, number>} */
+  const now = {};
+  /** @type {Record<string, string>} */
+  const label = {};
+  for (const sl of story.slots) {
+    if (!sl || !sl.item) continue;
+    now[sl.item] = (now[sl.item] || 0) + (Number(sl.n) || 0);
+    label[sl.item] = String(sl.label || sl.item);
+  }
+  const before = lastCounts;
+  lastCounts = now;
+  if (!before) return;
+  for (const k of Object.keys(now)) {
+    const gain = (now[k] || 0) - (before[k] || 0);
+    if (gain > 0) showChip(`+${gain} ${label[k]}`);
+  }
+}
+/** @param {string} text */
+function showChip(text) {
+  let box = document.getElementById('pickup-chips');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'pickup-chips';
+    box.setAttribute('role', 'status');
+    box.setAttribute('aria-live', 'polite');
+    document.body.append(box);
+  }
+  const c = document.createElement('div');
+  c.className = 'pickup-chip';
+  c.textContent = text;
+  box.append(c);
+  while (box.children.length > 4) box.firstElementChild?.remove();
+  setTimeout(() => c.remove(), 1800);
+}
+
 /** Card length (s), and how long before a key or click can skip (s). */
 const CARD_S = 6;
 const SKIP_AFTER_S = 1;
@@ -286,6 +329,7 @@ export function startStory() {
       const n = Array.isArray(s.pack) ? s.pack.reduce((a, p) => a + (p.n || 0), 0) : 0;
       if (lastPack >= 0 && n > lastPack) play('pickup');
       lastPack = n;
+      chips(story);
     }
     requestAnimationFrame(tick);
   };

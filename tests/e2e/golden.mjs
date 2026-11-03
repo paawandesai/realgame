@@ -5277,20 +5277,23 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     return false;
   };
   // One worked cast with a real press: the press opens the builder, the
-  // formula is typed and Enter casts.
+  // formula is typed and Enter casts. A Practised spell casts at once with
+  // no builder (Paawan's walkthrough, 2026-11-03): `instant` is then true.
   const workedPress = async (formula) => {
     const s0 = await st();
     await page.mouse.down();
     await sleep(80);
     await page.mouse.up();
-    const open = await poll(async () => { const w = await wsOf(); return !!(w && w.work && w.work.view); }, 20000);
+    let instant = false;
+    const open = await poll(async () => {
+      const w = await wsOf();
+      if (w && w.work && w.work.view) return true;
+      if ((await st()).casts > s0.casts) { instant = true; return true; }
+      return false;
+    }, 20000);
     if (!open) return { ok: false, why: 'no builder' };
-    await poll(() => page.evaluate(() => !!document.querySelector('#worked input, #worked .worked-mount')), 5000);
-    const one = await page.evaluate(() => !!document.querySelector('#worked .worked-confirm'));
-    if (one) {
-      // Playwright's click waits for the panel to settle where it is placed.
-      await page.click('#worked .worked-confirm', { timeout: 20000 });
-    } else {
+    if (!instant) {
+      await poll(() => page.evaluate(() => !!document.querySelector('#worked input, #worked .worked-mount')), 5000);
       await page.keyboard.type(formula);
       await page.keyboard.press('Enter');
     }
@@ -5299,7 +5302,7 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     // Clear of the grace after a worked cast (0.4 game s) and the cooldown.
     await until((v) => v.gameTime >= x.gameTime + 0.6, 20000);
     await sleep(400);
-    return { ok: x.casts === s0.casts + 1, one, x };
+    return { ok: x.casts === s0.casts + 1, instant, x };
   };
 
   // ---- The intro: "Just play" takes a real mouse click at once and a
@@ -5384,7 +5387,7 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
     await cmd(['face 142.5 40.0 189.0', 'face 141.5 40.5 188.5', 'face 143.5 40.5 188.5'][k % 3]);
     await frames(2);
     const r = await workedPress('H2O(l)');
-    casts.push(r.ok ? (r.one ? 'confirm' : 'built') : r.why);
+    casts.push(r.ok ? (r.instant ? 'instant' : 'built') : r.why);
     await until((v) => v.gameTime >= r.x?.gameTime + 1.0 || !r.ok, 15000);
   }
   s = await until((x) => x.burning === 0 && x.quest >= 2, 30000);
@@ -5401,22 +5404,22 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
 
   // ---- Step 4: correct worked Water casts make Water Practised (three in
   // the run at most; the saved XP from the bench and two casts can get there
-  // first); from then on a press is one confirm, not the builder.
+  // first); from then on a press casts at once, with no builder.
   let built = casts.filter((c) => c === 'built').length;
   for (let k = 0; built < 3 && k < 4; k++) {
     await cmd('face 142.5 34.2 194.5');
     await frames(2);
     const r = await workedPress('H2O(l)');
-    if (r.ok && !r.one) built += 1; else break;
+    if (r.ok && !r.instant) built += 1; else break;
   }
   const pst = await until((x) => x.progress && x.progress[1] && x.progress[1].st === 'practised', 20000);
   await cmd('face 142.5 34.2 194.5');
   await frames(2);
   const conf = await workedPress('H2O(l)');
   await shot('p4-01-practised.png');
-  check('puzzles: correct worked Water casts (three at most) make Water Practised and the next press is one confirm',
-    built >= 2 && built <= 3 && pst.progress[1].st === 'practised' && conf.ok && conf.one,
-    `built ${built}, stage ${pst.progress && pst.progress[1] && pst.progress[1].st}, next press ok=${conf.ok} confirm=${conf.one}`);
+  check('puzzles: correct worked Water casts (three at most) make Water Practised and the next press casts instantly',
+    built >= 2 && built <= 3 && pst.progress[1].st === 'practised' && conf.ok && conf.instant,
+    `built ${built}, stage ${pst.progress && pst.progress[1] && pst.progress[1].st}, next press ok=${conf.ok} instant=${conf.instant}`);
   if (await page.evaluate(() => !!document.pointerLockElement)) {
     await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
   }

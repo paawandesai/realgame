@@ -94,25 +94,21 @@ export function createWorked({ doc, win, cmd, bench }) {
     // own cursor follows the mouse; Esc leaves it).
     const tip = el('p', 'worked-tip', 'Move the mouse to steer the white cursor, then click. Esc closes.');
     tip.hidden = !doc.pointerLockElement;
+    // Paawan's walkthrough (2026-11-03): say how many correct builds are
+    // left before this spell casts instantly, so the rebuilding has a goal.
+    if (blockWorld() && !sprout()) {
+      let left = 0;
+      try {
+        const st = JSON.parse(w.__workState);
+        left = Math.max(0, (Number(st.need) || 0) - (Number((st.casts || [])[work.spell]) || 0));
+      } catch { /* no state */ }
+      if (left > 0) {
+        const word = left === 1 ? 'Build it 1 more time' : `Build it ${left} more times`;
+        p.append(el('p', 'worked-left', `${word} and it casts instantly.`));
+      }
+    }
     p.append(copyLine, mount, reasonBox, tip, vcursor);
     doc.body.append(panel = p);
-    // Practised in the block world (I-052 round 2, partial mastery): the
-    // spell is known well, so its worked cast is one step: the formula is
-    // shown and one Cast press confirms it (the game still judges the
-    // formula it receives). The classic courtyard keeps I-029's builder.
-    if (stage === 'practised' && card.formula && blockWorld()) {
-      const sure = el('button', 'worked-confirm', '', { type: 'button' });
-      sure.append(el('span', icon(card.id), '', H), el('span', '', sprout() ? '✓' : `Cast ${bench.pretty(card.name)}`));
-      if (!sprout()) mount.append(el('p', 'worked-known', `You know this one: ${bench.pretty(card.formula)}`));
-      mount.append(sure);
-      sure.addEventListener('click', () => { if (openId === id) send(`work submit ${id} ${card.formula}`); });
-      const r0 = p.getBoundingClientRect();
-      vx = r0.left + r0.width / 2;
-      vy = r0.top + r0.height / 2;
-      place();
-      try { sure.focus(); } catch { /* none */ }
-      return;
-    }
     try {
       builder = bench.mountBuilder(mount, {
         band,

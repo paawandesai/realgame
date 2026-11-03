@@ -242,6 +242,16 @@ export function bandFrom(search, picked, chosen) {
 // Speech and sound
 // ---------------------------------------------------------------------------
 
+/** Reading lines aloud is off unless the saved settings say `voice: true` (Paawan's walkthrough). */
+function voiceOn() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    return !!(s && typeof s === 'object' && s.voice === true);
+  } catch {
+    return false;
+  }
+}
+
 /** Sound is on unless the saved settings say `sound: false` (absent or unreadable = on, as hud.js). */
 function soundOn() {
   try {
@@ -263,7 +273,7 @@ function speak(text) {
   try {
     if (typeof window === 'undefined' || !text) return;
     const syn = /** @type {any} */ (window).speechSynthesis;
-    if (!syn || typeof syn.speak !== 'function' || !soundOn()) return;
+    if (!syn || typeof syn.speak !== 'function' || !soundOn() || !voiceOn()) return;
     if (typeof syn.cancel === 'function') syn.cancel();
     const U = /** @type {any} */ (window).SpeechSynthesisUtterance;
     syn.speak(typeof U === 'function' ? new U(text) : { text });
