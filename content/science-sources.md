@@ -281,6 +281,8 @@ The single register of every science claim the first-person 3D client shows the 
 | `Oxygen, O2` | crates/bevy-client/web/late.js | I-052 late lane: Button label naming the gas. Flagged by sentence shape or a formula; it states no science. |
 | `Or type the reaction` | crates/bevy-client/web/late.js | I-052 late lane: Label of the Invention Bench's text box. Flagged by sentence shape or a formula; it states no science. |
 | `You relit the Great Kiln!` | crates/bevy-client/web/late.js | I-052 late lane: Ending card title (story). Flagged by sentence shape or a formula; it states no science. |
+| `Every reaction runs in a simulation of heat, phase changes, fire, water and gases` | crates/bevy-client/web/late.js | Credits line (P9) describing how the game is built; each phase-change, fire and gas behaviour it simulates has its own claim row. |
+| `Rust and Bevy, compiled to WebAssembly, and JavaScript` | crates/bevy-client/web/late.js | Credits line (P9) naming the tools the game is built with; not science. |
 
 ## Sources
 
