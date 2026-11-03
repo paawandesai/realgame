@@ -540,7 +540,8 @@ export function startHud() {
   row('Hints', checks.hints);
   row('Sound', checks.sound);
   row('Text size', textIn);
-  $('resume').before(box);
+  // Settings go at the end of the card (the play buttons sit under the title).
+  ($('pause').querySelector('.card') || $('pause')).append(box);
   const showSettings = () => {
     sensIn.value = String(settings.sens);
     sensVal.textContent = settings.sens.toFixed(2);

@@ -761,7 +761,12 @@ export function startBench() {
     ui.view = 'chooser';
     const q = 'How old are you?';
     const wrap = mk(document, 'div', 'bench-chooser');
-    wrap.append(mk(document, 'h2', 'bench-question', q));
+    const head = mk(document, 'h2', 'bench-question', q);
+    // P10 follow-up: no band looks picked when the chooser opens; focus sits
+    // on the question (Tab or an arrow reaches the first band).
+    head.tabIndex = -1;
+    head.style.outline = 'none';
+    wrap.append(head);
     const row = mk(document, 'div', 'bench-bands');
     const labels = /** @type {Record<string, [string, string]>} */ ({
       sprout: ['4 to 7', '4 to 7 years old'],
@@ -789,7 +794,7 @@ export function startBench() {
     }
     wrap.append(row);
     body.append(wrap);
-    if (ui.open) focusFirst();
+    if (ui.open) { try { head.focus({ preventScroll: true }); } catch { focusFirst(); } }
     speak(q);
   };
 
