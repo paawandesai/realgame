@@ -73,17 +73,18 @@ const DAY: Mood = Mood {
     ground_fog: 0.0,
 };
 
-/// Cooler and brighter: a low, warm sun from the south-west for long
-/// shadows across the snow and on the cliff faces that look south, a
-/// gentler blue fill so the snow reads white (#EEF2F5) and the shadows
-/// blue, and little haze (B4 round 3: the frame read as a blue-grey wash).
+/// Cooler and brighter: a lowish, warm-white sun from the south-south-west
+/// for long shadows across the snow and light on the cliff faces that look
+/// south (the ice gate's), a soft, nearly neutral fill so the snow reads
+/// white (#EEF2F5) and the shadows pale blue, and little haze (B4 round 3:
+/// the frame read as a blue-grey wash).
 const FROZEN: Mood = Mood {
-    sun: Vec3::new(1.0, 0.92, 0.80),
-    sun_lux: 17_000.0,
-    elevation: 0.42,
-    azimuth: -0.75,
-    fill: Vec3::new(0.78, 0.86, 1.0),
-    fill_lux: 1_700.0,
+    sun: Vec3::new(1.0, 0.96, 0.9),
+    sun_lux: 15_000.0,
+    elevation: 0.55,
+    azimuth: -0.45,
+    fill: Vec3::new(0.86, 0.9, 1.0),
+    fill_lux: 2_300.0,
     haze: Vec3::new(0.90, 0.94, 0.98),
     fog: Vec2::new(170.0, 300.0),
     ground_fog: 0.0,
@@ -326,7 +327,7 @@ fn apply(
             Some((c, n)) if cover > 0.01 && c.distance(p) < 30.0 => {
                 // Teal light round each cluster, enough to colour the rock
                 // round it (art bible: crystals light their surroundings).
-                l.intensity = 60_000.0 * (*n as f32).min(6.0) * cover;
+                l.intensity = 45_000.0 * (*n as f32).min(6.0) * cover;
                 t.translation = *c;
             }
             _ => l.intensity = 0.0,

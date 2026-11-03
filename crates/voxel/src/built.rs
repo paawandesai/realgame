@@ -2616,13 +2616,13 @@ fn crystal_collar(out: &mut MeshData, world: &World, p: [i32; 3]) {
     // veins, so the cluster's foot shows in the dark and the shards read as
     // set in rock, not floating (B4 round 3 judges).
     let rock = Paint {
-        rgb: [0.05, 0.16, 0.15],
-        glow: 0.75,
+        rgb: [0.07, 0.26, 0.23],
+        glow: 0.8,
         mat: mat::STONE,
     };
     let rock2 = Paint {
-        rgb: [0.07, 0.2, 0.18],
-        glow: 0.75,
+        rgb: [0.1, 0.32, 0.28],
+        glow: 0.8,
         mat: mat::STONE,
     };
     let n = 8;
@@ -2638,13 +2638,13 @@ fn crystal_collar(out: &mut MeshData, world: &World, p: [i32; 3]) {
             })
             .collect()
     };
-    let base = ring(0.78, 0.0, 300);
-    let top = ring(0.4, 0.28 + 0.1 * hash(p, 330), 340);
+    let base = ring(1.0, 0.0, 300);
+    let top = ring(0.5, 0.28 + 0.1 * hash(p, 330), 340);
     let inside = sub(c, mul(dir, 0.3));
     // A boss of rock under the collar, back into the cell and the wall
     // behind it, so a cluster on a thin or rounded-off wall still sits on
     // rock instead of floating (B4 round 3 judges).
-    let root = ring(0.62, -0.95, 360);
+    let root = ring(0.8, -0.95, 360);
     let tail = add(c, mul(dir, -1.35));
     for k in 0..n as usize {
         let j = (k + 1) % n as usize;
