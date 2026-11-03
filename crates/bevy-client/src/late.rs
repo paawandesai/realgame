@@ -41,6 +41,24 @@ pub const INVENTION: [f32; 3] = [132.5, 35.0, 200.5];
 pub const WATCH: (f32, f32) = (118.5, 196.5);
 /// How close (m, from the feet) the player must be to use something.
 pub const REACH: f32 = 3.0;
+/// The charcoal clamp's centre (step 4; `gen::CLAMP`, base and vent).
+pub const CLAMP: [f32; 3] = [60.5, 43.0, 72.5];
+/// A Fire cast landing this close (m, across the ground) to the clamp's
+/// centre lights it: the mound is about 2.6 m in radius.
+pub const CLAMP_HIT: f32 = 3.4;
+/// How long the logs char before the charcoal can be taken (s; gameplay
+/// tuning: a real clamp takes days).
+pub const CHAR_S: f32 = 7.0;
+/// Charcoal lumps one clamp gives.
+pub const CLAMP_GIVES: u16 = 3;
+/// Said when a Fire cast lights the clamp (`content/science-sources.md`).
+pub const CLAMP_LIT_LINE: &str =
+    "The logs smoulder under the earth. With little air they char instead of burning away.";
+/// Said when the charring is done.
+pub const CLAMP_READY_LINE: &str =
+    "The smoke has cleared. Press E at the mound to take the charcoal.";
+/// Said when the charcoal is taken.
+pub const CLAMP_TAKE_LINE: &str = "You got charcoal! Heat drove the water and gases out of the wood. What's left is mostly carbon, C.";
 
 /// The rig splits water for this long (s), filling the tubes 2:1.
 pub const RIG_S: f32 = 4.0;
@@ -85,6 +103,17 @@ pub enum Crate {
     Empty,
 }
 
+/// The charcoal clamp (step 4).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Clamp {
+    /// Logs under the earth, waiting for Fire in the vent.
+    Cold,
+    /// Charring: seconds so far.
+    Charring(f32),
+    /// Charred: press E to take the charcoal.
+    Ready,
+}
+
 /// The Invention Bench's last verdict, for the page.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Tried {
@@ -103,6 +132,7 @@ pub struct Late {
     pub rig: Rig,
     pub rig_uses: u32,
     pub krate: Crate,
+    pub clamp: Clamp,
     pub door_open: bool,
     pub kiln_lit: bool,
     /// The ending card shows (until Keep exploring).
@@ -134,6 +164,7 @@ impl Default for Late {
             rig: Rig::Idle,
             rig_uses: 0,
             krate: Crate::Floor,
+            clamp: Clamp::Cold,
             door_open: false,
             kiln_lit: false,
             card: false,
@@ -189,6 +220,7 @@ impl Late {
             Some("rig") => self.use_rig(pack),
             Some("crate") => self.use_crate(pack),
             Some("door") => self.use_door(pack),
+            Some("clamp") => self.use_clamp(pack),
             Some("invention") => {
                 self.open_bench += 1;
                 Use::Nothing
@@ -197,10 +229,45 @@ impl Late {
         }
     }
 
+    fn use_clamp(&mut self, pack: &mut Pack) -> Use {
+        match self.clamp {
+            Clamp::Cold => {
+                self.say("Logs are stacked under this earth mound. Cast Fire into the vent on top to start them charring.");
+                Use::Nothing
+            }
+            Clamp::Charring(_) => {
+                self.say("Still charring. Wait for the smoke to clear.");
+                Use::Nothing
+            }
+            Clamp::Ready => {
+                pack.add(Item::Charcoal, CLAMP_GIVES);
+                // Fresh logs go in, so it can be fired again for more.
+                self.clamp = Clamp::Cold;
+                self.say(CLAMP_TAKE_LINE);
+                Use::TookCharcoal
+            }
+        }
+    }
+
+    /// A Fire cast landed at `pos`: if it is in the clamp's vent, the logs
+    /// start to char. Returns true when it lit the clamp.
+    pub fn fire_at(&mut self, pos: Vec3) -> bool {
+        let d = Vec2::new(pos.x - CLAMP[0], pos.z - CLAMP[2]).length();
+        let lit = self.clamp == Clamp::Cold
+            && d <= CLAMP_HIT
+            && pos.y >= CLAMP[1] - 1.0
+            && pos.y <= CLAMP[1] + 4.0;
+        if lit {
+            self.clamp = Clamp::Charring(0.0);
+            self.say(CLAMP_LIT_LINE);
+        }
+        lit
+    }
+
     fn use_rig(&mut self, pack: &Pack) -> Use {
         if self.dark && !self.light {
             self.say(
-                "It's too dark to see the rig. Make a torch at the Formula Bench (wood + coal).",
+                "It's too dark to see the rig. Make a torch at the Formula Bench (wood + charcoal).",
             );
             return Use::Nothing;
         }
@@ -365,6 +432,16 @@ impl Late {
                 self.rig = Rig::Filling(t);
             }
         }
+        if let Clamp::Charring(t) = self.clamp {
+            let t = t + dt;
+            if t >= CHAR_S {
+                self.clamp = Clamp::Ready;
+                self.say(CLAMP_READY_LINE);
+                out = Some(Use::Charred);
+            } else {
+                self.clamp = Clamp::Charring(t);
+            }
+        }
         match self.krate {
             Crate::Sinking(gas, t) => {
                 let t = t + dt;
@@ -419,6 +496,11 @@ impl Late {
             Crate::Loaded => "loaded",
             Crate::Empty => "empty",
         };
+        let (clamp, clamp_t) = match self.clamp {
+            Clamp::Cold => ("cold", 0.0),
+            Clamp::Charring(t) => ("charring", (t / CHAR_S).min(1.0)),
+            Clamp::Ready => ("ready", 1.0),
+        };
         let t = &self.tried;
         let gases: Vec<&str> = [(Item::H2Balloon, "h2_balloon"), (Item::O2Flask, "o2_flask")]
             .iter()
@@ -438,7 +520,7 @@ impl Late {
             })
             .collect();
         format!(
-            "{{\"v\":1,\"near\":{},\"dark\":{},\"light\":{},\"rig\":{{\"on\":{},\"uses\":{},\"h2\":{h2:.1},\"o2\":{o2:.1}}},\"crate\":{{\"state\":\"{krate}\",\"y\":{:.2}}},\"sparkOnLedge\":{},\"gases\":[{}],\"door\":{},\"lit\":{},\"card\":{},\"played\":{:.0},\"say\":\"{}\",\"sayN\":{},\"tried\":{{\"n\":{},\"ok\":{},\"relights\":{},\"lit\":{},\"reaction\":\"{}\",\"code\":\"{}\",\"reason\":\"{}\"}},\"bench\":[{}],\"openBench\":{},\"band\":\"{}\"}}",
+            "{{\"v\":1,\"near\":{},\"dark\":{},\"light\":{},\"rig\":{{\"on\":{},\"uses\":{},\"h2\":{h2:.1},\"o2\":{o2:.1}}},\"crate\":{{\"state\":\"{krate}\",\"y\":{:.2}}},\"sparkOnLedge\":{},\"clamp\":{{\"state\":\"{clamp}\",\"t\":{clamp_t:.2}}},\"gases\":[{}],\"door\":{},\"lit\":{},\"card\":{},\"played\":{:.0},\"say\":\"{}\",\"sayN\":{},\"tried\":{{\"n\":{},\"ok\":{},\"relights\":{},\"lit\":{},\"reaction\":\"{}\",\"code\":\"{}\",\"reason\":\"{}\"}},\"bench\":[{}],\"openBench\":{},\"band\":\"{}\"}}",
             self.near.map_or("null".to_string(), |n| format!("\"{n}\"")),
             self.dark,
             self.light,
@@ -477,6 +559,10 @@ pub enum Use {
     SparkInCrate,
     TookSpark,
     OpenDoor,
+    /// The clamp finished charring.
+    Charred,
+    /// Charcoal taken from the clamp.
+    TookCharcoal,
 }
 
 /// The pack items a typed reaction burns.
@@ -507,7 +593,10 @@ pub fn near(feet: Vec3) -> Option<&'static str> {
         let d = Vec2::new(feet.x - p[0], feet.z - p[2]).length();
         d <= REACH && (feet.y - p[1]).abs() <= dy
     };
-    if close(RIG, 2.5) {
+    let clamp = Vec2::new(feet.x - CLAMP[0], feet.z - CLAMP[2]).length();
+    if clamp <= REACH + 1.4 && (feet.y - CLAMP[1]).abs() <= 3.0 {
+        Some("clamp")
+    } else if close(RIG, 2.5) {
         Some("rig")
     } else if close(CRATE_FLOOR, 2.5) {
         Some("crate")
@@ -585,7 +674,7 @@ pub fn light_hearth(world: &mut World) {
 /// coal step's reward) but no torch; the Kiln start has what the cave gave.
 pub fn seed(biome: realgame_voxel::Biome) -> Option<(u8, Vec<(Item, u16)>)> {
     use realgame_voxel::Biome;
-    let coal = Item::Block(mat::COAL_ORE);
+    let coal = Item::Charcoal;
     let wood = Item::Block(mat::WOOD);
     match biome {
         Biome::Cave => Some((6, vec![(coal, 2), (wood, 1)])),
@@ -671,15 +760,17 @@ pub struct LightSet;
 pub fn plugin(app: &mut App) {
     app.init_resource::<Late>()
         .init_resource::<CaveCover>()
-        .add_systems(Startup, (spawn, seed_start))
+        .add_systems(Startup, (spawn, spawn_clamp, seed_start))
         .add_systems(
             Update,
             (
                 commands,
+                clamp_fire,
                 step,
                 light.in_set(LightSet),
                 draw,
                 kiln_fx,
+                clamp_fx,
                 publish,
             )
                 .chain()
@@ -922,30 +1013,31 @@ fn spawn_kiln_door(
             NotShadowCaster,
         ));
     let (cx, sy, r) = KILN_ARCH;
-    let inside = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.16, 0.08, 0.05),
-        perceptual_roughness: 1.0,
-        ..default()
-    });
-    let hot = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.5, 0.18, 0.05),
-        emissive: LinearRgba::rgb(2.6, 0.9, 0.12),
-        unlit: true,
+    // The firebox behind the door (Paawan's walkthrough: the bare dome
+    // inside looked awful): brick back wall, grate and logs. It sits in
+    // the doorway's alcove, so the door leaf hides it until it opens.
+    let firebox = materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        perceptual_roughness: 0.92,
         ..default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(2.0 * r + 0.6, 4.2, 0.2))),
-        MeshMaterial3d(inside),
-        Transform::from_xyz(cx, 42.9, 171.4),
-        Visibility::Hidden,
-        KilnInside,
-        NotShadowCaster,
+        Mesh3d(meshes.add(models::kiln_firebox())),
+        MeshMaterial3d(firebox),
     ));
-    // Once relit, the inside glows hot (drawn over the dark one).
+    // Once relit, the firebox glows hot: an additive orange wash over the
+    // bricks, so the courses still show through it.
+    let hot = materials.add(StandardMaterial {
+        base_color: Color::srgba(1.0, 0.45, 0.12, 0.55),
+        emissive: LinearRgba::rgb(1.6, 0.55, 0.08),
+        unlit: true,
+        alpha_mode: AlphaMode::Add,
+        ..default()
+    });
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(2.0 * r + 0.6, 4.2, 0.2))),
+        Mesh3d(meshes.add(Rectangle::new(2.0 * r, 3.0))),
         MeshMaterial3d(hot),
-        Transform::from_xyz(cx, 42.9, 171.55),
+        Transform::from_xyz(cx, 42.5, 172.12),
         Visibility::Hidden,
         KilnGlow(100),
         NotShadowCaster,
@@ -1070,6 +1162,217 @@ fn spawn_kiln_door(
 }
 
 /// A repeatable pseudo-random number in 0..1 for spark `k`, life `n`.
+/// The charcoal clamp's smoke puffs.
+#[derive(Component)]
+struct ClampSmoke(u32);
+/// The ember glow in the clamp's vent (while charring).
+#[derive(Component)]
+struct ClampEmber;
+/// The clamp's warm light (while charring).
+#[derive(Component)]
+struct ClampLight;
+/// Charcoal lumps laid out in front of the clamp (when ready).
+#[derive(Component)]
+struct ClampLump;
+
+const CLAMP_SMOKE: u32 = 12;
+const CLAMP_LUMPS: u32 = 6;
+
+/// The clamp's dressing: a log pile beside the mound (so it reads as a
+/// place where wood is made into something), the vent's embers and light,
+/// the smoke and the charcoal lumps. The mound itself is earth blocks
+/// (`gen::CLAMP`).
+fn spawn_clamp(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    let [cx, cy, cz] = CLAMP;
+    let bark = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.36, 0.23, 0.13),
+        perceptual_roughness: 0.95,
+        ..default()
+    });
+    let cut = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.78, 0.62, 0.4),
+        perceptual_roughness: 0.9,
+        ..default()
+    });
+    let log = meshes.add(Cylinder::new(0.22, 1.8).mesh().resolution(10));
+    let end = meshes.add(Cylinder::new(0.2, 0.02).mesh().resolution(10));
+    // A small stack of logs on the east side: three below, two above.
+    for (k, (dy, dz)) in [
+        (0.0, -0.45),
+        (0.0, 0.0),
+        (0.0, 0.45),
+        (0.4, -0.22),
+        (0.4, 0.22),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let p = Vec3::new(cx + 3.9, cy + 0.22 + dy, cz + dz + 0.04 * k as f32);
+        let rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
+        commands.spawn((
+            Mesh3d(log.clone()),
+            MeshMaterial3d(bark.clone()),
+            Transform::from_translation(p).with_rotation(rot),
+        ));
+        for side in [-0.91f32, 0.91] {
+            commands.spawn((
+                Mesh3d(end.clone()),
+                MeshMaterial3d(cut.clone()),
+                Transform::from_translation(p + Vec3::X * side).with_rotation(rot),
+                NotShadowCaster,
+            ));
+        }
+    }
+    let ember = materials.add(StandardMaterial {
+        base_color: Color::srgba(1.0, 0.45, 0.1, 0.95),
+        base_color_texture: Some(images.add(crate::fire_fx::sprite(false))),
+        emissive: LinearRgba::rgb(3.5, 1.1, 0.2),
+        unlit: true,
+        alpha_mode: AlphaMode::Add,
+        double_sided: true,
+        cull_mode: None,
+        ..default()
+    });
+    commands.spawn((
+        Mesh3d(meshes.add(Rectangle::new(1.0, 1.0))),
+        MeshMaterial3d(ember),
+        Transform::from_xyz(cx, cy + 2.15, cz)
+            .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+            .with_scale(Vec3::splat(1.3)),
+        Visibility::Hidden,
+        ClampEmber,
+        NotShadowCaster,
+        NotShadowReceiver,
+    ));
+    commands.spawn((
+        PointLight {
+            color: Color::srgb(1.0, 0.55, 0.2),
+            intensity: 0.0,
+            range: 12.0,
+            shadow_maps_enabled: false,
+            ..default()
+        },
+        Transform::from_xyz(cx, cy + 2.8, cz),
+        ClampLight,
+    ));
+    let smoke = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.86, 0.86, 0.84, 0.45),
+        base_color_texture: Some(images.add(crate::fire_fx::sprite(false))),
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        double_sided: true,
+        cull_mode: None,
+        ..default()
+    });
+    let quad = meshes.add(Rectangle::new(1.0, 1.0));
+    for k in 0..CLAMP_SMOKE {
+        commands.spawn((
+            Mesh3d(quad.clone()),
+            MeshMaterial3d(smoke.clone()),
+            Transform::from_xyz(cx, cy + 2.4, cz),
+            Visibility::Hidden,
+            ClampSmoke(k),
+            NotShadowCaster,
+            NotShadowReceiver,
+        ));
+    }
+    let char_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.06, 0.06, 0.07),
+        perceptual_roughness: 0.75,
+        ..default()
+    });
+    let lump = meshes.add(Sphere::new(0.16).mesh().ico(1).expect("ico"));
+    for k in 0..CLAMP_LUMPS {
+        let a = k as f32 * 1.1;
+        commands.spawn((
+            Mesh3d(lump.clone()),
+            MeshMaterial3d(char_mat.clone()),
+            Transform::from_xyz(
+                cx - 0.5 + 0.22 * k as f32,
+                cy + 0.12,
+                cz + 3.0 + 0.12 * a.sin(),
+            )
+            .with_scale(Vec3::new(1.2, 0.8, 1.0)),
+            Visibility::Hidden,
+            ClampLump,
+        ));
+    }
+}
+
+/// A Fire cast that lands in the clamp's vent lights it.
+fn clamp_fire(mut landed: MessageReader<crate::SpellLanded>, mut late: ResMut<Late>) {
+    for l in landed.read() {
+        if l.spell == crate::chem::Spell::Fire {
+            late.fire_at(l.pos);
+        }
+    }
+}
+
+/// The clamp's embers, light and smoke while it chars; the lumps once
+/// it is done.
+#[allow(clippy::type_complexity)]
+fn clamp_fx(
+    time: Res<Time>,
+    late: Res<Late>,
+    player: Res<Player>,
+    mut q: ParamSet<(
+        Query<&mut Visibility, With<ClampEmber>>,
+        Query<&mut PointLight, With<ClampLight>>,
+        Query<(&mut Transform, &mut Visibility, &ClampSmoke)>,
+        Query<&mut Visibility, With<ClampLump>>,
+    )>,
+) {
+    let t = time.elapsed_secs();
+    let (charring, f) = match late.clamp {
+        Clamp::Charring(s) => (true, (s / CHAR_S).clamp(0.0, 1.0)),
+        _ => (false, 0.0),
+    };
+    let show = |on: bool| {
+        if on {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        }
+    };
+    for mut v in &mut q.p0() {
+        *v = show(charring);
+    }
+    for mut l in &mut q.p1() {
+        let flicker = 1.0 + 0.15 * (t * 9.0).sin() + 0.08 * (t * 21.0).sin();
+        l.intensity = if charring { 90_000.0 * flicker } else { 0.0 };
+    }
+    let [cx, cy, cz] = CLAMP;
+    let eye = player.eye();
+    for (mut tr, mut v, s) in &mut q.p2() {
+        // Thick white smoke at first (water steaming off), thinning as the
+        // logs finish charring.
+        let k = s.0 as f32;
+        let on = charring && (k / CLAMP_SMOKE as f32) < 1.0 - 0.6 * f;
+        *v = show(on);
+        if !on {
+            continue;
+        }
+        let phase = (t * 0.35 + k / CLAMP_SMOKE as f32).fract();
+        let p = Vec3::new(
+            cx + 0.5 * phase + 0.25 * (t * 0.9 + k).sin(),
+            cy + 2.4 + phase * 5.0,
+            cz + 0.3 * phase,
+        );
+        tr.translation = p;
+        tr.look_at(eye, Vec3::Y);
+        tr.scale = Vec3::splat(0.6 + 2.2 * phase);
+    }
+    let ready = late.clamp == Clamp::Ready;
+    for mut v in &mut q.p3() {
+        *v = show(ready);
+    }
+}
+
 fn spark_rand(k: u32, n: u32, salt: u32) -> f32 {
     let mut h =
         k.wrapping_mul(0x9E37_79B1) ^ n.wrapping_mul(0x85EB_CA77) ^ salt.wrapping_mul(0xC2B2_AE3D);
@@ -1219,6 +1522,7 @@ fn commands(
     mut player: ResMut<Player>,
     bench: Option<Res<BenchState>>,
 ) {
+    story.door_open = late.door_open;
     for line in drain() {
         let (head, rest) = line.split_once(' ').unwrap_or((line.as_str(), ""));
         match head {
@@ -1234,6 +1538,13 @@ fn commands(
                     if let Some(w) = world.as_mut() {
                         open_door(&mut w.0);
                     }
+                }
+                Use::TookCharcoal => {
+                    let total = pack.0.count(Item::Charcoal);
+                    story.quest.on(QuestEvent::Holding {
+                        item: Item::Charcoal,
+                        total,
+                    });
                 }
                 _ => {}
             },
@@ -1515,6 +1826,41 @@ mod tests {
 
     fn at(late: &mut Late, what: &'static str) {
         late.near = Some(what);
+    }
+
+    /// Step 4 (Paawan, 2026-11-03): Fire in the vent chars the logs; only
+    /// then does E give charcoal, and the clamp can be fired again.
+    #[test]
+    fn fire_in_the_clamp_makes_charcoal() {
+        let mut late = Late::default();
+        let mut pack = Pack::default();
+        at(&mut late, "clamp");
+        assert_eq!(late.use_it(&mut pack), Use::Nothing, "cold: nothing yet");
+        assert_eq!(pack.count(Item::Charcoal), 0);
+        // A Fire cast that lands far away does nothing.
+        assert!(!late.fire_at(Vec3::new(CLAMP[0] + 8.0, CLAMP[1], CLAMP[2])));
+        assert!(late.fire_at(Vec3::new(CLAMP[0] + 0.3, CLAMP[1] + 2.2, CLAMP[2])));
+        assert_eq!(late.say, CLAMP_LIT_LINE);
+        assert!(!late.fire_at(Vec3::from_array(CLAMP)), "already charring");
+        run(&mut late, &mut pack, CHAR_S / 2.0);
+        assert_eq!(late.use_it(&mut pack), Use::Nothing, "still charring");
+        assert_eq!(pack.count(Item::Charcoal), 0);
+        run(&mut late, &mut pack, CHAR_S / 2.0 + 0.2);
+        assert_eq!(late.clamp, Clamp::Ready);
+        assert_eq!(late.say, CLAMP_READY_LINE);
+        assert_eq!(late.use_it(&mut pack), Use::TookCharcoal);
+        assert_eq!(pack.count(Item::Charcoal), u32::from(CLAMP_GIVES));
+        assert_eq!(late.clamp, Clamp::Cold, "fresh logs: fire it again");
+        assert!(late.json(&pack).contains("\"clamp\":{\"state\":\"cold\""));
+    }
+
+    /// The clamp is in reach from its edge, not from across the seam.
+    #[test]
+    fn the_clamp_is_in_reach_round_its_mound() {
+        let [x, y, z] = CLAMP;
+        assert_eq!(near(Vec3::new(x + 3.6, y, z)), Some("clamp"));
+        assert_eq!(near(Vec3::new(x, y, z - 3.8)), Some("clamp"));
+        assert_eq!(near(Vec3::new(x + 9.0, y, z)), None);
     }
 
     #[test]

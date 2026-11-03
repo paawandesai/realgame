@@ -508,6 +508,109 @@ pub fn kiln_frame() -> Mesh {
     b.mesh()
 }
 
+/// The Kiln's firebox seen through the open door (Paawan's walkthrough:
+/// the inside looked awful): a back wall of sooty brick courses in
+/// running bond over dark mortar, an iron grate across the floor and three
+/// charred logs on it. In world space; the alcove is x 127-130, y 41-44,
+/// its back wall's face at z 172.
+pub fn kiln_firebox() -> Mesh {
+    let mut b = Builder::default();
+    let mortar = hex(0x2A2220);
+    let iron = hex(0x3A3A40);
+    let char_log = hex(0x2B1D16);
+    let bark = hex(0x4A3020);
+    let (x0, x1, y0, y1, z) = (127.0f32, 130.0f32, 41.0f32, 44.0f32, 172.0f32);
+    b.rounded_box(
+        Vec3::new((x0 + x1) / 2.0, (y0 + y1) / 2.0, z - 0.03),
+        Quat::IDENTITY,
+        Vec3::new((x1 - x0) / 2.0, (y1 - y0) / 2.0, 0.03),
+        0.0,
+        mortar,
+    );
+    let (bw, bh) = (0.5f32, 0.25f32);
+    let courses = ((y1 - y0) / bh).round() as i32;
+    for row in 0..courses {
+        let y = y0 + bh * (row as f32 + 0.5);
+        let shift = if row % 2 == 0 { 0.0 } else { bw / 2.0 };
+        let mut x = x0 - shift;
+        let mut k = 0;
+        while x < x1 - 0.01 {
+            let (a, e) = (x.max(x0), (x + bw).min(x1));
+            if e - a > 0.08 {
+                // Soot: darker low in the middle, where the fire burns.
+                let cxn = ((a + e) / 2.0 - (x0 + x1) / 2.0).abs() / 1.5;
+                let soot = (1.0 - (y - y0) / 2.2).clamp(0.0, 1.0) * (1.0 - cxn).clamp(0.0, 1.0);
+                let n = ((row * 7 + k * 13) % 5) as f32 / 5.0;
+                let base = [0.46 + 0.08 * n, 0.2 + 0.04 * n, 0.14 + 0.03 * n];
+                let f = 1.0 - 0.7 * soot;
+                b.rounded_box(
+                    Vec3::new((a + e) / 2.0, y, z + 0.05),
+                    Quat::IDENTITY,
+                    Vec3::new((e - a) / 2.0 - 0.015, bh / 2.0 - 0.015, 0.05),
+                    0.02,
+                    [base[0] * f, base[1] * f, base[2] * f, 1.0],
+                );
+            }
+            x += bw;
+            k += 1;
+        }
+    }
+    // The grate: six bars front to back on two cross rails.
+    for i in 0..6 {
+        let x = x0 + 0.45 + i as f32 * 0.42;
+        b.rounded_box(
+            Vec3::new(x, y0 + 0.3, z + 0.85),
+            Quat::IDENTITY,
+            Vec3::new(0.035, 0.035, 0.7),
+            0.015,
+            iron,
+        );
+    }
+    for dz in [0.35f32, 1.35] {
+        b.rounded_box(
+            Vec3::new((x0 + x1) / 2.0, y0 + 0.24, z + dz),
+            Quat::IDENTITY,
+            Vec3::new(1.2, 0.04, 0.04),
+            0.015,
+            iron,
+        );
+        for sx in [x0 + 0.35, x1 - 0.35] {
+            b.rounded_box(
+                Vec3::new(sx, y0 + 0.12, z + dz),
+                Quat::IDENTITY,
+                Vec3::new(0.04, 0.12, 0.04),
+                0.015,
+                iron,
+            );
+        }
+    }
+    // Three logs on the grate, two side by side and one across them.
+    for (at, rot) in [
+        (
+            Vec3::new(128.1, y0 + 0.48, z + 0.85),
+            Quat::from_rotation_y(0.15),
+        ),
+        (
+            Vec3::new(128.9, y0 + 0.48, z + 0.85),
+            Quat::from_rotation_y(-0.12),
+        ),
+        (
+            Vec3::new(128.5, y0 + 0.78, z + 0.8),
+            Quat::from_rotation_y(std::f32::consts::FRAC_PI_2 + 0.2),
+        ),
+    ] {
+        b.rounded_box(at, rot, Vec3::new(0.16, 0.15, 0.6), 0.12, char_log);
+        b.rounded_box(
+            at + rot * Vec3::new(0.0, 0.0, 0.6),
+            rot,
+            Vec3::new(0.13, 0.12, 0.02),
+            0.05,
+            bark,
+        );
+    }
+    b.mesh()
+}
+
 /// The thin teal rune line round the inside of the frame (drawn with the
 /// glowing rune material): one hair-thin bar per voussoir and up each jamb.
 pub fn kiln_frame_runes() -> Mesh {
