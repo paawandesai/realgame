@@ -266,7 +266,7 @@ pub fn update_fx(
                 size,
                 grow: match k {
                     P::Smoke | P::Steam | P::Frost => 2.2,
-                    P::Fog => 3.5,
+                    P::Fog => 2.6,
                     P::Flash => 2.2,
                     P::Fire | P::Bead | P::Ember => 0.2,
                     P::Shard => 0.5,

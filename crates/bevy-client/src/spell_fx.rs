@@ -89,11 +89,11 @@ pub fn impact(spell: Spell, fire: bool) -> Vec<Burst> {
         Spell::Water => vec![(P::Water, 30, 3.4, 0.32), (P::Foam, 10, 2.2, 0.16)],
         Spell::Frost => vec![(P::Shard, 20, 3.2, 0.16), (P::Frost, 14, 1.6, 0.55)],
         Spell::Fire => vec![
-            (P::Fire, 16, 2.4, 0.42),
+            (P::Fire, 22, 2.4, 0.55),
             (P::Spark, 12, 5.0, 0.1),
             (P::Ember, 12, 1.5, 0.1),
         ],
-        Spell::Foam => vec![(P::Fog, 18, 1.8, 0.6), (P::Foam, 10, 2.0, 0.16)],
+        Spell::Foam => vec![(P::Fog, 22, 1.8, 0.4), (P::Foam, 10, 2.0, 0.16)],
     };
     if fire && spell != Spell::Fire {
         // Water (or a cold spell) on a fire: a burst of steam.
