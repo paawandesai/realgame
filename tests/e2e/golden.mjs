@@ -5661,10 +5661,10 @@ async function valleyLate({ page, st, cmd, until, frames, sleep, base, logs }) {
   const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
   const shown = (id) => page.evaluate((id) => { const e = document.getElementById(id); return !!e && !e.hidden; }, id);
   const pressE = async () => { await page.keyboard.press('KeyE'); await frames(2); };
-  // L0. `?biome=cave` starts at step 6 with the coal and wood for a torch.
+  // L0. `?biome=cave` starts at step 6 with the charcoal and wood for a torch.
   let s0 = await until((x) => x.quest === 6, 8000);
-  check('late: ?biome=cave starts at the cave step with coal and wood for a torch',
-    s0.quest === 6 && packN(s0, 'coal_ore') === 2 && packN(s0, 'wood') === 1 && packN(s0, 'torch') === 0,
+  check('late: ?biome=cave starts at the cave step with charcoal and wood for a torch',
+    s0.quest === 6 && packN(s0, 'charcoal') === 2 && packN(s0, 'wood') === 1 && packN(s0, 'torch') === 0,
     `quest=${s0.quest} pack=${JSON.stringify(s0.pack)}`);
   await story('quest 6');
   await until((x) => x.quest === 6 && !x.paused, 20000);
@@ -6066,7 +6066,7 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   // The new-player model. Places (x, z) on the path.
   const P = {
     spawn: [128.5, 205.5], bench: [124.5, 202], workshop: [142.5, 197], fordGate: [128.5, 163.5], fordFar: [128.5, 146.5],
-    iceGate: [60, 96], coal: [80.5, 71.5], marshGate: [127.5, 70.5], hollow: [192.5, 99.5], caveMouth: [220, 58],
+    iceGate: [60, 96], clamp: [64.5, 72.5], marshGate: [127.5, 70.5], hollow: [192.5, 99.5], caveMouth: [220, 58],
     rig: [231.5, 27.2], crate: [239.6, 19.4], kilnDoor: [128.5, 174.5], invention: [132.5, 202.5],
     // The field Benches (bench.rs FIELD_STATIONS): the ford approach and the Marsh gate.
     fordBench: [146.5, 162.5], marshBench: [118.5, 70.5],
@@ -6226,20 +6226,23 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   step('3 the ice gate (Fire)', s.quest === 4, ['fordFar', 'iceGate'],
     [['melt the gate', 4 * CAST]], `quest ${s.quest}`);
 
-  // 4. Dig coal with the Pick (a real dig, held).
-  await cmd('tp 80.5 42 71.5');
-  await cmd('face 79.5 42.5 71.5');
-  await until((x) => Math.abs(x.pos[0] - 80.5) < 0.3, 10000);
-  await page.keyboard.press('5');
-  await until((x) => x.hot === 5, 10000);
-  await frames(2);
-  await page.mouse.move(VW / 2, VH / 2);
-  await page.mouse.down();
-  s = await until((x) => packN(x, 'coal_ore') >= 1, 60000);
-  await page.mouse.up();
+  // 4. Make charcoal (Paawan, 2026-11-03: chemistry, not mining): Fire into
+  // the clamp's vent, wait for the logs to char, then E takes the charcoal.
+  await cmd('tp 64.5 43 72.5');
+  await cmd('face 60.5 45.0 72.5');
+  await until((x) => Math.abs(x.pos[0] - 64.5) < 0.3, 10000);
+  await key('1', 0);
+  let clampL = null;
+  for (let k = 0; k < 8; k++) {
+    await press();
+    clampL = await untilLate((x) => x.clamp && x.clamp.state !== 'cold', 4000);
+    if (clampL && clampL.clamp.state !== 'cold') break;
+  }
+  clampL = await untilLate((x) => x.clamp && x.clamp.state === 'ready', 30000);
+  await page.keyboard.press('KeyE');
   s = await until((x) => x.quest >= 5, 15000);
-  step('4 dig coal (Pick)', s.quest === 5 && packN(s, 'coal_ore') >= 1, ['iceGate', 'coal'],
-    [['find the seam, dig', 25]], `quest ${s.quest} coal ${packN(s, 'coal_ore')}`);
+  step('4 make charcoal (Fire in the clamp)', s.quest === 5 && packN(s, 'charcoal') >= 1, ['iceGate', 'clamp'],
+    [['fire the clamp, wait for the char', 12]], `quest ${s.quest} charcoal ${packN(s, 'charcoal')} clamp ${clampL && clampL.clamp.state}`);
 
   // 5. The Marsh gate (Frost practised), learn CO2, close the hollow's gap, smother the vents.
   await cmd('tp 127.5 46 70.5');
@@ -6271,7 +6274,7 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   await frames(2);
   for (let k = 0; k < 6; k++) { if ((await st()).quest >= 6) break; await press(); await until((x) => x.gameTime >= 0, 500); }
   s = await until((x) => x.ventsLit === 0 && x.quest >= 6, 90000);
-  step('5 the methane hollow (CO2)', s.quest === 6, ['coal', 'marshBench', 'marshGate', 'hollow'],
+  step('5 the methane hollow (CO2)', s.quest === 6, ['clamp', 'marshBench', 'marshGate', 'hollow'],
     [['learn CO2 at the Marsh Bench (on the way)', LEARN], ['practise Frost at the Marsh gate', 3 * CAST], ['gather and place a block in the gap', 25], ['pour CO2, wait for it to pool', 30]],
     `quest ${s.quest} vents ${s.ventsLit}`);
 
@@ -6319,7 +6322,7 @@ async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
   L = await untilLate((x) => x.near === 'invention', 10000);
   await page.keyboard.press('KeyE');
   for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await page.evaluate(() => !document.getElementById('late-invent')?.hidden)) break;
-  await page.click('#late-invent button[data-item="coal_ore"]');
+  await page.click('#late-invent button[data-item="charcoal"]');
   await page.click('#late-invent button[data-item="o2_flask"]');
   await page.click('#late-invent .late-try');
   s = await until((x) => x.ending === true && x.outcome === 'won', 15000);

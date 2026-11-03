@@ -231,11 +231,11 @@ pub fn run_command(story: &mut Story, line: &str) {
 }
 
 /// Tells the quest what the pack holds now (`item`: just this one; `None`:
-/// the coal and the Spark, the items the quest waits for).
+/// the charcoal and the Spark, the items the quest waits for).
 fn holding(story: &mut Story, item: Option<Item>) {
     let items = match item {
         Some(i) => vec![i],
-        None => vec![Item::Block(valley::mat::COAL_ORE), Item::KilnSpark],
+        None => vec![Item::Charcoal, Item::KilnSpark],
     };
     for item in items {
         let total = story.pack.count(item);
@@ -632,7 +632,7 @@ mod tests {
             Some("not_enough wood 0 1")
         );
         run_command(&mut s, "give wood 1");
-        run_command(&mut s, "give coal 1");
+        run_command(&mut s, "give charcoal 1");
         run_command(&mut s, "craft torch");
         assert_eq!(s.craft.as_ref().map(|c| c.1.as_str()), Some(""));
         assert_eq!(s.pack.count(Item::Torch), 4);
@@ -749,7 +749,7 @@ mod tests {
     }
 
     #[test]
-    fn digging_drops_items_and_coal_finishes_the_coal_step() {
+    fn digging_drops_items_and_charcoal_finishes_the_charcoal_step() {
         use realgame_voxel::mat;
         assert_eq!(drop_of(mat::COAL_ORE), Some(Item::Block(mat::COAL_ORE)));
         assert_eq!(drop_of(mat::GRASS), Some(Item::Block(mat::DIRT)));
@@ -760,8 +760,13 @@ mod tests {
             quest: Quest::at(4),
             ..Story::default()
         };
+        // Paawan (2026-11-03): step 4 is chemistry now. Dug coal no longer
+        // finishes it; charcoal from the clamp does.
         s.pack.add(Item::Block(mat::COAL_ORE), 1);
         holding(&mut s, Some(Item::Block(mat::COAL_ORE)));
+        assert_eq!(s.quest.step(), 4, "dug coal is not the charcoal step");
+        s.pack.add(Item::Charcoal, 3);
+        holding(&mut s, Some(Item::Charcoal));
         assert_eq!(s.quest.step(), 5);
     }
 }

@@ -20,6 +20,8 @@ pub enum Item {
     O2Flask,
     H2Balloon,
     KilnSpark,
+    /// Made at the charcoal clamp (step 4): wood charred with little air.
+    Charcoal,
 }
 
 /// Up to 64 of a block, 1 of a tool or key.
@@ -46,7 +48,7 @@ impl Item {
     /// How many fit in one slot: 64 of a block, 1 of a tool or key.
     pub fn stack_max(self) -> u16 {
         match self {
-            Item::Block(_) => STACK_MAX,
+            Item::Block(_) | Item::Charcoal => STACK_MAX,
             _ => 1,
         }
     }
@@ -60,6 +62,7 @@ impl Item {
             Item::O2Flask => "o2_flask",
             Item::H2Balloon => "h2_balloon",
             Item::KilnSpark => "kiln_spark",
+            Item::Charcoal => "charcoal",
         }
     }
 
@@ -71,6 +74,7 @@ impl Item {
             Item::O2Flask => "O₂ flask".into(),
             Item::H2Balloon => "H₂ balloon".into(),
             Item::KilnSpark => "Kiln Spark".into(),
+            Item::Charcoal => "Charcoal".into(),
             Item::Block(id) if id == mat::COAL_ORE => "Coal".into(),
             Item::Block(_) => {
                 let k = self.key().replace('_', " ");
@@ -90,6 +94,7 @@ impl Item {
             "o2_flask" => Some(Item::O2Flask),
             "h2_balloon" => Some(Item::H2Balloon),
             "kiln_spark" => Some(Item::KilnSpark),
+            "charcoal" => Some(Item::Charcoal),
             "coal" => Some(Item::Block(mat::COAL_ORE)),
             _ => mat::NAMES
                 .iter()
@@ -195,12 +200,12 @@ pub struct Recipe {
     pub source: &'static str,
 }
 
-/// Must recipes: torch (1 wood + 1 coal -> 4 torches) and furnace (8 stone).
+/// Must recipes: torch (1 wood + 1 charcoal -> 4 torches) and furnace (8 stone).
 /// Both are game recipes, not chemistry claims ([S0], design choice).
 pub const RECIPES: &[Recipe] = &[
     Recipe {
         id: "torch",
-        needs: &[(Item::Block(mat::WOOD), 1), (Item::Block(mat::COAL_ORE), 1)],
+        needs: &[(Item::Block(mat::WOOD), 1), (Item::Charcoal, 1)],
         gives: (Item::Torch, 4),
         source: "S0",
     },
@@ -353,7 +358,7 @@ impl Quest {
             (1, E::WorkshopOut { by_water: true }) => true,
             (2, E::CrossedFord) => true,
             (3, E::GateMelted) => true,
-            (4, E::Holding { item, total }) => item == Item::Block(mat::COAL_ORE) && total >= 1,
+            (4, E::Holding { item, total }) => item == Item::Charcoal && total >= 1,
             (5, E::CrossedHollow) => true,
             (6, E::Holding { item, total }) => item == Item::KilnSpark && total >= 1,
             (7, E::Invented { relights: true }) => true,
@@ -421,10 +426,10 @@ const LINES: [[&str; 4]; 9] = [
         "An ice gate blocks the cliff. Melt it with Fire; ice takes a lot of heat to melt.",
     ],
     [
-        "Dig some coal with the Pick (key 5).",
-        "Dig some coal from the seam (hold the Pick, key 5).",
-        "Dig coal from the seam (Pick, key 5). Coal is mostly carbon, C.",
-        "Mine coal from the seam (Pick, key 5): carbon fuel for torches and the Kiln.",
+        "Make charcoal! Cast Fire into the earth mound's vent.",
+        "Make charcoal: cast Fire into the vent of the earth mound by the rocks.",
+        "Make charcoal: cast Fire into the mound's vent. Wood heated with little air chars.",
+        "Char the logs in the earth mound: Fire in the vent, little air, so they char, not burn.",
     ],
     [
         "Gas fire! Learn CO₂, block the gap, then fill the hollow.",
@@ -540,7 +545,7 @@ pub mod invent {
     pub fn species(item: Item) -> Option<&'static str> {
         use super::mat;
         match item {
-            Item::Block(mat::COAL_ORE | mat::WOOD | mat::PLANKS) => Some("C"),
+            Item::Block(mat::COAL_ORE | mat::WOOD | mat::PLANKS) | Item::Charcoal => Some("C"),
             Item::Block(mat::WATER) => Some("H2O"),
             Item::O2Flask => Some("O2"),
             Item::H2Balloon => Some("H2"),
@@ -900,11 +905,12 @@ mod tests {
         );
     }
 
-    /// C2: `craft("torch")` fails with `NotEnough{coal}` and leaves the pack
-    /// unchanged; with both it gives 4 torches.
+    /// C2: `craft("torch")` fails with `NotEnough{charcoal}` and leaves the
+    /// pack unchanged; with both it gives 4 torches (Paawan, 2026-11-03: step
+    /// 4 makes charcoal instead of mining coal).
     #[test]
-    fn torch_needs_wood_and_coal() {
-        let (wood, coal) = (Item::Block(mat::WOOD), Item::Block(mat::COAL_ORE));
+    fn torch_needs_wood_and_charcoal() {
+        let (wood, coal) = (Item::Block(mat::WOOD), Item::Charcoal);
         let mut p = Pack::default();
         p.add(wood, 1);
         let before = p.clone();
@@ -939,7 +945,7 @@ mod tests {
     #[test]
     fn quest_advances_only_in_order() {
         use QuestEvent as E;
-        let coal = Item::Block(mat::COAL_ORE);
+        let coal = Item::Charcoal;
         let chain = [
             E::IntroDone,
             E::WorkshopOut { by_water: true },
@@ -993,7 +999,7 @@ mod tests {
         assert_eq!(q.step(), 7);
         assert_eq!(q.on(E::Invented { relights: false }), None);
         assert_eq!(q.step(), 7);
-        // Holding the wrong item at the coal step does nothing.
+        // Holding the wrong item at the charcoal step does nothing.
         let mut q = Quest::new();
         for e in &chain[..4] {
             q.on(*e);

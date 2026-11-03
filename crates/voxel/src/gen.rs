@@ -903,6 +903,26 @@ fn stamps(w: &mut World) {
         }
     });
 
+    // Step 4 (Paawan, 2026-11-03: chemistry, not mining): the charcoal
+    // clamp on the seam's flat top, an earth mound over a stack of logs with
+    // a vent in its crown. A Fire cast into it chars the logs (late.rs).
+    let [cx, cy, cz] = CLAMP;
+    for z in cz - 3..=cz + 3 {
+        for y in cy..cy + 3 {
+            for x in cx - 3..=cx + 3 {
+                let (dx, dy, dz) = (
+                    (x - cx) as f32 / 2.6,
+                    (y - cy) as f32 / 2.4,
+                    (z - cz) as f32 / 2.6,
+                );
+                let vent = x == cx && z == cz && y >= cy + 1;
+                if dx * dx + dy * dy + dz * dz <= 1.0 && !vent {
+                    w.set([x, y, z], c(mat::DIRT));
+                }
+            }
+        }
+    }
+
     // P3: the methane hollow, a boardwalk ravine with 6 gas vents on its
     // floor (y 27) and one low gap in its rim on the marsh side.
     let s = stamp::HOLLOW;
@@ -1073,6 +1093,8 @@ pub const HOLLOW_POND: ([i32; 2], [i32; 2]) = ([197, 96], [215, 106]);
 pub const HOLLOW_GAP: [i32; 3] = [196, 28, 101];
 /// The Kiln's hearth (the P5 target).
 pub const KILN_HEARTH: [i32; 3] = [128, 41, 169];
+/// The charcoal clamp's base centre (step 4), on the coal seam's flat top.
+pub const CLAMP: [i32; 3] = [60, 43, 72];
 
 /// The protected boxes: the edge ring, the bedrock, the canyon walls, the
 /// cliff band, the ridge, the east cliff, the benches, and every puzzle

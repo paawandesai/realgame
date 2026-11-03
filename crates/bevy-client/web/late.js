@@ -27,6 +27,7 @@ export const PROMPTS = {
   crate: 'E: the balloon crate',
   door: 'E: open the Kiln door',
   invention: 'E: use the Invention Bench',
+  clamp: 'E: the charcoal clamp',
 };
 
 /** The ending's credits: ['h', heading] or ['', line]. Every asset is
@@ -202,7 +203,7 @@ export function startLate() {
       });
       invRow.append(b);
     }
-    if (!(st.bench || []).length) invRow.append(mk('p', 'late-help', 'Your pack has nothing to react yet. A fuel (coal, wood or an H₂ balloon) and an O₂ flask would do.'));
+    if (!(st.bench || []).length) invRow.append(mk('p', 'late-help', 'Your pack has nothing to react yet. A fuel (charcoal, wood or an H₂ balloon) and an O₂ flask would do.'));
     typedWrap.hidden = !(st.band === 'apprentice' || st.band === 'adept');
   };
   let triedSeen = 0;
