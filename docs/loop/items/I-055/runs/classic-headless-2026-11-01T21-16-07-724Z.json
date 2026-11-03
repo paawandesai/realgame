@@ -1,0 +1,254 @@
+{
+  "when": "2026-11-01T21:16:07.724Z",
+  "url": "http://127.0.0.1:8093/?debug&low&classic=1",
+  "mode": "classic",
+  "profile": "headless (CPU frame time only)",
+  "throttle": 4,
+  "low": true,
+  "budgets": {
+    "cpu_p50_ms": 16,
+    "tti_ms": 8000,
+    "mesh_low_ms": 2,
+    "mesh_default_ms": 4,
+    "wasm_mb": 96,
+    "draw_calls": 250,
+    "defaulted": []
+  },
+  "first_state_ms": 1348,
+  "first_frame_ms": 1367,
+  "first_playable_ms": 1377,
+  "cpu": {
+    "n": 1827,
+    "p50": 4.7,
+    "p95": 6.5,
+    "p99": 7.6,
+    "max": 11.3,
+    "hitches": 0
+  },
+  "interval": {
+    "n": 1827,
+    "p50": 13.3,
+    "p95": 14.3,
+    "p99": 14.4,
+    "max": 25.7,
+    "hitches": 0,
+    "note": "headless: frame interval is not meaningful"
+  },
+  "hitches_cpu_over_33ms": 0,
+  "js_heap_max_mb": 7.8,
+  "wasm_max_mb": 33.7,
+  "voxel_keys_present": false,
+  "segments": [
+    {
+      "name": "spawn",
+      "pos": [
+        0,
+        0,
+        4.95
+      ],
+      "biome": null,
+      "chunks_meshed": null,
+      "mesh_q": null,
+      "matter_ms": null,
+      "moved": 13.05,
+      "js_heap_mb": 6.7,
+      "wasm_mb": 33.7,
+      "cpu": {
+        "n": 305,
+        "p50": 5,
+        "p95": 7.2,
+        "p99": 8.4,
+        "max": 11.3,
+        "hitches": 0
+      },
+      "interval": {
+        "n": 305,
+        "p50": 13.3,
+        "p95": 14.3,
+        "p99": 14.3,
+        "max": 25.7,
+        "hitches": 0
+      }
+    },
+    {
+      "name": "village workshop",
+      "pos": [
+        14.369,
+        0,
+        -1.677
+      ],
+      "biome": null,
+      "chunks_meshed": null,
+      "mesh_q": null,
+      "matter_ms": null,
+      "moved": 15.823567549702565,
+      "js_heap_mb": 7.6,
+      "wasm_mb": 33.7,
+      "cpu": {
+        "n": 304,
+        "p50": 4.3,
+        "p95": 5.2,
+        "p99": 6.2,
+        "max": 6.4,
+        "hitches": 0
+      },
+      "interval": {
+        "n": 304,
+        "p50": 13.3,
+        "p95": 14.3,
+        "p99": 14.4,
+        "max": 14.4,
+        "hitches": 0
+      }
+    },
+    {
+      "name": "bench plaza",
+      "pos": [
+        -6,
+        0,
+        -3.297
+      ],
+      "biome": null,
+      "chunks_meshed": null,
+      "mesh_q": null,
+      "matter_ms": null,
+      "moved": 20.433319872208724,
+      "js_heap_mb": 5.4,
+      "wasm_mb": 33.7,
+      "cpu": {
+        "n": 303,
+        "p50": 4.6,
+        "p95": 5.7,
+        "p99": 6.5,
+        "max": 7.2,
+        "hitches": 0
+      },
+      "interval": {
+        "n": 303,
+        "p50": 13.3,
+        "p95": 14.3,
+        "p99": 14.3,
+        "max": 14.4,
+        "hitches": 0
+      }
+    },
+    {
+      "name": "kiln terrace",
+      "pos": [
+        0,
+        0,
+        -3.7
+      ],
+      "biome": null,
+      "chunks_meshed": null,
+      "mesh_q": null,
+      "matter_ms": null,
+      "moved": 6.0135188533836,
+      "js_heap_mb": 6.9,
+      "wasm_mb": 33.7,
+      "cpu": {
+        "n": 306,
+        "p50": 5.6,
+        "p95": 7.2,
+        "p99": 7.9,
+        "max": 8.8,
+        "hitches": 0
+      },
+      "interval": {
+        "n": 306,
+        "p50": 13.3,
+        "p95": 14.2,
+        "p99": 14.3,
+        "max": 14.4,
+        "hitches": 0
+      }
+    },
+    {
+      "name": "frozen edge (ford)",
+      "pos": [
+        -18.36,
+        0,
+        -6.328
+      ],
+      "biome": null,
+      "chunks_meshed": null,
+      "mesh_q": null,
+      "matter_ms": null,
+      "moved": 18.54712872657113,
+      "js_heap_mb": 7.8,
+      "wasm_mb": 33.7,
+      "cpu": {
+        "n": 305,
+        "p50": 4.6,
+        "p95": 6.1,
+        "p99": 6.7,
+        "max": 7.5,
+        "hitches": 0
+      },
+      "interval": {
+        "n": 305,
+        "p50": 13.3,
+        "p95": 14.3,
+        "p99": 14.4,
+        "max": 14.4,
+        "hitches": 0
+      }
+    },
+    {
+      "name": "marsh edge",
+      "pos": [
+        18.323,
+        0,
+        -6.35
+      ],
+      "biome": null,
+      "chunks_meshed": null,
+      "mesh_q": null,
+      "matter_ms": null,
+      "moved": 36.68300659706072,
+      "js_heap_mb": 5.9,
+      "wasm_mb": 33.7,
+      "cpu": {
+        "n": 304,
+        "p50": 4.7,
+        "p95": 5.9,
+        "p99": 6.4,
+        "max": 6.8,
+        "hitches": 0
+      },
+      "interval": {
+        "n": 304,
+        "p50": 13.3,
+        "p95": 14.3,
+        "p99": 14.4,
+        "max": 14.4,
+        "hitches": 0
+      }
+    }
+  ],
+  "console_errors": [],
+  "checks": [
+    {
+      "name": "median CPU frame",
+      "got": 4.7,
+      "max": 16,
+      "unit": "ms",
+      "ok": true
+    },
+    {
+      "name": "first playable frame",
+      "got": 1377,
+      "max": 8000,
+      "unit": "ms",
+      "ok": true
+    },
+    {
+      "name": "WASM memory",
+      "got": 33.7,
+      "max": 96,
+      "unit": "MB",
+      "ok": true
+    }
+  ],
+  "pass": true
+}

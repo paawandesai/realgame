@@ -108,6 +108,20 @@ The single register of every science claim the first-person 3D client shows the 
 | C-094 | `It rolled away! Find a low spot.` | crates/bevy-client/src/level3.rs | simplified | Level 3 Sprout, CO2 on a vent outside every hollow (not placed in the shipped level). Heavy CO₂ flows downhill to low places [S26]; "rolled" is a child's word for that flow. | [S26] |
 | C-095 | `You cleared the Marsh! CO₂ is heavier than air: it filled the hollows and smothered the flames.` | crates/bevy-client/src/main.rs | correct | Level 3 win caption [S26] [S19] [S5] [S8]. | [S5] [S8] [S19] [S26] |
 | C-096 | `CO₂ is heavier than air: it filled the hollows and smothered the flames. Walk to the arch to go back. Press R to play again.` | crates/bevy-client/web/hud.js | correct | Level 3 win banner subtitle; the second and third sentences are game instructions [S26] [S19]. | [S19] [S26] |
+| C-097 | `Too deep and icy to wade. Freeze it into a bridge?` | crates/bevy-client/src/blockchem.rs | simplified | I-052 round 2: the ford is 3 blocks deep and near freezing, so the player cannot wade it; Frost freezes still water from the top down into ice that bears the player's weight (ice floats: it is less dense than liquid water, which is densest near 4 °C). Real lake ice must be several cm thick to bear a person; here a frozen block is taken to bear the player (gameplay, as C-053). | [S10] |
+| C-098 | `Electricity splits water: 2H2O → 2H2 + O2. Watch the tubes.` | crates/bevy-client/src/late.rs | correct | I-052 late lane: the cave rig starts. Electrolysis of water gives hydrogen at the cathode and oxygen at the anode, 2:1 by volume [S13] [S7]. | [S7] [S13] |
+| C-099 | `Twice as much hydrogen as oxygen! You got an H2 balloon and an O2 flask.` | crates/bevy-client/src/late.rs | correct | I-052 late lane: the rig is done. The H2 tube collects twice the volume of the O2 tube [S13]. | [S13] |
+| C-100 | `Hydrogen is much lighter than air: the balloon pulls up with {lift:.1} N!` | crates/bevy-client/src/late.rs | correct | I-052 late lane: an H2 balloon tied to the crate. Net force from `realgame_matter::lift_n` (2 m³, 1.5 kg payload): (ρ_air − ρ_H2)·V·g − m·g ≈ +7.3 N, densities from ρ = pM/RT [S12] with M(air) 28.96 [S8] and M(H2) 2.016 [S40]. | [S8] [S12] [S40] |
+| C-101 | `Oxygen is heavier than air, so the balloon cannot lift the crate ({lift:.1} N).` | crates/bevy-client/src/late.rs | correct | I-052 late lane: an O2 balloon tied to the crate. M(O2) 32.00 [S40] > M(air) 28.96 [S8], so at the same T and p O2 is denser than air [S12]; the net force is about −17 N. | [S8] [S12] [S40] |
+| C-102 | `Which gas will lift the crate up to the Kiln Spark? A gas lifts only if it is lighter than air.` | crates/bevy-client/web/late.js | correct | I-052 late lane: the balloon chooser. Buoyancy is the weight of displaced air, so a gas denser than air gives a net downward force before any payload [S12] [S8]. "Only if" is a necessary condition; the crate's weight also counts (C-100). | [S8] [S12] |
+| C-103 | `Put up to three things from your pack on the bench. The Kiln needs a reaction that burns hotter than 1700 °C.` | crates/bevy-client/web/late.js | simplified | I-052 late lane: the Invention Bench. 1700 °C is the game's threshold, chosen near the melting point of silica, 1713 °C, the main ingredient of glass [S35], since the Kiln "made all our glass". Carbon and hydrogen flames in pure oxygen are well above it [S15]. | [S15] [S35] |
+| C-104 | `Your pack has nothing to react yet. A fuel (coal, wood or an H2 balloon) and an O2 flask would do.` | crates/bevy-client/web/late.js | simplified | I-052 late lane: the Invention Bench with no reactants in the pack. Combustion needs a fuel and oxygen [S19]; wood is simplified to carbon as in `carbon_combustion` [S7]. | [S7] [S19] |
+| C-105 | `C + O2 -> CO2` | crates/bevy-client/web/late.js | correct | I-052 late lane: the Invention Bench's typed-equation placeholder. Balanced as written [S7]. | [S7] |
+| C-106 | `H2 lift! Hydrogen is much less dense than air, so its balloon rises.` | crates/bevy-client/src/powers.rs | simplified | Spells-are-powers: Water's power (F). At the same T and p, density scales with molar mass [S12]: M(H2) 2.016 [S40] against M(air) 28.96 [S8], so H2 is about 1/14 as dense and a balloon of it has net lift. Simplified: each m³ of H2 lifts only about 1.1 kg, so lifting a person needs a balloon of tens of m³; the game does not draw one (gameplay tuning [S0] is the rise speed and height, not a claim). | [S8] [S12] [S40] |
+| C-107 | `Ice walkway! Water freezes from the top, because ice is less dense than water.` | crates/bevy-client/src/powers.rs | simplified | Spells-are-powers: Frost's power (F) freezes the top layer of deep water. Ice (917 kg/m³ [S34]) is less dense than liquid water (998 kg/m³ at 20 °C [S39]), so it floats and still water freezes over from the surface [S10]. Simplified: water is also densest near 4 °C, which is why the cold surface layer stays on top to freeze [S10]; the power freezes it at once rather than over hours. | [S10] [S34] [S39] |
+| C-108 | `CO2 dash! Gas rushing out one way pushes you the other way (Newton's third law).` | crates/bevy-client/src/powers.rs | correct | Spells-are-powers: CO2's power (F). Gas pushed out of a nozzle pushes back on whatever pushed it, the same principle as a rocket [S41]. The speed of the dash is gameplay tuning [S0]. | [S41] |
+| C-109 | `Flare! Burning fuel gives out light as well as heat.` | crates/bevy-client/src/powers.rs | correct | Spells-are-powers: Fire's power (F), a light that follows the player. Combustion releases chemical energy as heat and light [S11]; a flame's glow comes from hot soot particles and excited gases [S15]. | [S11] [S15] |
+| C-110 | `freeze a path across deep water` | crates/bevy-client/src/powers.rs | simplified | Spells-are-powers: the locked-power hint for Frost. Ice floats on water and can bear weight once thick enough [S10] [S34]; the walkway's thickness (one block) is gameplay tuning. | [S10] [S34] |
 
 ## Parameters
 
@@ -135,11 +149,41 @@ The single register of every science claim the first-person 3D client shows the 
 | P-021 | `DIP_CO2_PER_CAST` | 0.5 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills half of level 3's shallow dip, so two casts fill it. | [S0] |
 | P-022 | `HOLLOW_CO2_PER_CAST` | 0.34 | pool fraction per cast | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: one CO2 cast fills a third of level 3's deeper hollow (0.34, 0.68, then capped at 1), so a bigger hollow needs more gas. | [S0] |
 | P-023 | `FLICKER_S` | 1.5 | s | crates/bevy-client/src/chem.rs | correct | gameplay tuning, not a physical claim: how long Water or Frost knocks a level-3 gas flame down to 40 % before it grows back. | [S0] |
+| P-024 | `FIRE_K` | 1100 | °C | crates/matter/src/lib.rs | simplified | One temperature for a burning block (the I-052 block world; `grid.rs` uses the same wood-fire value). Measured continuous-flame temperatures in fires are about 900 °C, with peaks a little above 1000 °C in large fires; 1100 °C is at the hot end, chosen so a fire clearly out-heats ice and wood ignition. No caption states it. | [S15] |
+| P-025 | `SMOTHER_O2` | 0.15 | O2 fraction | crates/matter/src/lib.rs | simplified | A flame or vent in the block world goes out when its gas cell's oxygen falls below 15 %. Fuel-specific flaming limits run from about 12.5 to 16 vol% O2, so one value stands in for all fuels. | [S14] |
+| P-026 | `GLASS_K` | 1713 | °C | crates/matter/src/lib.rs | simplified | Sand turns to glass at the melting point of silica (1713 °C). Real glassmaking adds soda and lime to melt sand far lower; pure sand is the limiting case. | [S35] |
+| P-027 | `IRON_K` | 1200 | °C | crates/matter/src/lib.rs | simplified | Iron ore touching coal is reduced to iron at 1200 °C. Carbon reduces iron oxide (2Fe₂O₃ + 3C → 4Fe + 3CO₂) in a furnace, and a bloomery does it below the melting point of iron (1538 °C) without melting the ore; one threshold stands in for the furnace conditions. | [S36] [S38] |
+| P-028 | `LN2_K` | 77.35 | K | crates/matter/src/lib.rs | correct | Frost (liquid nitrogen) never cools a block below nitrogen's boiling point. | [S1] |
+| P-029 | `COLD_REST_K` | 268.15 | K | crates/matter/src/props.rs | correct | scenario assumption: untouched ice and snow sit at −5 °C, the Frozen Fields' air (spec section 7 holds the ford's air at −5 °C), so frozen blocks stay frozen. | [S0] |
+| P-030 | `WATER_REST_K` | 285.15 | K | crates/matter/src/props.rs | correct | scenario assumption: untouched liquid water is a cold 12 °C stream. | [S0] |
+| P-031 | `LF_J_KG` | 334000 | J/kg | crates/matter/src/props.rs | correct | Latent heat of fusion of water: 6.01 kJ/mol ÷ 18.02 g/mol = 334 kJ/kg. Ice holds at 0 °C until it has absorbed it. | [S10] |
+| P-032 | `LV_J_KG` | 2260000 | J/kg | crates/matter/src/props.rs | correct | Latent heat of vaporisation of water: 40.7 kJ/mol ÷ 18.02 g/mol = 2.26 MJ/kg. | [S10] |
+| P-033 | `FROST_J` | 400000000 | J per block | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the heat one Frost emit takes from each block within 1.5 m of the hit, enough to freeze one full block of 12 °C water (5 × 10⁷ J to cool it, 3.3 × 10⁸ J to freeze it), so one cast freezes the top layer of a 3 × 3 patch. | [S0] |
+| P-034 | `FIRE_EMIT_J` | 90000000 | J per block per step | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the heat a Fire emit gives each block within 1.5 m, for 5 steps (0.5 s): enough to melt one ice block without boiling the meltwater. | [S0] |
+| P-035 | `BURN_J` | 16000000 | J per block per step | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the heat a burning block gives each touching block per step, so touching wood reaches 300 °C in about 2 s. | [S0] |
+| P-036 | `CO2_EMIT_M3` | 23 | m³ | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the CO₂ one CO2 emit adds, sized so that three casts (and not two) fill the methane hollow's floor past 28 % CO₂. | [S0] |
+| P-037 | `CONDUCTION_X` | 20000 | factor | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: block-to-block heat conduction runs this many times faster than real 1 m blocks would; real conduction through a metre of rock takes days. | [S0] |
+| P-038 | `REST_PULL` | 0.01 | per step | crates/matter/src/lib.rs | correct | gameplay tuning, not a physical claim: the share of its distance from its resting temperature a block loses each 0.1 s step (about a 10 s time constant). | [S0] |
+| P-039 | `lift_n air density` | 1.204 | kg/m³ | crates/matter/src/lib.rs | correct | Air at 20 °C and 1 atm from the ideal gas law, ρ = pM/RT with M = 28.97 g/mol (H2 0.084, O2 1.33, CO2 1.83, CH4 0.67 kg/m³ the same way). The balloon's lift is (ρ_air − ρ_gas)·V·g − m·g. | [S12] [S8] |
 
 ## Not claims
 
 | text | where | reason |
 |---|---|---|
+| `Something glows up there. Learn Water at the Formula Bench (B) to rise up to it.` | crates/bevy-client/src/powers.rs | Game instruction (the Plaza Tower before Water is learned); it states no science. |
+| `New power: H2 lift! Press 2 for Water, then F by the glowing tower.` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift); the science of the lift is C-106. |
+| `Walk to the glowing tower ({dist:.0} m), then press F to rise.` | crates/bevy-client/src/powers.rs | Game instruction with a distance (the guided first lift). |
+| `Press F to rise with the H2 lift, then hold W onto the top.` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift). |
+| `Hold W to drift onto the top of the tower!` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift). |
+| `{line} Rank up: {}!` | crates/bevy-client/src/powers.rs | Game status (a cache found and the rank it reached); it states no science. |
+| `Throw it high so it falls onto the fire.` | crates/bevy-client/src/firebreak.rs | Game instruction (how to aim a Water cast over the workshop wall); it states no science. |
+| `Put out the methane hollow's flames to open` | crates/bevy-client/src/gates.rs | Game instruction (the cave gate's sign: the quest step that opens it); the hollow's burning methane vents are covered by the P3 rows. |
+| `H2 lift` | crates/bevy-client/src/powers.rs | Power name (Water's power on F). A label; the claim is C-106. |
+| `CO2 dash` | crates/bevy-client/src/powers.rs | Power name (CO2's power on F). A label; the claim is C-108. |
+| `{} is locked. Learn {} at the Formula Bench (B) to unlock it: {}.` | crates/bevy-client/src/powers.rs | Game instruction (a locked power); the hint filled in is C-110 or a power description. |
+| `Ice walkway: no open water ahead to freeze. Face the water.` | crates/bevy-client/src/powers.rs | Game instruction (the walkway found no water to freeze); it states no science. |
+| `{}: stand on the ground first.` | crates/bevy-client/src/powers.rs | Game instruction (a power used in the air). |
+| `{name} found! {REWARD} crystals and a rank point.` | crates/bevy-client/src/powers.rs | Game status (a cache found and its reward); it states no science. |
 | `Fires to put out: ${state.firesLeft}` | crates/bevy-client/web/hud.js | Status counter (fires left to put out). A game count; it states no science. |
 | `The greenhouse is heating up!` | crates/bevy-client/web/index.html | Placeholder of the warning banner, replaced by C-033 before it is shown. A narrative warning with no number or mechanism. |
 | `Not the greenhouse! We are here to save it. Aim at the burning bushes.` | crates/bevy-client/src/chem.rs | Game instruction (Fire aimed at the greenhouse refuses). Flagged by sentence shape and `burn`; it states no science. |
@@ -203,6 +247,37 @@ The single register of every science claim the first-person 3D client shows the 
 | `New spell: copy it. Learn it at the Formula Bench (B) to earn XP.` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast panel line for a spell the player has not learned yet (I-029). |
 | `${bench.pretty(names[i] \|\| NAMES[i] \|\| '')}: Practised!` | crates/bevy-client/web/worked.js | UI instruction; states no science. Worked-cast toast when a spell reaches Practised, e.g. "Water: Practised!" (I-029). |
 | `Copy: ${bench.pretty(card ? card.formula : '')}` | crates/bevy-client/web/worked.js | UI instruction; states no science. The answer to copy in a worked cast; the formula comes from content/spells.json (I-026 rows). Not flagged by the lint; listed for the review. |
+| `This old runestone will not budge. Try chemistry.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction when the Pick hits a protected block (spec section 4). Flagged by sentence shape; it states no science. |
+| `Welcome to the valley! Walk with WASD. Press 5 for the Pick and hold the mouse button to dig.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction (controls) at the start. Flagged by sentence shape; it states no science. |
+| `Welcome to the valley! Press 5 for the Pick and hold the mouse button to dig.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction (controls) after a `?biome=` start. Flagged by sentence shape; it states no science. |
+| `Pack full. Drop or use something first.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction when a dig finds the pack full (spec section 6). Flagged by sentence shape; it states no science. |
+| `Nothing on this key. Press Tab to open your pack.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction (an empty hotbar key 6-9). Flagged by sentence shape; it states no science. |
+| `Nothing can be built here.` | crates/bevy-client/src/voxel_view.rs | I-052 block world: game instruction when placing in a protected box. Flagged by sentence shape; it states no science. |
+| `frozen` | crates/bevy-client/src/gates.rs | I-052 round 2: the Frozen Fields' biome id, naming which gate a sign belongs to. Flagged by the word `frozen`; it states no science. |
+| `The runestone gate to {} sinks into the ground!` | crates/bevy-client/src/gates.rs | I-052 round 2: game narration when a biome gate opens (partial mastery). Flagged by sentence shape; it states no science. |
+| `{name}: Practised! Its cast is now one quick confirm.` | crates/bevy-client/src/story.rs | I-052 round 2: UI instruction when a spell becomes Practised in the run; states no science (as the worked.js Practised toast above). |
+| `It's too dark to see the rig. Make a torch at the Formula Bench (wood + coal).` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction in the dark cave; the torch recipe is a game recipe. Flagged by sentence shape or a formula; it states no science. |
+| `You already carry a hydrogen balloon and an oxygen flask.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction (the rig will not run again while you carry both). Flagged by sentence shape or a formula; it states no science. |
+| `Choose a gas to fill the balloon.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction (the balloon chooser). Flagged by sentence shape or a formula; it states no science. |
+| `The Kiln Spark is up on the ledge. A balloon could lift this crate to it. Try the rig.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction at the crate with no gas in the pack. Flagged by sentence shape or a formula; it states no science. |
+| `You have the Kiln Spark! Take it home to the Kiln.` | crates/bevy-client/src/late.rs | I-052 late lane: Game progress line (the quest item). Flagged by sentence shape or a formula; it states no science. |
+| `This old runestone door only opens for the Kiln Spark.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction at the Kiln door. Flagged by sentence shape or a formula; it states no science. |
+| `The Kiln Spark glows and the door swings open. Now invent a reaction hot enough to relight the Kiln.` | crates/bevy-client/src/late.rs | I-052 late lane: Game progress line; the reaction rule is C-103. Flagged by sentence shape or a formula; it states no science. |
+| `{reason} But the Kiln needs its Spark to light it. Find it in the Crystal Cave.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction appended to a judged reaction (the judge's own reasons live in crates/sim/src/valley). Flagged by sentence shape or a formula; it states no science. |
+| `You untie the balloon and keep the gas. Which gas is lighter than air?` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction and a question; it states no science. Flagged by sentence shape or a formula; it states no science. |
+| `The crate reaches the ledge and the Kiln Spark rolls in! Reeling it down...` | crates/bevy-client/src/late.rs | I-052 late lane: Game progress line. Flagged by sentence shape or a formula; it states no science. |
+| `The crate is down. Press E to take the Kiln Spark.` | crates/bevy-client/src/late.rs | I-052 late lane: Game instruction. Flagged by sentence shape or a formula; it states no science. |
+| `carbon_combustion` | crates/bevy-client/src/late.rs | I-052 late lane: Machine key: a reaction id from content/reactions.json. Never shown as text. Flagged by sentence shape or a formula; it states no science. |
+| `O2` | crates/bevy-client/src/late.rs | I-052 late lane: Machine key: a species id the bench matches reactants with. Never shown as text. Flagged by sentence shape or a formula; it states no science. |
+| `H2` | crates/bevy-client/src/late.rs | I-052 late lane: Machine key: a species id the bench matches reactants with. Never shown as text. Flagged by sentence shape or a formula; it states no science. |
+| `E: use the electrolysis rig` | crates/bevy-client/web/late.js | I-052 late lane: Key prompt (UI). Flagged by sentence shape or a formula; it states no science. |
+| `Freeze the river ford` | crates/bevy-client/web/late.js | I-052 late lane: Puzzle name on the ending card. Flagged by sentence shape or a formula; it states no science. |
+| `Smother the marsh gas` | crates/bevy-client/web/late.js | I-052 late lane: Puzzle name on the ending card. Flagged by sentence shape or a formula; it states no science. |
+| `Invent a reaction to relight the Kiln` | crates/bevy-client/web/late.js | I-052 late lane: Puzzle name on the ending card. Flagged by sentence shape or a formula; it states no science. |
+| `Hydrogen, H2` | crates/bevy-client/web/late.js | I-052 late lane: Button label naming the gas. Flagged by sentence shape or a formula; it states no science. |
+| `Oxygen, O2` | crates/bevy-client/web/late.js | I-052 late lane: Button label naming the gas. Flagged by sentence shape or a formula; it states no science. |
+| `Or type the reaction` | crates/bevy-client/web/late.js | I-052 late lane: Label of the Invention Bench's text box. Flagged by sentence shape or a formula; it states no science. |
+| `You relit the Great Kiln!` | crates/bevy-client/web/late.js | I-052 late lane: Ending card title (story). Flagged by sentence shape or a formula; it states no science. |
 
 ## Sources
 
@@ -238,3 +313,74 @@ The single register of every science claim the first-person 3D client shows the 
 - [S29] NIST Chemistry WebBook, SRD 69, Methane (formula CH4, molecular weight 16.0425). Fetched 2026-11-01: https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828
 - [S30] NIST Chemistry WebBook, SRD 69, Nitrogen (molecular weight 28.0134). Fetched 2026-11-01: https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379
 - [S31] NSW Rural Fire Service, Operational Procedures and Guidelines, "Incidents - Common Flammable Gases" ("Do not extinguish burning gas without first cutting off the leaking gas supply"; methane "is lighter than air and will rise and disperse rather than collect near the ground"). Fetched 2026-11-01: https://www.rfs.nsw.gov.au/resources/publications/operational-procedures-and-guidelines/foundational/incidents-common-flammable-gases
+- [S32] The Engineering ToolBox, "Specific Heat of Solids" (kJ/(kg K): brick, common 0.9; fire brick 1.05; coal, anthracite 1.26; glass, window 0.84; granite 0.79; iron, 20 °C 0.46; sand, dry 0.80; quartz mineral 0.71-0.8; ice 0 °C 2.09; wood, oak 2; ashes 0.84; clay 0.92). Fetched 2026-11-01: https://www.engineeringtoolbox.com/specific-heat-solids-d_154.html
+- [S33] The Engineering ToolBox, "Thermal Conductivity of Selected Materials and Gases" (W/(m K): air 0.0262 at 25 °C; brick dense 1.31, brickwork common 0.6-1.0; coal 0.2; glass 1.05, window 0.96; granite 1.7-4.0; ice 0 °C 2.18; iron-oxide 0.58; quartz mineral 3; sand, dry 0.15-0.25; snow 0.05-0.25; water 0.606; hardwoods 0.16; clay 0.15-1.8; earth, dry 1.5, soil 0.5; water vapour 0.0267). Fetched 2026-11-01: https://www.engineeringtoolbox.com/thermal-conductivity-d_429.html
+- [S34] The Engineering ToolBox, "Densities of Solids" (10³ kg/m³: brick 1.4-2.4; coal, anthracite 1.4-1.8; glass, common 2.4-2.8; granite 2.6-2.8; ice 0.917; hematite 4.9-5.3, brown iron ore 5.1; quartz 2.65; sand, dry 1.4-1.6; snow 0.1; oak 0.72; ashes 0.65; clay 1.8-2.6; earth, loose 1.2). Fetched 2026-11-01: https://www.engineeringtoolbox.com/density-solids-d_1265.html
+- [S35] Wikipedia, "Silicon dioxide", infobox (melting point 1713 °C; density 2.648 g/cm³ for α-quartz; "Silica is the primary ingredient in the production of most glass"; "silica is the major constituent of sand"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Silicon_dioxide
+- [S36] Wikipedia, "Iron", infobox (melting point 1538 °C; density 7.874 g/cm³; specific heat 449 J/(kg·K); thermal conductivity 80.4 W/(m·K)) and the blast furnace section ("iron ore is reduced with coke in a blast furnace"; "2 Fe2O3 + 3 C → 4 Fe + 3 CO2"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Iron
+- [S37] The Engineering ToolBox, "Fuels and Chemicals - Autoignition Temperatures" (wood 300 °C; charcoal 349 °C; bituminous coal glow point 454 °C; methane 580 °C; hydrogen 500 °C). Fetched 2026-11-01: https://www.engineeringtoolbox.com/fuels-ignition-temperatures-d_171.html
+- [S38] Wikipedia, "Bloomery" (it "reduces the iron oxides in the ore to metallic iron without melting the ore"; "this allows the bloomery to operate at lower temperatures than the melting temperature of the ore"). Fetched 2026-11-01: https://en.wikipedia.org/wiki/Bloomery
+- [S39] The Engineering ToolBox, "Water - Density, Specific Weight and Thermal Expansion Coefficients" (998.21 kg/m³ at 20 °C; 999.85 at 0.1 °C; 958.35 at 100 °C). Fetched 2026-11-01: https://www.engineeringtoolbox.com/water-density-specific-weight-d_595.html
+- [S40] NIST Chemistry WebBook, SRD 69: Hydrogen (molecular weight 2.01588), https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740 ; Oxygen (molecular weight 31.9988), https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782447 . Added by the I-052 late lane from the standard values; not re-fetched from the build machine.
+- [S41] Ling, S. J., Sanny, J., Moebs, W., *University Physics Volume 1*, OpenStax, 2016, § 5.5 "Newton's Third Law" (worked examples include a rocket pushed forward by the gas it expels): https://openstax.org/books/university-physics-volume-1/pages/5-5-newtons-third-law . Added by the spells-are-powers lane from the textbook section; not re-fetched from the build machine.
+
+## Block world
+
+Material rows for the I-052 block world (`content/materials.json`). Each row's `source` field names one heading below (`realgame-voxel` test V10 checks that every row has one). Values are SI at 20 °C and 1 atm unless the row says otherwise; `null` in the JSON means the field does not apply in play. `hardness_s` (dig time) and `burn_s` (how long a block burns) are gameplay tuning [S0], not physical claims; 9999 s marks a fixture that cannot be dug. Specific heats, conductivities and densities are taken from the cited tables, picking one value inside each cited range.
+
+### mat-air
+Air: density 1.204 kg/m³ (ideal gas, M = 28.97 g/mol [S12] [S8]); c_p 1.007 kJ/(kg·K) [S11]; k 0.0262 W/(m·K) [S33]. Air cells hold no heat in the sim; they are the room every block cools toward.
+
+### mat-dirt
+Dirt and grass: density 1200 kg/m³ (earth, loose [S34]); c_p 920 J/(kg·K) (clay [S32]); k 0.5 W/(m·K) (dry soil [S33]). Simplified: soil varies widely with water content.
+
+### mat-sand
+Sand: density 1500 kg/m³ (dry sand 1400-1600 [S34]); c_p 800 J/(kg·K) [S32]; k 0.2 W/(m·K) (0.15-0.25 [S33]); melts at 1713 °C, the melting point of silica [S35], into glass (P-026).
+
+### mat-stone
+Stone, cliffstone, runestone and the gas vent's casing: granite, density 2700 kg/m³ (2600-2800 [S34]); c_p 790 J/(kg·K) [S32]; k 2.8 W/(m·K) (1.7-4.0 [S33]). Runestone and vents are fixtures (cannot be dug).
+
+### mat-wood
+Wood, planks, leaves, torches and both benches: oak, density 720 kg/m³ [S34]; c_p 2000 J/(kg·K) [S32]; k 0.16 W/(m·K) (hardwoods [S33]); ignites at 300 °C [S37] [S6] (as P-004). Simplified: leaves are given wood's values (real leaves are lighter and ignite between 227 and 453 °C [S16]).
+
+### mat-snow
+Snow: density 100 kg/m³ [S34]; c_p 2090 J/(kg·K) (ice [S32]); k 0.15 W/(m·K) (0.05-0.25 [S33]); melts at 0 °C [S10].
+
+### mat-ice
+Ice: density 917 kg/m³ [S34]; c_p 2090 J/(kg·K) [S32] [S11]; k 2.18 W/(m·K) [S33]; melts at 0 °C [S10], taking 334 kJ/kg (P-031).
+
+### mat-water
+Liquid water: density 998 kg/m³ at 20 °C [S39]; c_p 4184 J/(kg·K) [S11]; k 0.606 W/(m·K) [S33]; freezes at 0 °C and boils at 100 °C [S2] [S10].
+
+### mat-steam
+Steam: density 0.59 kg/m³ at 100 °C (ideal gas, ρ = pM/RT with M = 18.02 g/mol [S12]); c_p 1864 J/(kg·K) (water vapour [S11]); k 0.0267 W/(m·K) [S33].
+
+### mat-mud
+Mud: wet clay, density 1800 kg/m³ (clay 1800-2600 [S34]); c_p 920 J/(kg·K) (clay [S32]); k 1.0 W/(m·K) (clay 0.15-1.8 [S33]). Simplified: one value for a mix that varies with its water.
+
+### mat-coal
+Coal ore: anthracite, density 1400 kg/m³ (1400-1800 [S34]); c_p 1260 J/(kg·K) [S32]; k 0.2 W/(m·K) [S33]. Simplified: coal seams do not catch fire from a short flame in play (flammability 0; bituminous coal glows from 454 °C and anthracite from 600 °C [S37]). Coal is the carbon that reduces iron ore (P-027) and the fuel the Invention Bench burns.
+
+### mat-iron-ore
+Iron ore: hematite, density 5100 kg/m³ (4900-5300 [S34]); c_p 650 J/(kg·K) (simplified: between iron 0.46 and granite 0.79 kJ/(kg·K) [S32], no table row for hematite); k 0.58 W/(m·K) (iron oxide [S33]).
+
+### mat-crystal
+Crystal: quartz, density 2650 kg/m³ [S34] [S35]; c_p 800 J/(kg·K) [S32]; k 3 W/(m·K) [S33]; melts at 1713 °C [S35].
+
+### mat-glass
+Glass: density 2600 kg/m³ (2400-2800 [S34]); c_p 840 J/(kg·K) [S32]; k 1.05 W/(m·K) [S33].
+
+### mat-iron
+Iron: density 7874 kg/m³, c_p 449 J/(kg·K), k 80.4 W/(m·K), melts at 1538 °C [S36].
+
+### mat-brick
+Brick and the kiln hearth: density 1900 kg/m³ (1400-2400 [S34]); c_p 900 J/(kg·K) (common brick; fire brick 1050 for the hearth [S32]); k 0.8 W/(m·K) (brickwork 0.6-1.0; dense brick 1.31 for the hearth [S33]).
+
+### mat-ash
+Ash: density 650 kg/m³ [S34]; c_p 840 J/(kg·K) [S32]; k 0.16 W/(m·K) (simplified: no table row for ash, given wood's value [S33]).
+
+### p1-fuel-store
+The workshop fire (I-052 P1): its fuel store is a stack of charcoal and logs, drawn as wood blocks flagged `SOURCE`. One burning block burns for its `burn_s` and turns to ash (gameplay tuning [S0]); the store holds far more fuel than one block, so in play it keeps burning until something puts it out, the same way a river cell flagged `SOURCE` keeps refilling. A fire needs fuel, heat and oxygen; water puts a wood or charcoal fire out by cooling the fuel below its ignition temperature [S9] (wood about 300 °C [S37] [S6], charcoal 349 °C [S37]), and a cell cooled by water sits at or below 100 °C, where water boils [S2]. Once cooled below ignition it does not light again by itself; a new flame (the Fire spell) can relight it, and too little oxygen (pooled CO2) also puts it out [S14]. A Water cast is litres of water, not a cupful: it runs over the burning pile and cools every burning block within 2 m of where it lands (`WATER_SOAK_RADIUS`), so the back of the pile is cooled with the front and does not relight it (gameplay tuning [S0]). Simplified: the store's fuel is not counted down at all, because a real store of this size burns far longer than the 10-15 minutes of play (scenario assumption [S0]).
+
+### p2-river-flows
+The river outside the ford (I-052 P2): its cells are `SOURCE` water, refilled from upstream, and in play a Frost cast does not freeze them; the ford's water is still (no source upstream of the ford row, spec section 7) and freezes from the top down, as still water does: ice forms first at the surface because water is densest near 4 °C and ice floats [S10]. Simplified: a real river can freeze over in a long cold spell; here the current is taken to carry each cast's cold away faster than it can build ice (scenario assumption [S0]), so the ford is the one crossing.

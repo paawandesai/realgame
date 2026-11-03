@@ -793,7 +793,8 @@ export function startBench() {
     const v = view();
     const spells = (v.band === ui.band || fakeView) ? v.spells || [] : [];
     noteNames(spells);
-    const keyNow = `list|${ui.band}|${JSON.stringify(spells)}`;
+    const make = makeView();
+    const keyNow = `list|${ui.band}|${JSON.stringify(spells)}|${JSON.stringify(make)}`;
     if (ui.view === 'list' && listKey === keyNow) return;
     const had = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.('.bench-spell');
     const hadSlot = had ? had.getAttribute('data-slot') : null;
@@ -816,11 +817,64 @@ export function startBench() {
       grid.append(card);
     }
     wrap.append(grid);
+    // I-052: the block world's "Make things" section (recipes from the pack).
+    if (make) wrap.append(makeSection(make));
     body.append(wrap);
     if (ui.open) {
       const again = hadSlot ? /** @type {HTMLElement | null} */ (body.querySelector(`.bench-spell[data-slot="${hadSlot}"]`)) : null;
       if (again) again.focus(); else focusFirst();
     }
+  };
+
+  /**
+   * I-052: the recipes `story.rs` publishes in `__storyState`, in the block
+   * world only (null in the classic courtyard, so nothing there changes).
+   * @returns {Array<{ id: string, can: boolean, needs: Array<{ item: string, n: number, have: number }>, gives: { item: string, n: number } }> | null}
+   */
+  const makeView = () => {
+    try {
+      const g = JSON.parse(w.__gameState || 'null');
+      if (!g || g.mode !== 'voxel') return null;
+      const st = JSON.parse(w.__storyState || 'null');
+      return st && Array.isArray(st.recipes) ? st.recipes : null;
+    } catch {
+      return null;
+    }
+  };
+
+  /** @param {string} key */
+  const itemName = (key) => ({ coal_ore: 'coal', torch: 'torches', furnace: 'furnace' })[key] || key.replace(/_/g, ' ');
+
+  /**
+   * "Make things": a card per recipe with what it needs and what you have;
+   * greyed out when you are short. A click asks `story.rs` to craft it.
+   * @param {Array<{ id: string, can: boolean, needs: Array<{ item: string, n: number, have: number }>, gives: { item: string, n: number } }>} recipes
+   */
+  const makeSection = (recipes) => {
+    const sec = mk(document, 'section', 'bench-crafts');
+    sec.append(mk(document, 'h2', 'bench-list-title', 'Make things'));
+    const row = mk(document, 'div', 'bench-cards');
+    for (const r of recipes) {
+      const card = mk(document, 'button', 'bench-craft');
+      card.setAttribute('type', 'button');
+      card.setAttribute('data-recipe', r.id);
+      card.classList.toggle('short', !r.can);
+      card.setAttribute('aria-disabled', r.can ? 'false' : 'true');
+      const needs = r.needs.map((n) => `${n.n} ${itemName(n.item)} (${n.have})`).join(' + ');
+      card.setAttribute('aria-label', `${r.id}: ${needs}`);
+      card.append(
+        mk(document, 'span', 'bench-craft-name', `${r.gives.n} ${itemName(r.gives.item)}`),
+        mk(document, 'span', 'bench-craft-needs', needs),
+      );
+      card.addEventListener('click', () => {
+        if (!r.can) return;
+        w.__gameIn = w.__gameIn || {};
+        (w.__gameIn.story = w.__gameIn.story || []).push(`craft ${r.id}`);
+      });
+      row.append(card);
+    }
+    sec.append(row);
+    return sec;
   };
 
   const pickSpell = (/** @type {number} */ slot) => {
@@ -1110,6 +1164,8 @@ export function startBench() {
     cls[k] = on;
     btn.classList.toggle(k, on);
   };
+  /** @type {unknown} */
+  let storyJson = null;
   const poll = () => {
     try {
       const js = w.__benchState;
@@ -1117,6 +1173,11 @@ export function startBench() {
         rustJson = js;
         try { rust = JSON.parse(js); } catch { /* keep the last good view */ }
         sync();
+      }
+      // I-052: the Make section follows the pack (a craft, a pickup).
+      if (ui.open && ui.view === 'list' && w.__storyState !== storyJson) {
+        storyJson = w.__storyState;
+        showList();
       }
       setCls('near', !!rust.atBench);
       setCls('locked', !!document.pointerLockElement);

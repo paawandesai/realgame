@@ -18,6 +18,7 @@ pub mod species;
 pub mod spell;
 pub mod spellbook;
 pub mod tier;
+pub mod valley;
 // wasm-bindgen's generated glue uses unsafe internally; our own code here does not.
 #[cfg(feature = "web")]
 #[allow(unsafe_code)]

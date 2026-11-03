@@ -6,8 +6,8 @@
 //   npm run build:site                      # builds web/dist (or SKIP_BUILD=1 to reuse it)
 //   node tests/e2e/analytics-e2e.mjs
 //
-// Env: QUERY (default `?low`, faster on a software GPU; `debug` is added for
-// the main run only, to win fast), SKIP_BUILD=1 (reuse web/dist), KEEP=1
+// Env: QUERY (default `?low`, faster on a software GPU; `classic=1` is always
+// added (I-052) and `debug` for the main run only, to win fast), SKIP_BUILD=1 (reuse web/dist), KEEP=1
 // (keep the temp D1 directory). Needs `playwright` with Chromium and the
 // repo's wrangler (npm ci). Prints PASS or FAIL per check, exits 1 if any
 // check fails, and always stops wrangler.
@@ -23,7 +23,10 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../..');
-const QUERY = (process.env.QUERY ?? '?low').replace(/^\?/, '');
+// I-052: the default page is the block world; `classic=1` keeps this check on
+// today's courtyard (its win sends quest_complete) until the valley's own
+// quest_complete is checked (golden E19).
+const QUERY = [(process.env.QUERY ?? '?low').replace(/^\?/, ''), 'classic=1'].filter(Boolean).join('&');
 const DB = 'realgame-analytics';
 const TOKEN = randomBytes(24).toString('hex'); // 48 characters
 const ID_RE = /^[0-9a-f]{32}$/;

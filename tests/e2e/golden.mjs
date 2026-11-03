@@ -9,13 +9,16 @@
 //   bash crates/bevy-client/build-web.sh        # builds web/pkg-out
 //   node tests/e2e/golden.mjs                   # serves web/pkg-out itself
 //
-// Env: BASE_URL (test a running server instead), ONLY=frozenGate (just the
-// I-035 level-2 section and the console-error check; also marsh (I-037),
-// spellProgress, formulaBench, workedCasts, comma-separated), QUERY (for example `?low`,
+// Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
+// that section and the console-error check; also spellProgress, workedCasts,
+// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, valleyPowers, valleyFirstLift, comma-separated; `playthrough` runs only when named), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
-// test commands need it). Needs `playwright` with Chromium. Exits 1 if any
+// test commands need it). I-052: the default page is the block world, so
+// every section before voxelEngine runs on the classic courtyard
+// (`classic=1` in `base`); voxelEngine, blockMatter and valleyStory get
+// `voxelBase`, the default page. Needs `playwright` with Chromium. Exits 1 if any
 // check fails. Frames are slow on a software GPU, so each step waits on game
 // state rather than on fixed sleeps. Run by the loop's smoke step, not by
 // push CI (too slow for the CI budget).
@@ -61,7 +64,9 @@ function check(name, ok, detail = '') {
   const server = process.env.BASE_URL ? null : await serve();
   // `debug` turns on the test commands (tp, tick, look, turn, face, move).
   const q = (process.env.QUERY || '').replace(/^\?/, '');
-  const base = (process.env.BASE_URL || `http://127.0.0.1:${server.address().port}/`) + `?${q ? q + '&' : ''}debug`;
+  const site = process.env.BASE_URL || `http://127.0.0.1:${server.address().port}/`;
+  const base = site + `?${q ? q + '&' : ''}classic=1&debug`;
+  const voxelBase = site + `?${q ? q + '&' : ''}debug`;
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: VW, height: VH } });
   const logs = [];
@@ -93,14 +98,23 @@ function check(name, ok, detail = '') {
   const frames = async (n) => { const f0 = (await st()).frame; await until((x) => x.frame >= f0 + n, 60000); };
   await sleep(2500);
   // ONLY=<section>[,<section>...]: those sections alone (each loads its own
-  // page), then the error check. frozenGate (I-035); marsh (I-037); spellProgress,
-  // formulaBench and workedCasts (I-029).
+  // page), then the error check. spellProgress, formulaBench and workedCasts
+  // (I-029); voxelEngine, blockMatter and valleyStory (I-052, lanes A, B, C).
+  // I-052 retired the frozenGate (I-035) and marsh (I-037) sections: see
+  // docs/loop/items/I-052/retired-checks.md.
   const onlyRuns = {
-    frozenGate: () => frozenGate({ page, st, cmd, until, frames, sleep, base, logs }),
-    marsh: () => marsh({ page, st, cmd, until, frames, sleep, base, logs }),
     spellProgress: () => spellProgress({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     formulaBench: () => formulaBench({ page, st, cmd, until, frames, sleep, base, browser, errors }),
     workedCasts: () => workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors }),
+    voxelEngine: () => voxelEngine({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
+    blockMatter: () => blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
+    valleyStory: () => valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs }),
+    voxelCast: () => voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
+    valleyPuzzles: () => valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs }),
+    valleyLate: () => valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
+    valleyPowers: () => valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase }),
+    valleyFirstLift: () => valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase }),
+    playthrough: () => playthrough({ page, st, cmd, until, frames, sleep, base: voxelBase }),
   };
   if (process.env.ONLY) {
     for (const name of process.env.ONLY.split(',')) {
@@ -376,9 +390,18 @@ function check(name, ok, detail = '') {
 
   await workedCasts({ page, st, cmd, until, frames, sleep, base, browser, errors });
 
-  await frozenGate({ page, st, cmd, until, frames, sleep, base, logs });
+  await voxelEngine({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
 
-  await marsh({ page, st, cmd, until, frames, sleep, base, logs });
+  await blockMatter({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
+
+  await valleyStory({ page, st, cmd, until, frames, sleep, base: voxelBase, browser, errors, logs });
+
+  await voxelCast({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
+
+  await valleyPuzzles({ page, st, cmd, until, frames, sleep, base: voxelBase, errors, logs });
+  await valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
+  await valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase });
+  await valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -984,7 +1007,7 @@ async function feelAndStandards({ page, st, cmd, until, frames, sleep, idx, lit,
     const errs2 = [];
     p2.on('console', (m) => { if (m.type() === 'error') errs2.push(m.text()); });
     p2.on('pageerror', (e) => errs2.push(e.message));
-    const url2 = base.replace(/\?.*$/, '') + '?low&debug&sens=2';
+    const url2 = base.replace(/\?.*$/, '') + '?low&classic=1&debug&sens=2';
     await p2.goto(url2);
     for (const t0 = Date.now(); !(await p2.evaluate(() => !!window.__gameState));) {
       if (Date.now() - t0 > 120000) throw new Error('second context did not start within 120 s');
@@ -4763,39 +4786,6 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
     await waitClosed();
   }
 
-  // I-035 handoff (spec "Overlap and merge order"; this item merged second).
-  // Level 2 at Sprout with worked casts on: Fire routes instant (the Sprout
-  // rule), three instant Fire casts melt the gate, and the lantern wins it.
-  await run('worked: handoff level 2 at Sprout', async () => {
-    await load(['debug', 'band=sprout', 'level=2']);
-    const w = await worked();
-    let x = await until((q) => q.level === 2, 20000);
-    const gate = x.objs.findIndex((o) => o.n === 'ice gate');
-    await cmd('tp 0 1.5');
-    await until((q) => Math.abs(q.pos[2] - 1.5) < 0.5, 10000);
-    await cmd('select 1');
-    const fast = [];
-    for (let k = 0; k < 3; k++) {
-      await cmd(`face ${gate}`);
-      const a = await until((q) => q.spell === 0 && q.aimObj === gate && q.cooldown <= 0, 15000);
-      const at = await cmdAt(page, 'cast');
-      x = await until((q) => q.impacts > a.impacts, 20000);
-      const recs = await recsOf(page, at.t);
-      const castR = recs.find((r) => r.casts > a.casts);
-      fast.push(!!castR && castR.frame - at.frame <= 2 && recs.every((r) => r.workId === null));
-      await sleep(400);
-    }
-    const gone = (await st()).objs[gate].wall === false;
-    await cmd('tp 0 -11');
-    await cmd('look 0 -4');
-    await cmd('move 0 1 4');
-    x = await until((q) => q.outcome === 'won', 30000);
-    await cmd('move 0 0 0');
-    check('worked: handoff: level 2 at Sprout (castmode worked): Fire routes instant, three instant Fire casts melt the gate, and the level is won',
-      !!w && w.band === 'sprout' && w.routes[0] === 'instant' && fast.every(Boolean) && gone && x.outcome === 'won',
-      `routes=${w && w.routes} instant casts ${fast} gate gone=${gone} outcome=${x.outcome}`);
-  });
-
   // W21. Teardown.
   await run('worked: W21 teardown', async () => {
     await cmd('castmode instant');
@@ -4818,239 +4808,234 @@ async function workedCasts({ page, st, cmd, until, frames, sleep, base, browser,
 }
 
 // ---------------------------------------------------------------------------
-// Level 2, the Frozen Gate (docs/loop/items/I-035/spec.md, acceptance tests
-// 5-13, 16 (entity count) and 18; test 14 is in the key-order check above
-// and 15 is the closing console-error check). Drives the state bridge only.
+// I-052, the block valley (docs/loop/items/I-052/spec.md section 11). One
+// function per lane, in the order A, B, C, so each lane edits only its own
+// function body. Each gets `base` = the default page (the block world) with
+// `debug` and QUERY; the checks above stay on the classic courtyard.
 // ---------------------------------------------------------------------------
-async function frozenGate({ page, st, cmd, until, frames, sleep, base, logs }) {
-  console.log('  -- frozen gate (I-035) --');
-  const FREEZING = {
-    sprout: 'Cold! The water is turning to ice.',
-    seedling: 'See the drops skate? Liquid nitrogen makes a cushion of its own gas and rides on it.',
-    apprentice: 'Freezing: H₂O(l) → H₂O(s). The nitrogen drops glide on their own gas (the Leidenfrost effect), so it takes a few casts.',
-    adept: 'Film boiling (Leidenfrost): a layer of N₂ gas insulates each 77 K drop and slows the heat flow. Freezing water must lose 6.01 kJ/mol.',
-  };
-  const load = async (extra = []) => {
-    await page.goto(base + extra.map((e) => `&${e}`).join(''));
+
+// Lane A: voxel engine and view (E1-E8).
+async function voxelEngine({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
+  console.log('  -- voxel engine (I-052, lane A) --');
+  void browser; void logs;
+  // Today's 59 state keys, in order (classic mode publishes exactly these).
+  const CLASSIC_KEYS = ['frame', 'tick', 'locked', 'paused', 'spell', 'spellName', 'formula', 'aimObj', 'assisted',
+    'hover', 'extinguished', 'goal', 'burning', 'ghTemp', 'ghDanger', 'outcome', 'caption', 'captionId', 'casts',
+    'impacts', 'pos', 'yaw', 'pitch', 'onIce', 'low', 'sens', 'assist', 'fov', 'sway', 'cam', 'vm', 'cooldown',
+    'cooldownMax', 'hitKind', 'hitX', 'hitY', 'hitFrame', 'objs', 'gameTime', 'dt', 'clicks', 'firesLeft', 'nearFire',
+    'fireBearing', 'fireElev', 'fireOff', 'streams', 'fxWater', 'fireInView', 'progress', 'progRev', 'progSave',
+    'level', 'exitOpen', 'capIcon', 'fxBeads', 'nextOpen', 'pools', 'ventsLit'];
+  // Loads a URL and returns the wall time (ms) at which the first state appeared.
+  const load = async (url) => {
+    await page.goto(url);
     for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
-      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
-      await sleep(250);
+      if (Date.now() - t0 > 120000) throw new Error(`${url} did not start within 120 s`);
+      await sleep(100);
     }
-    await frames(3);
+    return Date.now();
   };
-  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
-  const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
-  const castAt = async (i, spell) => {
-    await resume();
-    await cmd(`face ${i}`);
-    await cmd(`select ${spell}`);
-    const a = await until((x) => x.spell === spell - 1 && x.aimObj === i && x.cooldown <= 0, 15000);
-    await cmd('cast');
-    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
-    if (!(z.impacts > a.impacts)) console.log(`  castAt(${i}, ${spell}) did not land: aim=${a.aimObj} spell=${a.spell}`);
-    return z;
-  };
-  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
-  // The next STATS line logged after this call (skipping one that may span the change).
-  const statsAfter = async () => {
-    const n0 = logs.length;
-    let seen = 0, line = null;
-    for (const t0 = Date.now(); Date.now() - t0 < 30000 && seen < 2; await sleep(200)) {
-      const fresh = logs.slice(n0).filter((l) => /STATS /.test(l));
-      seen = fresh.length;
-      line = fresh[fresh.length - 1] || null;
+  // Integration (lanes A + C): the block world opens with the story intro,
+  // which takes the keys and the pointer for its first second. Checks that
+  // walk, dig or cast close it first with its "Just play" button.
+  const skipIntro = async () => {
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+      if (open) {
+        await page.click('#intro .intro-play');
+        break;
+      }
+      if (((await st()) || {}).quest > 0) return;
     }
-    const num = (re) => { const m = line && re.exec(line); return m ? +m[1] : NaN; };
-    return { entities: num(/entities=(\d+)/), mem: num(/wasm_mem_mb=([\d.]+)/) };
+    await until((x) => x.quest > 0 && !x.paused, 8000);
   };
-  const banner = () => page.evaluate(() => {
-    const b = document.getElementById('banner');
-    return { shown: !b.classList.contains('hidden'), big: b.querySelector('.big').textContent, small: b.querySelector('.small').textContent };
-  });
-  const pushBand = async (id) => {
-    await page.evaluate((c) => { window.__gameIn = window.__gameIn || {}; (window.__gameIn.bench = window.__gameIn.bench || []).push(c); }, `band ${id}`);
-    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(150)) {
-      const b = await page.evaluate(() => { try { return JSON.parse(window.__benchState).band; } catch { return null; } });
-      if (b === id) return true;
+  // `probe x y z` writes the cell into the next state (spec section 8).
+  // Each probe has a sequence number `n`, so a repeated probe of the same
+  // cell is never answered by the last one.
+  const probe = async (x, y, z) => {
+    const n0 = ((await st()).probe || { n: 0 }).n;
+    await cmd(`probe ${x} ${y} ${z}`);
+    const s = await until((v) => v.probe && v.probe.n > n0, 15000);
+    return s.probe && s.probe.n > n0 && s.probe.at.join() === [x, y, z].join() ? s.probe : null;
+  };
+  const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
+  const lockNow = async () => {
+    if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
     }
     return false;
   };
+  const key = async (k) => { await page.keyboard.down(k); await sleep(120); await page.keyboard.up(k); };
 
-  // A fresh page: level 1, no band picked.
-  await load();
-  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
-  const first = await statsAfter();
+  // E1: the default page is the block world, and the spawn ring is meshed
+  // within 8 s of the first state.
+  const errs0 = errors.length;
+  const tFirst = await load(base);
+  let s = await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 8000);
+  const tMeshed = Date.now() - tFirst;
+  check('voxel: the default page boots the block world',
+    s.mode === 'voxel' && s.chunksMeshed >= 18 && tMeshed <= 8500 && errors.length === errs0,
+    `mode=${s.mode} chunksMeshed=${s.chunksMeshed} meshQ=${s.meshQ} after ${tMeshed} ms, biome=${s.biome}, ` +
+    `objs=${(s.objs || []).length}, errors=${errors.slice(errs0, errs0 + 2).join(' | ')}`);
+  const voxelKeys = Object.keys(s);
+  console.log(`  voxel keys: ${voxelKeys.length} (${voxelKeys.slice(CLASSIC_KEYS.length).join(',')})`);
 
-  // 5. The exit stays shut before the win.
-  await cmd('tp 0 21.8');
-  await gameSecs(0.5);
-  s = await st();
-  check('frozen gate: the exit stays shut before the win (level 1, exitOpen false)', s.level === 1 && s.exitOpen === false && s.burning > 0,
-    `level=${s.level} exitOpen=${s.exitOpen} burning=${s.burning} pos=${s.pos}`);
-
-  // 6. Reach level 2 by playing: win level 1 the usual way, then walk into the arch.
-  await cmd('tp 0 5.5');
-  const lit = s.objs.filter((o) => o.burning).map((o) => o.i);
-  for (const i of lit) await castAt(i, 2);
-  s = await until((x) => x.outcome === 'won', 10000);
-  const b1 = await banner();
-  check('frozen gate: the level-1 win opens the arch and the banner points to it',
-    s.outcome === 'won' && s.exitOpen === true && b1.shown && b1.big === 'You saved the greenhouse!' && /glowing arch/.test(b1.small),
-    `outcome=${s.outcome} exitOpen=${s.exitOpen} banner=${JSON.stringify(b1)}`);
-  await cmd('tp 0 21.8');
-  const t6 = Date.now();
-  s = await until((x) => x.level === 2, 5000);
-  const names = s.objs.map((o) => o.n);
-  check('frozen gate: walking into the open arch loads level 2 within 5 s',
-    s.level === 2 && Date.now() - t6 <= 5500 && ['stream', 'ice gate', 'lantern'].every((n) => names.includes(n))
-      && s.burning === 0 && s.outcome === 'playing' && /^The Frozen Gate/.test(s.caption),
-    `level=${s.level} after ${Date.now() - t6} ms objs=${names.join(',')} burning=${s.burning} outcome=${s.outcome} caption=${s.caption}`);
-  const stream = idx(s, 'stream'), gate = idx(s, 'ice gate');
-  await frames(3);
-  await screenshot(page, 'l2-01-arrive.png');
-
-  // 7. The liquid stream blocks the walk.
-  await cmd('look 0 0');
-  await cmd('move 0 1 3');
-  await gameSecs(3.4);
-  s = await st();
-  check('frozen gate: the liquid stream blocks the walk (stopped on the south bank, z > 8.2)', s.pos[2] > 8.2 && s.pos[2] < 9.5 && s.objs[stream].ice === 0,
-    `pos=${s.pos} ice=${s.objs[stream].ice}`);
-
-  // 8. Wrong chemistry fails kindly.
-  const wrong = [];
-  for (const sp of [1, 2, 4]) { const z = await castAt(stream, sp); wrong.push(`stream ${sp}: ice=${z.objs[stream].ice} "${z.caption}"`); }
-  const iceAfterWrong = (await st()).objs[stream].ice;
-  for (const sp of [3, 2, 4]) { const z = await castAt(gate, sp); wrong.push(`gate ${sp}: wall=${z.objs[gate].wall} "${z.caption}"`); }
-  s = await st();
-  check('frozen gate: Fire, Water and CO2 leave the stream liquid; Frost, Water and CO2 leave the gate standing',
-    iceAfterWrong === 0 && s.objs[stream].ice === 0 && s.objs[gate].wall === true && s.objs[gate].ice === 1, wrong.join(' | '));
-
-  // 9, 11 (no band) and 13. Freeze a bridge: 0.34, 0.68, 1.00; beads on the first hit.
-  const ices = [];
-  let z = await castAt(stream, 3);
-  ices.push(z.objs[stream].ice);
-  const beads = z.fxBeads;
-  const noBandLine = z.caption;
-  const t13 = Date.now();
-  const gone = await until((x) => x.fxBeads === 0, 4000);
-  const goneMs = Date.now() - t13;
-  check('frozen gate: Leidenfrost beads after a Frost hit on the liquid stream (>= 4, then 0 within 2 s)',
-    beads >= 4 && gone.fxBeads === 0 && goneMs <= 2000, `beads=${beads} then ${gone.fxBeads} after ${goneMs} ms`);
-  check('frozen gate: with no band the Apprentice Freezing line shows', noBandLine === FREEZING.apprentice && z.capIcon === '',
-    `caption="${noBandLine}" capIcon="${z.capIcon}"`);
-  for (let k = 0; k < 2; k++) { z = await castAt(stream, 3); ices.push(z.objs[stream].ice); }
-  s = await st();
-  check('frozen gate: three Frost casts freeze the stream 0.34 / 0.68 / 1.00',
-    ices.join() === '0.34,0.68,1' && s.objs[stream].frozen, `ice ${ices.join(' / ')} frozen=${s.objs[stream].frozen} "${s.caption}"`);
-  await cmd('look 0 -20');
-  await frames(3);
-  await screenshot(page, 'l2-02-bridge-frozen.png');
-  await cmd('look 0 0');
-  await cmd('move 0 0.4 6');
-  let sawIce = false;
-  const t9 = (await st()).gameTime;
-  for (let x = await st(); x.gameTime < t9 + 6.3; x = await st()) {
-    sawIce = sawIce || x.onIce;
-    s = x;
-    if (Date.now() - t13 > 120000) break;
-    await sleep(60);
+  // E2: ?classic and ?level=1 boot the courtyard unchanged.
+  {
+    const rows = [];
+    let ok = true;
+    for (const extra of ['classic', 'level=1']) {
+      await load(`${base}&${extra}`);
+      await frames(3);
+      const c = await st();
+      const keys = Object.keys(c);
+      const same = keys.length === CLASSIC_KEYS.length && keys.every((k, i) => k === CLASSIC_KEYS[i]);
+      ok = ok && c.objs.length > 10 && c.burning === 3 && same && c.mode === undefined;
+      rows.push(`${extra}: objs=${c.objs.length} burning=${c.burning} keys=${keys.length} same=${same}`);
+    }
+    check('voxel: ?classic and ?level=1 boot the courtyard unchanged', ok, rows.join('; '));
   }
-  check('frozen gate: the player crosses the frozen stream (z < 3), on ice while on it', s.pos[2] < 3 && sawIce, `pos=${s.pos} onIce seen=${sawIce}`);
 
-  // 10. Melt the gate, reach the lantern.
-  const walls = [];
-  for (let k = 0; k < 3; k++) {
-    z = await castAt(gate, 1);
-    walls.push(`${z.objs[gate].ice}/${z.objs[gate].wall}`);
-    if (k === 1) { await frames(1); await screenshot(page, 'l2-03-gate-melting.png'); }
+  // E3: WASD (with Space for each step) walks up the Kiln terrace steps; the feet follow the ground and
+  // are never more than 0.1 m inside a solid cell.
+  await load(base);
+  await skipIntro();
+  await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 30000);
+  await cmd('tp 128.5 35 187.5');
+  await cmd('look 0 -10');
+  s = await until((x) => Math.abs(x.pos[2] - 187.5) < 0.2 && Math.abs(x.yaw) < 1, 15000);
+  {
+    await page.evaluate(() => document.getElementById('game').focus());
+    const p0 = s.pos;
+    const path = [p0];
+    // W only walks (2026-11-01: no hop onto a one-block step); Space jumps
+    // up each step of the terrace.
+    await page.keyboard.down('w');
+    let k = 0;
+    for (const t0 = Date.now(); Date.now() - t0 < 25000; await sleep(120)) {
+      const x = await st();
+      path.push(x.pos);
+      if (Math.hypot(x.pos[0] - p0[0], x.pos[2] - p0[2]) >= 10) break;
+      if (++k % 5 === 0) { await page.keyboard.down('Space'); await sleep(90); await page.keyboard.up('Space'); }
+    }
+    await page.keyboard.up('w');
+    const p1 = path[path.length - 1];
+    const walked = Math.hypot(p1[0] - p0[0], p1[2] - p0[2]);
+    const ys = path.map((p) => p[1]);
+    // The cell 0.1 m above each sampled foot position must not be solid
+    // (feet sunk more than 0.1 m into a block would put that point inside it).
+    let inside = 0;
+    const sampled = path.filter((_, i) => i % Math.max(1, Math.floor(path.length / 12)) === 0).concat([p1]);
+    for (const p of sampled) {
+      const c = await probe(Math.floor(p[0]), Math.floor(p[1] + 0.1), Math.floor(p[2]));
+      if (!c || c.solid) inside += 1;
+    }
+    check('voxel: WASD walks on the terrain and the feet follow the ground',
+      walked >= 10 && Math.max(...ys) - Math.min(...ys) >= 2 && inside === 0,
+      `walked ${walked.toFixed(1)} m, y ${Math.min(...ys).toFixed(2)}..${Math.max(...ys).toFixed(2)}, ` +
+      `${inside}/${sampled.length} samples inside a solid cell`);
   }
-  s = await st();
-  const wallGone = s.objs[gate].wall === false;
-  await cmd('tp 0 -11');
-  await cmd('look 0 -4');
-  await frames(4);
-  await screenshot(page, 'l2-04-lantern.png');
-  await cmd('move 0 1 4');
-  s = await until((x) => x.outcome === 'won', 30000);
-  const b2 = await banner();
-  check('frozen gate: Fire melts the gate in 3 hits and walking to the lantern wins',
-    wallGone && s.outcome === 'won' && b2.shown && b2.big === 'You opened the Frozen Gate!',
-    `gate ${walls.join(' ')} outcome=${s.outcome} pos=${s.pos} banner=${JSON.stringify(b2)}`);
-  await screenshot(page, 'l2-05-won.png');
 
-  // 12. The way back: a fresh courtyard, exit still open. (First stop the
-  // scripted walk from test 10, which would carry the player off the arch.)
-  await cmd('move 0 0 0');
-  await frames(2);
-  await cmd('tp 0 21.8');
-  s = await until((x) => x.level === 1, 5000);
-  s = await until((x) => x.level === 1 && x.burning === 3, 5000);
-  check('frozen gate: the back arch returns to a fresh courtyard with the exit open',
-    s.level === 1 && s.burning === 3 && s.exitOpen === true && s.outcome === 'playing',
-    `level=${s.level} burning=${s.burning} exitOpen=${s.exitOpen} outcome=${s.outcome}`);
-
-  // 11. Captions per band, each on a fresh level 2.
-  const per = [];
-  let bandsOk = true;
-  for (const id of ['sprout', 'seedling', 'apprentice', 'adept']) {
-    const pushed = await pushBand(id);
-    await cmd('level 2');
-    let x = await until((q) => q.level === 2 && q.objs[stream] && q.objs[stream].ice === 0 && q.casts === 0, 10000);
-    await cmd('tp 0 10');
-    await until((q) => Math.abs(q.pos[2] - 10) < 0.5, 10000);
-    x = await castAt(stream, 3);
-    const icon = id === 'sprout' ? 'freeze' : '';
-    const ok = pushed && x.caption === FREEZING[id] && x.capIcon === icon;
-    bandsOk = bandsOk && ok;
-    per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
+  // E4: the Pick digs a dirt block into the pack, and placing puts it back.
+  {
+    await cmd('tp 128.5 35 205.5');
+    await cmd('setcell 128 35 203 dirt');
+    await cmd('face 128.5 35.5 203.5');
+    s = await until((x) => x.lookCell && x.lookCell.join() === '128,35,203,1', 15000);
+    const looked = !!(s.lookCell && s.lookCell.join() === '128,35,203,1');
+    const dirt0 = packN(s, 'dirt');
+    await page.evaluate(() => document.getElementById('game').focus());
+    await key('5');
+    s = await until((x) => x.hot === 5, 10000);
+    const locked = await lockNow();
+    await cmd('face 128.5 35.5 203.5');
+    await frames(2);
+    let maxDig = 0;
+    if (locked) await page.mouse.down();
+    else await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 20000; await sleep(80)) {
+      const x = await st();
+      maxDig = Math.max(maxDig, x.digT);
+      if (packN(x, 'dirt') > dirt0) { s = x; break; }
+    }
+    if (locked) await page.mouse.up();
+    s = await until((x) => packN(x, 'dirt') > dirt0, 5000);
+    const dug = await probe(128, 35, 203);
+    const gained = packN(s, 'dirt') - dirt0;
+    // Key 6 is bound to the dirt, and a click puts it back on the ground.
+    await key('6');
+    s = await until((x) => x.hot === 6, 10000);
+    const hot6 = s.hot === 6;
+    // Aim at the top of the ground block under the hole: the new block goes on that face.
+    await cmd('face 128.5 34.9 203.4');
+    await frames(2);
+    const before = packN(await st(), 'dirt');
+    // A locked left press reaches the game as one `fire` (web/hud.js). It is
+    // sent directly here: under pointer lock, headless Chromium gives a
+    // synthetic press a movement delta that turns the view about 11 degrees
+    // before the click lands, which would aim the block at the wrong face.
+    // Without the lock, a click is a `cast` at the crosshair.
+    await cmd(locked ? 'fire' : 'cast');
+    s = await until((x) => packN(x, 'dirt') < before, 10000);
+    const back = await probe(128, 35, 203);
+    check('voxel: the Pick digs a dirt block into the pack and placing puts it back',
+      looked && maxDig >= 1 && gained === 1 && dug && dug.mat === 'air' && hot6 && back && back.mat === 'dirt' &&
+      packN(s, 'dirt') === before - 1,
+      `looked=${looked} locked=${locked} digT max ${maxDig.toFixed(2)}, pack dirt +${gained}, ` +
+      `cell after dig ${dug && dug.mat}, hot 6=${hot6}, after place ${back && back.mat}, pack ${before} -> ${packN(s, 'dirt')}`);
+    if (await page.evaluate(() => !!document.pointerLockElement)) {
+      await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+    }
   }
-  check('frozen gate: each band sees its own Freezing line; Sprout shows the freeze picture', bandsOk, per.join(' | '));
 
-  // 18 and 16 (entities). Switching levels 10 times leaks nothing.
-  await cmd('level 1');
-  await until((q) => q.level === 1 && q.burning === 3, 10000);
-  let l2 = null, mem2 = NaN, last = null;
-  for (let k = 1; k <= 10; k++) {
-    await cmd('level 2');
-    await until((q) => q.level === 2, 10000);
-    if (k === 1) { await gameSecs(0.3); l2 = await statsAfter(); }
-    await cmd('level 1');
-    await until((q) => q.level === 1 && q.burning === 3, 10000);
-    if (k === 2) mem2 = (await statsAfter()).mem;
-    if (k === 10) last = await statsAfter();
+  // E5: a protected cell (the ford's canyon wall) cannot be dug.
+  {
+    await load(base);
+    await skipIntro();
+    await until((x) => x.mode === 'voxel' && x.chunksMeshed >= 18, 30000);
+    await cmd('tp 110.5 35 161.5');
+    await cmd('face 110.5 34.5 159.5');
+    s = await until((x) => x.lookCell && x.lookCell.join() === '110,34,159,5', 15000);
+    const looked = !!(s.lookCell && s.lookCell.join() === '110,34,159,5');
+    await page.evaluate(() => document.getElementById('game').focus());
+    await key('5');
+    await until((x) => x.hot === 5, 10000);
+    const locked = await lockNow();
+    await cmd('face 110.5 34.5 159.5');
+    await frames(2);
+    let maxDig = 0;
+    let caption = '';
+    if (locked) await page.mouse.down();
+    else await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 3000; await sleep(100)) {
+      const x = await st();
+      maxDig = Math.max(maxDig, x.digT);
+      if (/runestone/.test(x.caption)) caption = x.caption;
+    }
+    if (locked) await page.mouse.up();
+    const cell = await probe(110, 34, 159);
+    check('voxel: a protected cell cannot be dug',
+      looked && maxDig === 0 && /runestone/.test(caption) && cell && cell.mat === 'cliffstone',
+      `looked=${looked} locked=${locked} digT max ${maxDig}, caption "${caption}", cell ${cell && cell.mat}`);
+    if (await page.evaluate(() => !!document.pointerLockElement)) {
+      await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+    }
   }
-  check('frozen gate: level 2 has no more entities than level 1', l2.entities <= first.entities,
-    `level 1 ${first.entities}, level 2 ${l2.entities}`);
-  check('frozen gate: 10 level switches leave entities exact and WASM memory flat (± 2 %)',
-    last.entities === first.entities && Math.abs(last.mem - mem2) <= 0.02 * mem2,
-    `entities ${first.entities} -> ${last.entities}; wasm MB after switch 2 ${mem2}, after 10 ${last.mem}`);
-
-  // ?level=2 loads level 2 directly (teachers and tests).
-  await load(['level=2']);
-  s = await until((x) => x.level === 2, 10000);
-  check('frozen gate: ?level=2 opens the Frozen Gate directly', s.level === 2 && idx(s, 'stream') >= 0 && /^The Frozen Gate/.test(s.caption),
-    `level=${s.level} caption=${s.caption}`);
 }
 
-// I-037: level 3, the Marsh (docs/loop/items/I-037/spec.md, golden tests
-// 6-17 and 20). Drives the state bridge only.
-async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
-  console.log('  -- marsh (I-037) --');
-  const L = {
-    flickerWater: 'Marsh gas is methane (CH₄). It keeps bubbling up through the water, so a splash only knocks the flame down for a moment.',
-    flickerFrost: 'Liquid nitrogen boils into N₂ gas. Once it warms up, N₂ is about as heavy as air, so it mixes away and the methane keeps burning.',
-    fire: 'That gas is already burning. Fire cannot put out fire.',
-    filling: 'CO₂ (44 g/mol) is denser than air (29 g/mol), so it pools low, like an invisible pond.',
-    pooled: 'The CO₂ pool pushed the air out of the hollow. Without O₂, CH₄ + 2O₂ → CO₂ + 2H₂O cannot happen.',
-    noOxygen: 'Fire needs oxygen, and the CO₂ keeps it away.',
-  };
-  const FILLING = {
-    sprout: 'The gas sinks down low. More!',
-    seedling: 'CO₂ is heavier than air, so it sinks and fills the hollow from the bottom.',
-    apprentice: L.filling,
-    adept: 'At the same temperature and pressure, gas density goes with molar mass: CO₂ is about 1.5 times as dense as air, so it settles in low places.',
-  };
+// Lane B: block matter (E9-E14, E22, E24).
+async function blockMatter({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
+  console.log('  -- block matter (I-052, lane B) --');
+  void page; void st; void cmd; void until; void frames; void sleep; void base; void browser; void errors; void logs;
+}
+
+// Lane C: valley story (E15-E21, E23).
+async function valleyStory({ page, st, cmd, until, frames, sleep, base, browser, errors, logs }) {
+  console.log('  -- valley story (I-052, lane C) --');
+  void browser; void errors; void logs;
+  // The block world is the default page: drop `classic` from the base URL.
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
   const load = async (url) => {
     await page.goto(url);
     for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
@@ -5059,262 +5044,1280 @@ async function marsh({ page, st, cmd, until, frames, sleep, base, logs }) {
     }
     await frames(3);
   };
-  const idx = (x, n) => x.objs.findIndex((o) => o.n === n);
-  const all = (x, n) => x.objs.filter((o) => o.n === n).map((o) => o.i);
+  // Polls an async page check until it holds (or `ms` runs out).
+  const poll = async (fn, ms) => {
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) if (await fn()) return true;
+    return false;
+  };
+  const intro = () => page.evaluate(() => {
+    const el = document.getElementById('intro');
+    return {
+      shown: !!el && !el.hidden,
+      cards: el ? el.querySelectorAll('.intro-card').length : 0,
+      card: el ? Number(el.dataset.card) : -1,
+      modal: el ? el.getAttribute('aria-modal') : null,
+      text: el ? (el.querySelector('.intro-card.on .intro-text')?.textContent || '') : '',
+    };
+  });
+
+  // E15. The intro shows three cards and any key skips it after 1 s.
+  await load(voxel);
+  let s = await until((x) => x.mode === 'voxel', 20000);
+  await poll(async () => (await intro()).shown, 10000);
+  const i0 = await intro();
+  const q0 = (await st()).quest;
+  await page.keyboard.press('KeyX'); // before 1 s: ignored
+  await frames(2);
+  const early = await intro();
+  await sleep(1200);
+  await page.keyboard.press('KeyX');
+  const t0 = Date.now();
+  s = await until((x) => x.quest === 1, 5000);
+  const i1 = await intro();
+  check('story: the intro shows three cards and any key skips it after 1 s',
+    s.mode === 'voxel' && i0.shown && i0.cards === 3 && i0.modal === 'true' && /Kiln/.test(i0.text) && q0 === 0
+      && early.shown && !i1.shown && s.quest === 1 && Date.now() - t0 < 5000,
+    `mode=${s.mode} first=${JSON.stringify(i0)} quest ${q0} -> ${s.quest} early=${JSON.stringify(early)} after=${JSON.stringify(i1)}`);
+
+  // E17. The pack opens with Tab, pauses, the rest is inert, and Escape closes it.
+  await page.keyboard.press('Tab');
+  await poll(() => page.evaluate(() => !!document.getElementById('pack') && !document.getElementById('pack').hidden), 5000);
+  // As the bench's own check: the published state follows within 10 frames.
+  const f0 = (await st()).frame;
+  await poll(async () => { const x = await st(); return x.paused || x.frame >= f0 + 10; }, 5000);
+  const open = await page.evaluate(() => ({
+    open: !!document.getElementById('pack') && !document.getElementById('pack').hidden,
+    modal: document.getElementById('pack')?.getAttribute('aria-modal') ?? null,
+    slots: document.querySelectorAll('#pack .pack-slot').length,
+    paused: window.__game.state().paused,
+    atCentre: !!document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('#pack'),
+    inert: ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id).inert),
+  }));
+  await page.keyboard.press('Escape');
+  const f1 = (await st()).frame;
+  await poll(async () => { const x = await st(); return !x.paused || x.frame >= f1 + 10; }, 5000);
+  const shut = await page.evaluate(() => ({
+    open: !!document.getElementById('pack') && !document.getElementById('pack').hidden,
+    paused: window.__game.state().paused,
+    inert: ['stage', 'hud', 'loading', 'pause'].map((id) => document.getElementById(id).inert),
+    focus: document.activeElement && document.activeElement.id,
+  }));
+  check('story: the pack opens with Tab, pauses, and Escape closes it',
+    open.open && open.modal === 'true' && open.slots === 20 && open.paused === true && open.atCentre && open.inert.every(Boolean)
+      && !shut.open && shut.paused === false && shut.inert.every((x) => !x) && shut.focus === 'game',
+    `open=${JSON.stringify(open)} shut=${JSON.stringify(shut)}`);
+  void cmd;
+}
+
+// I-051 in the block world (voxel_cast.rs): Water and CO2 charge while held
+// and arc on release; Fire and Frost are short sprays. Until Lane A inserts
+// the valley's blocks, spells land on the plane y = 0, so the distances
+// here are the flat-ground maths.
+async function voxelCast({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- voxel cast (I-051 in the block world) --');
+  await page.goto(base);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
   const resume = async () => { if ((await st()).paused) { await page.evaluate(() => window.__game.pause(false)); await until((q) => !q.paused, 8000); } };
-  // Casts `spell` (1 Fire, 2 Water, 3 Frost, 4 CO2) at whatever the view
-  // aims at once `aimed(state)` holds; returns the state after it landed.
-  const castWhen = async (aimed, spell, what) => {
+  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
+  // The VLAND lines logged since `n0`: { spell, p: [x, y, z], from: [x, y, z] }.
+  const lands = (n0) => logs.slice(n0).map((l) => /VLAND spell=(\d) x=(-?[\d.]+) y=(-?[\d.]+) z=(-?[\d.]+) .* from=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)/.exec(l)).filter(Boolean)
+    .map((m) => ({ spell: +m[1], p: [+m[2], +m[3], +m[4]], from: [+m[5], +m[6], +m[7]] }));
+  // How far a cast's landing is from the hand, along the ground.
+  const flat = (r) => (r && r.land ? Math.hypot(r.land.p[0] - r.land.from[0], r.land.p[2] - r.land.from[2]) : NaN);
+  const castNow = async (spell, line = 'cast', wait = 15000) => {
     await resume();
     await cmd(`select ${spell}`);
-    const a = await until((x) => x.spell === spell - 1 && aimed(x) && x.cooldown <= 0, 15000);
-    await cmd('cast');
-    const z = await until((x) => x.impacts > a.impacts && x.captionId >= a.captionId + 2, 30000);
-    if (!(z.impacts > a.impacts)) console.log(`  cast ${spell} at ${what} did not land: aim=${a.aimObj} spell=${a.spell}`);
-    return z;
-  };
-  const castAt = async (i, spell) => { await cmd(`face ${i}`); return castWhen((x) => x.aimObj === i, spell, `obj ${i}`); };
-  const gameSecs = async (secs) => { const t0 = (await st()).gameTime; return until((x) => x.gameTime >= t0 + secs, 60000 + secs * 4000); };
-  const statsAfter = async () => {
+    const a = await until((x) => x.spell === spell - 1 && x.cooldown <= 0, 15000);
     const n0 = logs.length;
-    let seen = 0, line = null;
-    for (const t0 = Date.now(); Date.now() - t0 < 30000 && seen < 2; await sleep(200)) {
-      const fresh = logs.slice(n0).filter((l) => /STATS /.test(l));
-      seen = fresh.length;
-      line = fresh[fresh.length - 1] || null;
-    }
-    const num = (re) => { const m = line && re.exec(line); return m ? +m[1] : NaN; };
-    return { entities: num(/entities=(\d+)/), mem: num(/wasm_mem_mb=([\d.]+)/) };
+    await cmd(line);
+    const z = await until((x) => x.impacts > a.impacts, wait);
+    await gameSecs(0.3);
+    return { land: lands(n0).pop() || null, landed: z.impacts > a.impacts };
   };
-  const banner = () => page.evaluate(() => {
-    const b = document.getElementById('banner');
-    return { shown: !b.classList.contains('hidden'), big: b.querySelector('.big').textContent, small: b.querySelector('.small').textContent };
-  });
-  const pushBand = async (id) => {
-    await page.evaluate((c) => { window.__gameIn = window.__gameIn || {}; (window.__gameIn.bench = window.__gameIn.bench || []).push(c); }, `band ${id}`);
-    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(150)) {
-      const b = await page.evaluate(() => { try { return JSON.parse(window.__benchState).band; } catch { return null; } });
-      if (b === id) return true;
+  // The story intro opens first; "Just play" closes it.
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    if (await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; })) { await page.click('#intro .intro-play'); break; }
+    if ((await st()).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 8000);
+  const mode = (await st()).mode;
+  check('voxelCast: the default page is the block world', mode === 'voxel', `mode=${mode}`);
+
+  // V1. A tapped Water jet and a full charge, view 40 degrees up.
+  // Open, flat ground: the Village plaza in the block world (its top at
+  // the feet), or the plane y = 0 without a world.
+  await cmd(mode === 'voxel' ? 'tp 128.5 35 205.5' : 'tp 8 12');
+  await cmd('look 0 40');
+  await frames(4);
+  const ground = (await st()).pos[1];
+  const tap = await castNow(2, 'cast');
+  const hold = await castNow(2, 'cast 1');
+  // Tuning (tuning.rs, 2026-11-01): a tap reaches 10 m and a 1 s charge
+  // 25 m at 45 degrees; from the hand, 40 degrees up, a little farther.
+  check('voxelCast: Water tapped lands 10-13.5 m away and a full 1 s charge lands 23-29 m away, on the ground at the feet',
+    tap.landed && hold.landed && flat(tap) >= 10 && flat(tap) <= 13.5 && flat(hold) >= 23 && flat(hold) <= 29
+      && Math.abs(tap.land.p[1] - ground) < 0.2 && Math.abs(hold.land.p[1] - ground) < 0.2,
+    `tap ${flat(tap).toFixed(2)} m ${JSON.stringify(tap.land)}, hold ${flat(hold).toFixed(2)} m ${JSON.stringify(hold.land)}`);
+
+  // V2. CO2 is a heavier, shorter lob: 8-14 m on flat ground.
+  const co2 = await castNow(4, 'cast 1');
+  check('voxelCast: CO2 at full charge lobs 12-17 m', co2.landed && flat(co2) >= 12 && flat(co2) <= 17,
+    `${flat(co2).toFixed(2)} m ${JSON.stringify(co2.land)}`);
+
+  // V3. Fire is a short spray: aimed down it lands within 2.5 m; aimed up
+  // it reaches nothing.
+  await cmd('look 0 -50');
+  await frames(2);
+  const down = await castNow(1);
+  await cmd('look 0 30');
+  await frames(2);
+  const up = await castNow(1, 'cast', 3000);
+  check('voxelCast: Fire aimed down lands within 3.5 m; aimed up it lands nowhere',
+    down.landed && flat(down) <= 3.5 && Math.abs(down.land.p[1] - ground) < 0.05 && !up.landed && !up.land,
+    `down ${down.landed} ${flat(down).toFixed(2)} m ${JSON.stringify(down.land)} up ${up.landed} ${JSON.stringify(up.land)}`);
+
+  // V4. A real held press charges: it reaches farther than a quick click,
+  // and one press is one cast.
+  await page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  await until((x) => x.locked, 5000);
+  const press = async (ms) => {
+    await resume();
+    await cmd('select 2');
+    const a = await until((x) => x.spell === 1 && x.cooldown <= 0, 10000);
+    const n0 = logs.length;
+    await page.mouse.move(640, 360);
+    await page.mouse.down();
+    await sleep(ms);
+    const mid = await st();
+    await page.mouse.up();
+    await until((x) => x.impacts > a.impacts, 15000);
+    await gameSecs(0.6);
+    const l = lands(n0);
+    return { land: l[l.length - 1] || null, n: l.length, castsDuring: mid.casts - a.casts, casts: (await st()).casts - a.casts };
+  };
+  await cmd(mode === 'voxel' ? 'tp 128.5 35 205.5' : 'tp 8 12');
+  await cmd('look 0 40');
+  await frames(4);
+  const click = await press(60);
+  const held = await press(1300);
+  check('voxelCast: a 1.3 s press flies at least 8 m farther than a click, each press one cast, none while held',
+    flat(held) - flat(click) >= 8 && click.n === 1 && held.n === 1 && click.casts === 1 && held.casts === 1 && held.castsDuring === 0,
+    `click ${flat(click).toFixed(2)} m (${click.n}), held ${flat(held).toFixed(2)} m (${held.n}), during=${held.castsDuring}`);
+}
+
+// I-052 round 2: the valley's puzzles played the way a player plays them.
+// P1: from spawn, close the intro, learn Water at the Formula Bench, walk
+// to the burning workshop and put it out with real presses (worked casts
+// at Apprentice: press, type the formula, Enter); the objective moves on.
+async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors, logs }) {
+  console.log('  -- valley puzzles (I-052 round 2) --');
+  void errors; void logs;
+  const PROG = 'rg.progress.v1';
+  const shots = process.env.SHOTS ? process.env.SHOTS.replace(/\/?$/, '/') : null;
+  const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots}${name}`, timeout: 180000 }); };
+  const load = async (url) => {
+    await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, PROG);
+    await page.goto(url);
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__bench));) {
+      if (Date.now() - t0 > 120000) throw new Error(`${url} did not start within 120 s`);
+      await sleep(150);
+    }
+    await frames(3);
+  };
+  // Story commands (`quest <n>`, `give`, `bind`) go to the story's queue,
+  // not the game's debug `cmd`.
+  const story = (line) => page.evaluate((l) => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push(l); }, line);
+  const introShown = () => page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+  const poll = async (fn, ms) => { for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) if (await fn()) return true; return false; };
+  const probe = async (x, y, z) => {
+    const n0 = ((await st()).probe || { n: 0 }).n;
+    await cmd(`probe ${x} ${y} ${z}`);
+    const s = await until((v) => v.probe && v.probe.n > n0, 15000);
+    return s.probe && s.probe.n > n0 ? s.probe : null;
+  };
+  const wsOf = () => page.evaluate(() => { try { return JSON.parse(window.__workState); } catch { return null; } });
+  const bs = () => page.evaluate(() => { try { return JSON.parse(window.__benchState); } catch { return null; } });
+  const flat = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const centre = (sel) => page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, sel);
+  // Walks with W held toward (x, z) until within `near` m (face first; the
+  // view is turned again every few polls, as a player steers).
+  const walkTo = async (x, z, near = 1.0, ms = 90000, hop = false) => {
+    await page.evaluate(() => document.getElementById('game').focus());
+    let s = await st();
+    await cmd(`face ${x} ${s.pos[1] + 1.5} ${z}`);
+    await frames(1);
+    await page.keyboard.down('w');
+    let k = 0;
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) {
+      s = await st();
+      if (flat([s.pos[0], s.pos[2]], [x, z]) <= near) break;
+      if (++k % 6 === 0) await cmd(`face ${x} ${s.pos[1] + 1.5} ${z}`);
+      // A player jumps up a one-block step (W alone does not climb).
+      // Held long enough that a slow frame (about 0.4 s headless) sees it.
+      if (hop && k % 5 === 0) { await page.keyboard.down('Space'); await sleep(450); await page.keyboard.up('Space'); }
+    }
+    await page.keyboard.up('w');
+    return until((v) => v.frame > s.frame + 1, 5000);
+  };
+  const lockNow = async () => {
+    if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
+    await page.mouse.click(VW / 2, VH / 2);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
     }
     return false;
   };
-  const near = (a, b, e = 1e-3) => typeof a === 'number' && Math.abs(a - b) <= e;
-
-  // A fresh page: level 1, no band picked.
-  await load(base);
-  let s = await until((x) => x.level === 1 && x.burning === 3, 20000);
-  const first = await statsAfter();
-
-  // 6. Level 2's forward arch is shut before the lantern.
-  await cmd('level 2');
-  s = await until((x) => x.level === 2, 10000);
-  await cmd('tp 0 -21.8');
-  await gameSecs(0.5);
-  s = await st();
-  check('marsh: level 2 forward arch is shut before the lantern (level 2, nextOpen false)',
-    s.level === 2 && s.nextOpen === false, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
-
-  // 7. Reach the Marsh by playing: solve level 2, then walk into the north arch.
-  const stream = idx(s, 'stream'), gate = idx(s, 'ice gate');
-  await cmd('tp 0 10');
-  for (let k = 0; k < 3; k++) await castAt(stream, 3);
-  await cmd('tp 0 -2');
-  for (let k = 0; k < 3; k++) await castAt(gate, 1);
-  await cmd('tp 0 -13');
-  await cmd('look 0 0');
-  await cmd('move 0 1 3');
-  s = await until((x) => x.outcome === 'won', 30000);
-  await cmd('move 0 0 0');
-  const b2 = await banner();
-  check('marsh: the level-2 win opens the forward arch and the banner points to the Marsh',
-    s.outcome === 'won' && s.nextOpen === true && b2.shown && /Marsh/.test(b2.small),
-    `outcome=${s.outcome} nextOpen=${s.nextOpen} banner=${JSON.stringify(b2)}`);
-  await frames(2);
-  await cmd('tp 0 -21.8');
-  const t7 = Date.now();
-  s = await until((x) => x.level === 3, 5000);
-  const ms7 = Date.now() - t7;
-  s = await until((x) => x.level === 3 && /^The Marsh/.test(x.caption), 3000);
-  const names = s.objs.map((o) => o.n);
-  check('marsh: walking into the open forward arch loads the Marsh within 5 s',
-    s.level === 3 && ms7 <= 5500 && ['dip', 'hollow', 'lantern'].every((n) => names.includes(n))
-      && all(s, 'dip vent').length === 3 && all(s, 'hollow vent').length === 4
-      && s.ventsLit === 7 && s.outcome === 'playing' && /^The Marsh/.test(s.caption)
-      && Array.isArray(s.pools) && s.pools.length === 2,
-    `level=${s.level} after ${ms7} ms objs=${names.join(',')} ventsLit=${s.ventsLit} pools=${JSON.stringify(s.pools)} outcome=${s.outcome} caption=${s.caption}`);
-  const dip = idx(s, 'dip'), hollow = idx(s, 'hollow');
-  const dipVent = all(s, 'dip vent')[1]; // the middle one, straight ahead
-  const hollowVents = all(s, 'hollow vent');
-  await cmd('look 0 -8');
-  await frames(3);
-  await screenshot(page, 'l3-01-arrive.png');
-
-  // 9. The flames block the boardwalk.
-  await cmd('look 0 0');
-  await cmd('move 0 1 3');
-  await gameSecs(3.4);
-  s = await st();
-  check('marsh: burning gas blocks the walk (stopped south of the dip flames, z > 10)',
-    s.pos[2] > 10 && s.pos[2] < 12.5 && s.ventsLit === 7, `pos=${s.pos} ventsLit=${s.ventsLit}`);
-
-  // 10, 11. Wrong chemistry fails kindly (no band: the Apprentice lines).
-  let z = await castAt(dipVent, 2);
-  const water = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
-  check('marsh: Water on a gas vent only knocks it down (7 lit, pool 0, Flicker(Water) line)',
-    water.lit === 7 && water.pool === 0 && water.cap === L.flickerWater, JSON.stringify(water));
-  z = await castAt(dipVent, 3);
-  const frost = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
-  z = await castAt(dipVent, 1);
-  const fire = { lit: z.ventsLit, cap: z.caption };
-  check('marsh: Frost knocks it down too and Fire changes nothing (7 lit, Frost and Fire lines)',
-    frost.lit === 7 && frost.pool === 0 && frost.cap === L.flickerFrost && fire.lit === 7 && fire.cap === L.fire,
-    `frost=${JSON.stringify(frost)} fire=${JSON.stringify(fire)}`);
-
-  // 12. CO2 fills the dip: 0.5 at a vent, then 1 at the floor.
-  z = await castAt(dipVent, 4);
-  const half = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption };
-  await cmd('tp 0 13');
-  await cmd('look 0 -40');
-  z = await castWhen((x) => x.aimObj === dip, 4, 'the dip floor');
-  const full = { lit: z.ventsLit, pool: z.pools[0], cap: z.caption, icon: z.capIcon };
-  await frames(3);
-  await cmd('look 0 -18');
-  await frames(3);
-  await screenshot(page, 'l3-02-dip-pooled.png');
-  s = await gameSecs(5);
-  check('marsh: CO2 fills the dip (0.5 at a vent, Filling; 1 at the floor, Pooled; 4 lit, still 4 after 5 s)',
-    half.pool === 0.5 && half.lit === 7 && half.cap === L.filling
-      && full.pool === 1 && full.lit === 4 && full.cap === L.pooled && s.ventsLit === 4,
-    `half=${JSON.stringify(half)} full=${JSON.stringify(full)} after 5 s ventsLit=${s.ventsLit}`);
-
-  // 13. A smothered vent cannot be relit.
-  z = await castAt(dipVent, 1);
-  check('marsh: Fire on a smothered vent fizzles (no oxygen), 4 lit',
-    z.ventsLit === 4 && z.caption === L.noOxygen, `ventsLit=${z.ventsLit} caption=${z.caption}`);
-
-  // 14. The hollow needs three casts; then both cross.
-  await cmd('look 0 0');
-  await cmd('move 0 1 4');
-  await gameSecs(4.4);
-  s = await st();
-  const stopped = s.pos[2];
-  const pools1 = [], lit1 = [];
-  for (const i of [hollowVents[0], hollowVents[1], hollowVents[0]]) {
-    z = await castAt(i, 4);
-    pools1.push(z.pools[1]); lit1.push(z.ventsLit);
-  }
-  await cmd('look 0 0');
-  await cmd('move 0 1 1.2');
-  await gameSecs(1.6);
-  s = await st();
-  check('marsh: the hollow fills in three casts (0.34 / 0.68 / 1.00; 4 lit after two, 0 after three) and both cross',
-    stopped < 8 && stopped > -6.5 && near(pools1[0], 0.34) && near(pools1[1], 0.68) && near(pools1[2], 1)
-      && lit1[1] === 4 && lit1[2] === 0 && s.pos[2] < -12 && s.outcome === 'playing',
-    `stopped at z=${stopped} pools ${pools1.join(' / ')} lit ${lit1.join(' / ')} then pos=${s.pos} outcome=${s.outcome}`);
-
-  // 15. The lantern wins, and the walk stops.
-  await cmd('move 0 1 2');
-  s = await until((x) => x.outcome === 'won', 30000);
-  await gameSecs(0.5);
-  const b3 = await banner();
-  const p0 = (await st()).pos;
-  await cmd('move 0 1 2');
-  s = await gameSecs(2.2);
-  check('marsh: walking to the lantern wins ("You cleared the Marsh!") and the walk stops',
-    s.outcome === 'won' && b3.shown && b3.big === 'You cleared the Marsh!'
-      && near(s.pos[0], p0[0]) && near(s.pos[2], p0[2]),
-    `outcome=${s.outcome} banner=${JSON.stringify(b3)} pos ${p0} -> ${s.pos}`);
-  await cmd('look 180 -10');
-  await frames(3);
-  await screenshot(page, 'l3-03-won.png');
-
-  // 17. The way back: level 2, with its forward arch open.
-  await cmd('move 0 0 0');
-  await frames(2);
-  await cmd('tp 0 21.8');
-  s = await until((x) => x.level === 2, 5000);
-  check('marsh: the back arch returns to the Frozen Gate with its forward arch open',
-    s.level === 2 && s.nextOpen === true && s.pos[2] < -19, `level=${s.level} nextOpen=${s.nextOpen} pos=${s.pos}`);
-
-  // Round 2 (break 1, B1): back from the Marsh, level 2 is as the player left
-  // it (stream frozen, gate melted), so walking on to the lantern cannot win
-  // it with the gate still standing, and the banner matches the state.
-  const solvedState = (x) => {
-    const g = x.objs[idx(x, 'ice gate')], r = x.objs[idx(x, 'stream')];
-    return { gateWall: g && g.wall, gateIce: g && g.ice, streamIce: r && r.ice, streamFrozen: r && r.frozen };
+  // One worked cast with a real press: the press opens the builder, the
+  // formula is typed and Enter casts.
+  const workedPress = async (formula) => {
+    const s0 = await st();
+    await page.mouse.down();
+    await sleep(80);
+    await page.mouse.up();
+    const open = await poll(async () => { const w = await wsOf(); return !!(w && w.work && w.work.view); }, 20000);
+    if (!open) return { ok: false, why: 'no builder' };
+    await poll(() => page.evaluate(() => !!document.querySelector('#worked input, #worked .worked-mount')), 5000);
+    const one = await page.evaluate(() => !!document.querySelector('#worked .worked-confirm'));
+    if (one) {
+      // Playwright's click waits for the panel to settle where it is placed.
+      await page.click('#worked .worked-confirm', { timeout: 20000 });
+    } else {
+      await page.keyboard.type(formula);
+      await page.keyboard.press('Enter');
+    }
+    const x = await until((v) => v.casts > s0.casts, 20000);
+    await poll(async () => { const w = await wsOf(); return !!(w && w.work === null); }, 20000);
+    // Clear of the grace after a worked cast (0.4 game s) and the cooldown.
+    await until((v) => v.gameTime >= x.gameTime + 0.6, 20000);
+    await sleep(400);
+    return { ok: x.casts === s0.casts + 1, one, x };
   };
-  await cmd('look 180 0');
-  await cmd('move 0 1 1.5');
-  s = await gameSecs(2);
-  await cmd('move 0 0 0');
-  const back = solvedState(s);
-  const bB = await banner();
-  check('marsh: back from the Marsh, level 2 stays solved (stream frozen, gate melted) and the lantern gives no unsolved win',
-    s.level === 2 && back.streamFrozen === true && back.streamIce >= 1 && back.gateWall === false
-      && !(s.outcome === 'won' && back.gateWall !== false) && s.pos[2] > -20.3
-      && (!bB.shown || bB.big === 'You opened the Frozen Gate!'),
-    `level=${s.level} outcome=${s.outcome} ${JSON.stringify(back)} pos=${s.pos} banner=${JSON.stringify(bB)}`);
 
-  // 16. Captions per band, each on a fresh level 3.
-  const per = [];
-  let bandsOk = true;
-  for (const id of ['sprout', 'seedling', 'apprentice', 'adept']) {
-    const pushed = await pushBand(id);
-    await cmd('level 3');
-    let x = await until((q) => q.level === 3 && q.casts === 0 && q.pools && q.pools[0] === 0, 10000);
-    await cmd('tp 0 13');
-    await until((q) => Math.abs(q.pos[2] - 13) < 0.5, 10000);
-    x = await castAt(dipVent, 4);
-    const icon = id === 'sprout' ? 'gas' : '';
-    const ok = pushed && x.caption === FILLING[id] && x.capIcon === icon && (id === 'apprentice' || x.caption !== L.filling);
-    bandsOk = bandsOk && ok;
-    per.push(`${id}: ${ok ? 'ok' : `caption="${x.caption}" capIcon="${x.capIcon}" pushed=${pushed}`}`);
+  // ---- The intro: "Just play" takes a real mouse click at once and a
+  // Playwright click; it never comes back, and the welcome caption shows
+  // after it, not under it.
+  const url = `${base}&band=apprentice&cast=worked`;
+  await load(url);
+  await poll(introShown, 15000);
+  {
+    const c = await centre('#intro .intro-play');
+    const q0 = (await st()).quest;
+    if (c) await page.mouse.click(c.x, c.y);
+    const s1 = await until((x) => x.quest === 1, 8000);
+    const gone = !(await introShown());
+    const overlap = await page.evaluate(() => document.body.classList.contains('intro-open'));
+    await sleep(3000);
+    const s2 = await st();
+    const back = await introShown();
+    const cap = await page.evaluate(() => { const e = document.getElementById('caption'); return { text: e.textContent, vis: getComputedStyle(e).visibility }; });
+    check('puzzles: a real click on Just play closes the intro at once; it never reopens; the welcome caption shows after it',
+      !!c && q0 === 0 && s1.quest === 1 && gone && !overlap && !back && s2.quest >= 1 && /Welcome/.test(s2.caption) && cap.vis === 'visible',
+      `button=${!!c} quest ${q0} -> ${s1.quest} -> ${s2.quest} gone=${gone} back=${back} caption="${s2.caption.slice(0, 40)}" vis=${cap.vis}`);
   }
-  check('marsh: each band sees its own Filling line; Sprout shows the gas picture', bandsOk, per.join(' | '));
-
-  // 19 (entities) and 20. Switching 1 -> 2 -> 3 -> 2 -> 1 ten times leaks nothing.
-  await cmd('level 1');
-  await until((q) => q.level === 1 && q.burning === 3, 10000);
-  let l3 = null, mem2 = NaN, last = null;
-  for (let k = 1; k <= 10; k++) {
-    for (const n of [2, 3, 2]) { await cmd(`level ${n}`); await until((q) => q.level === n, 10000); if (k === 1 && n === 3) { await gameSecs(0.3); l3 = await statsAfter(); } }
-    await cmd('level 1');
-    await until((q) => q.level === 1 && q.burning === 3, 10000);
-    if (k === 2) mem2 = (await statsAfter()).mem;
-    if (k === 10) last = await statsAfter();
+  await load(url);
+  await poll(introShown, 15000);
+  {
+    await page.click('#intro .intro-play');
+    const s1 = await until((x) => x.quest === 1, 8000);
+    check('puzzles: a Playwright click on Just play closes the intro', s1.quest === 1 && !(await introShown()), `quest ${s1.quest}`);
   }
-  check('marsh: level 3 has no more entities than level 1', l3.entities <= first.entities,
-    `level 1 ${first.entities}, level 3 ${l3.entities}`);
-  check('marsh: 10 switches 1-2-3-2-1 leave entities exact and WASM memory flat (± 2 %)',
-    last.entities === first.entities && Math.abs(last.mem - mem2) <= 0.02 * mem2,
-    `entities ${first.entities} -> ${last.entities}; wasm MB after switch 2 ${mem2}, after 10 ${last.mem}`);
+  await shot('p1-01-start.png');
 
-  // 8. ?level=3 without debug loads the Marsh, and CO2 can be selected and cast.
-  const plain = base.replace(/([?&])debug(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
-  await load(`${plain}${plain.includes('?') ? '&' : '?'}level=3`);
-  s = await until((x) => x.level === 3, 10000);
-  const c0 = s.casts;
-  await resume();
-  await cmd('select 4');
-  await until((x) => x.spell === 3 && x.cooldown <= 0, 10000);
-  await cmd('cast');
-  const c1 = await until((x) => x.casts > c0, 10000);
-  check('marsh: ?level=3 (no debug) opens the Marsh and CO2 can be selected and cast',
-    s.level === 3 && /^The Marsh/.test(s.caption) && c1.spell === 3 && c1.casts > c0,
-    `level=${s.level} caption=${s.caption} spell=${c1.spell} casts ${c0} -> ${c1.casts} url=${page.url()}`);
+  // ---- P1: learn Water at the bench.
+  let s = await walkTo(124.5, 202.0, 1.2);
+  const near = await poll(async () => { const b = await bs(); return !!(b && b.atBench); }, 8000);
+  await page.keyboard.press('KeyB');
+  await poll(async () => { const b = await bs(); return !!(b && b.open && b.spells); }, 15000);
+  {
+    const c = await centre('#bench .bench-spell[data-slot="2"]');
+    if (c) await page.mouse.click(c.x, c.y);
+    await poll(() => page.evaluate(() => document.activeElement && document.activeElement.id === 'bench-input'), 10000);
+    await page.fill('#bench-input', 'H2O(l)');
+    const m = await centre('#bench .bench-make');
+    if (m) await page.mouse.click(m.x, m.y);
+  }
+  s = await until((x) => x.progress && x.progress[1] && x.progress[1].st === 'learning', 20000);
+  const learnt = !!(s.progress && s.progress[1] && s.progress[1].st === 'learning');
+  await page.keyboard.press('Escape');
+  await poll(async () => { const b = await bs(); return !!(b && !b.open); }, 10000);
+  await until((x) => !x.paused, 10000);
+  check('puzzles: P1 the bench lights next to it and Water is learnt there', near && learnt,
+    `atBench=${near} water=${s.progress && s.progress[1] && s.progress[1].st}`);
 
-  // Round 2 (break 1, S1 and B1): after a direct ?level=3 load, the back arch
-  // brings the player to level 2 with its forward arch open behind them and
-  // the level solved (debug page, for `tp`).
-  await load(`${base}${base.includes('?') ? '&' : '?'}level=3`);
-  s = await until((x) => x.level === 3, 10000);
-  await resume();
-  await cmd('tp 0 21.8');
-  s = await until((x) => x.level === 2, 5000);
+  // ---- P1: walk to the workshop door and put the fire out.
+  const line1 = (await st()).questLine;
+  const b0 = (await st()).burning;
+  s = await walkTo(142.5, 197.0, 1.0);
+  // The walk stops within a metre (frames are slow); the arc's landing
+  // moves with the player, so the last step is a debug tp onto the spot the
+  // aims below are planned from.
+  await cmd('tp 142.5 35 197');
+  s = await until((x) => Math.abs(x.pos[0] - 142.5) < 0.05 && Math.abs(x.pos[2] - 197) < 0.05, 10000);
+  await page.evaluate(() => document.getElementById('game').focus());
+  await page.keyboard.press('2');
+  await until((x) => x.spell === 1, 10000);
+  // The page is told the mouse is locked (as in P2): under a real lock,
+  // headless Chromium gives each synthetic press a movement delta that
+  // turns the view about 11 degrees (see E4), which would throw the water
+  // off the aim. The presses themselves are real mouse presses.
+  await page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  const locked = !!(await until((x) => x.locked, 5000)).locked;
+  await shot('p1-02-fire.png');
+  const casts = [];
+  for (let k = 0; k < 8; k++) {
+    const x = await st();
+    if (x.burning === 0) break;
+    // Water flies an arc: aimed level through the door it drops onto the
+    // floor, so the player lobs it over the low wall into the open roof,
+    // onto the store (front middle, back left, back right). These aims
+    // from (142.5, 35, 197) are the ones the client test
+    // a_lobbed_water_arc_from_the_plaza_puts_the_workshop_out plans.
+    await cmd(['face 142.5 40.0 189.0', 'face 141.5 40.5 188.5', 'face 143.5 40.5 188.5'][k % 3]);
+    await frames(2);
+    const r = await workedPress('H2O(l)');
+    casts.push(r.ok ? (r.one ? 'confirm' : 'built') : r.why);
+    await until((v) => v.gameTime >= r.x?.gameTime + 1.0 || !r.ok, 15000);
+  }
+  s = await until((x) => x.burning === 0 && x.quest >= 2, 30000);
+  await shot('p1-03-out.png');
+  const store = await probe(142, 36, 189);
+  check('puzzles: P1 water on the workshop puts it out with real presses and the objective moves on',
+    locked && b0 >= 6 && s.burning === 0 && s.quest === 2 && s.questLine !== line1 && store && store.mat === 'wood' && !(store.state & 1),
+    `locked=${locked} burning ${b0} -> ${s.burning}, casts [${casts.join(',')}], quest ${s.quest}, ` +
+    `line "${line1.slice(0, 30)}" -> "${s.questLine.slice(0, 30)}", store ${store && store.mat} state ${store && store.state}`);
+  // It stays out.
+  await until((x) => x.gameTime >= s.gameTime + 5, 60000);
+  const later = await st();
+  check('puzzles: P1 the workshop stays out', later.burning === 0, `burning ${later.burning}`);
+
+  // ---- Step 4: correct worked Water casts make Water Practised (three in
+  // the run at most; the saved XP from the bench and two casts can get there
+  // first); from then on a press is one confirm, not the builder.
+  let built = casts.filter((c) => c === 'built').length;
+  for (let k = 0; built < 3 && k < 4; k++) {
+    await cmd('face 142.5 34.2 194.5');
+    await frames(2);
+    const r = await workedPress('H2O(l)');
+    if (r.ok && !r.one) built += 1; else break;
+  }
+  const pst = await until((x) => x.progress && x.progress[1] && x.progress[1].st === 'practised', 20000);
+  await cmd('face 142.5 34.2 194.5');
   await frames(2);
+  const conf = await workedPress('H2O(l)');
+  await shot('p4-01-practised.png');
+  check('puzzles: correct worked Water casts (three at most) make Water Practised and the next press is one confirm',
+    built >= 2 && built <= 3 && pst.progress[1].st === 'practised' && conf.ok && conf.one,
+    `built ${built}, stage ${pst.progress && pst.progress[1] && pst.progress[1].st}, next press ok=${conf.ok} confirm=${conf.one}`);
+  if (await page.evaluate(() => !!document.pointerLockElement)) {
+    await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
+  }
+
+  // ---- P2 from the Village bank of the ford. A debug page casts at once
+  // (no band), and each such cast counts as practice. The ford's mouth is a
+  // runestone gate with a sign until Water is Practised (3 casts).
+  const fakeLock = () => page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  const press = async (ms = 80) => {
+    const a = await until((x) => x.cooldown <= 0 && !x.paused, 10000);
+    await page.mouse.move(VW / 2, VH / 2);
+    await page.mouse.down();
+    await sleep(ms);
+    await page.mouse.up();
+    const z = await until((x) => x.impacts > a.impacts, 15000);
+    await until((x) => x.gameTime >= z.gameTime + 0.4, 15000);
+    return z.impacts > a.impacts;
+  };
+  const sign = (id) => page.evaluate((id) => {
+    const e = document.querySelector(`.gate-sign[data-gate="${id}"]`);
+    if (!e) return null;
+    const r = e.getBoundingClientRect();
+    const o = document.getElementById('objective')?.getBoundingClientRect();
+    // break-2 should-fix 6: the board never covers the objective panel.
+    const overlap = !!o && o.width > 0 && r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top;
+    return { shown: !e.hidden && r.width > 0, text: e.textContent, x: r.left + r.width / 2, y: r.top, overlap };
+  }, id);
+  await load(base);
+  await poll(introShown, 15000);
+  await page.click('#intro .intro-play');
+  await until((x) => x.quest === 1 && !x.paused, 10000);
+  await story('quest 2');
+  await cmd('tp 128.5 35 163.5');
+  await cmd('face 128.5 36.5 158.5');
+  s = await until((x) => x.quest === 2 && Math.abs(x.pos[2] - 163.5) < 0.3, 15000);
+  await frames(3);
+  const wall = await probe(128, 33, 158);
+  const sg0 = await sign('frozen');
+  // The Marsh's gate (the east pass) is shut too, and needs Frost.
+  let pass = null;
+  for (let y = 30; y < 50 && !pass; y++) { const c = await probe(132, y, 70); if (c && c.mat === 'runestone') pass = c; }
+  const marshSign0 = await page.evaluate(() => { const e = document.querySelector('.gate-sign[data-gate="marsh"]'); return e ? e.textContent : null; });
+  await shot('p2-01-gate.png');
+  // The wall holds: walking at it gets nowhere near the water.
+  s = await walkTo(128.5, 156.0, 0.5, 6000);
+  const held = s.pos[2] > 159;
+  await fakeLock();
+  await until((x) => x.locked, 5000);
+  await page.keyboard.press('2');
+  await until((x) => x.spell === 1, 10000);
+  await cmd('look 0 -30');
+  await frames(2);
+  let pressed = 0;
+  for (let k = 0; k < 3; k++) if (await press()) pressed += 1;
+  s = await until((x) => /sinks/.test(x.caption), 15000);
+  const opened = await probe(128, 33, 158);
+  const sg1 = await sign('frozen');
+  check('puzzles: P2 the ford is gated until Water is Practised; its sign counts the casts; three casts open it',
+    wall && wall.mat === 'runestone' && sg0 && sg0.shown && !sg0.overlap && /Practise Water 3 times to open \(0\/3\)/.test(sg0.text) && held &&
+      pressed === 3 && opened && opened.mat === 'air' && /sinks/.test(s.caption) && sg1 && !sg1.shown,
+    `wall ${wall && wall.mat}, sign "${sg0 && sg0.text}" shown=${sg0 && sg0.shown} overlap=${sg0 && sg0.overlap}, held at z ${s.pos[2].toFixed(2)}, ` +
+    `presses ${pressed}, after ${opened && opened.mat}, caption "${s.caption.slice(0, 50)}", sign after shown=${sg1 && sg1.shown}`);
+
+  // Down the bank to the water's edge, then Frost on the water: the look
+  // cell is the water, and the top layer freezes into ice to walk on.
+  s = await walkTo(128.5, 158.7, 0.35, 20000);
+  await page.keyboard.press('3');
+  await until((x) => x.spell === 2, 10000);
+  await cmd('face 128.5 30.9 156.4');
+  s = await until((x) => x.lookCell && x.lookCell[3] === 12, 8000);
+  const lookWater = !!(s.lookCell && s.lookCell[3] === 12);
+  const frosts = [];
+  let iced = null;
+  for (let k = 0; k < 20; k++) {
+    s = await st();
+    if (s.pos[2] < 149.6) break;
+    const ahead = Math.max(146.5, s.pos[2] - 2.6);
+    await cmd(`face 128.5 30.9 ${ahead.toFixed(2)}`);
+    await frames(2);
+    frosts.push(await press());
+    const c = await probe(128, 30, Math.floor(ahead));
+    if (!iced && c && c.mat === 'ice') iced = c;
+    // Step onto the new ice (or up the far bank's first step).
+    s = await walkTo(128.5, Math.max(147.5, s.pos[2] - 1.6), 0.3, 8000, true);
+  }
+  // Up the far bank's step.
+  s = await walkTo(128.5, 146.5, 0.5, 20000, true);
+  s = await until((x) => x.quest >= 3, 10000);
+  if (!iced) for (let z = 150; z < 158 && !iced; z++) { const c = await probe(128, 30, z); if (c && c.mat === 'ice') iced = c; }
+  await shot('p2-02-across.png');
+  check('puzzles: P2 Frost aimed from the bank freezes the ford into ice; the player walks across and the objective moves on',
+    lookWater && !!iced && s.pos[2] < 150 && s.quest === 3,
+    `lookCell water=${lookWater}, first ice ${iced && iced.at}, frost presses [${frosts.join(',')}], pos z ${s.pos[2].toFixed(2)} y ${s.pos[1].toFixed(2)}, quest ${s.quest}`);
+
+  // The ice gate (P2b): Fire melts it. Teleported to the trench in front
+  // of it (the walk over the Frozen Fields' hills is not part of this check).
+  // Its own check: if the crossing above failed, the quest is moved on.
+  if ((await st()).quest < 3) await story('quest 3');
+  await cmd('tp 60 34 96.0');
+  await cmd('face 60 37.5 93.5');
+  await until((x) => Math.abs(x.pos[2] - 96) < 0.3, 10000);
+  await frames(3);
+  const ice0 = await probe(60, 37, 93);
+  await page.keyboard.press('1');
+  await until((x) => x.spell === 0, 10000);
+  const fires = [];
+  // Aim at the ice that is left (the gate is 4 wide and 3 tall), as a
+  // player would, until none is left.
+  const iceLeft = async () => {
+    for (const y of [37, 36, 38]) for (const x of [59, 60, 58, 61]) { const c = await probe(x, y, 93); if (c && c.mat === 'ice') return [x, y]; }
+    return null;
+  };
+  for (let k = 0; k < 10; k++) {
+    const t = await iceLeft();
+    if (!t) break;
+    await cmd(`face ${t[0] + 0.5} ${t[1] + 0.5} 93.9`);
+    await frames(2);
+    fires.push(await press());
+    const g = await st();
+    await until((v) => v.gameTime >= g.gameTime + 1.5, 20000);
+  }
+  s = await until((x) => x.quest >= 4, 20000);
+  const melted = await probe(60, 37, 93);
+  await shot('p2-03-gate-melted.png');
+  check('puzzles: P2 Fire melts the ice gate and the objective moves on',
+    ice0 && ice0.mat === 'ice' && melted && melted.mat !== 'ice' && s.quest === 4,
+    `gate ${ice0 && ice0.mat} -> ${melted && melted.mat}, fire presses [${fires.join(',')}], quest ${s.quest} "${s.questLine.slice(0, 40)}"`);
+
+  // ---- The Marsh's gate (the east pass) needs Frost Practised: it was
+  // shut at the start of P2 and the Frost casts that froze the ford opened
+  // it (each correct cast counts).
+  const passAfter = pass ? await probe(pass.at[0], pass.at[1], pass.at[2]) : null;
+  const marshSign1 = await page.evaluate(() => { const e = document.querySelector('.gate-sign[data-gate="marsh"]'); return e ? e.textContent : null; });
+  const gates = await page.evaluate(() => { try { return JSON.parse(window.__storyState).gates; } catch { return null; } });
+  const marshOpen = Array.isArray(gates) && gates.some((g) => g.id === 'marsh' && g.open);
+  check('puzzles: the Marsh gate (east pass) holds until Frost is Practised; its sign says so; the ford\'s Frost casts open it',
+    !!pass && /Practise Frost 3 times to open \(0\/3\)/.test(marshSign0 || '') && passAfter && passAfter.mat === 'air' && marshOpen,
+    `wall ${pass && pass.at}, sign at start "${marshSign0}", after "${marshSign1}", cell after ${passAfter && passAfter.mat}, open=${marshOpen}`);
+
+  // ---- P3: the methane hollow. In the hollow, CO2 poured with the rim gap
+  // open spills out and a vent stays lit; a block in the gap, then three
+  // casts, smother every vent, and the objective moves on.
+  await story('quest 5');
+  await cmd('tp 192.5 28.2 99.5');
+  await cmd('face 192.5 28.0 101.5');
+  s = await until((x) => x.quest === 5 && Math.abs(x.pos[0] - 192.5) < 0.3, 10000);
+  await until((x) => x.ventsLit === 6, 20000);
+  await shot('p3-02-hollow.png');
+  const lit0 = (await st()).ventsLit;
+  await page.keyboard.press('4');
+  await until((x) => x.spell === 3, 10000);
+  await cmd('face 191.5 28.0 101.0');
+  await frames(2);
+  for (let k = 0; k < 3; k++) await press();
+  s = await until((x) => x.gameTime >= s.gameTime + 6, 60000);
+  const openLit = s.ventsLit;
+  // Close the gap with a block (a debug give stands in for gathering one;
+  // digging is E4's check), placed with a real press on the floor face
+  // under the gap.
+  await page.evaluate(() => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push('give dirt 2', 'bind 1 6'); });
+  // Right at the rim, on the hollow's floor, looking down into the gap.
+  await cmd('tp 195.55 28.2 101.5');
+  await until((x) => Math.abs(x.pos[0] - 195.55) < 0.2, 10000);
+  await page.keyboard.press('6');
+  await until((x) => x.hot === 6, 10000);
+  await cmd('face 196.5 28.0 101.5');
+  await frames(2);
+  await page.mouse.move(VW / 2, VH / 2);
+  await page.mouse.down();
+  await sleep(80);
+  await page.mouse.up();
+  let gap = null;
+  for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(300)) { gap = await probe(196, 28, 101); if (gap && gap.mat === 'dirt') break; }
+  await page.keyboard.press('4');
+  await until((x) => x.spell === 3, 10000);
+  await cmd('face 191.5 28.0 101.0');
+  await frames(2);
+  for (let k = 0; k < 3; k++) await press();
+  s = await until((x) => x.ventsLit === 0 && x.quest >= 6, 60000);
+  await shot('p3-03-smothered.png');
+  check('puzzles: P3 with the gap open CO2 spills and a vent stays lit; a block in the gap and three CO2 casts smother every vent; the objective moves on',
+    lit0 === 6 && openLit >= 1 && gap && gap.mat === 'dirt' && s.ventsLit === 0 && s.gasCO2Max > 0.28 && s.quest === 6,
+    `vents ${lit0}, after 3 casts with the gap open ${openLit}, gap ${gap && gap.mat}, then vents ${s.ventsLit} CO2 max ${s.gasCO2Max}, quest ${s.quest}`);
+}
+
+// ---------------------------------------------------------------------------
+// I-052 late lane (late.rs, web/late.js): the dark Crystal Cave and the torch,
+// the electrolysis rig (2:1), the balloon crate (E13), the Kiln door, the
+// Invention Bench and the ending (E19). Runs on `?biome=cave` with `debug`,
+// moving between places with `tp`, and setting the quest and the pack with
+// the story's debug commands (`quest <n>`, `give <item> <n>`).
+// ---------------------------------------------------------------------------
+async function valleyLate({ page, st, cmd, until, frames, sleep, base, logs }) {
+  console.log('  -- valley late puzzles and ending (I-052, late lane) --');
+  void logs;
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const url = voxel + (voxel.includes('?') ? '&' : '?') + 'biome=cave';
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__lateState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  // Close the intro with its button (as voxelEngine does).
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 8000);
+  const late = () => page.evaluate(() => JSON.parse(window.__lateState || 'null'));
+  const story = (c) => page.evaluate((c) => { window.__gameIn.story = window.__gameIn.story || []; window.__gameIn.story.push(c); }, c);
+  const untilLate = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await late();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await late(); }
+    return x;
+  };
+  const packN = (s, item) => ((s.pack || []).find((e) => e.item === item) || { n: 0 }).n;
+  const shown = (id) => page.evaluate((id) => { const e = document.getElementById(id); return !!e && !e.hidden; }, id);
+  const pressE = async () => { await page.keyboard.press('KeyE'); await frames(2); };
+  // L0. `?biome=cave` starts at step 6 with the coal and wood for a torch.
+  let s0 = await until((x) => x.quest === 6, 8000);
+  check('late: ?biome=cave starts at the cave step with coal and wood for a torch',
+    s0.quest === 6 && packN(s0, 'coal_ore') === 2 && packN(s0, 'wood') === 1 && packN(s0, 'torch') === 0,
+    `quest=${s0.quest} pack=${JSON.stringify(s0.pack)}`);
+  await story('quest 6');
+  await until((x) => x.quest === 6 && !x.paused, 20000);
+
+  // L1. The rig room is dark, and the rig will not run without light.
+  await cmd('tp 231.5 11 27.2');
+  await cmd('face 231.5 12 29.5');
+  let L = await untilLate((x) => x.near === 'rig' && x.dark, 15000);
+  const chip = await page.evaluate(() => { const e = document.getElementById('late-chip'); return e && !e.hidden ? e.textContent : ''; });
+  const say0 = L ? L.sayN : 0;
+  const before = await page.evaluate(() => ({ paused: JSON.parse(window.__gameState).paused, active: document.activeElement && (document.activeElement.id || document.activeElement.className), modals: [...document.querySelectorAll('[aria-modal="true"]')].filter((e) => !e.hidden && e.offsetParent !== null).map((e) => e.id) }));
+  if (before.paused) console.log('  L1: still paused before E:', JSON.stringify(before));
+  await pressE();
+  L = await untilLate((x) => x.sayN > say0, 8000);
+  check('late: the rig room is dark and the rig needs a torch',
+    L && L.near === 'rig' && L.dark && !L.light && /too dark/.test(L.say) && !L.rig.on && L.rig.uses === 0 && /rig/.test(chip),
+    `late=${JSON.stringify(L && { near: L.near, dark: L.dark, light: L.light, say: L.say, rig: L.rig })} chip=${chip}`);
+
+  // L2. With a torch the rig splits water: twice as much H2 as O2.
+  await story('give torch 1');
+  L = await untilLate((x) => x.light, 8000);
+  await pressE();
+  const mid = await untilLate((x) => x.rig.on && x.rig.h2 > 1, 8000);
+  await screenshot(page, 'late-1-rig.png');
+  L = await untilLate((x) => x.rig.uses === 1, 60000);
+  let s = await st();
+  check('late: with a torch the rig fills 2:1 and gives an H2 balloon and an O2 flask',
+    mid && mid.rig.on && Math.abs(mid.rig.h2 - 2 * mid.rig.o2) < 0.6 && L && L.rig.uses === 1 && L.rig.h2 === 40 && L.rig.o2 === 20
+      && packN(s, 'h2_balloon') === 1 && packN(s, 'o2_flask') === 1,
+    `mid=${JSON.stringify(mid && mid.rig)} end=${JSON.stringify(L && L.rig)} pack=${JSON.stringify(s.pack)}`);
+
+  // L3 (E13). An O2 balloon does not lift the crate; an H2 balloon does, and
+  // the crate brings the Kiln Spark down from the ledge.
+  await cmd('tp 239.6 11 19.4');
+  await cmd('face 240.5 11.5 20.5');
+  L = await untilLate((x) => x.near === 'crate', 10000);
+  await pressE();
+  const chooser = await page.evaluate(() => [...document.querySelectorAll('#late-gas button.late-pick')].map((b) => b.dataset.item));
+  const chooserOpen = await shown('late-gas');
+  await page.click('#late-gas button[data-item="o2_flask"]');
+  L = await untilLate((x) => x.crate.state === 'sinking', 5000);
+  let maxY = L ? L.crate.y : -1;
+  for (const t0 = Date.now(); Date.now() - t0 < 3000; await sleep(200)) maxY = Math.max(maxY, (await late()).crate.y);
+  const back = await untilLate((x) => x.crate.state === 'floor' && x.gases.includes('o2_flask'), 40000);
+  await pressE();
+  await page.click('#late-gas button[data-item="h2_balloon"]');
+  const up = await untilLate((x) => x.crate.y > 14, 40000);
+  await cmd('face 240.5 16 20.5');
+  await frames(3);
+  await screenshot(page, 'late-2-balloon.png');
+  L = await untilLate((x) => x.crate.state === 'loaded', 120000);
+  const ledgeEmpty = L && !L.sparkOnLedge;
+  await pressE();
+  s = await until((x) => packN(x, 'kiln_spark') === 1 && x.quest === 7, 8000);
+  check('late: an O2 balloon does not lift the crate, an H2 balloon does (E13)',
+    chooserOpen && chooser.includes('o2_flask') && chooser.includes('h2_balloon') && maxY === 11 && back && up && ledgeEmpty
+      && packN(s, 'kiln_spark') === 1 && s.quest === 7,
+    `chooser=${JSON.stringify(chooser)} o2MaxY=${maxY} back=${!!back} up=${up && up.crate.y} quest=${s.quest} pack=${JSON.stringify(s.pack)}`);
+
+  // L4. The Kiln door opens only for the Spark.
+  await cmd('tp 128.5 41 174.5');
+  await cmd('face 128.5 42 169.5');
+  L = await untilLate((x) => x.near === 'door', 10000);
+  await pressE();
+  L = await untilLate((x) => x.door, 8000);
+  check('late: the Kiln door opens with the Kiln Spark', L && L.door && !L.lit, `late=${JSON.stringify(L && { near: L.near, door: L.door, say: L.say })}`);
+
+  // L5 (E19). The Invention Bench refuses coal alone and accepts coal + O2;
+  // the Kiln lights and the ending card shows with Keep exploring.
+  await story('give coal 1');
+  await cmd('tp 132.5 35 202.5');
+  await cmd('face 132.5 35.5 200.5');
+  L = await untilLate((x) => x.near === 'invention', 10000);
+  await pressE();
+  const benchOpen = await (async () => { for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await shown('late-invent')) return true; return false; })();
+  await page.click('#late-invent button[data-item="coal_ore"]');
+  await page.click('#late-invent .late-try');
+  L = await untilLate((x) => x.tried.n === 1, 8000);
+  const fizzle = L && L.tried;
+  const fizzleText = await page.evaluate(() => document.querySelector('#late-invent .late-result')?.textContent || '');
+  await page.click('#late-invent button[data-item="o2_flask"]');
+  await page.click('#late-invent .late-try');
+  L = await untilLate((x) => x.lit, 8000);
+  s = await until((x) => x.ending === true && x.outcome === 'won', 8000);
+  let card = false;
+  for (const t0 = Date.now(); Date.now() - t0 < 8000 && !card; await sleep(150)) card = await shown('ending');
+  const cardText = await page.evaluate(() => document.getElementById('ending')?.textContent || '');
+  await screenshot(page, 'late-3-ending.png');
+  const keepFocus = await page.evaluate(() => document.activeElement && document.activeElement.className);
+  check('late: the Invention Bench refuses coal alone and accepts coal + O2; the ending card shows with Keep exploring (E19)',
+    benchOpen && fizzle && !fizzle.ok && /oxygen/.test(fizzle.reason) && /oxygen/.test(fizzleText) && L && L.lit && L.tried.reaction === 'carbon_combustion'
+      && s.ending === true && s.outcome === 'won' && s.quest === 8 && card && /relit the Great Kiln/.test(cardText) && /Keep exploring/.test(cardText) && /late-keep/.test(keepFocus || ''),
+    `bench=${benchOpen} fizzle=${JSON.stringify(fizzle)} lit=${L && L.lit} ending=${s.ending} outcome=${s.outcome} quest=${s.quest} card=${card} focus=${keepFocus}`);
+
+  // L6. Keep exploring closes the card and play goes on.
+  await page.click('#ending .late-keep');
+  await frames(3);
+  L = await untilLate((x) => !x.card, 5000);
+  await frames(3);
+  await screenshot(page, 'late-4-kiln-lit.png');
+  s = await until((x) => !x.paused, 5000);
+  check('late: Keep exploring closes the card and play goes on',
+    L && !L.card && !(await shown('ending')) && !s.paused && s.ending === true && s.outcome === 'won',
+    `card=${L && L.card} paused=${s.paused}`);
+
+  // L7. `?biome=kiln` starts at the Kiln step with what the cave gave.
+  await page.goto(url.replace('biome=cave', 'biome=kiln'));
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game));) {
+    if (Date.now() - t0 > 120000) throw new Error('kiln page did not start within 120 s');
+    await sleep(250);
+  }
+  s = await until((x) => x.quest === 7, 15000);
+  check('late: ?biome=kiln starts at the Kiln step with the Spark and the O2 flask',
+    s.quest === 7 && s.biome === 'kiln' && packN(s, 'kiln_spark') === 1 && packN(s, 'o2_flask') === 1,
+    `quest=${s.quest} biome=${s.biome} pack=${JSON.stringify(s.pack)}`);
+}
+
+// Spells are powers (powers.rs, rank.js): the rank badge and rank-up moment,
+// each spell's traversal power (F), and the four caches only those powers
+// reach. Run alone with ONLY=valleyPowers.
+async function valleyPowers({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- spells are powers: rank, powers and caches --');
+  const voxel = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const url = voxel + (voxel.includes('?') ? '&' : '?') + 'biome=marsh';
+  await page.goto(url);
+  await page.evaluate(() => { try { localStorage.removeItem('rg.caches.v1'); localStorage.removeItem('rg.progress.v1'); } catch { /* none */ } });
+  await page.goto(url);
+  const boot = async () => {
+    for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__powersState));) {
+      if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+      await sleep(250);
+    }
+    await frames(3);
+    for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+      const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+      if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+      if (((await st()) || {}).quest > 0) break;
+    }
+    await until((x) => x.quest > 0 && !x.paused, 20000);
+  };
+  await boot();
+  const pw = () => page.evaluate(() => JSON.parse(window.__powersState || 'null'));
+  const untilPw = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await pw();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await pw(); }
+    return x;
+  };
+  const power = () => page.evaluate(() => { window.__gameIn.powers = window.__gameIn.powers || []; window.__gameIn.powers.push('power'); });
+  const cache = (P, id) => P.caches.find((c) => c.id === id);
+  const text = (id) => page.evaluate((id) => { const e = document.getElementById(id); return e && !e.hidden ? e.textContent : ''; }, id);
+  /** Holds W until `done(state)` or `ms`. */
+  const walkUntil = async (done, ms) => {
+    await page.keyboard.down('KeyW');
+    let s = await st();
+    for (const t0 = Date.now(); !done(s) && Date.now() - t0 < ms; await sleep(100)) s = await st();
+    await page.keyboard.up('KeyW');
+    return s;
+  };
+
+  // W0. The badge shows the rank; an unknown spell's power is locked.
+  let P = await untilPw((x) => x.caches.length === 5, 10000);
+  await cmd('select 2');
+  await frames(2);
+  const cap0 = (await st()).captionId;
+  await page.keyboard.press('KeyF');
+  let s = await until((x) => x.captionId > cap0, 10000);
+  const badge0 = await text('rank');
+  check('powers: the badge shows the rank, and an unknown spell\'s power is locked until learned at the Bench',
+    P && P.rankName === 'Spark' && /Rank: Spark/.test(badge0) && /F: H₂ lift \(locked\)/.test(badge0) && /Formula Bench/.test(s.caption),
+    `badge=${badge0} caption=${s.caption} caches=${P && P.caches.length}`);
+
+  // W1. Learning spells earns rank points; crossing a tier is a rank-up moment.
+  await cmd('prog learn 1');
+  await cmd('prog learn 3');
+  P = await untilPw((x) => x.rankUps >= 1, 15000);
+  const banner = await text('rank-up');
+  await screenshot(page, 'powers-1-rankup.png');
+  check('powers: learning two spells is a rank-up to Kindler with a banner',
+    P && P.rankName === 'Kindler' && P.rankUps === 1 && /Kindler/.test(banner) && P.unlocked,
+    `rank=${P && P.rankName} ups=${P && P.rankUps} banner=${banner}`);
+
+  // W2. The Sky Pillar: too tall to jump, the H2 lift rises onto it.
+  const pil = cache(P, 'pillar');
+  await cmd(`tp 176.5 ${pil.h} 130.45`);
+  await cmd(`face 176.5 ${pil.h + 1} 110`);
+  await frames(3);
+  await power();
+  P = await untilPw((x) => x.lifting || x.used[1] > 0, 8000);
+  s = await walkUntil((x) => x.pos[2] <= 128.6, 60000);
+  s = await until((x) => x.pos[1] >= pil.h + 6.9 && Math.abs(x.pos[2] - 128.5) < 1.5, 20000);
+  P = await untilPw((x) => cache(x, 'pillar').found, 30000);
+  await screenshot(page, 'powers-2-pillar.png');
+  check('powers: the H2 lift rises onto the Sky Pillar and its cache is taken',
+    P && P.used[1] === 1 && cache(P, 'pillar').found && s.pos[1] >= pil.h + 6.9,
+    `pos=${s.pos} found=${P && cache(P, 'pillar').found} used=${P && P.used}`);
+
+  // W3. The Ravine Cache: too wide to jump, the CO2 dash crosses it.
+  const rav = cache(P, 'ravine');
+  await cmd('select 4');
+  await cmd(`tp 214.5 ${rav.h} 116.7`);
+  await cmd(`face 214.5 ${rav.h + 1} 140`);
+  await frames(4);
+  await power();
+  P = await untilPw((x) => cache(x, 'ravine').found, 40000);
   s = await st();
-  const direct = solvedState(s);
-  check('marsh: from a direct ?level=3 load, the back arch reaches level 2 with its forward arch open and the gate melted',
-    s.level === 2 && s.nextOpen === true && direct.gateWall === false && direct.streamFrozen === true,
-    `level=${s.level} nextOpen=${s.nextOpen} outcome=${s.outcome} ${JSON.stringify(direct)} pos=${s.pos}`);
+  check('powers: the CO2 dash crosses the ravine to its cache',
+    P && P.used[3] === 1 && cache(P, 'ravine').found && s.pos[1] >= rav.h - 0.1,
+    `pos=${s.pos} found=${P && cache(P, 'ravine').found}`);
+
+  // W4. The Frost Isle: an ice walkway across the moat.
+  await cmd('prog learn 2');
+  await cmd('select 3');
+  const isle = cache(P, 'isle');
+  await cmd(`tp 70.5 ${isle.h} 135.4`);
+  await cmd(`face 70.5 ${isle.h} 110`);
+  await frames(4);
+  await power();
+  P = await untilPw((x) => x.used[2] === 1, 10000);
+  const ice = P && P.walkway;
+  await screenshot(page, 'powers-3-walkway.png');
+  s = await walkUntil((x) => x.pos[2] <= 121, 120000);
+  P = await untilPw((x) => cache(x, 'isle').found, 20000);
+  check('powers: Frost freezes a walkway over the moat and the isle\'s cache is taken',
+    ice === 13 && P && cache(P, 'isle').found && s.pos[1] >= isle.h - 0.1,
+    `ice=${ice} pos=${s.pos} found=${P && cache(P, 'isle').found}`);
+
+  // W5. Fire's Flare lights the way; four learned spells and three caches (7 points) make a Catalyst.
+  await cmd('prog learn 0');
+  await cmd('select 1');
+  await frames(2);
+  await power();
+  P = await untilPw((x) => x.flare > 0, 10000);
+  check('powers: Fire\'s Flare lights up, and 7 points (4 spells, 3 caches) is Catalyst after a second rank-up',
+    P && P.flare > 0 && P.found === 3 && P.points === 7 && P.rankName === 'Catalyst' && P.rankUps === 2,
+    `flare=${P && P.flare} found=${P && P.found} rank=${P && P.rankName} points=${P && P.points} ups=${P && P.rankUps}`);
+
+  // W6. Found caches are kept on this device; a reload restores them silently.
+  const saved = await page.evaluate(() => localStorage.getItem('rg.caches.v1'));
+  await page.reload();
+  await boot();
+  P = await untilPw((x) => x.found === 3, 20000);
+  check('powers: found caches are remembered on this device after a reload, without a rank-up banner',
+    /pillar/.test(saved || '') && /isle/.test(saved || '') && P && P.found === 3 && P.rankUps === 0,
+    `saved=${saved} found=${P && P.found} ups=${P && P.rankUps}`);
+}
+
+// The first two minutes sell the powers: next to the Plaza Tower before
+// Water is known, a tease; learning Water starts a guided first H2 lift onto
+// the tower, whose cache is a rank-up to Kindler. Run alone with
+// ONLY=valleyFirstLift.
+async function valleyFirstLift({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- the guided first lift --');
+  const url = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  await page.goto(url);
+  await page.evaluate(() => { try { localStorage.removeItem('rg.caches.v1'); localStorage.removeItem('rg.progress.v1'); } catch { /* none */ } });
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__powersState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 20000);
+  const pw = () => page.evaluate(() => JSON.parse(window.__powersState || 'null'));
+  const untilPw = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await pw();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await pw(); }
+    return x;
+  };
+  const card = () => page.evaluate(() => { const e = document.getElementById('power-guide'); return e && !e.hidden ? e.textContent : ''; });
+  let P = await untilPw((x) => x.caches.length === 5, 10000);
+  const tower = P.caches.find((c) => c.id === 'ledge');
+  // F1. Beside the tower before learning Water: a tease, no guide.
+  await cmd(`tp 134.5 ${tower.h} 198.6`);
+  await cmd(`face 134.5 ${tower.h + 4} 196.5`);
+  P = await untilPw((x) => /Learn Water/.test(x.guide), 15000);
+  const tease = await card();
+  await screenshot(page, 'firstlift-0-tease.png');
+  check('first lift: next to the glowing tower, the card says to learn Water to rise up to it',
+    /Learn Water at the Formula Bench/.test(tease) && tower.h > 0 && !tower.found,
+    `card=${tease} tower=${JSON.stringify(tower)}`);
+  // F2. Learning Water starts the guide: press 2, then F by the tower.
+  await cmd('tp 124.5 35 202.5');
+  await cmd('prog learn 1');
+  // (If Water is already the selected spell, the guide skips "press 2".)
+  await cmd('select 1');
+  P = await untilPw((x) => /Press 2/.test(x.guide), 15000);
+  const g1 = await card();
+  await cmd('select 2');
+  P = await untilPw((x) => /Walk to the glowing tower/.test(x.guide), 15000);
+  const g2 = await card();
+  check('first lift: learning Water starts a guided first lift (press 2, then walk to the tower)',
+    /Press 2 for Water/.test(g1) && /Walk to the glowing tower \(\d+ m\)/.test(g2),
+    `g1=${g1} g2=${g2}`);
+  // F3. At the tower: F lifts, W drifts onto the top, the cache is a rank-up.
+  await cmd(`tp 134.5 ${tower.h} 198.45`);
+  await cmd(`face 134.5 ${tower.h + 4} 190`);
+  P = await untilPw((x) => /Press F/.test(x.guide), 15000);
+  const g3 = await card();
+  await page.keyboard.press('KeyF');
+  P = await untilPw((x) => x.floating, 15000);
+  await page.keyboard.down('KeyW');
+  let s = await st();
+  for (const t0 = Date.now(); s.pos[2] > 196.6 && Date.now() - t0 < 60000; await sleep(100)) s = await st();
+  await page.keyboard.up('KeyW');
+  // The rank-up banner shows for a few seconds: watch for it while waiting.
+  let banner = '';
+  for (const t0 = Date.now(); Date.now() - t0 < 40000; await sleep(150)) {
+    banner = banner || await page.evaluate(() => { const e = document.getElementById('rank-up'); return e && !e.hidden ? e.textContent : ''; });
+    P = await pw();
+    if (P && P.found >= 1 && banner) break;
+  }
+  await screenshot(page, 'firstlift-1-top.png');
+  s = await st();
+  check('first lift: F rises onto the tower, its cache is taken and the rank goes up to Kindler',
+    /Press F/.test(g3) && P && P.caches.find((c) => c.id === 'ledge').found && P.rankName === 'Kindler' && P.rankUps === 1
+      && /Kindler/.test(banner) && s.pos[1] >= tower.h + 4.9 && (await card()) === '',
+    `g3=${g3} pos=${s.pos} rank=${P && P.rankName} ups=${P && P.rankUps} banner=${banner}`);
+}
+
+// ---------------------------------------------------------------------------
+// The whole quest on one page, spawn to the ending card, on the critical path
+// (ONLY=playthrough; not in the default run, it takes a long time headless).
+// Every quest step is completed by playing it: casts, a real Pick dig, E at
+// the rig, the crate and the benches. Debug stand-ins, each tested elsewhere:
+// `tp` between places (walking: valleyPuzzles, voxelEngine), `prog learn`
+// for the Formula Bench (valleyPuzzles P1, bench tests), `give torch` for
+// crafting it, and `give dirt` for the block that closes the hollow's gap.
+// No `quest <n>`. Logs an estimated new-player time per step from a walking
+// model (straight-line distance × 1.3 for paths, at 4 m/s with pauses) plus
+// a per-task allowance, for the 10-15 minute target.
+async function playthrough({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- full playthrough: spawn to the ending card --');
+  const url = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  await page.goto(url);
+  await page.evaluate(() => { try { for (const k of ['rg.caches.v1', 'rg.progress.v1']) localStorage.removeItem(k); } catch { /* none */ } });
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__lateState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  const story = (l) => page.evaluate((l) => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push(l); }, l);
+  const late = () => page.evaluate(() => JSON.parse(window.__lateState || 'null'));
+  const untilLate = async (pred, ms = 20000) => {
+    const t0 = Date.now();
+    let x = await late();
+    while (!(x && pred(x)) && Date.now() - t0 < ms) { await sleep(150); x = await late(); }
+    return x;
+  };
+  const packN = (x, item) => ((x.pack || []).find((e) => e.item === item) || { n: 0 }).n;
+  const probe = async (x, y, z) => {
+    const n0 = ((await st()).probe || { n: 0 }).n;
+    await cmd(`probe ${x} ${y} ${z}`);
+    const v = await until((q) => q.probe && q.probe.n > n0, 15000);
+    return v.probe && v.probe.n > n0 ? v.probe : null;
+  };
+  const fakeLock = () => page.evaluate(() => { const c = document.getElementById('game'); Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => c }); });
+  const press = async (ms = 80) => {
+    const a = await until((x) => x.cooldown <= 0 && !x.paused, 10000);
+    await page.mouse.move(VW / 2, VH / 2);
+    await page.mouse.down();
+    await sleep(ms);
+    await page.mouse.up();
+    const z = await until((x) => x.impacts > a.impacts, 15000);
+    await until((x) => x.gameTime >= z.gameTime + 0.4, 15000);
+    return z.impacts > a.impacts;
+  };
+  const key = async (k, spell) => { await page.keyboard.press(k); await until((x) => x.spell === spell, 10000); };
+  const walkTo = async (x, z, near = 0.5, ms = 20000, hop = false) => {
+    let v = await st();
+    await cmd(`face ${x} ${v.pos[1] + 1.5} ${z}`);
+    await page.keyboard.down('w');
+    let k = 0;
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(100)) {
+      v = await st();
+      if (Math.hypot(v.pos[0] - x, v.pos[2] - z) <= near) break;
+      if (++k % 6 === 0) await cmd(`face ${x} ${v.pos[1] + 1.5} ${z}`);
+      if (hop && k % 5 === 0) { await page.keyboard.down('Space'); await sleep(90); await page.keyboard.up('Space'); }
+    }
+    await page.keyboard.up('w');
+    return v;
+  };
+
+  // The new-player model. Places (x, z) on the path.
+  const P = {
+    spawn: [128.5, 205.5], bench: [124.5, 202], workshop: [142.5, 197], fordGate: [128.5, 163.5], fordFar: [128.5, 146.5],
+    iceGate: [60, 96], coal: [80.5, 71.5], marshGate: [127.5, 70.5], hollow: [192.5, 99.5], caveMouth: [220, 58],
+    rig: [231.5, 27.2], crate: [239.6, 19.4], kilnDoor: [128.5, 174.5], invention: [132.5, 202.5],
+    // The field Benches (bench.rs FIELD_STATIONS): the ford approach and the Marsh gate.
+    fordBench: [146.5, 162.5], marshBench: [118.5, 70.5],
+  };
+  // At a field Bench: stand beside it and check its button lights.
+  const atField = async (x, z) => {
+    await cmd(`tp ${x + 1.5} 50 ${z}`);
+    await until((v) => Math.abs(v.pos[0] - x - 1.5) < 0.3 && Math.abs(v.pos[2] - z) < 0.3, 15000);
+    for (const t0 = Date.now(); Date.now() - t0 < 15000; await sleep(200)) {
+      if (await page.evaluate(() => { try { return JSON.parse(window.__benchState || 'null').atBench === true; } catch { return false; } })) return true;
+    }
+    return false;
+  };
+  const benches = [];
+  const walkS = (...pts) => {
+    let m = 0;
+    for (let i = 1; i < pts.length; i++) m += Math.hypot(P[pts[i]][0] - P[pts[i - 1]][0], P[pts[i]][1] - P[pts[i - 1]][1]);
+    return { m: Math.round(m * 1.3), s: (m * 1.3) / 4 };
+  };
+  const rows = [];
+  let tStep = Date.now();
+  // `route`: the places walked in order; `tasks`: [label, seconds] allowances.
+  const step = (name, ok, route, tasks, detail = '') => {
+    const w = walkS(...route);
+    const task = tasks.reduce((a, t) => a + t[1], 0);
+    const est = w.s + task;
+    rows.push({ name, walk: w.m, est, wall: (Date.now() - tStep) / 1000 });
+    void music().then((m) => { if (m.biome) biomes.add(m.biome); });
+    tStep = Date.now();
+    console.log(`  playthrough: ${name}: est ${Math.round(est)} s (walk ${w.m} m ${Math.round(w.s)} s + ${tasks.map((t) => `${t[0]} ${t[1]} s`).join(', ')}) scripted ${rows[rows.length - 1].wall.toFixed(0)} s`);
+    check(`playthrough: ${name}`, ok, detail);
+  };
+  const LEARN = 45; // pick the spell, read, build its formula at the Formula Bench
+  const CAST = 6; // aim and cast once (worked casts take longer; this is the Seedling estimate)
+
+  const music = () => page.evaluate(() => ({ ...(window.__music || {}) }));
+  const m0 = await music();
+  const biomes = new Set();
+  // 0. The intro ("Just play").
+  for (const t0 = Date.now(); Date.now() - t0 < 60000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  let s = await until((x) => x.quest === 1 && !x.paused, 60000);
+  // The player's first click in the world (the music may start only now).
+  await page.mouse.click(VW / 2, VH / 2);
+  await frames(2);
+  await fakeLock();
+  await until((x) => x.locked, 5000);
+  const m1 = await music();
+  step('intro', s.quest === 1, ['spawn'], [['read the intro', 25]], `quest ${s.quest}`);
+  check('playthrough: the music waits for the first click (no AudioContext before it), then plays the Village theme',
+    m0.started === false && m0.playing === false && m1.playing === true && m1.biome === 'village',
+    `before ${JSON.stringify(m0)} after ${JSON.stringify(m1)}`);
+
+  // 1. Learn Water at the Bench, put the workshop fire out.
+  await cmd('tp 124.5 35 202');
+  await cmd('prog learn 1');
+  // In through the workshop door (valleyPuzzles walks there and casts from
+  // the doorway with worked casts; here the instant casts go in close).
+  await cmd('tp 142.5 35 192.6');
+  await until((x) => Math.abs(x.pos[0] - 142.5) < 0.3 && Math.abs(x.pos[2] - 192.6) < 0.3, 15000);
+  await frames(3);
+  await key('2', 1);
+  let fireCasts = 0;
+  for (let k = 0; k < 12; k++) {
+    const v0 = await st();
+    if (v0.quest >= 2 || v0.burning === 0) break;
+    fireCasts++;
+    // Aim at the nearest fire, as a player does (the HUD's fire finder).
+    if (v0.nearFire >= 0) {
+      await cmd(`look ${(v0.yaw * 180 / Math.PI - v0.fireBearing).toFixed(1)} ${(v0.pitch * 180 / Math.PI + v0.fireElev).toFixed(1)}`);
+    } else {
+      await cmd(k % 2 === 0 ? 'face 142.5 36.0 189.0' : 'face 141.2 36.3 188.5');
+    }
+    await frames(2);
+    const ok = await press();
+    if (process.env.PT_DEBUG) { const v = await st(); console.log(`    fire cast ${k}: ok=${ok} near=${v0.nearFire} bearing=${v0.fireBearing} elev=${v0.fireElev} casts=${v.casts} impacts=${v.impacts} burning=${v.burning} pos=${v.pos} spell=${v.spell} hot=${v.hot} locked=${v.locked} paused=${v.paused} cd=${v.cooldown} caption=${v.caption}`); }
+  }
+  s = await until((x) => x.burning === 0 && x.quest >= 2, 60000);
+  step('1 workshop fire (Water)', s.quest === 2 && fireCasts <= 6, ['spawn', 'bench', 'workshop'],
+    [['learn Water', LEARN], ['first-lift detour', 30], ['put the fire out', 5 * CAST]], `quest ${s.quest} burning ${s.burning} casts ${fireCasts}`);
+
+  // 2. The ford: practise Water at its gate if needed, learn Frost, freeze across.
+  await cmd('tp 128.5 35 163.5');
+  await cmd('face 128.5 36.5 158.5');
+  await until((x) => Math.abs(x.pos[2] - 163.5) < 0.3, 15000);
+  const wall = await probe(128, 33, 158);
+  if (wall && wall.mat === 'runestone') {
+    await key('2', 1);
+    await cmd('look 0 -30');
+    for (let k = 0; k < 4; k++) {
+      const c = await probe(128, 33, 158);
+      if (!c || c.mat !== 'runestone') break;
+      await press();
+    }
+  }
+  // Learn Frost (and Fire, for the gate beyond) at the ford's field Bench.
+  benches.push(['ford', await atField(146.5, 162.5)]);
+  await cmd('prog learn 2');
+  await cmd('prog learn 0');
+  // Back at the ford, on the bank below the Village rise (a long headless
+  // frame off the rise's edge would carry the body past the bank into the
+  // water, and deep water puts it back up on the rise).
+  await cmd('tp 128.5 35 160.5');
+  await until((x) => Math.abs(x.pos[2] - 160.5) < 0.3 && Math.abs(x.pos[0] - 128.5) < 0.3 && x.pos[1] < 34.5, 15000);
+  s = await walkTo(128.5, 158.7, 0.35, 30000);
+  await key('3', 2);
+  for (let k = 0; k < 24; k++) {
+    s = await st();
+    if (process.env.PT_DEBUG) {
+      console.log(`    ford cast ${k}: z ${s.pos[2].toFixed(2)} y ${s.pos[1].toFixed(2)} x ${s.pos[0].toFixed(2)} spell ${s.spell}`);
+    }
+    // On the far bank's ice: walk off it.
+    if (s.pos[2] < 150.6) break;
+    // Aim at the nearest open water ahead, as a player does (a cast that
+    // lands further on can leave a gap at their feet).
+    let ahead = Math.max(146.5, s.pos[2] - 2.6);
+    // Not straight down at the feet (the cone would catch the bank), unless
+    // the last open row is right there (the far bank's edge).
+    let found = false;
+    for (const gap of [1.0, 0.3]) {
+      for (let d = 0; d <= 4 && !found; d++) {
+        const zc = Math.floor(s.pos[2] - 0.3) - d;
+        if (zc + 0.5 > s.pos[2] - gap) continue;
+        const c = await probe(128, 30, zc);
+        if (c && c.mat === 'water') { ahead = zc + 0.5; found = true; }
+      }
+      if (found) break;
+    }
+    await cmd(`face 128.5 30.9 ${ahead.toFixed(2)}`);
+    await frames(2);
+    await press();
+    s = await walkTo(128.5, Math.max(147.5, s.pos[2] - 1.6), 0.3, 8000);
+  }
+  await walkTo(128.5, 146.5, 0.5, 60000, true);
+  s = await until((x) => x.quest >= 3, 30000);
+  step('2 the ford (Frost)', s.quest === 3, ['workshop', 'fordBench', 'fordGate', 'fordFar'],
+    [['practise Water at the gate', 3 * CAST], ['learn Frost at the ford Bench', LEARN], ['learn Fire there too', LEARN], ['freeze and cross', 8 * CAST]], `quest ${s.quest} z ${s.pos[2].toFixed(1)}`);
+
+  // 3. The ice gate: melt it with Fire.
+  await cmd('tp 60 34 96.0');
+  await cmd('face 60 37.5 93.5');
+  await until((x) => Math.abs(x.pos[2] - 96) < 0.3, 10000);
+  await key('1', 0);
+  for (let k = 0; k < 16; k++) {
+    const v = await st();
+    if (v.quest >= 4) break;
+    if (process.env.PT_DEBUG) console.log(`    gate cast ${k}: quest ${v.quest} pos ${v.pos}`);
+    // Sweep the gate's four columns (58-61), as a player sprays across it.
+    await cmd(`face ${58.5 + (k % 4)} 37.0 93.9`);
+    await frames(1);
+    await press();
+  }
+  s = await until((x) => x.quest >= 4, 30000);
+  step('3 the ice gate (Fire)', s.quest === 4, ['fordFar', 'iceGate'],
+    [['melt the gate', 4 * CAST]], `quest ${s.quest}`);
+
+  // 4. Dig coal with the Pick (a real dig, held).
+  await cmd('tp 80.5 42 71.5');
+  await cmd('face 79.5 42.5 71.5');
+  await until((x) => Math.abs(x.pos[0] - 80.5) < 0.3, 10000);
+  await page.keyboard.press('5');
+  await until((x) => x.hot === 5, 10000);
+  await frames(2);
+  await page.mouse.move(VW / 2, VH / 2);
+  await page.mouse.down();
+  s = await until((x) => packN(x, 'coal_ore') >= 1, 60000);
+  await page.mouse.up();
+  s = await until((x) => x.quest >= 5, 15000);
+  step('4 dig coal (Pick)', s.quest === 5 && packN(s, 'coal_ore') >= 1, ['iceGate', 'coal'],
+    [['find the seam, dig', 25]], `quest ${s.quest} coal ${packN(s, 'coal_ore')}`);
+
+  // 5. The Marsh gate (Frost practised), learn CO2, close the hollow's gap, smother the vents.
+  await cmd('tp 127.5 46 70.5');
+  await cmd('face 132.5 44 70.5');
+  await until((x) => Math.abs(x.pos[0] - 127.5) < 0.3, 10000);
+  await key('3', 2);
+  await cmd('look 0 -40');
+  for (let k = 0; k < 3; k++) await press();
+  // Learn CO2 at the Marsh gate's field Bench.
+  benches.push(['marsh', await atField(118.5, 70.5)]);
+  await cmd('prog learn 3');
+  await cmd('tp 192.5 28.2 99.5');
+  await until((x) => Math.abs(x.pos[0] - 192.5) < 0.3, 10000);
+  await story('give dirt 2');
+  await story('bind 1 6');
+  await cmd('tp 195.3 28.2 101.5');
+  await until((x) => Math.abs(x.pos[0] - 195.3) < 0.3, 10000);
+  await page.keyboard.press('6');
+  await until((x) => x.hot === 6, 10000);
+  await cmd('face 196.6 28.0 101.5');
+  await frames(2);
+  await page.mouse.down();
+  await sleep(80);
+  await page.mouse.up();
+  for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(300)) { const g = await probe(196, 28, 101); if (g && g.mat === 'dirt') break; }
+  await cmd('tp 192.5 28.2 99.5');
+  await key('4', 3);
+  await cmd('face 191.5 28.0 101.0');
+  await frames(2);
+  for (let k = 0; k < 6; k++) { if ((await st()).quest >= 6) break; await press(); await until((x) => x.gameTime >= 0, 500); }
+  s = await until((x) => x.ventsLit === 0 && x.quest >= 6, 90000);
+  step('5 the methane hollow (CO2)', s.quest === 6, ['coal', 'marshBench', 'marshGate', 'hollow'],
+    [['learn CO2 at the Marsh Bench (on the way)', LEARN], ['practise Frost at the Marsh gate', 3 * CAST], ['gather and place a block in the gap', 25], ['pour CO2, wait for it to pool', 30]],
+    `quest ${s.quest} vents ${s.ventsLit}`);
+
+  // 6. The Crystal Cave: a torch, the rig, the H2 balloon lifts the Spark down.
+  await story('give torch 1');
+  await cmd('tp 231.5 11 27.2');
+  await cmd('face 231.5 12 29.5');
+  let L = await untilLate((x) => x.near === 'rig' && x.light, 20000);
+  // E again if a long headless frame missed the press (as a player would).
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press('KeyE');
+    await frames(2);
+    L = await untilLate((x) => x.rig.on || x.rig.uses >= 1, 10000);
+    if (L && (L.rig.on || L.rig.uses >= 1)) break;
+  }
+  L = await untilLate((x) => x.rig.uses === 1, 150000);
+  if (process.env.PT_DEBUG) console.log(`    rig: ${JSON.stringify(L && { near: L.near, light: L.light, rig: L.rig })}`);
+  await cmd('tp 239.6 11 19.4');
+  await cmd('face 240.5 11.5 20.5');
+  L = await untilLate((x) => x.near === 'crate', 10000);
+  if (process.env.PT_DEBUG) console.log(`    crate: near ${L && L.near} pos ${(await st()).pos}`);
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press('KeyE');
+    await frames(2);
+    let open = false;
+    for (const t0 = Date.now(); Date.now() - t0 < 5000 && !open; await sleep(100)) open = await page.evaluate(() => !document.getElementById('late-gas')?.hidden);
+    if (open) break;
+  }
+  await page.click('#late-gas button[data-item="h2_balloon"]');
+  L = await untilLate((x) => x.crate.state === 'loaded', 180000);
+  await page.keyboard.press('KeyE');
+  s = await until((x) => packN(x, 'kiln_spark') === 1 && x.quest === 7, 15000);
+  step('6 the Crystal Cave (torch, rig, H2 balloon)', s.quest === 7, ['hollow', 'marshBench', 'caveMouth', 'rig', 'crate'],
+    [['make a torch at the Marsh Bench', 30], ['find the rig in the dark', 30], ['run the rig', 10], ['choose a gas (a wrong try)', 25], ['the crate rises and comes back', 15]],
+    `quest ${s.quest} spark ${packN(s, 'kiln_spark')}`);
+
+  // 7. Home: the Kiln door, the Invention Bench, the ending card.
+  await cmd('tp 128.5 41 174.5');
+  await cmd('face 128.5 42 169.5');
+  L = await untilLate((x) => x.near === 'door', 10000);
+  await page.keyboard.press('KeyE');
+  L = await untilLate((x) => x.door, 8000);
+  await cmd('tp 132.5 35 202.5');
+  await cmd('face 132.5 35.5 200.5');
+  L = await untilLate((x) => x.near === 'invention', 10000);
+  await page.keyboard.press('KeyE');
+  for (const t0 = Date.now(); Date.now() - t0 < 5000; await sleep(100)) if (await page.evaluate(() => !document.getElementById('late-invent')?.hidden)) break;
+  await page.click('#late-invent button[data-item="coal_ore"]');
+  await page.click('#late-invent button[data-item="o2_flask"]');
+  await page.click('#late-invent .late-try');
+  s = await until((x) => x.ending === true && x.outcome === 'won', 15000);
+  let card = false;
+  for (const t0 = Date.now(); Date.now() - t0 < 10000 && !card; await sleep(150)) card = await page.evaluate(() => !document.getElementById('ending')?.hidden);
+  await screenshot(page, 'playthrough-ending.png');
+  step('7 relight the Kiln (door, Invention Bench)', s.quest === 8 && s.outcome === 'won' && card, ['crate', 'caveMouth', 'kilnDoor', 'invention'],
+    [['open the door', 10], ['try the Invention Bench (one fizzle)', 60], ['read the ending', 15]],
+    `quest ${s.quest} outcome ${s.outcome} card ${card}`);
+
+  // Music: every area had its theme, the ending its sting; M turns it off and on.
+  const mEnd = await (async () => { for (const t0 = Date.now(); Date.now() - t0 < 3000; await sleep(200)) { const m = await music(); if (m.stings) return m; } return music(); })();
+  if (mEnd.biome) biomes.add(mEnd.biome);
+  await page.click('#ending .late-keep').catch(() => {});
+  await frames(2);
+  await page.keyboard.press('KeyM');
+  const mOff = await music();
+  const saved = await page.evaluate(() => localStorage.getItem('rg.music.v1'));
+  await page.keyboard.press('KeyM');
+  const mOn = await music();
+  check('playthrough: each area has its own theme on the way, the ending plays a sting and the Kiln theme, M turns the music off and on',
+    ['village', 'frozen', 'marsh', 'cave', 'kiln'].every((b) => biomes.has(b)) && mEnd.stings === 1 && mEnd.biome === 'kiln'
+      && mOff.playing === false && saved === 'off' && mOn.playing === true,
+    `biomes ${[...biomes].join(',')} stings ${mEnd.stings} biome ${mEnd.biome} off ${mOff.playing}/${saved} on ${mOn.playing}`);
+
+  check('playthrough: the field Benches at the ford approach and the Marsh gate light the Bench button',
+    benches.length === 2 && benches.every((b) => b[1]), JSON.stringify(benches));
+  const total = rows.reduce((a, r) => a + r.est, 0);
+  const walked = rows.reduce((a, r) => a + r.walk, 0);
+  console.log(`  playthrough: estimated new-player time ${Math.floor(total / 60)} min ${Math.round(total % 60)} s (walking ${walked} m); scripted run ${rows.reduce((a, r) => a + r.wall, 0).toFixed(0)} s`);
+  check('playthrough: the estimate is within the 10-15 minute target', total >= 600 && total <= 900, `${(total / 60).toFixed(1)} min`);
 }
