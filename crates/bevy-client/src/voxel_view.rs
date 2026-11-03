@@ -60,6 +60,7 @@ pub struct SmoothHandles(pub Vec<Handle<crate::voxel_tex::SmoothMat>>);
 /// How far the Pick and placing reach, metres from the eye.
 pub const REACH: f32 = 5.0;
 /// Said when the Pick digs plain stone in the coal seam.
+pub const UNPLACEABLE_LINE: &str = "That can't be placed. Use it at the Invention Bench.";
 pub const SEAM_STONE_LINE: &str = "That was stone. Coal is the black rock in the seam.";
 /// How far a spell's aim looks for a block.
 pub const SPELL_RANGE: f32 = 120.0;
@@ -934,7 +935,19 @@ fn held_block(pack: &realgame_sim::valley::Pack, hot: u8) -> Option<u8> {
     let slot = *pack.hot.get(usize::from(hot.checked_sub(6)?))?;
     match pack.slots.get(usize::from(slot?))?.as_ref()?.item {
         Item::Block(m) => Some(m),
+        // A torch is placed as a torch block (Paawan's playtest: a bound
+        // torch could not be used).
+        Item::Torch => Some(vox::mat::TORCH),
         _ => None,
+    }
+}
+
+/// The pack item a placed block `m` uses up.
+fn placed_item(m: u8) -> Item {
+    if m == vox::mat::TORCH {
+        Item::Torch
+    } else {
+        Item::Block(m)
     }
 }
 
@@ -1166,7 +1179,19 @@ fn tools(
         return;
     };
     let Some(m) = held_block(&pack.0, keys.hot) else {
-        game.say("Nothing on this key. Press Tab to open your pack.");
+        let bound = pack
+            .0
+            .hot
+            .get(usize::from(keys.hot.saturating_sub(6)))
+            .copied()
+            .flatten()
+            .and_then(|s| pack.0.slots.get(usize::from(s)).copied().flatten())
+            .is_some();
+        game.say(if bound {
+            UNPLACEABLE_LINE
+        } else {
+            "Nothing on this key. Press Tab to open your pack."
+        });
         return;
     };
     let Some(h) = hit else {
@@ -1195,7 +1220,7 @@ fn tools(
     if materials::flags(m).solid && b.overlaps(&cell_box) {
         return;
     }
-    if pack.0.take(Item::Block(m), 1) {
+    if pack.0.take(placed_item(m), 1) {
         world.set(p, Cell::new(m));
         if let Some(mt) = matter.as_mut() {
             mt.world.touch(world, p);
