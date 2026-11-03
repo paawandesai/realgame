@@ -14,7 +14,6 @@
 
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::primitives::Aabb;
-use bevy::camera::visibility::VisibilityRange;
 use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::platform::time::Instant;
@@ -83,6 +82,9 @@ struct Chunks {
     /// Each chunk's pass entities: opaque, clear, (smooth) water, and the
     /// props near and far (`PROP_LOD_M`).
     ents: Vec<[Option<Entity>; 5]>,
+    /// Each chunk's props level of detail as last set (`Some(true)` far),
+    /// `None` when a props entity is new and needs setting.
+    far: Vec<Option<bool>>,
     /// Waiting to be meshed (index order; sorted by distance when picked).
     queue: Vec<usize>,
     queued: Vec<bool>,
@@ -160,7 +162,7 @@ pub fn plugin(app: &mut App) {
     .add_systems(PostStartup, hide_courtyard)
     .add_systems(
         Update,
-        (tools, mesh_chunks)
+        (tools, mesh_chunks, prop_lod)
             .chain()
             .after(crate::control)
             .before(crate::aim_and_cast),
@@ -215,6 +217,7 @@ fn setup(
     }
     let mut chunks = Chunks {
         ents: vec![[None; 5]; n],
+        far: vec![None; n],
         queue: Vec::new(),
         queued: vec![false; n],
         opaque: m.opaque,
@@ -1298,21 +1301,10 @@ fn mesh_chunks(
                     if (pass > 0 && pass != PROPS_NEAR) || settings.low {
                         e.insert(NotShadowCaster);
                     }
-                    // Props swap to their simpler meshes with distance
-                    // (from the chunk's centre), with a 10 m crossfade.
-                    let (a, b) = (PROP_LOD_M - 5.0, PROP_LOD_M + 5.0);
-                    if pass == PROPS_NEAR {
-                        e.insert(VisibilityRange {
-                            start_margin: 0.0..0.0,
-                            end_margin: a..b,
-                            use_aabb: true,
-                        });
-                    } else if pass == PROPS_FAR {
-                        e.insert(VisibilityRange {
-                            start_margin: a..b,
-                            end_margin: 1000.0..1001.0,
-                            use_aabb: true,
-                        });
+                    if pass == PROPS_NEAR || pass == PROPS_FAR {
+                        // `prop_lod` shows one of the two.
+                        e.insert(Visibility::Hidden);
+                        chunks.far[c] = None;
                     }
                     chunks.ents[c][pass] = Some(e.id());
                 }
@@ -1336,6 +1328,42 @@ fn mesh_chunks(
         .count() as u32;
     keys.mesh_q = chunks.queue.len() as u32;
     keys.mesh_ms = t0.elapsed().as_secs_f32() * 1000.0;
+}
+
+/// Props swap to their simpler meshes with distance from the chunk's
+/// centre, with 10 m of hysteresis so a chunk at the edge does not flicker.
+/// (Done by hand rather than with `VisibilityRange`, whose dithering needs a
+/// storage buffer in the vertex stage that some WebGPU adapters lack.)
+fn prop_lod(player: Res<Player>, mut chunks: ResMut<Chunks>, mut vis: Query<&mut Visibility>) {
+    let me = player.pos;
+    for c in 0..chunks.ents.len() {
+        let [.., near, far] = chunks.ents[c];
+        if near.is_none() && far.is_none() {
+            continue;
+        }
+        let o = World::chunk_origin(c);
+        let centre =
+            Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32) + Vec3::splat(CHUNK as f32 / 2.0);
+        let d = centre.distance(me);
+        let was = chunks.far[c];
+        let want = match was {
+            Some(true) => d > PROP_LOD_M - 5.0,
+            _ => d > PROP_LOD_M + 5.0,
+        };
+        if was == Some(want) {
+            continue;
+        }
+        chunks.far[c] = Some(want);
+        for (e, show) in [(near, !want), (far, want)] {
+            if let Some(mut v) = e.and_then(|e| vis.get_mut(e).ok()) {
+                *v = if show {
+                    Visibility::Inherited
+                } else {
+                    Visibility::Hidden
+                };
+            }
+        }
+    }
 }
 
 /// Chunk passes holding the props near and far.
