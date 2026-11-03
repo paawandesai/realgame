@@ -538,6 +538,8 @@ button:not(:disabled):hover { filter: brightness(1.12); }
 #worked .worked-tip[hidden] { display: none; }
 /* B3: the Pick's slot (key 5) in the block world. */
 .slot.pick-slot { min-width: 120px; cursor: default; }
+.slot.bound-slot { min-width: 72px; cursor: default; }
+.slot.bound-slot[hidden] { display: none; }
 .icon.pick { background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M9 27 L22 11' stroke='%2321140c' stroke-width='5.2' stroke-linecap='round'/><path d='M9 27 L22 11' stroke='%23b07a4f' stroke-width='3.2' stroke-linecap='round'/><path d='M5 10 Q16 1 28 9 Q26 11.5 24 11 Q16 6 7 12.5 Q5 12.5 5 10 Z' fill='%23dfe4ea' stroke='%2321140c' stroke-width='1.6' stroke-linejoin='round'/><circle cx='21.5' cy='9.6' r='1.6' fill='%237b8796'/></svg>") center / contain no-repeat; border-radius: 0; }
 @media (max-width: 700px) { .slot.pick-slot { width: 18%; min-width: 0; } }
 /* B3: a chip in the prompt slot lifts the caption (and the hint) above it, so neither covers the other. */

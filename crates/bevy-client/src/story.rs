@@ -113,6 +113,13 @@ pub(crate) fn aim(story: &Story, water_known: bool) -> Option<(f32, f32)> {
         let [x, _, z] = crate::late::CRATE_FLOOR;
         return Some((x, z));
     }
+    // Outside the cave the rig is under the rock, so the arrow first leads
+    // to the cave mouth in the Marsh (Paawan's playtest: "can't find the
+    // cave").
+    if step == 6 && story.biome != "cave" {
+        let [x, _, z] = realgame_voxel::gen::CAVE_MOUTH;
+        return Some((x as f32 + 0.5, z as f32 + 0.5));
+    }
     target(step, water_known)
 }
 
@@ -584,7 +591,14 @@ mod tests {
             ..Story::default()
         };
         run_command(&mut s, "quest 6");
-        assert_eq!(aim(&s, true), Some(TARGETS[5]), "the rig first");
+        let [mx, _, mz] = realgame_voxel::gen::CAVE_MOUTH;
+        assert_eq!(
+            aim(&s, true),
+            Some((mx as f32 + 0.5, mz as f32 + 0.5)),
+            "outside, the cave mouth first"
+        );
+        s.biome = "cave".to_string();
+        assert_eq!(aim(&s, true), Some(TARGETS[5]), "inside, the rig");
         s.pack.add(Item::H2Balloon, 1);
         let [x, _, z] = crate::late::CRATE_FLOOR;
         assert_eq!(aim(&s, true), Some((x, z)), "then the crate");
