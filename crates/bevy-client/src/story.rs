@@ -51,6 +51,9 @@ pub struct Story {
     water_on_workshop: bool,
     /// The biome gates and their signs, as JSON (`gates`, round 2).
     pub gates_json: String,
+    /// The Kiln door is open (`late` sets it), so step 7's arrow moves on
+    /// to the Invention Bench.
+    pub door_open: bool,
 }
 
 impl Default for Story {
@@ -68,6 +71,7 @@ impl Default for Story {
             biome: "village".to_string(),
             water_on_workshop: false,
             gates_json: "[]".to_string(),
+            door_open: false,
         }
     }
 }
@@ -119,6 +123,12 @@ pub(crate) fn aim(story: &Story, water_known: bool) -> Option<(f32, f32)> {
     if step == 6 && story.biome != "cave" {
         let [x, _, z] = realgame_voxel::gen::CAVE_MOUTH;
         return Some((x as f32 + 0.5, z as f32 + 0.5));
+    }
+    // Paawan (2026-11-03): with the door open, the next thing is the
+    // Invention Bench on the plaza, not the Kiln.
+    if step == 7 && story.door_open {
+        let [x, _, z] = crate::late::INVENTION;
+        return Some((x, z));
     }
     // With the Spark, inside the cave the way home is back out of the mouth
     // (the Kiln is straight through the rock from there).
@@ -615,6 +625,13 @@ mod tests {
         );
         s.biome = "village".to_string();
         assert_eq!(aim(&s, true), Some(TARGETS[6]), "then home to the Kiln");
+        s.door_open = true;
+        let [ix, _, iz] = crate::late::INVENTION;
+        assert_eq!(
+            aim(&s, true),
+            Some((ix, iz)),
+            "door open: the Invention Bench"
+        );
     }
 
     #[test]

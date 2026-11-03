@@ -915,7 +915,7 @@ fn stamps(w: &mut World) {
                     (y - cy) as f32 / 2.4,
                     (z - cz) as f32 / 2.6,
                 );
-                let vent = x == cx && z == cz && y >= cy + 1;
+                let vent = x == cx && z == cz && y > cy;
                 if dx * dx + dy * dy + dz * dz <= 1.0 && !vent {
                     w.set([x, y, z], c(mat::DIRT));
                 }

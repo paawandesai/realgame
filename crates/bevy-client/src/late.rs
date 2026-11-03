@@ -1522,6 +1522,7 @@ fn commands(
     mut player: ResMut<Player>,
     bench: Option<Res<BenchState>>,
 ) {
+    story.door_open = late.door_open;
     for line in drain() {
         let (head, rest) = line.split_once(' ').unwrap_or((line.as_str(), ""));
         match head {
