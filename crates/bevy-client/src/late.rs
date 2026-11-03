@@ -645,6 +645,10 @@ struct KilnGlow(u32);
 /// Sparks rising from the relit Kiln's doorway and chimney.
 #[derive(Component)]
 struct KilnSparkFx(u32);
+
+/// A puff of the relit Kiln's chimney smoke.
+#[derive(Component)]
+struct KilnSmoke(u32);
 /// The relit hearth's light, out in the doorway.
 #[derive(Component)]
 struct DoorLight;
@@ -806,7 +810,7 @@ fn spawn(
     // The torch you carry: a warm light at the hand, off until you have one.
     commands.spawn((
         PointLight {
-            color: Color::srgb(1.0, 0.62, 0.3),
+            color: Color::srgb(1.0, 0.74, 0.48),
             intensity: 0.0,
             range: 18.0,
             shadow_maps_enabled: false,
@@ -860,9 +864,11 @@ fn spawn(
 }
 
 /// Sparks in the ending's pool.
-const KILN_SPARKS: u32 = 28;
+const KILN_SPARKS: u32 = 64;
 /// Flame sprites in the doorway.
-const KILN_FLAMES: u32 = 5;
+const KILN_FLAMES: u32 = 9;
+/// Smoke puffs over the chimney.
+const KILN_SMOKE: u32 = 10;
 
 /// The Kiln doorway (art bible P5): the clay frame and its rune line, the
 /// timber door leaf on its hinge, the dark inside, and the relit hearth's
@@ -918,7 +924,7 @@ fn spawn_kiln_door(
     });
     let hot = materials.add(StandardMaterial {
         base_color: Color::srgb(0.5, 0.18, 0.05),
-        emissive: LinearRgba::rgb(1.6, 0.5, 0.08),
+        emissive: LinearRgba::rgb(2.6, 0.9, 0.12),
         unlit: true,
         ..default()
     });
@@ -947,7 +953,7 @@ fn spawn_kiln_door(
     let glow = materials.add(StandardMaterial {
         base_color: Color::srgba(1.0, 0.55, 0.15, 0.9),
         base_color_texture: Some(disc),
-        emissive: LinearRgba::rgb(3.0, 1.15, 0.2),
+        emissive: LinearRgba::rgb(4.0, 1.6, 0.3),
         unlit: true,
         alpha_mode: AlphaMode::Add,
         double_sided: true,
@@ -958,7 +964,7 @@ fn spawn_kiln_door(
     let flame = materials.add(StandardMaterial {
         base_color: Color::srgba(1.0, 0.62, 0.2, 0.95),
         base_color_texture: Some(flame_tex),
-        emissive: LinearRgba::rgb(3.2, 1.3, 0.2),
+        emissive: LinearRgba::rgb(4.2, 1.8, 0.3),
         unlit: true,
         alpha_mode: AlphaMode::Blend,
         double_sided: true,
@@ -971,12 +977,42 @@ fn spawn_kiln_door(
     commands.spawn((
         Mesh3d(quad.clone()),
         MeshMaterial3d(glow.clone()),
-        Transform::from_xyz(cx, sy - 0.4, 175.4).with_scale(Vec3::new(8.0, 7.0, 1.0)),
+        Transform::from_xyz(cx, sy - 0.4, 175.4).with_scale(Vec3::new(11.0, 9.0, 1.0)),
         Visibility::Hidden,
         KilnGlow(101),
         NotShadowCaster,
         NotShadowReceiver,
     ));
+    // The chimney's mouth glows over the dome.
+    commands.spawn((
+        Mesh3d(quad.clone()),
+        MeshMaterial3d(glow.clone()),
+        Transform::from_xyz(128.5, 60.6, 171.2).with_scale(Vec3::new(4.0, 4.0, 1.0)),
+        Visibility::Hidden,
+        KilnGlow(102),
+        NotShadowCaster,
+        NotShadowReceiver,
+    ));
+    let smoke = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.28, 0.24, 0.22, 0.5),
+        base_color_texture: Some(images.add(crate::fire_fx::sprite(false))),
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        double_sided: true,
+        cull_mode: None,
+        ..default()
+    });
+    for k in 0..KILN_SMOKE {
+        commands.spawn((
+            Mesh3d(quad.clone()),
+            MeshMaterial3d(smoke.clone()),
+            Transform::from_xyz(128.5, 61.0, 169.5),
+            Visibility::Hidden,
+            KilnSmoke(k),
+            NotShadowCaster,
+            NotShadowReceiver,
+        ));
+    }
     commands.spawn((
         Mesh3d(quad.clone()),
         MeshMaterial3d(glow),
@@ -1053,6 +1089,7 @@ fn kiln_fx(
         Query<(&mut Transform, &mut Visibility, &KilnGlow)>,
         Query<(&mut Transform, &mut Visibility, &KilnSparkFx)>,
         Query<&mut PointLight, With<DoorLight>>,
+        Query<(&mut Transform, &mut Visibility, &KilnSmoke)>,
     )>,
 ) {
     use crate::models::{KILN_ARCH, KILN_HINGE};
@@ -1092,15 +1129,16 @@ fn kiln_fx(
         if g.0 == 0 {
             tr.scale = Vec3::new(4.6 * pulse, 5.0 * pulse, 1.0);
         } else if g.0 == 101 {
-            tr.scale = Vec3::new(8.0 * pulse, 7.0 * pulse, 1.0);
+            tr.scale = Vec3::new(11.0 * pulse, 9.0 * pulse, 1.0);
         } else if g.0 >= 100 {
             // The hot inside wall: it does not move.
         } else {
             let k = g.0 as f32;
-            let x = cx + (k - 3.0) * 0.52 * r / 1.5;
-            let hgt = 2.1 + 0.6 * ((t * (5.0 + k)).sin() * 0.5 + 0.5) - 0.3 * (k - 3.0).abs();
+            let mid = (KILN_FLAMES as f32 + 1.0) / 2.0;
+            let x = cx + (k - mid) * 0.3 * r / 1.5;
+            let hgt = 2.6 + 0.7 * ((t * (5.0 + k)).sin() * 0.5 + 0.5) - 0.22 * (k - mid).abs();
             tr.translation = Vec3::new(x, 41.0 + hgt / 2.0, 172.7 + 0.02 * k);
-            tr.scale = Vec3::new(1.0 + 0.12 * (t * 4.0 + k).sin(), hgt, 1.0);
+            tr.scale = Vec3::new(1.2 + 0.15 * (t * 4.0 + k).sin(), hgt, 1.0);
         }
     }
     for (mut tr, mut v, s) in &mut q.p3() {
@@ -1134,11 +1172,31 @@ fn kiln_fx(
         ) * 2.0;
         let p = Vec3::new(x0, y0, z0) + drift * phase + Vec3::Y * up * phase;
         tr.translation = p + Vec3::new((t * 6.0 + s.0 as f32).sin() * 0.08, 0.0, 0.0);
-        tr.scale = Vec3::splat((1.0 - phase) * 1.4 + 0.2);
+        tr.scale = Vec3::splat((1.0 - phase) * 2.0 + 0.3);
+    }
+    for (mut tr, mut v, s) in &mut q.p5() {
+        *v = if lit {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+        if !lit {
+            continue;
+        }
+        // Slow puffs rising from the chimney and drifting east.
+        let k = s.0 as f32;
+        let phase = (t * 0.12 + k / KILN_SMOKE as f32).fract();
+        tr.translation = Vec3::new(
+            128.5 + phase * 3.5 + 0.4 * (t * 0.7 + k).sin(),
+            61.2 + phase * 9.0,
+            169.5 + phase * 1.5,
+        );
+        tr.rotation = Quat::IDENTITY;
+        tr.scale = Vec3::splat(1.2 + 4.0 * phase);
     }
     for mut l in &mut q.p4() {
         let flicker = 1.0 + 0.12 * (t * 11.0).sin() + 0.06 * (t * 23.0).sin();
-        l.intensity = if lit { 1_400_000.0 * flicker } else { 0.0 };
+        l.intensity = if lit { 3_000_000.0 * flicker } else { 0.0 };
     }
 }
 
@@ -1267,13 +1325,13 @@ fn light(
     for (mut l, mut t) in &mut held {
         // Warm and strong near the player (art bible: the torch is the
         // cave's warm light; the crystals are the only other).
-        l.intensity = if has { 900_000.0 * flicker } else { 0.0 };
-        // Held ahead and low, as in the hand: it throws a warm pool on the
-        // floor and walls in front of the player (B4 round 3: the pool was
-        // too small to see).
+        l.intensity = if has { 330_000.0 * flicker } else { 0.0 };
+        // Held ahead, as in the hand: it throws a warm pool on the floor
+        // and walls in front of the player (B4 round 3: first too small to
+        // see, then a blown-out blob; now softer and a little higher).
         let f = player.forward();
         let ahead = Vec3::new(f.x, 0.0, f.z).normalize_or_zero();
-        t.translation = player.eye() + ahead * 1.0 - Vec3::Y * 0.45;
+        t.translation = player.eye() + ahead * 0.8 - Vec3::Y * 0.2;
     }
     *scan -= dt;
     if *scan <= 0.0 {
@@ -1285,9 +1343,9 @@ fn light(
         for (mut l, mut t) in &mut placed {
             match at {
                 Some(p) => {
-                    l.intensity = 320_000.0 * flicker;
+                    l.intensity = 150_000.0 * flicker;
                     t.translation =
-                        Vec3::new(p[0] as f32 + 0.5, p[1] as f32 + 0.8, p[2] as f32 + 0.5);
+                        Vec3::new(p[0] as f32 + 0.5, p[1] as f32 + 1.4, p[2] as f32 + 0.5);
                 }
                 None => l.intensity = 0.0,
             }
