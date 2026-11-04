@@ -573,7 +573,8 @@ async function main() {
     const vis = codex.reactions.filter(visible);
     if (goal.kind === 'find_family') return [vis.some((r) => r.family === goal.family && got.has(r.id)) ? 1 : 0, 1];
     if (goal.kind === 'find_any_of') return [goal.ids.some((/** @type {string} */ id) => got.has(id)) ? 1 : 0, 1];
-    if (goal.kind === 'find_count') return [Math.min(goal.count, vis.filter((r) => (!goal.family || r.family === goal.family) && got.has(r.id)).length), goal.count];
+    if (goal.kind === 'find_all_of') return [goal.ids.filter((/** @type {string} */ id) => got.has(id)).length, goal.ids.length];
+    if (goal.kind === 'find_count') return [Math.min(goal.count, vis.filter((r) => (!goal.family || r.family === goal.family) && (!goal.ids || goal.ids.includes(r.id)) && got.has(r.id)).length), goal.count];
     if (goal.kind === 'balance') return [balanced.includes(goal.reaction) ? 1 : 0, 1];
     return [0, 1];
   };

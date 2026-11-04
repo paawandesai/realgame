@@ -41,7 +41,7 @@
    ],
    "heat": "releases",
    "say": "Natural gas joins with oxygen and gives carbon dioxide, water and heat.",
-   "short": "Gas plus air makes fire!",
+   "short": "Gas, air and a spark make fire!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed",
    "hazard": "fire"
@@ -57,7 +57,7 @@
    ],
    "heat": "releases",
    "say": "Hydrogen and oxygen join into water and give off a lot of heat.",
-   "short": "Boom! Water!",
+   "short": "Pop! Water!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed",
    "hazard": "fire"
@@ -105,10 +105,9 @@
    ],
    "heat": "releases",
    "say": "Iron slowly joins with oxygen when water is around, making rust (simplified).",
-   "short": "Wet iron turns red!",
+   "short": "Wet iron turns rusty brown!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed",
-   "hazard": "fire"
+   "check": "reviewed"
   },
   {
    "id": "baking_soda_vinegar",
@@ -134,7 +133,7 @@
    ],
    "heat": "absorbs",
    "say": "Plants use light to turn carbon dioxide and water into sugar and oxygen (overall equation).",
-   "short": "Plants eat sunlight!",
+   "short": "Plants use sunlight to make food!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed"
   },
@@ -149,7 +148,7 @@
    ],
    "heat": "releases",
    "say": "Living cells use oxygen to release the energy stored in sugar (overall equation).",
-   "short": "Food plus air makes energy!",
+   "short": "Food plus air gives you energy!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed"
   },
@@ -472,7 +471,7 @@
     "heat"
    ],
    "heat": "releases",
-   "say": "Heated iron and sulfur join into iron sulfide, which is no longer magnetic.",
+   "say": "Heated iron and sulfur join into iron sulfide. A magnet can no longer pull the iron out.",
    "short": "Iron and sulfur join.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed",
@@ -492,7 +491,7 @@
    "short": "A flash makes new powder.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "copper_oxide",
@@ -609,7 +608,7 @@
     "heat"
    ],
    "heat": "releases",
-   "say": "Sulfur burns with a blue flame and makes choking sulfur dioxide.",
+   "say": "Sulfur burns with a blue flame and makes choking sulfur dioxide. Only in a lab with fresh air.",
    "short": "Sulfur burns blue.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed",
@@ -1210,8 +1209,7 @@
    "say": "Heat makes baking soda release carbon dioxide, which makes cakes rise.",
    "short": "Heat makes cakes rise.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed",
-   "hazard": "fire"
+   "check": "reviewed"
   },
   {
    "id": "potassium_chlorate_heat",
@@ -1724,7 +1722,7 @@
    "needs": [],
    "heat": "releases",
    "say": "A carbonate and an acid give salt, water and carbon dioxide.",
-   "short": "Soda plus acid fizzes.",
+   "short": "Washing soda fizzes in acid.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
    "check": "reviewed"
   },
@@ -1861,7 +1859,8 @@
    "say": "Copper wire grows silver crystals and the liquid turns blue.",
    "short": "Copper grows silver crystals.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "zinc_silver_nitrate",
@@ -2185,9 +2184,10 @@
    "needs": [],
    "heat": "releases",
    "say": "Silver nitrate and salt make a white cloud of silver chloride. It is the test for chloride.",
-   "short": "Salt water goes cloudy.",
+   "short": "Two clear liquids make a white cloud!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "silver_bromide",

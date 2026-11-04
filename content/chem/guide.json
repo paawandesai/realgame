@@ -6,9 +6,10 @@
     "R2": "OpenStax, Biology 2e (Clark, Douglas, Choi, 2018), chapters 7 (cellular respiration and fermentation) and 8 (photosynthesis), https://openstax.org/details/books/biology-2e",
     "R3": "NGSS Lead States (2013), Next Generation Science Standards: For States, By States, https://www.nextgenscience.org",
     "R4": "Greenwood, N. N. and Earnshaw, A., Chemistry of the Elements, 2nd ed., Butterworth-Heinemann, 1997.",
-    "R5": "US EPA, Effects of Acid Rain (materials: limestone and marble), https://www.epa.gov/acidrain/effects-acid-rain",
+    "R5": "US EPA, Effects of Acid Rain (section: Effects of Acid Rain on Materials), https://www.epa.gov/acidrain/effects-acid-rain",
     "R6": "Erisman, J. W. et al. (2008), How a century of ammonia synthesis changed the world, Nature Geoscience 1, 636-639, https://doi.org/10.1038/ngeo325",
-    "R7": "Royal Society of Chemistry, Education: practical chemistry resources, https://edu.rsc.org/resources/practical"
+    "R7": "Royal Society of Chemistry, Education: practical chemistry resources, https://edu.rsc.org/resources/practical",
+    "R8": "Royal Society of Chemistry, Education: The reaction between iron and sulfur, https://edu.rsc.org/resources/iron-and-sulfur-reaction/713.article"
   },
   "bands": {
     "sprout": {
@@ -16,7 +17,7 @@
         { "id": "sp_w1", "say": "This bottle has hydrogen. It is a very light gas. Tap it!", "do": { "tap_bottle": "H2" } },
         { "id": "sp_w2", "say": "Tap hydrogen one more time. Now you have two.", "do": { "tap_bottle": "H2" } },
         { "id": "sp_w3", "say": "Now tap oxygen. Oxygen is in the air we breathe.", "do": { "tap_bottle": "O2" } },
-        { "id": "sp_w4", "say": "Tap A spark or flame. A tiny spark gets things started.", "do": { "condition": "spark" } },
+        { "id": "sp_w4", "say": "Tap A spark or flame. A tiny spark gets things started. Only grown-ups use real sparks and flames.", "do": { "condition": "spark" } },
         { "id": "sp_w5", "say": "Now tap Run! Pop! The two gases join and make water.", "do": { "run": true } }
       ],
       "walkthrough_sources": ["core", "R1"],
@@ -24,7 +25,7 @@
         {
           "id": "sp_fire",
           "title": "Fire needs air",
-          "idea": "Burning is a change you can't undo. The fuel joins with oxygen from the air. It gives off heat and light.",
+          "idea": "Burning is a change you can't undo. The fuel joins with oxygen from the air and turns into gases you can't see. It gives off heat and light.",
           "try": { "reactants": ["C", "O2"], "conditions": ["heat"], "expect": "carbon_burns" },
           "ngss": "2-PS1-4",
           "reactions": ["carbon_burns", "magnesium_burns", "sulfur_burns", "candle_burns"],
@@ -87,7 +88,7 @@
         {
           "id": "sp_hot_rock",
           "title": "Cooking a rock",
-          "idea": "Very strong heat turns chalk into a new white powder called quicklime. A gas goes off into the air.",
+          "idea": "Very strong heat turns chalk rock (limestone) into a new white powder called quicklime. A gas goes off into the air.",
           "try": { "reactants": ["CaCO3"], "conditions": ["heat"], "expect": "limestone_roast" },
           "ngss": "2-PS1-4",
           "reactions": ["limestone_roast", "slaking_lime"],
@@ -109,14 +110,14 @@
         "carbonate_acid": ["Some things fizz when they meet vinegar.", "Baking soda and chalk give off a gas when an acid touches them.", "Try baking soda and vinegar."],
         "life": ["Living things do chemistry too.", "Yeast and your body use sugar. Tiny helpers make it go.", "Try sugar, then turn on A helper (like yeast)."],
         "decomposition": ["Some things break apart with a helper.", "Hydrogen peroxide breaks into water and oxygen when a helper speeds it up.", "Try hydrogen peroxide, then turn on A helper (like yeast)."],
-        "thermal": ["What happens if you heat a rock?", "Very strong heat can turn chalk into new stuff and a gas.", "Try chalk, then turn on Heat."],
+        "thermal": ["What happens if you heat a rock?", "Very strong heat can turn chalk rock (limestone) into new stuff and a gas.", "Try chalk rock (limestone), then turn on Heat."],
         "synthesis": ["Some things get hot when you add water.", "Quicklime joins with water and gets very hot.", "Try quicklime and water."],
         "displacement": ["Put a metal in a blue liquid.", "Iron can push copper out of copper sulfate. The iron gets a copper coat.", "Try iron and copper sulfate."],
         "precipitation": ["Two clear liquids can make something cloudy.", "When some liquids mix, a tiny solid forms and makes the water cloudy.", "Try silver nitrate and table salt."]
       },
       "hint_sources": ["core", "R1", "R2"],
       "challenges": [
-        { "id": "sp_c_fire", "title": "Make a fire", "goal": { "kind": "find_family", "family": "combustion" } },
+        { "id": "sp_c_fire", "title": "Make a fire in the chamber", "goal": { "kind": "find_family", "family": "combustion" } },
         { "id": "sp_c_fizz", "title": "Make it fizz", "goal": { "kind": "find_any_of", "ids": ["baking_soda_vinegar", "chalk_acid"] } },
         { "id": "sp_c_cloud", "title": "Make a cloud in a jar", "goal": { "kind": "find_family", "family": "precipitation" } },
         { "id": "sp_c_copper", "title": "Give iron a copper coat", "goal": { "kind": "find_any_of", "ids": ["iron_copper_sulfate"] } },
@@ -126,11 +127,11 @@
     },
     "seedling": {
       "walkthrough": [
-        { "id": "se_w1", "say": "Sodium is a soft, shiny metal. Tap the sodium bottle.", "do": { "tap_bottle": "Na" } },
+        { "id": "se_w1", "say": "Sodium is a soft, shiny metal. It reacts so strongly that only trained chemists handle it. Tap the sodium bottle.", "do": { "tap_bottle": "Na" } },
         { "id": "se_w2", "say": "Tap sodium again, so there are two on the table.", "do": { "tap_bottle": "Na" } },
         { "id": "se_w3", "say": "Now tap chlorine. It is a yellow-green gas that is poisonous to breathe.", "do": { "tap_bottle": "Cl2" } },
         { "id": "se_w4", "say": "This one needs energy to start. Turn on Heat.", "do": { "condition": "heat" } },
-        { "id": "se_w5", "say": "Run the chamber! A metal and a poisonous gas join to make table salt, a brand-new substance you can eat.", "do": { "run": true } }
+        { "id": "se_w5", "say": "Run the chamber! Flash! A metal and a poisonous gas join to make the same stuff as table salt. It is a brand-new substance with new properties.", "do": { "run": true } }
       ],
       "walkthrough_sources": ["core", "R1", "R4"],
       "lessons": [
@@ -146,7 +147,7 @@
         {
           "id": "se_mass",
           "title": "Nothing disappears",
-          "idea": "When magnesium burns, the white ash weighs more than the metal did, because it joined with oxygen from the air. Count the oxygen too, and the total weight stays the same.",
+          "idea": "When magnesium burns, the white powder weighs more than the metal did, because it joined with oxygen from the air. Count the oxygen too, and the total weight stays the same.",
           "try": { "reactants": ["Mg", "Mg", "O2"], "conditions": ["heat"], "expect": "magnesium_burns" },
           "ngss": "5-PS1-2",
           "reactions": ["magnesium_burns", "iron_sulfur", "copper_oxide"],
@@ -191,7 +192,7 @@
         {
           "id": "se_swap",
           "title": "Metal swap",
-          "idea": "Hang copper wire in silver nitrate solution. Shiny silver crystals grow on the wire and the liquid turns blue, because copper took silver's place.",
+          "idea": "When copper wire hangs in silver nitrate solution, shiny silver crystals grow on the wire and the liquid turns blue, because copper took silver's place.",
           "try": { "reactants": ["Cu", "AgNO3", "AgNO3"], "conditions": [], "expect": "copper_silver_nitrate" },
           "ngss": "5-PS1-4",
           "reactions": ["copper_silver_nitrate", "zinc_copper_sulfate", "iron_copper_sulfate"],
@@ -204,7 +205,7 @@
           "try": { "reactants": ["Fe", "S"], "conditions": ["heat"], "expect": "iron_sulfur" },
           "ngss": "5-PS1-4",
           "reactions": ["iron_sulfur", "magnesium_sulfur"],
-          "sources": ["core", "R3", "R7"]
+          "sources": ["core", "R3", "R8"]
         },
         {
           "id": "se_water_metals",
@@ -227,12 +228,12 @@
       ],
       "hints": {
         "combustion": ["Fuels burn when they join with oxygen.", "Fuels made of carbon and hydrogen burn to make carbon dioxide and water. Gases usually need a spark; solids like charcoal need heat.", "Try ethanol with 3 oxygen, then turn on A spark or flame."],
-        "electrolysis": ["Can electricity pull water apart?", "Electricity splits water into hydrogen and oxygen. You get twice as much hydrogen as oxygen.", "Try water, then turn on Electricity."],
+        "electrolysis": ["Can electricity pull water apart?", "Electricity splits water into hydrogen and oxygen. The hydrogen bubbles fill twice as much space as the oxygen bubbles.", "Try water, then turn on Electricity."],
         "oxidation": ["Some metals change colour when heated in air.", "A metal that joins with oxygen makes an oxide. Hot copper turns black.", "Try 2 copper and 1 oxygen, then turn on Heat."],
         "carbonate_acid": ["Carbonates fizz in acid.", "The fizz is carbon dioxide gas. Chalk, baking soda and washing soda are all carbonates.", "Try washing soda with 2 hydrochloric acid."],
         "life": ["Your cells use food and air.", "Respiration uses sugar and oxygen. It gives out carbon dioxide, water and energy.", "Try sugar with 6 oxygen, then turn on A helper (like yeast)."],
         "decomposition": ["One substance can split into two.", "Hydrogen peroxide breaks down into water and oxygen gas. A helper called a catalyst makes it fast.", "Try hydrogen peroxide, then turn on A helper (like yeast)."],
-        "thermal": ["Heat can break some things apart.", "Heating chalk (limestone) gives quicklime and carbon dioxide.", "Try chalk, then turn on Heat."],
+        "thermal": ["Heat can break some things apart.", "Heating chalk rock (limestone) gives quicklime and carbon dioxide.", "Try chalk rock (limestone), then turn on Heat."],
         "synthesis": ["Two elements can join into a brand-new substance.", "Sodium and chlorine join to make table salt. Iron and sulfur join to make iron sulfide.", "Try iron and sulfur, then turn on Heat."],
         "displacement": ["A more reactive metal can push out a less reactive one.", "Zinc pushes copper out of copper sulfate. Copper pushes silver out of silver nitrate.", "Try copper with 2 silver nitrate."],
         "precipitation": ["Some mixes go cloudy.", "A solid that forms in a liquid is called a precipitate. Limewater turns milky with carbon dioxide.", "Try limewater and carbon dioxide."],
@@ -357,7 +358,7 @@
         "oxidation": ["Metals gain oxygen when heated in air.", "A metal combining with oxygen forms a metal oxide; this is oxidation.", "Try 2Zn + O2 with Heat."],
         "carbonate_acid": ["Carbonate + acid -> salt + water + CO2.", "The fizz is CO2. Count the H atoms: water takes two of them.", "Try NaHCO3 + HCl, and notice it absorbs heat."],
         "life": ["Cells release energy from glucose.", "Aerobic respiration: glucose + oxygen -> carbon dioxide + water. Enzymes are the catalysts.", "Try C6H12O6 + 6O2 with Catalyst."],
-        "decomposition": ["One reactant, two or more products.", "Hydrogen peroxide decomposes into water and oxygen; a catalyst speeds it up.", "Type 2H2O2 -> 2H2O + O2 with Catalyst on."],
+        "decomposition": ["One reactant, two or more products.", "Ozone breaks down to oxygen in ultraviolet light; some unstable compounds decompose violently at the slightest touch, which is why chemists never make them outside a controlled lab.", "Type 2H2O2 -> 2H2O + O2 with Catalyst on."],
         "thermal": ["Heating some compounds gives off a gas.", "Thermal decomposition: many metal carbonates break into a metal oxide and CO2.", "Try CuCO3 with Heat."],
         "synthesis": ["Two substances, one product.", "In a synthesis reaction, reactants combine into a single compound.", "Try H2 + Cl2 with Light."],
         "displacement": ["Compare how reactive the metals are.", "A more reactive metal displaces a less reactive one from its compound.", "Try Mg + CuSO4, or Fe2O3 + 2Al with Heat (thermite)."],
@@ -480,7 +481,7 @@
         "oxidation": ["Not only metals get oxidised.", "Nitric oxide reacts with oxygen at room temperature to give brown nitrogen dioxide.", "Try 2NO + O2."],
         "carbonate_acid": ["Not every acid keeps a carbonate fizzing.", "With sulfuric acid, poorly soluble calcium sulfate coats the marble and slows the reaction.", "Try CaCO3 + H2SO4."],
         "life": ["Big sugars break into small ones.", "Hydrolysis splits sucrose into glucose and fructose, both C6H12O6; an enzyme or acid catalyses it.", "Try C12H22O11 + H2O with Catalyst."],
-        "decomposition": ["Some compounds fall apart with little push.", "Ozone breaks down to oxygen in ultraviolet light; nitrogen triiodide decomposes at a touch.", "Type 2O3 -> 3O2 with Light on."],
+        "decomposition": ["Some compounds fall apart with little push.", "Ozone breaks down to oxygen in ultraviolet light; some unstable compounds decompose violently at the slightest touch, which is why chemists never make them outside a controlled lab.", "Type 2O3 -> 3O2 with Light on."],
         "thermal": ["Heat drives off a gas.", "Carbonates lose CO2, hydroxides lose water, nitrates give NO2 and O2, and some oxides give O2.", "Try Ca(OH)2 with Heat, or type 2HgO -> 2Hg + O2."],
         "synthesis": ["Elements can combine directly.", "Halogen reactivity falls down the group: fluorine reacts with hydrogen even in the dark and cold.", "Try H2 + F2, with no condition."],
         "displacement": ["Use the reactivity series to predict.", "Aluminium, zinc, iron, lead, copper, silver: each displaces those after it from their compounds.", "Try Zn + Pb(NO3)2."],
@@ -498,11 +499,11 @@
       "challenges": [
         { "id": "ad_c_organic", "title": "Do some carbon chemistry", "goal": { "kind": "find_family", "family": "organic" } },
         { "id": "ad_c_gas", "title": "Prepare a gas in the lab", "goal": { "kind": "find_family", "family": "gas_prep" } },
-        { "id": "ad_c_group2", "title": "Compare Group 2 metals in water", "goal": { "kind": "find_count", "count": 3, "family": "water_metal" } },
+        { "id": "ad_c_group2", "title": "Compare Group 2 metals in water", "goal": { "kind": "find_count", "count": 3, "ids": ["magnesium_steam", "calcium_water", "strontium_water", "barium_water"] } },
         { "id": "ad_c_electro", "title": "Split a compound with electricity", "goal": { "kind": "find_family", "family": "electrolysis" } },
         { "id": "ad_c_balance_octane", "title": "Balance: octane burns", "goal": { "kind": "balance", "reaction": "octane_burns" } },
         { "id": "ad_c_balance_nitric", "title": "Balance: copper in nitric acid", "goal": { "kind": "balance", "reaction": "copper_nitric" } },
-        { "id": "ad_c_ostwald", "title": "Make nitric acid in three steps", "goal": { "kind": "find_any_of", "ids": ["ostwald_1", "no_oxidises", "ostwald_3"] } },
+        { "id": "ad_c_ostwald", "title": "Make nitric acid in three steps", "goal": { "kind": "find_all_of", "ids": ["ostwald_1", "no_oxidises", "ostwald_3"] } },
         { "id": "ad_c_60", "title": "Find 60 reactions", "goal": { "kind": "find_count", "count": 60 } }
       ]
     }
@@ -516,14 +517,14 @@
     "baking_soda_vinegar": "The fizz in a baking soda and vinegar volcano is carbon dioxide gas.",
     "photosynthesis": "Every green leaf in the sunshine is doing this.",
     "respiration": "You do this all day; your breath carries the carbon dioxide away.",
-    "candle_burns": "A candle flame burns melted wax.",
-    "peroxide_splits": "Hydrogen peroxide fizzes on a cut because a helper in your body splits it into water and oxygen.",
+    "candle_burns": "A candle flame burns wax. The heat melts the wax and turns it into a gas, and the gas burns.",
+    "peroxide_splits": "Hydrogen peroxide fizzes on a cut. A helper in your body splits it into water and oxygen.",
     "magnesium_burns": "Bright white sparks in some fireworks come from burning magnesium.",
     "propane_burns": "Many camping stoves and gas barbecues burn propane.",
     "fermentation": "Yeast makes bread dough rise with bubbles of carbon dioxide.",
     "sulfur_burns": "Burning sulfur has a blue flame and a sharp smell, like a match just after it is struck.",
     "butane_burns": "A pocket lighter burns butane.",
-    "limestone_roast": "Kilns heat limestone to make lime, which is used in mortar and to make cement.",
+    "limestone_roast": "Kilns heat limestone to make lime for mortar and plaster, and cement kilns heat limestone too.",
     "slaking_lime": "Builders mix quicklime with water to make lime for mortar, and it gets very hot.",
     "chalk_acid": "Acid rain slowly eats away statues and buildings made of limestone and marble.",
     "iron_copper_sulfate": "An iron nail dipped in blue copper sulfate solution comes out with a copper-coloured coat.",
@@ -534,7 +535,7 @@
     "lithium_water": "Lithium is the lightest metal, so it floats on water while it fizzes.",
     "calcium_water": "Calcium turns water cloudy as it fizzes, because some of the calcium hydroxide it makes does not dissolve.",
     "salt_from_elements": "Table salt is sodium and chlorine joined together, though the salt we eat is mined or dried from seawater.",
-    "iron_sulfur": "A classic school experiment: iron and sulfur glow as they join into a dark grey solid.",
+    "iron_sulfur": "A classic school experiment: iron and sulfur glow as they join into a black solid.",
     "magnesium_sulfur": "You won't find magnesium sulfide at home; it is a lab reaction that shows a metal joining with sulfur.",
     "copper_oxide": "A copper pipe heated in a flame gets a dark coat of copper oxide.",
     "sodium_oxygen": "Freshly cut sodium is shiny for only a moment before the air turns its surface dull.",
@@ -544,8 +545,8 @@
     "zinc_acid": "Galvanised (zinc-coated) buckets and nails fizz if acid gets on them.",
     "magnesium_acid": "In school labs, magnesium ribbon in acid makes hydrogen, which goes pop with a lit splint.",
     "washing_soda_acid": "Washing soda is a cleaning powder; like chalk and baking soda, it fizzes with acid.",
-    "zinc_copper_sulfate": "This metal swap is how one of the first reliable batteries, the Daniell cell, made electricity.",
-    "copper_silver_nitrate": "Hang copper wire in silver nitrate solution and a silver tree of crystals grows on it.",
+    "zinc_copper_sulfate": "One of the first reliable batteries, the Daniell cell, made electricity from this metal swap by keeping the zinc away from the copper sulfate so the electrons had to travel through a wire.",
+    "copper_silver_nitrate": "In a school lab, copper wire hung in silver nitrate solution grows a silver tree of crystals.",
     "co2_water": "Fizzy drinks have carbon dioxide dissolved in them, which makes them a little acidic."
   },
   "where_you_see_it_sources": {
@@ -575,7 +576,7 @@
     "lithium_water": ["core", "R4"],
     "calcium_water": ["core", "R4"],
     "salt_from_elements": ["core", "R4"],
-    "iron_sulfur": ["core", "R7"],
+    "iron_sulfur": ["core", "R8"],
     "magnesium_sulfur": ["core", "R4"],
     "copper_oxide": ["core", "R4"],
     "sodium_oxygen": ["core", "R4"],

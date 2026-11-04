@@ -285,10 +285,19 @@ for (const band of BANDS) {
         assert.ok(goal.ids?.length, `${where}: no ids`);
         for (const id of goal.ids) reaction(where, id, band);
         assert.ok(goal.ids.some((id) => reach.some((r) => r.id === id)), `${where}: none of these is reachable at ${band}`);
+      } else if (goal.kind === "find_all_of") {
+        assert.ok(goal.ids && goal.ids.length > 1, `${where}: needs two or more ids`);
+        assert.equal(new Set(goal.ids).size, goal.ids.length, `${where}: duplicate ids`);
+        for (const id of goal.ids) {
+          reaction(where, id, band);
+          assert.ok(reach.some((r) => r.id === id), `${where}: ${id} is not reachable at ${band}`);
+        }
       } else if (goal.kind === "find_count") {
         assert.ok(Number.isInteger(goal.count) && goal.count! > 0, `${where}: count`);
         if (goal.family !== undefined) assert.ok(core.families.includes(goal.family), `${where}: no family ${goal.family}`);
-        const pool = reach.filter((r) => goal.family === undefined || r.family === goal.family);
+        // Optional `ids`: only these reactions count.
+        if (goal.ids !== undefined) for (const id of goal.ids) reaction(where, id, band);
+        const pool = reach.filter((r) => (goal.family === undefined || r.family === goal.family) && (goal.ids === undefined || goal.ids.includes(r.id)));
         assert.ok(goal.count! <= pool.length, `${where}: only ${pool.length} reachable`);
       } else if (goal.kind === "balance") {
         assert.ok(rank(band) >= rank("seedling"), `${where}: the balance scale is hidden at Sprout`);
@@ -320,7 +329,11 @@ test("sprout text has no formulas (it is read aloud to pre-readers)", () => {
   for (const t of texts) assert.equal(hasFormula(t), null);
   // Sprout has no element shelf, no atom plate, no "out" side and no type box.
   for (const t of texts) assert.doesNotMatch(t, /\bplate\b|\belement shelf\b|["“]out["”]|\bout side\b|\btype\b|\bscale\b/i, `Sprout has no such control: ${t}`);
-  for (const t of texts) assert.ok(t.length <= 120, `too long for Sprout: ${t}`);
+  // Read aloud: short sentences, and not too many of them.
+  for (const t of texts) {
+    assert.ok(t.length <= 160, `too long for Sprout: ${t}`);
+    for (const s of t.split(/(?<=[.!?])\s+/)) assert.ok(s.length <= 100, `sentence too long for Sprout: ${s}`);
+  }
 });
 
 test("sprout and seedling text names conditions by their young labels", () => {
