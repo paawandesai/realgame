@@ -61,3 +61,19 @@ pub fn judge_json(input: &str, have: &str, band_id: &str) -> String {
     };
     serde_json::to_string(&outcome).unwrap_or_else(|_| "{}".into())
 }
+
+/// Keys for looking `input` up in the lab records index
+/// (`chem-literature.json`): `{"key": "..."}` for a whole equation (null when
+/// nothing is left once shared species cancel), plus `"left"`, the reactant
+/// half. `{"kind":"parse_error"}` if it doesn't parse.
+#[wasm_bindgen]
+pub fn literature_key_json(input: &str) -> String {
+    match parse_equation(input) {
+        Ok(eq) => json!({
+            "key": if eq.has_arrow { crate::literature::key(&eq) } else { None },
+            "left": crate::literature::reactant_key(&eq.reactants),
+        })
+        .to_string(),
+        Err(e) => json!({ "kind": "parse_error", "message": e.to_string() }).to_string(),
+    }
+}

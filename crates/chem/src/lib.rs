@@ -18,6 +18,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod literature;
 pub mod predict;
 #[cfg(feature = "web")]
 #[allow(unsafe_code)]
@@ -122,7 +123,7 @@ struct CoreFile {
 /// `2H2 + O2 -> 2H2O`).
 pub type SideKey = BTreeMap<String, u32>;
 
-fn gcd(a: u32, b: u32) -> u32 {
+pub(crate) fn gcd(a: u32, b: u32) -> u32 {
     if b == 0 {
         a
     } else {

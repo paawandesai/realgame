@@ -8,7 +8,7 @@
 // Saved in this browser only: the band, the codex entries found, mystery
 // cards and the notebook (keys start `formula.bench.`).
 
-import init, { codex_json, judge_json, names_json } from './chem.js';
+import init, { codex_json, judge_json, literature_key_json, names_json } from './chem.js';
 import { parseFormula as parseWith, hill, sideOf, sideText } from './bench-free-lib.js';
 
 // Element display data and everyday names, from content/chem/names.json.
@@ -35,6 +35,7 @@ const subs = (/** @type {string} */ f) => f.replace(/\d/g, (d) => '₀₁₂₃�
 const show = (/** @type {string} */ f) => subs(f);
 const showEq = (/** @type {string} */ eq) => eq.split(' -> ').map((s) => s.split(' + ').map((t) => { const m = t.match(/^(\d*)(.+)$/); return m ? m[1] + subs(m[2]) : t; }).join(' + ')).join(' → ');
 const hex = (/** @type {number} */ n) => '#' + n.toString(16).padStart(6, '0');
+const LAB_CREDIT = 'Lab records: Open Reaction Database (Kearnes et al. 2021), CC BY-SA 4.0. <a href="https://github.com/open-reaction-database/ord-data" target="_blank" rel="noopener">ord-data</a>';
 const esc = (/** @type {string} */ s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] || c);
 
 const store = {
@@ -68,6 +69,8 @@ async function main() {
   let found = store.get('found', []);
   /** @type {string[]} */
   let mysteries = store.get('mysteries', []);
+  /** @type {string[]} */
+  let labFinds = store.get('lab', []);
   /** @type {{t:string, eq:string, what:string, ok:boolean}[]} */
   let notes = store.get('notes', []);
 
@@ -298,12 +301,19 @@ async function main() {
   /** @type {Record<string, string>} */
   const FAMILY = names.families;
   const describe = (/** @type {any} */ r) => (rank(band) <= rank('seedling') && r.short ? r.short : r.say);
+  // Lab records use Hill formulas (NH3 is H3N); show the everyday way of
+  // writing a formula when we know one, or the way the player wrote it.
+  /** @type {Map<string, string>} */
+  const usual = new Map();
+  const learnUsual = (/** @type {string} */ f) => { const a = parseFormula(f); if (a) { const h = hill(a); if (!usual.has(h)) usual.set(h, f); } };
+  for (const f of Object.keys(names.substances)) learnUsual(f);
+  const plain = (/** @type {string} */ eq) => eq.split(' -> ').map((side) => side.split(' + ').map((t) => { const m = t.match(/^(\d*)(.+)$/); return m ? m[1] + (usual.get(m[2] ?? '') ?? m[2]) : t; }).join(' + ')).join(' -> ');
   const drawCodex = () => {
     const seen = new Set(found);
     const vis = codex.reactions.filter(visible);
     const n = vis.filter((r) => seen.has(r.id)).length;
     $('codexCount').textContent = `${n}/${vis.length}`;
-    $('codexNote').textContent = `${n} of ${vis.length} found at ${BAND_NAME[/** @type {keyof typeof BAND_NAME} */ (band)]}. Real chemistry has far more; anything you find that isn't here becomes a mystery card.`;
+    $('codexNote').textContent = `${n} of ${vis.length} found at ${BAND_NAME[/** @type {keyof typeof BAND_NAME} */ (band)]}. Real chemistry has far more. Anything else you find is checked against published lab records, or becomes a mystery card.`;
     let html = '';
     for (const fam of codex.families) {
       const rs = vis.filter((r) => r.family === fam); if (!rs.length) continue;
@@ -317,6 +327,8 @@ async function main() {
       html += '</details>';
     }
     if (mysteries.length) html += `<details class="fam" open><summary><b>Mystery cards</b> <span>${mysteries.length}</span></summary>${mysteries.map((m) => `<div class="entry mystery"><div class="eq">${showEq(m)}</div><div>Predicted by the model, not confirmed.</div></div>`).join('')}</details>`;
+    if (labFinds.length) html += `<details class="fam" open><summary><b>Lab records</b> <span>${labFinds.length}</span></summary>${labFinds.map((m) => `<div class="entry found"><div class="eq">${showEq(plain(m))}</div><div>Recorded by real chemists.</div></div>`).join('')}</details>`;
+    html += `<p class="note">${LAB_CREDIT}</p>`;
     $('codex').innerHTML = html;
   };
   const drawNotes = () => {
@@ -329,7 +341,34 @@ async function main() {
   /** @type {Record<string, string>} */
   const HEAT = names.heat;
   const fxFor = (/** @type {any} */ r, /** @type {Record<string, number>} */ out) => (names.effects[r.family] === 'flame' ? 'flame' : Object.keys(out).some((f) => GASES.has(f)) ? 'bubbles' : names.effects[r.family] || 'glow');
-  const runChamber = (/** @type {string} */ input) => {
+  // Lab records: published reactions (Open Reaction Database), fetched the
+  // first time a try isn't in the codex. Keys come from the engine.
+  /** @type {Promise<{byKey: Record<string, [number, string]>, byLeft: Map<string, [string, number][]>} | null> | null} */
+  let labLoad = null;
+  const loadLab = () => (labLoad ??= fetch('chem-literature.json').then((r) => (r.ok ? r.json() : null)).then((doc) => {
+    if (!doc) return null;
+    /** @type {Record<string, [number, string]>} */
+    const byKey = doc.reactions;
+    /** @type {Map<string, [string, number][]>} */
+    const byLeft = new Map();
+    for (const [k, [n]] of Object.entries(byKey)) {
+      const l = k.split(' -> ')[0] ?? k;
+      const list = byLeft.get(l) ?? [];
+      list.push([k, n]); byLeft.set(l, list);
+    }
+    for (const list of byLeft.values()) list.sort((a, b) => b[1] - a[1]);
+    return { byKey, byLeft };
+  }).catch(() => null));
+  /** The lab record for `input`: [equation, times recorded], or null. */
+  const labRecord = async (/** @type {string} */ input) => {
+    const lab = await loadLab(); if (!lab) return null;
+    for (const t of input.split(/->|\+/)) learnUsual(t.trim().replace(/^\d+/, ''));
+    const k = JSON.parse(literature_key_json(input));
+    if (k.key) { const hit = lab.byKey[k.key]; return hit ? [k.key, hit[0]] : null; }
+    const first = k.left ? lab.byLeft.get(k.left)?.[0] : undefined;
+    return first ?? null;
+  };
+  const runChamber = async (/** @type {string} */ input) => {
     const raw = JSON.parse(judge_json(input, [...conds].join(','), band));
     const [lt, rt] = input.split('->').map((s) => s.trim());
     const inSide = sideOf(lt); const guess = rt ? sideOf(rt) : null;
@@ -357,6 +396,17 @@ async function main() {
       const near = raw.close ? `<p>You’re close: these really do react. ${rank(band) <= rank('seedling') ? 'Try changing how many of each you use.' : 'Change the numbers in front.'}</p>` : '<p>Atoms are never made or destroyed, so both sides need the same atoms.</p>';
       result('bad', `<p><b>The scale isn’t level.</b> ${raw.report.map(esc).join(' ')}</p>${near}`);
       note(input, 'Not balanced.', false); animate(inSide, inSide, 'fizzle'); return;
+    }
+    if (raw.kind === 'mystery' || raw.kind === 'no_reaction') {
+      const rec = await labRecord(input);
+      if (rec) {
+        const [key, times] = rec; const eq = plain(key); const [, outText] = eq.split(' -> ');
+        const isNew = !labFinds.includes(key);
+        if (isNew) { labFinds = [...labFinds, key]; store.set('lab', labFinds); drawCodex(); }
+        const surprise = raw.kind === 'no_reaction' && guess ? '<p>Our simple model didn’t expect this one, but the lab record says it happened.</p>' : '';
+        result('lab', `<p><b>Lab record!</b> It’s not in the codex, but real chemists have recorded ${guess ? 'this reaction' : 'these turning into something'} ${times === 1 ? 'once' : times + ' times'}:</p><p class="eq">${showEq(eq)}</p>${surprise}<p class="credit">Formulas only, so it could be a different molecule with the same atoms. ${LAB_CREDIT}</p><p>${isNew ? 'New lab record in your codex!' : 'Already in your codex.'}</p>`);
+        note(eq, 'Lab record (published reaction).', true); animate(inSide, sideOf(outText ?? ''), 'glow'); return;
+      }
     }
     if (raw.kind === 'mystery' && guess) {
       if (!mysteries.includes(input)) { mysteries = [...mysteries, input]; store.set('mysteries', mysteries); drawCodex(); }

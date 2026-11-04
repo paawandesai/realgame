@@ -35,3 +35,23 @@ test("the title links to the bench, and the build ships the page and the engine"
   const build = readFileSync("crates/bevy-client/build-web.sh", "utf8");
   for (const f of ["bench-free.html", "bench-free.js", "bench-free-lib.js", "three.min.js", "realgame_chem.wasm", "vendor/README.txt"]) assert.match(build, new RegExp(f.replace(".", "\\.")), f);
 });
+
+test("lab records ship with their licence, use only Bench elements, and match the JS Hill order", () => {
+  const lit = JSON.parse(readFileSync("content/chem/literature.json", "utf8")) as { licence: string; attribution: string; reactions: Record<string, [number, string]> };
+  assert.equal(lit.licence, "CC BY-SA 4.0");
+  assert.match(lit.attribution, /Open Reaction Database/);
+  const keys = Object.keys(lit.reactions);
+  assert.ok(keys.length > 5000, `only ${keys.length} lab records`);
+  for (const k of keys) {
+    for (const side of k.split(" -> ")) {
+      for (const f of Object.keys(sideOf(side))) {
+        const atoms = parseFormula(f, isEl);
+        assert.ok(atoms, `${f} in ${k} uses an element the Bench lacks`);
+        assert.equal(hill(atoms), f, `${f} in ${k} is not in Hill order`);
+      }
+    }
+  }
+  const build = readFileSync("crates/bevy-client/build-web.sh", "utf8");
+  assert.match(build, /content\/chem\/literature\.json "\$OUT\/chem-literature\.json"/);
+  assert.match(readFileSync("crates/bevy-client/web/bench-free.js", "utf8"), /CC BY-SA 4\.0/);
+});

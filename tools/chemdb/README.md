@@ -168,3 +168,13 @@ also patent-derived). The remaining 50 datasets are mostly high-throughput exper
   Et3N `C6H15N`, THF `C4H8O`, …). Some ions are also recorded as separate species (`Na+`).
   See `top50_reactant_formulas` in `stats.json`. To match the game's formula keys, consider
   filtering out common solvents and reagents first.
+
+## The Bench's lab records (`content/chem/literature.json`)
+
+`build_literature.py reactions.jsonl.gz content/chem/names.json content/chem/literature.json`
+turns the balanced, neutral records whose species use only the Bench's elements (at most
+20 heavy atoms each) into net equations: reagents listed on both sides cancel, coefficients
+are reduced, and identical equations merge with a count. The keys match
+`realgame_chem::literature::key`, so the Bench page looks a player's equation up directly.
+The file is ORD-derived and therefore CC BY-SA 4.0; the page shows the attribution.
+Current build: 8,338 records, 7,403 net equations (ord-data 3de6417).
