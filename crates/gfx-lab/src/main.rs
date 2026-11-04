@@ -78,7 +78,7 @@ fn features_from_url() -> Features {
             .split('&')
             .find_map(|kv| kv.strip_prefix("f="))
             .unwrap_or("base");
-        return Features(list.split(',').map(|s| s.to_string()).collect());
+        Features(list.split(',').map(|s| s.to_string()).collect())
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
