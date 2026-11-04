@@ -120,6 +120,9 @@ header .btn { text-decoration: none; }
 .eq { font-family: var(--display); color: var(--ink); font-size: 15px; }
 .result.mystery { border-color: var(--brass); }
 .result.info { border-color: #7fa8ff; }
+.result.lab { border-color: #6fd3a8; }
+.result .credit, .tabpane .note a { font-size: 11px; color: var(--dim, #9aa6bf); }
+.result .credit a { color: inherit; }
 .result ul { margin: 0 0 6px; padding-left: 18px; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: var(--bg); }
 .loading[hidden] { display: none; }

@@ -45,6 +45,29 @@ export function judge_json(input, have, band_id) {
 }
 
 /**
+ * Keys for looking `input` up in the lab records index
+ * (`chem-literature.json`): `{"key": "..."}` for a whole equation (null when
+ * nothing is left once shared species cancel), plus `"left"`, the reactant
+ * half. `{"kind":"parse_error"}` if it doesn't parse.
+ * @param {string} input
+ * @returns {string}
+ */
+export function literature_key_json(input) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.literature_key_json(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * Element display data and everyday substance names
  * (`content/chem/names.json`).
  * @returns {string}
