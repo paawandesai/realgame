@@ -124,6 +124,9 @@ The single register of every science claim the first-person 3D client shows the 
 | C-110 | `freeze a path across deep water` | crates/bevy-client/src/powers.rs | simplified | Spells-are-powers: the locked-power hint for Frost. Ice floats on water and can bear weight once thick enough [S10] [S34]; the walkway's thickness (one block) is gameplay tuning. | [S10] [S34] |
 | C-111 | `The logs smoulder under the earth. With little air they char instead of burning away.` | crates/bevy-client/src/late.rs | correct | Step 4 charcoal clamp (Paawan, 2026-11-03). In charcoal burning, part of the wood burns with a limited supply of oxygen to heat the rest, which chars instead of burning to ash [S42]. | [S42] |
 | C-112 | `You got charcoal! Heat drove the water and gases out of the wood. What's left is mostly carbon, C.` | crates/bevy-client/src/late.rs | simplified | Charcoal is the carbon residue left when wood is strongly heated in minimal oxygen, which removes water and volatile constituents [S42]. Simplified: real charcoal keeps some ash and a little hydrogen and oxygen, so "mostly carbon" rather than pure carbon. | [S42] |
+| C-113 | `Chemistry quest: melt some ice with a reaction from the Bench that gives off heat.` | crates/bevy-client/src/discover.rs | correct | I-053 chemistry quest. A reaction that releases heat (exothermic) passes energy to its surroundings [S11]; ice that takes in enough heat melts at 0 °C [S10]. Which reactions release heat comes from content/chem/core.json, which carries its own sources and review status. | [S11] [S10] |
+| C-114 | `Chemistry quest: melt some ice with a hot reaction you found!` | crates/bevy-client/src/discover.rs | correct | I-053, the Sprout wording of C-113. | [S11] [S10] |
+| C-115 | `Chemistry quest done! Your reaction gave off heat and the ice melted.` | crates/bevy-client/src/discover.rs | correct | I-053: shown only when a discovered spell whose codex reaction releases heat (and runs the fire rule) landed within 3 m of ice that then melted. | [S11] [S10] |
 
 ## Parameters
 
@@ -344,6 +347,14 @@ The single register of every science claim the first-person 3D client shows the 
 | `Follow the gold light to the Formula Bench, then press E.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, before Water is learned); it states no science. |
 | `Follow the gold light to the burning workshop. Aim at the flames and click.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, after Water is learned); it states no science. |
 | `Move the mouse to steer the white cursor, then click. Esc closes.` | crates/bevy-client/web/worked.js | B3: Game instruction on the cast panel while the mouse is captured; it states no science. |
+| `No bottle for that spell yet. Find: {}.` | crates/bevy-client/src/discover.rs | I-053: game instruction naming the pack items (coal, charcoal, ...) a discovered spell needs; which item supplies which substance is content/chem/bottles.json. It states no science. |
+| `{} is on key {}. Press {} again to switch spells.` | crates/bevy-client/src/discover.rs | I-053: game instruction (a saved spell was put on its hotbar key); it states no science. |
+| `That reaction is for an older band.` | crates/bevy-client/src/main.rs | I-053: game rule (a saved spell above the player's age band); it states no science. |
+| `Saved! Open your pack in the game (Tab) to use it.` | crates/bevy-client/web/bench-free.js | I-053: game instruction after saving a Bench find as a spell; it states no science. |
+| `methane_burns` | crates/bevy-client/web/discover.js | I-053: a codex id (content/chem/core.json) the page adds to the Bench's finds; machine data, not shown. |
+| `Find a reaction on the` | crates/bevy-client/web/pack.js | I-053: game instruction in the pack (start of a sentence linking the Chemistry Bench); it states no science. |
+| `and save it as a spell. It shows up here.` | crates/bevy-client/web/pack.js | I-053: game instruction in the pack (end of the sentence above); it states no science. |
+| `Bottles: none yet. Dig coal to get one.` | crates/bevy-client/web/pack.js | I-053: game instruction (digging a coal block puts coal in the pack, which supplies carbon to a discovered spell; content/chem/bottles.json); it states no science. |
 
 ## Sources
 

@@ -18,6 +18,9 @@
 
 #![deny(unsafe_code)]
 
+pub mod discover;
+/// Re-exported so the client builds its state JSON with the same crate.
+pub use serde_json;
 pub mod literature;
 pub mod predict;
 #[cfg(feature = "web")]

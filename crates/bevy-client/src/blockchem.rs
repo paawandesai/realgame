@@ -346,7 +346,14 @@ pub(crate) fn drive(
             continue;
         }
         let n = IVec3::new(l.normal[0].into(), l.normal[1].into(), l.normal[2].into());
-        matter.world.emit(on_impact(l.spell, l.pos, n));
+        // I-053: a discovered spell scales its rule's emit by its strength;
+        // a puff (amount 0) changes nothing.
+        if l.amount <= 0.0 {
+            continue;
+        }
+        let mut emit = on_impact(l.spell, l.pos, n);
+        emit.amount = l.amount;
+        matter.world.emit(emit);
     }
     let now = time.elapsed_secs();
     // break-2 B1: the world holds while the game is paused (the formula

@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "about": "Which spell effect each codex reaction (content/chem/core.json) casts as once a Bench discovery is saved as a spell (docs/loop/items/I-053/spec.md). The effect is derived from the reaction's own data by the ordered rules below (the first match wins), never written per reaction, except the listed overrides. kind is the look the renderer styles (fire, water, frost, foam, cloud, glow); runs is the world chemistry rule it reuses (fire, water, frost, foam, or none: a puff with no rule); strength (0 to 1) scales that rule's emit, 1 being the shipped spell; heat is -1 (absorbs), 0 or +1 (releases). tint is an optional sRGB colour of the visible change (flame colour, coloured gas or precipitate) from the tint tables; absent means the renderer's default. Tint data is draft until the science review.",
+  "kinds": ["fire", "water", "frost", "foam", "cloud", "glow"],
+  "runs": {
+    "fire": "fire",
+    "water": "water",
+    "frost": "frost",
+    "foam": "foam",
+    "cloud": "water",
+    "glow": "fire"
+  },
+  "smothers": ["CO2", "N2"],
+  "aqueous_families": ["neutralisation", "displacement", "metal_acid", "carbonate_acid", "precipitation", "halogen"],
+  "kind_rules": [
+    { "when": { "family": ["combustion"] }, "kind": "fire", "why": "a burning: a flame" },
+    { "when": { "family": ["precipitation"] }, "kind": "cloud", "why": "a solid appears in a solution: a cloudy splash" },
+    { "when": { "heat": ["absorbs"] }, "kind": "frost", "why": "it takes heat in" },
+    { "when": { "gas_product": true }, "kind": "foam", "why": "it gives off a gas: a fizz" },
+    { "when": { "heat": ["releases"], "hazard": ["fire"] }, "kind": "fire", "why": "it gives off heat strongly (flames or strong heat)" },
+    { "when": { "heat": ["releases"] }, "kind": "glow", "why": "it gives off heat without a flame" },
+    { "when": {}, "kind": "water", "why": "little heat change and no gas: a liquid splash" }
+  ],
+  "strength_rules": [
+    { "when": { "family": ["combustion"] }, "strength": 1.0, "why": "a burning, like the Fire spell" },
+    { "when": { "heat": ["releases"], "hazard": ["fire"] }, "strength": 0.8, "why": "gives off heat strongly" },
+    { "when": { "heat": ["releases"] }, "strength": 0.5, "why": "gives off heat" },
+    { "when": { "heat": ["absorbs"], "needs_any": false }, "strength": 0.6, "why": "takes heat in by itself, so it feels cold" },
+    { "when": { "heat": ["absorbs"] }, "strength": 0.3, "why": "only takes in the heat, light or electricity it is given" },
+    { "when": {}, "strength": 0.4, "why": "little heat change" }
+  ],
+  "overrides": {
+    "thermite": { "kind": "fire", "strength": 1.0, "why": "thermite burns white hot with sparks, though its hazard badge is lab" }
+  },
+  "tints": {
+    "check": "draft",
+    "flame": {
+      "Li": "#d6213a",
+      "Na": "#ffb21e",
+      "K": "#b58fd8",
+      "Ca": "#ff6b2b",
+      "Sr": "#e8202a",
+      "Ba": "#a8e05a",
+      "Mg": "#f5f7ff"
+    },
+    "substance": {
+      "AgCl": "#f4f4f4",
+      "AgBr": "#f1e6b0",
+      "AgI": "#f2df73",
+      "PbI2": "#ffd21f",
+      "PbCl2": "#f4f4f4",
+      "BaSO4": "#f4f4f4",
+      "CaCO3": "#f4f4f4",
+      "Mg(OH)2": "#f4f4f4",
+      "Zn(OH)2": "#f4f4f4",
+      "Cu(OH)2": "#3d8fe0",
+      "Fe(OH)2": "#5b7f4f",
+      "Fe(OH)3": "#a0522d",
+      "Cl2": "#c8d84a",
+      "NO2": "#a2401c"
+    },
+    "about": "flame: the flame colour of a metal burning, used when a reactant is that bare element and the effect runs fire. substance: the colour of a precipitate or coloured gas among the products, used for every other kind (the first product with a colour).",
+    "sources": [
+      "Flame colours: Wikipedia, 'Flame test' (lithium crimson, sodium yellow-orange, potassium lilac, calcium orange-red, strontium red, barium pale green): https://en.wikipedia.org/wiki/Flame_test ; magnesium burns with a brilliant white light: https://en.wikipedia.org/wiki/Magnesium",
+      "Precipitate and gas colours: the Wikipedia article for each substance (silver chloride white, silver bromide cream, silver iodide pale yellow, lead(II) iodide bright yellow, lead(II) chloride, barium sulfate, calcium carbonate, magnesium hydroxide and zinc hydroxide white, copper(II) hydroxide blue, iron(II) hydroxide green, iron(III) hydroxide red-brown, chlorine yellow-green, nitrogen dioxide red-brown); OpenStax Chemistry 2e, section 4.2: https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions"
+    ]
+  }
+}

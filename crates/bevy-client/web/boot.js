@@ -50,6 +50,7 @@ try { import('./worked.js').then((m) => m.startWorked()).catch(() => {}); } catc
 // the block world).
 try { import('./story.js').then((m) => m.startStory()).catch(() => {}); } catch {}
 try { import('./pack.js').then((m) => m.startPack()).catch(() => {}); } catch {}
+try { import('./discover.js').then((m) => m.startDiscover()).catch(() => {}); } catch {}
 try { import('./music.js').then((m) => m.startMusic()).catch(() => {}); } catch {}
 // I-052 late lane: the cave rig, the balloon crate, the Invention Bench and the ending.
 try { import('./late.js').then((m) => m.startLate()).catch(() => {}); } catch {}

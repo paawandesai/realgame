@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "about": "Chemistry quests (docs/loop/items/I-053/spec.md section 6): side quests that need a discovered reaction with the right effect, not just good aim. A quest completes when a discovered spell whose effect matches `needs` lands and the world reports `event` within `radius_m` of it in the same moment. `live` quests run in the block world now; the others are specified for later.",
+  "quests": [
+    {
+      "id": "melt_with_reaction",
+      "live": true,
+      "title": "Melt ice with a reaction",
+      "needs": { "heat": 1, "runs": "fire" },
+      "event": "melted",
+      "radius_m": 3.0
+    },
+    {
+      "id": "smother_with_co2",
+      "live": false,
+      "title": "Smother a fire with a reaction's gas",
+      "needs": { "runs": "foam" },
+      "event": "extinguished_no_oxygen",
+      "radius_m": 4.0
+    },
+    {
+      "id": "cool_the_vent",
+      "live": false,
+      "title": "Cool a hot steam vent with a reaction that takes in heat",
+      "needs": { "heat": -1 },
+      "event": "cooled",
+      "radius_m": 3.0
+    },
+    {
+      "id": "cloud_in_the_well",
+      "live": false,
+      "title": "Make a cloud in the well with a precipitation reaction",
+      "needs": { "kind": "cloud" },
+      "event": "landed_in_water",
+      "radius_m": 2.0
+    }
+  ]
+}

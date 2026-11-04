@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "about": "Story mode's bottles (docs/loop/items/I-053/spec.md section 5): the codex substance each pack item supplies to a discovered spell. Air supplies its gases free. In the block world a cast of a discovered spell needs a bottle of every reactant and uses up one of each item marked consumed; free play (the Chemistry Bench page) has unlimited bottles.",
+  "air": ["O2", "N2"],
+  "items": [
+    { "item": "coal_ore", "species": "C", "consumed": true, "why": "coal is mostly carbon" },
+    { "item": "charcoal", "species": "C", "consumed": true, "why": "charcoal is mostly carbon" },
+    { "item": "snow", "species": "H2O", "consumed": true, "why": "snow is frozen water" },
+    { "item": "iron", "species": "Fe", "consumed": true, "why": "an iron block" },
+    { "item": "iron_ore", "species": "Fe2O3", "consumed": true, "why": "the valley's iron ore is haematite, Fe2O3" },
+    { "item": "sand", "species": "SiO2", "consumed": true, "why": "sand is mostly silica, SiO2" },
+    { "item": "o2_flask", "species": "O2", "consumed": false, "why": "a flask of oxygen; a cast takes a little" },
+    { "item": "h2_balloon", "species": "H2", "consumed": false, "why": "a balloon of hydrogen; a cast takes a little" }
+  ]
+}
