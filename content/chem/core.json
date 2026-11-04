@@ -1,0 +1,2474 @@
+{
+ "about": "Core tier of the Formula reaction codex (Phase 1). Every entry is balanced and has a source; check is 'reviewed' after the internal science review of 2026-11-04 (a teacher review comes later, for school systems). See docs/chem/README.md.",
+ "families": [
+  "carbonate_acid",
+  "combustion",
+  "decomposition",
+  "displacement",
+  "electrolysis",
+  "gas_prep",
+  "halogen",
+  "industrial",
+  "life",
+  "metal_acid",
+  "neutralisation",
+  "organic",
+  "oxidation",
+  "precipitation",
+  "redox",
+  "synthesis",
+  "thermal",
+  "water_metal"
+ ],
+ "needs": [
+  "heat",
+  "spark",
+  "light",
+  "electricity",
+  "catalyst",
+  "pressure",
+  "water"
+ ],
+ "reactions": [
+  {
+   "id": "methane_burns",
+   "name": "Methane burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "CH4 + 2O2 -> CO2 + 2H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Natural gas joins with oxygen and gives carbon dioxide, water and heat.",
+   "short": "Gas plus air makes fire!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hydrogen_burns",
+   "name": "Hydrogen burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "2H2 + O2 -> 2H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Hydrogen and oxygen join into water and give off a lot of heat.",
+   "short": "Boom! Water!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "water_splits",
+   "name": "Water splits",
+   "family": "electrolysis",
+   "band": "sprout",
+   "equation": "2H2O -> 2H2 + O2",
+   "needs": [
+    "electricity"
+   ],
+   "heat": "absorbs",
+   "say": "Electricity pulls water apart into hydrogen and oxygen gas.",
+   "short": "Zap water, get bubbles!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "carbon_burns",
+   "name": "Charcoal burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "C + O2 -> CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Carbon joins with oxygen to make carbon dioxide and heat.",
+   "short": "Charcoal glows hot!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron_rusts",
+   "name": "Iron rusts",
+   "family": "oxidation",
+   "band": "sprout",
+   "equation": "4Fe + 3O2 -> 2Fe2O3",
+   "needs": [
+    "water"
+   ],
+   "heat": "releases",
+   "say": "Iron slowly joins with oxygen when water is around, making rust (simplified).",
+   "short": "Wet iron turns red!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "baking_soda_vinegar",
+   "name": "Baking soda meets vinegar",
+   "family": "carbonate_acid",
+   "band": "sprout",
+   "equation": "NaHCO3 + CH3COOH -> CH3COONa + H2O + CO2",
+   "needs": [],
+   "heat": "absorbs",
+   "say": "An acid meets a carbonate and releases carbon dioxide bubbles. The mix gets a little colder.",
+   "short": "Fizz! Bubbles!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "photosynthesis",
+   "name": "Photosynthesis",
+   "family": "life",
+   "band": "sprout",
+   "equation": "6CO2 + 6H2O -> C6H12O6 + 6O2",
+   "needs": [
+    "light"
+   ],
+   "heat": "absorbs",
+   "say": "Plants use light to turn carbon dioxide and water into sugar and oxygen (overall equation).",
+   "short": "Plants eat sunlight!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "respiration",
+   "name": "Respiration",
+   "family": "life",
+   "band": "sprout",
+   "equation": "C6H12O6 + 6O2 -> 6CO2 + 6H2O",
+   "needs": [
+    "catalyst"
+   ],
+   "heat": "releases",
+   "say": "Living cells use oxygen to release the energy stored in sugar (overall equation).",
+   "short": "Food plus air makes energy!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "candle_burns",
+   "name": "A candle burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "C25H52 + 38O2 -> 25CO2 + 26H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Wax is a long hydrocarbon. It burns to carbon dioxide and water (one typical wax molecule shown).",
+   "short": "Wax makes a flame!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "peroxide_splits",
+   "name": "Hydrogen peroxide splits",
+   "family": "decomposition",
+   "band": "sprout",
+   "equation": "2H2O2 -> 2H2O + O2",
+   "needs": [
+    "catalyst"
+   ],
+   "heat": "releases",
+   "say": "A catalyst helps hydrogen peroxide break into water and oxygen gas.",
+   "short": "Foam and bubbles!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_burns",
+   "name": "Magnesium burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "2Mg + O2 -> 2MgO",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Magnesium burns with a blinding white light and leaves white magnesium oxide. Never stare at it.",
+   "short": "Super bright light!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "propane_burns",
+   "name": "Propane burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "C3H8 + 5O2 -> 3CO2 + 4H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Barbecue gas burns to carbon dioxide and water.",
+   "short": "Barbecue fire!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ethanol_burns",
+   "name": "Ethanol burns",
+   "family": "combustion",
+   "band": "seedling",
+   "equation": "C2H5OH + 3O2 -> 2CO2 + 3H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Alcohol burns with a pale blue flame, giving carbon dioxide and water.",
+   "short": "Blue alcohol flame.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "fermentation",
+   "name": "Yeast ferments sugar",
+   "family": "life",
+   "band": "sprout",
+   "equation": "C6H12O6 -> 2C2H5OH + 2CO2",
+   "needs": [
+    "catalyst"
+   ],
+   "heat": "releases",
+   "say": "Yeast turns sugar into ethanol and carbon dioxide. This is why bread rises.",
+   "short": "Yeast makes bread rise.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "limewater_test",
+   "name": "Limewater turns milky",
+   "family": "precipitation",
+   "band": "seedling",
+   "equation": "Ca(OH)2 + CO2 -> CaCO3 + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Carbon dioxide makes limewater cloudy with chalk. It is the test for CO2.",
+   "short": "CO2 turns limewater cloudy.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "sodium_water",
+   "name": "Sodium meets water",
+   "family": "water_metal",
+   "band": "seedling",
+   "equation": "2Na + 2H2O -> 2NaOH + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Sodium fizzes across water, making hydrogen and a strong base.",
+   "short": "Sodium zooms on water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "lithium_water",
+   "name": "Lithium meets water",
+   "family": "water_metal",
+   "band": "seedling",
+   "equation": "2Li + 2H2O -> 2LiOH + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Lithium fizzes gently in water, making hydrogen and lithium hydroxide.",
+   "short": "Lithium fizzes slowly.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "potassium_water",
+   "name": "Potassium meets water",
+   "family": "water_metal",
+   "band": "apprentice",
+   "equation": "2K + 2H2O -> 2KOH + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Potassium reacts even faster than sodium; the hydrogen catches fire with a lilac flame.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "calcium_water",
+   "name": "Calcium meets water",
+   "family": "water_metal",
+   "band": "seedling",
+   "equation": "Ca + 2H2O -> Ca(OH)2 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Calcium sinks and bubbles, making hydrogen and cloudy calcium hydroxide.",
+   "short": "Calcium bubbles in water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "barium_water",
+   "name": "Barium meets water",
+   "family": "water_metal",
+   "band": "adept",
+   "equation": "Ba + 2H2O -> Ba(OH)2 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Barium reacts briskly with water, making hydrogen and barium hydroxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "strontium_water",
+   "name": "Strontium meets water",
+   "family": "water_metal",
+   "band": "adept",
+   "equation": "Sr + 2H2O -> Sr(OH)2 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Strontium reacts with water a little faster than calcium.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_steam",
+   "name": "Magnesium meets steam",
+   "family": "water_metal",
+   "band": "apprentice",
+   "equation": "Mg + H2O -> MgO + H2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot magnesium takes oxygen from steam and frees hydrogen.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "salt_from_elements",
+   "name": "Sodium meets chlorine",
+   "family": "synthesis",
+   "band": "seedling",
+   "equation": "2Na + Cl2 -> 2NaCl",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "A soft metal and a poisonous gas join into ordinary table salt.",
+   "short": "Metal plus gas makes salt!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "potassium_chlorine",
+   "name": "Potassium meets chlorine",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "2K + Cl2 -> 2KCl",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Potassium burns in chlorine to make potassium chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_chlorine",
+   "name": "Magnesium meets chlorine",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "Mg + Cl2 -> MgCl2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Magnesium burns in chlorine to make magnesium chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "calcium_chlorine",
+   "name": "Calcium meets chlorine",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "Ca + Cl2 -> CaCl2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Calcium and chlorine join into calcium chloride, used to melt road ice.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "aluminium_chlorine",
+   "name": "Aluminium meets chlorine",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "2Al + 3Cl2 -> 2AlCl3",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Aluminium burns in chlorine to aluminium chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_chlorine",
+   "name": "Copper meets chlorine",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "Cu + Cl2 -> CuCl2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot copper burns in chlorine to make copper(II) chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "sodium_bromine",
+   "name": "Sodium meets bromine",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "2Na + Br2 -> 2NaBr",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Sodium and bromine join into sodium bromide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron_sulfur",
+   "name": "Iron meets sulfur",
+   "family": "synthesis",
+   "band": "seedling",
+   "equation": "Fe + S -> FeS",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Heated iron and sulfur join into iron sulfide, which is no longer magnetic.",
+   "short": "Iron and sulfur join.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_sulfur",
+   "name": "Magnesium meets sulfur",
+   "family": "synthesis",
+   "band": "seedling",
+   "equation": "Mg + S -> MgS",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Magnesium and sulfur react in a flash to make magnesium sulfide.",
+   "short": "A flash makes new powder.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_oxide",
+   "name": "Copper turns black",
+   "family": "oxidation",
+   "band": "seedling",
+   "equation": "2Cu + O2 -> 2CuO",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Heated copper joins with oxygen to make black copper oxide.",
+   "short": "Hot copper turns black.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_oxide",
+   "name": "Zinc burns",
+   "family": "oxidation",
+   "band": "apprentice",
+   "equation": "2Zn + O2 -> 2ZnO",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Zinc burns with a blue-green flame to white zinc oxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "aluminium_oxide",
+   "name": "Aluminium oxidises",
+   "family": "oxidation",
+   "band": "apprentice",
+   "equation": "4Al + 3O2 -> 2Al2O3",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Aluminium powder burns brightly to aluminium oxide. A thin oxide skin also protects cans from corroding.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "lithium_oxygen",
+   "name": "Lithium burns",
+   "family": "oxidation",
+   "band": "apprentice",
+   "equation": "4Li + O2 -> 2Li2O",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Lithium burns with a crimson flame to lithium oxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "sodium_oxygen",
+   "name": "Sodium tarnishes",
+   "family": "oxidation",
+   "band": "seedling",
+   "equation": "4Na + O2 -> 2Na2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Cut sodium goes dull in seconds as it joins with oxygen.",
+   "short": "Shiny sodium goes dull.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "calcium_oxygen",
+   "name": "Calcium burns",
+   "family": "oxidation",
+   "band": "apprentice",
+   "equation": "2Ca + O2 -> 2CaO",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Calcium burns with a brick-red flame to calcium oxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "silicon_oxygen",
+   "name": "Silicon burns",
+   "family": "oxidation",
+   "band": "adept",
+   "equation": "Si + O2 -> SiO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Silicon burns to silica, the stuff of sand and glass.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "sulfur_burns",
+   "name": "Sulfur burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "S + O2 -> SO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Sulfur burns with a blue flame and makes choking sulfur dioxide.",
+   "short": "Sulfur burns blue.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "phosphorus_burns",
+   "name": "Phosphorus burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "P4 + 5O2 -> P4O10",
+   "needs": [],
+   "heat": "releases",
+   "say": "White phosphorus catches fire by itself in warm air, making white phosphorus oxide smoke.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "co_burns",
+   "name": "Carbon monoxide burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "2CO + O2 -> 2CO2",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Carbon monoxide burns with a blue flame to carbon dioxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "carbon_little_air",
+   "name": "Carbon burns with little air",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "2C + O2 -> 2CO",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Without enough oxygen, carbon makes poisonous carbon monoxide instead of CO2.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ethane_burns",
+   "name": "Ethane burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "2C2H6 + 7O2 -> 4CO2 + 6H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Ethane burns to carbon dioxide and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "butane_burns",
+   "name": "Butane burns",
+   "family": "combustion",
+   "band": "sprout",
+   "equation": "2C4H10 + 13O2 -> 8CO2 + 10H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Lighter fuel burns to carbon dioxide and water.",
+   "short": "Lighter gas burns.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "pentane_burns",
+   "name": "Pentane burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "C5H12 + 8O2 -> 5CO2 + 6H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Pentane, a light fuel, burns to carbon dioxide and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hexane_burns",
+   "name": "Hexane burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "2C6H14 + 19O2 -> 12CO2 + 14H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Hexane burns to carbon dioxide and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "octane_burns",
+   "name": "Petrol burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "2C8H18 + 25O2 -> 16CO2 + 18H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Octane, a main part of petrol, burns in car engines.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ethene_burns",
+   "name": "Ethene burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "C2H4 + 3O2 -> 2CO2 + 2H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Ethene burns with a smoky yellow flame.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "acetylene_burns",
+   "name": "Acetylene burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "2C2H2 + 5O2 -> 4CO2 + 2H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Acetylene burns hot enough to cut steel in a welding torch.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "benzene_burns",
+   "name": "Benzene burns",
+   "family": "combustion",
+   "band": "adept",
+   "equation": "2C6H6 + 15O2 -> 12CO2 + 6H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Benzene burns with a very sooty flame.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "methanol_burns",
+   "name": "Methanol burns",
+   "family": "combustion",
+   "band": "apprentice",
+   "equation": "2CH3OH + 3O2 -> 2CO2 + 4H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Methanol burns with an almost invisible flame.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "propanol_burns",
+   "name": "Propanol burns",
+   "family": "combustion",
+   "band": "adept",
+   "equation": "2C3H7OH + 9O2 -> 6CO2 + 8H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Propanol burns to carbon dioxide and water; its cousin isopropanol is rubbing alcohol.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ammonia_burns",
+   "name": "Ammonia burns in oxygen",
+   "family": "combustion",
+   "band": "adept",
+   "equation": "4NH3 + 3O2 -> 2N2 + 6H2O",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Ammonia burns in pure oxygen to nitrogen and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hydrogen_sulfide_burns",
+   "name": "Hydrogen sulfide burns",
+   "family": "combustion",
+   "band": "adept",
+   "equation": "2H2S + 3O2 -> 2SO2 + 2H2O",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Rotten-egg gas burns to sulfur dioxide and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "carbon_disulfide_burns",
+   "name": "Carbon disulfide burns",
+   "family": "combustion",
+   "band": "adept",
+   "equation": "CS2 + 3O2 -> CO2 + 2SO2",
+   "needs": [
+    "spark"
+   ],
+   "heat": "releases",
+   "say": "Carbon disulfide vapour catches fire very easily.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "silane_burns",
+   "name": "Silane catches fire",
+   "family": "combustion",
+   "band": "adept",
+   "equation": "SiH4 + 2O2 -> SiO2 + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Silane bursts into flame by itself in air, leaving silica dust.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "haber",
+   "name": "Haber process",
+   "family": "industrial",
+   "band": "apprentice",
+   "equation": "N2 + 3H2 -> 2NH3",
+   "needs": [
+    "catalyst",
+    "pressure",
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Nitrogen from air and hydrogen join over an iron catalyst to make ammonia for fertiliser.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ammonia_splits",
+   "name": "Ammonia cracks",
+   "family": "decomposition",
+   "band": "adept",
+   "equation": "2NH3 -> N2 + 3H2",
+   "needs": [
+    "heat",
+    "catalyst"
+   ],
+   "heat": "absorbs",
+   "say": "Hot ammonia over a catalyst breaks back into nitrogen and hydrogen.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hcl_synthesis",
+   "name": "Hydrogen meets chlorine",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "H2 + Cl2 -> 2HCl",
+   "needs": [
+    "light"
+   ],
+   "heat": "releases",
+   "say": "Light starts a fast reaction that makes hydrogen chloride gas.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hbr_synthesis",
+   "name": "Hydrogen meets bromine",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "H2 + Br2 -> 2HBr",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot hydrogen and bromine join into hydrogen bromide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hf_synthesis",
+   "name": "Hydrogen meets fluorine",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "H2 + F2 -> 2HF",
+   "needs": [],
+   "heat": "releases",
+   "say": "Fluorine reacts with hydrogen explosively, even in the dark and cold.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "contact_so3",
+   "name": "Contact process",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "2SO2 + O2 -> 2SO3",
+   "needs": [
+    "catalyst",
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Sulfur dioxide joins more oxygen over a vanadium oxide catalyst, a step toward sulfuric acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "so3_water",
+   "name": "Sulfuric acid forms",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "SO3 + H2O -> H2SO4",
+   "needs": [],
+   "heat": "releases",
+   "say": "Sulfur trioxide and water make sulfuric acid (done via oleum in industry).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ostwald_1",
+   "name": "Ostwald process, step 1",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "4NH3 + 5O2 -> 4NO + 6H2O",
+   "needs": [
+    "catalyst",
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Ammonia burns over a platinum catalyst to nitric oxide, the first step to nitric acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "no_oxidises",
+   "name": "Nitric oxide turns brown",
+   "family": "oxidation",
+   "band": "adept",
+   "equation": "2NO + O2 -> 2NO2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Colourless nitric oxide joins air's oxygen to make brown nitrogen dioxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ostwald_3",
+   "name": "Nitric acid forms",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "3NO2 + H2O -> 2HNO3 + NO",
+   "needs": [],
+   "heat": "releases",
+   "say": "Nitrogen dioxide dissolves in water to make nitric acid and nitric oxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "lightning_nitrogen",
+   "name": "Lightning fixes nitrogen",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "N2 + O2 -> 2NO",
+   "needs": [
+    "electricity"
+   ],
+   "heat": "absorbs",
+   "say": "A lightning bolt's heat joins nitrogen and oxygen into nitric oxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "steam_reforming",
+   "name": "Steam reforming",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "CH4 + H2O -> CO + 3H2",
+   "needs": [
+    "catalyst",
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Methane and steam over nickel make hydrogen for industry.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "water_gas_shift",
+   "name": "Water-gas shift",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "CO + H2O -> CO2 + H2",
+   "needs": [
+    "catalyst"
+   ],
+   "heat": "releases",
+   "say": "Carbon monoxide takes oxygen from steam, giving more hydrogen.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "water_gas",
+   "name": "Water gas",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "C + H2O -> CO + H2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Steam over white-hot coke makes a fuel mix of carbon monoxide and hydrogen.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "boudouard",
+   "name": "Boudouard reaction",
+   "family": "redox",
+   "band": "adept",
+   "equation": "CO2 + C -> 2CO",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Hot carbon takes oxygen from carbon dioxide, making carbon monoxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "methanol_synthesis",
+   "name": "Methanol synthesis",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "CO + 2H2 -> CH3OH",
+   "needs": [
+    "catalyst",
+    "pressure",
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Carbon monoxide and hydrogen join over a copper catalyst into methanol.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "urea_synthesis",
+   "name": "Making urea",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "2NH3 + CO2 -> CH4N2O + H2O",
+   "needs": [
+    "pressure",
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Ammonia and carbon dioxide make urea, the most used fertiliser.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "limestone_roast",
+   "name": "Limestone roasts",
+   "family": "thermal",
+   "band": "sprout",
+   "equation": "CaCO3 -> CaO + CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Heat drives carbon dioxide out of limestone, leaving quicklime.",
+   "short": "Hot rock lets out gas.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "slaking_lime",
+   "name": "Quicklime meets water",
+   "family": "synthesis",
+   "band": "sprout",
+   "equation": "CaO + H2O -> Ca(OH)2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Quicklime and water get very hot and make slaked lime.",
+   "short": "Lime and water get hot.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "lime_dries",
+   "name": "Slaked lime dries out",
+   "family": "thermal",
+   "band": "adept",
+   "equation": "Ca(OH)2 -> CaO + H2O",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Strong heat drives water out of calcium hydroxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_carbonate_heat",
+   "name": "Copper carbonate turns black",
+   "family": "thermal",
+   "band": "apprentice",
+   "equation": "CuCO3 -> CuO + CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Green copper carbonate turns into black copper oxide when heated (simplified formula).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_carbonate_heat",
+   "name": "Magnesium carbonate roasts",
+   "family": "thermal",
+   "band": "apprentice",
+   "equation": "MgCO3 -> MgO + CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Heat drives carbon dioxide out of magnesium carbonate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "baking_soda_heat",
+   "name": "Baking soda in the oven",
+   "family": "thermal",
+   "band": "seedling",
+   "equation": "2NaHCO3 -> Na2CO3 + H2O + CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Heat makes baking soda release carbon dioxide, which makes cakes rise.",
+   "short": "Heat makes cakes rise.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "potassium_chlorate_heat",
+   "name": "Potassium chlorate gives oxygen",
+   "family": "thermal",
+   "band": "adept",
+   "equation": "2KClO3 -> 2KCl + 3O2",
+   "needs": [
+    "heat",
+    "catalyst"
+   ],
+   "heat": "releases",
+   "say": "With manganese dioxide as catalyst, heated potassium chlorate releases oxygen.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "mercury_oxide_heat",
+   "name": "Mercury oxide splits",
+   "family": "thermal",
+   "band": "adept",
+   "equation": "2HgO -> 2Hg + O2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Heating red mercury oxide gives mercury and oxygen; Priestley found oxygen this way.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "silver_oxide_heat",
+   "name": "Silver oxide splits",
+   "family": "thermal",
+   "band": "adept",
+   "equation": "2Ag2O -> 4Ag + O2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Silver oxide breaks into shiny silver and oxygen when heated.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_nitrate_heat",
+   "name": "Copper nitrate roasts",
+   "family": "thermal",
+   "band": "adept",
+   "equation": "2Cu(NO3)2 -> 2CuO + 4NO2 + O2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Heated copper nitrate gives black copper oxide and brown nitrogen dioxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ammonium_chloride_heat",
+   "name": "White smoke splits",
+   "family": "thermal",
+   "band": "apprentice",
+   "equation": "NH4Cl -> NH3 + HCl",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Heated ammonium chloride splits into two gases that rejoin higher up.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "lab_ammonia",
+   "name": "Making ammonia in the lab",
+   "family": "gas_prep",
+   "band": "adept",
+   "equation": "Ca(OH)2 + 2NH4Cl -> CaCl2 + 2NH3 + 2H2O",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Warming slaked lime with ammonium chloride drives off ammonia gas.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "salt_electrolysis",
+   "name": "Molten salt splits",
+   "family": "electrolysis",
+   "band": "apprentice",
+   "equation": "2NaCl -> 2Na + Cl2",
+   "needs": [
+    "electricity",
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Electricity splits melted salt into sodium metal and chlorine gas.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "brine_electrolysis",
+   "name": "Brine electrolysis",
+   "family": "electrolysis",
+   "band": "adept",
+   "equation": "2NaCl + 2H2O -> 2NaOH + H2 + Cl2",
+   "needs": [
+    "electricity"
+   ],
+   "heat": "absorbs",
+   "say": "Salt water splits into sodium hydroxide, hydrogen and chlorine, a big industry.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "alumina_electrolysis",
+   "name": "Making aluminium",
+   "family": "electrolysis",
+   "band": "adept",
+   "equation": "2Al2O3 -> 4Al + 3O2",
+   "needs": [
+    "electricity",
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Electricity frees aluminium from its oxide (overall; real cells burn carbon anodes).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_chloride_electrolysis",
+   "name": "Copper chloride splits",
+   "family": "electrolysis",
+   "band": "apprentice",
+   "equation": "CuCl2 -> Cu + Cl2",
+   "needs": [
+    "electricity"
+   ],
+   "heat": "absorbs",
+   "say": "Electricity plates copper on one side and frees chlorine on the other.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hcl_electrolysis",
+   "name": "Hydrochloric acid splits",
+   "family": "electrolysis",
+   "band": "adept",
+   "equation": "2HCl -> H2 + Cl2",
+   "needs": [
+    "electricity"
+   ],
+   "heat": "absorbs",
+   "say": "Electricity splits hydrogen chloride into hydrogen and chlorine.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_hcl_naoh",
+   "name": "Acid meets base",
+   "family": "neutralisation",
+   "band": "seedling",
+   "equation": "NaOH + HCl -> NaCl + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "An acid and a base cancel out into salt and water, and get warm.",
+   "short": "Acid plus base makes salt.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "antacid",
+   "name": "Antacid settles a stomach",
+   "family": "neutralisation",
+   "band": "seedling",
+   "equation": "Mg(OH)2 + 2HCl -> MgCl2 + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Milk of magnesia neutralises stomach acid.",
+   "short": "Medicine calms stomach acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_hcl_koh",
+   "name": "Potassium hydroxide meets acid",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "KOH + HCl -> KCl + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "A base and an acid make potassium chloride and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_hcl_lioh",
+   "name": "Lithium hydroxide meets acid",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "LiOH + HCl -> LiCl + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "A base and an acid make lithium chloride and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_h2so4_naoh",
+   "name": "Sulfuric acid meets base",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "2NaOH + H2SO4 -> Na2SO4 + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Each sulfuric acid needs two sodium hydroxides, one for each of its two hydrogens.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_h2so4_koh",
+   "name": "Potassium sulfate forms",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "2KOH + H2SO4 -> K2SO4 + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Potassium hydroxide neutralises sulfuric acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_hno3_naoh",
+   "name": "Nitric acid meets base",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "NaOH + HNO3 -> NaNO3 + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Nitric acid and sodium hydroxide make sodium nitrate and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_hno3_koh",
+   "name": "Making saltpetre",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "KOH + HNO3 -> KNO3 + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Potassium hydroxide and nitric acid make potassium nitrate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_ammonia_hcl",
+   "name": "Ammonia meets hydrogen chloride",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "NH3 + HCl -> NH4Cl",
+   "needs": [],
+   "heat": "releases",
+   "say": "Two gases meet and make a white smoke of ammonium chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_caoh2_hcl",
+   "name": "Slaked lime meets acid",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "Ca(OH)2 + 2HCl -> CaCl2 + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Lime neutralises acid, which is how farmers fix sour soil.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_vinegar_naoh",
+   "name": "Vinegar meets base",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "CH3COOH + NaOH -> CH3COONa + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Vinegar's acetic acid is neutralised into sodium acetate and water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_ammonia_h2so4",
+   "name": "Making fertiliser salt",
+   "family": "neutralisation",
+   "band": "adept",
+   "equation": "2NH3 + H2SO4 -> (NH4)2SO4",
+   "needs": [],
+   "heat": "releases",
+   "say": "Ammonia and sulfuric acid make ammonium sulfate fertiliser.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_ammonia_hno3",
+   "name": "Making ammonium nitrate",
+   "family": "neutralisation",
+   "band": "adept",
+   "equation": "NH3 + HNO3 -> NH4NO3",
+   "needs": [],
+   "heat": "releases",
+   "say": "Ammonia and nitric acid make ammonium nitrate fertiliser.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "neutralise_baoh2_h2so4",
+   "name": "Barium hydroxide meets sulfuric acid",
+   "family": "precipitation",
+   "band": "adept",
+   "equation": "Ba(OH)2 + H2SO4 -> BaSO4 + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Neutralisation and a white precipitate of barium sulfate at the same time.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "co2_naoh",
+   "name": "Carbon dioxide is soaked up",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "CO2 + 2NaOH -> Na2CO3 + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Sodium hydroxide soaks up carbon dioxide, making sodium carbonate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "cuo_acid",
+   "name": "Black powder turns blue",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "CuO + H2SO4 -> CuSO4 + H2O",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Copper oxide dissolves in warm sulfuric acid into blue copper sulfate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "mgo_acid",
+   "name": "Magnesium oxide meets acid",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "MgO + 2HCl -> MgCl2 + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "A metal oxide is a base, so it neutralises acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_acid",
+   "name": "Zinc dissolves in acid",
+   "family": "metal_acid",
+   "band": "seedling",
+   "equation": "Zn + 2HCl -> ZnCl2 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Zinc fizzes in acid and gives off hydrogen.",
+   "short": "Zinc fizzes in acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_acid",
+   "name": "Magnesium dissolves in acid",
+   "family": "metal_acid",
+   "band": "seedling",
+   "equation": "Mg + 2HCl -> MgCl2 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Magnesium fizzes fast in acid and gives off hydrogen.",
+   "short": "Magnesium fizzes fast.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron_acid",
+   "name": "Iron dissolves in acid",
+   "family": "metal_acid",
+   "band": "apprentice",
+   "equation": "Fe + 2HCl -> FeCl2 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Iron slowly fizzes in hydrochloric acid, making pale green iron(II) chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "aluminium_acid",
+   "name": "Aluminium dissolves in acid",
+   "family": "metal_acid",
+   "band": "apprentice",
+   "equation": "2Al + 6HCl -> 2AlCl3 + 3H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Once its oxide skin is gone, aluminium fizzes in acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "calcium_acid",
+   "name": "Calcium dissolves in acid",
+   "family": "metal_acid",
+   "band": "apprentice",
+   "equation": "Ca + 2HCl -> CaCl2 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Calcium fizzes hard in acid and gives off hydrogen.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_sulfuric",
+   "name": "Zinc meets sulfuric acid",
+   "family": "metal_acid",
+   "band": "apprentice",
+   "equation": "Zn + H2SO4 -> ZnSO4 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "The lab way to make hydrogen gas.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_sulfuric",
+   "name": "Magnesium meets sulfuric acid",
+   "family": "metal_acid",
+   "band": "apprentice",
+   "equation": "Mg + H2SO4 -> MgSO4 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Magnesium fizzes in sulfuric acid and makes magnesium sulfate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron_sulfuric",
+   "name": "Iron meets sulfuric acid",
+   "family": "metal_acid",
+   "band": "apprentice",
+   "equation": "Fe + H2SO4 -> FeSO4 + H2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Iron dissolves in dilute sulfuric acid, giving hydrogen.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_nitric",
+   "name": "Copper meets nitric acid",
+   "family": "redox",
+   "band": "adept",
+   "equation": "3Cu + 8HNO3 -> 3Cu(NO3)2 + 2NO + 4H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Copper won't dissolve in most acids, but nitric acid oxidises it and gives nitric oxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "chalk_acid",
+   "name": "Chalk meets acid",
+   "family": "carbonate_acid",
+   "band": "sprout",
+   "equation": "CaCO3 + 2HCl -> CaCl2 + H2O + CO2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Acid fizzes on chalk or marble and releases carbon dioxide.",
+   "short": "Acid makes chalk fizz.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "washing_soda_acid",
+   "name": "Washing soda meets acid",
+   "family": "carbonate_acid",
+   "band": "seedling",
+   "equation": "Na2CO3 + 2HCl -> 2NaCl + H2O + CO2",
+   "needs": [],
+   "heat": "releases",
+   "say": "A carbonate and an acid give salt, water and carbon dioxide.",
+   "short": "Soda plus acid fizzes.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "baking_soda_hcl",
+   "name": "Baking soda meets acid",
+   "family": "carbonate_acid",
+   "band": "apprentice",
+   "equation": "NaHCO3 + HCl -> NaCl + H2O + CO2",
+   "needs": [],
+   "heat": "absorbs",
+   "say": "Baking soda neutralises acid and releases carbon dioxide; the mix cools.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_carbonate_acid",
+   "name": "Green powder turns blue",
+   "family": "carbonate_acid",
+   "band": "apprentice",
+   "equation": "CuCO3 + H2SO4 -> CuSO4 + H2O + CO2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Copper carbonate fizzes in acid and makes blue copper sulfate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "marble_sulfuric",
+   "name": "Acid rain on marble",
+   "family": "carbonate_acid",
+   "band": "adept",
+   "equation": "CaCO3 + H2SO4 -> CaSO4 + H2O + CO2",
+   "needs": [],
+   "heat": "little",
+   "say": "Sulfuric acid eats marble statues and leaves calcium sulfate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_carbonate_acid",
+   "name": "Magnesium carbonate meets acid",
+   "family": "carbonate_acid",
+   "band": "apprentice",
+   "equation": "MgCO3 + 2HCl -> MgCl2 + H2O + CO2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Gym chalk fizzes in acid and releases carbon dioxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron_copper_sulfate",
+   "name": "Iron nail turns copper",
+   "family": "displacement",
+   "band": "sprout",
+   "equation": "Fe + CuSO4 -> FeSO4 + Cu",
+   "needs": [],
+   "heat": "releases",
+   "say": "Iron pushes copper out of solution; the nail turns copper-coloured.",
+   "short": "Nail turns copper!",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_copper_sulfate",
+   "name": "Zinc meets copper sulfate",
+   "family": "displacement",
+   "band": "seedling",
+   "equation": "Zn + CuSO4 -> ZnSO4 + Cu",
+   "needs": [],
+   "heat": "releases",
+   "say": "Zinc is more reactive than copper, so it takes copper's place.",
+   "short": "Zinc turns copper-coloured.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_copper_sulfate",
+   "name": "Magnesium meets copper sulfate",
+   "family": "displacement",
+   "band": "apprentice",
+   "equation": "Mg + CuSO4 -> MgSO4 + Cu",
+   "needs": [],
+   "heat": "releases",
+   "say": "Magnesium pushes copper out fast and gets hot.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "aluminium_copper_sulfate",
+   "name": "Aluminium meets copper sulfate",
+   "family": "displacement",
+   "band": "adept",
+   "equation": "2Al + 3CuSO4 -> Al2(SO4)3 + 3Cu",
+   "needs": [],
+   "heat": "releases",
+   "say": "Once its oxide skin is broken, aluminium pushes copper out.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_zinc_sulfate",
+   "name": "Magnesium meets zinc sulfate",
+   "family": "displacement",
+   "band": "apprentice",
+   "equation": "Mg + ZnSO4 -> MgSO4 + Zn",
+   "needs": [],
+   "heat": "releases",
+   "say": "Magnesium is above zinc in reactivity, so it takes zinc's place.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_lead_nitrate",
+   "name": "Lead tree",
+   "family": "displacement",
+   "band": "adept",
+   "equation": "Zn + Pb(NO3)2 -> Zn(NO3)2 + Pb",
+   "needs": [],
+   "heat": "releases",
+   "say": "Zinc pushes lead out of solution as grey crystals.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_silver_nitrate",
+   "name": "Silver tree",
+   "family": "displacement",
+   "band": "seedling",
+   "equation": "Cu + 2AgNO3 -> Cu(NO3)2 + 2Ag",
+   "needs": [],
+   "heat": "releases",
+   "say": "Copper wire grows silver crystals and the liquid turns blue.",
+   "short": "Copper grows silver crystals.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_silver_nitrate",
+   "name": "Zinc meets silver nitrate",
+   "family": "displacement",
+   "band": "apprentice",
+   "equation": "Zn + 2AgNO3 -> Zn(NO3)2 + 2Ag",
+   "needs": [],
+   "heat": "releases",
+   "say": "Zinc pushes silver out of solution.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "thermite",
+   "name": "Thermite",
+   "family": "displacement",
+   "band": "apprentice",
+   "equation": "Fe2O3 + 2Al -> Al2O3 + 2Fe",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Aluminium steals oxygen from rust so violently it makes molten iron, far too hot to put out with water.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "blast_furnace",
+   "name": "Blast furnace",
+   "family": "redox",
+   "band": "apprentice",
+   "equation": "Fe2O3 + 3CO -> 2Fe + 3CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Carbon monoxide takes the oxygen out of iron ore, leaving iron.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_oxide_carbon",
+   "name": "Copper from its ore",
+   "family": "redox",
+   "band": "apprentice",
+   "equation": "2CuO + C -> 2Cu + CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot carbon takes oxygen from copper oxide, leaving copper metal.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_oxide_hydrogen",
+   "name": "Hydrogen reduces copper oxide",
+   "family": "redox",
+   "band": "adept",
+   "equation": "CuO + H2 -> Cu + H2O",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot hydrogen turns black copper oxide back into shiny copper.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_oxide_carbon",
+   "name": "Zinc from its ore",
+   "family": "redox",
+   "band": "adept",
+   "equation": "ZnO + C -> Zn + CO",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Very hot carbon frees zinc from zinc oxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_co2",
+   "name": "Magnesium burns in CO2",
+   "family": "redox",
+   "band": "adept",
+   "equation": "2Mg + CO2 -> 2MgO + C",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Burning magnesium is so hungry for oxygen it takes it from carbon dioxide, leaving soot.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "peroxide_iodide",
+   "name": "Peroxide frees iodine",
+   "family": "redox",
+   "band": "adept",
+   "equation": "H2O2 + 2KI + H2SO4 -> I2 + K2SO4 + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Hydrogen peroxide turns iodide into brown iodine in acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "chlorine_bromide",
+   "name": "Chlorine frees bromine",
+   "family": "halogen",
+   "band": "apprentice",
+   "equation": "Cl2 + 2KBr -> 2KCl + Br2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Chlorine is more reactive, so it pushes bromine out; the liquid turns orange.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "chlorine_iodide",
+   "name": "Chlorine frees iodine",
+   "family": "halogen",
+   "band": "apprentice",
+   "equation": "Cl2 + 2KI -> 2KCl + I2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Chlorine pushes iodine out of potassium iodide; the liquid turns brown.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "bromine_iodide",
+   "name": "Bromine frees iodine",
+   "family": "halogen",
+   "band": "apprentice",
+   "equation": "Br2 + 2KI -> 2KBr + I2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Bromine pushes iodine out, because bromine is more reactive.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "bleach_making",
+   "name": "Making bleach",
+   "family": "halogen",
+   "band": "adept",
+   "equation": "Cl2 + 2NaOH -> NaCl + NaClO + H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Chlorine bubbled into cold sodium hydroxide makes household bleach.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron_chlorine",
+   "name": "Iron burns in chlorine",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "2Fe + 3Cl2 -> 2FeCl3",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot iron wool glows in chlorine and makes brown iron(III) chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "aluminium_iodine",
+   "name": "Aluminium meets iodine",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "2Al + 3I2 -> 2AlI3",
+   "needs": [
+    "water"
+   ],
+   "heat": "releases",
+   "say": "A drop of water starts a fierce reaction with purple iodine fumes.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_iodine",
+   "name": "Zinc meets iodine",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "Zn + I2 -> ZnI2",
+   "needs": [
+    "water"
+   ],
+   "heat": "releases",
+   "say": "Zinc and iodine join into zinc iodide when water helps them mix.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_nitrogen",
+   "name": "Magnesium meets nitrogen",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "3Mg + N2 -> Mg3N2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Burning magnesium even joins with nitrogen, making magnesium nitride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "lithium_nitrogen",
+   "name": "Lithium meets nitrogen",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "6Li + N2 -> 2Li3N",
+   "needs": [],
+   "heat": "releases",
+   "say": "Lithium is one of the few metals that joins with nitrogen at room temperature.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_sulfur",
+   "name": "Copper meets sulfur",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "2Cu + S -> Cu2S",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot copper and sulfur join into black copper(I) sulfide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_sulfur",
+   "name": "Zinc meets sulfur",
+   "family": "synthesis",
+   "band": "apprentice",
+   "equation": "Zn + S -> ZnS",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Zinc and sulfur powder react in a flash to make zinc sulfide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "hydrogen_sulfur",
+   "name": "Hydrogen meets sulfur",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "H2 + S -> H2S",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hydrogen over hot sulfur makes smelly hydrogen sulfide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "sodium_hydride",
+   "name": "Sodium meets hydrogen",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "2Na + H2 -> 2NaH",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hot sodium takes up hydrogen to make sodium hydride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "silver_tarnish",
+   "name": "Silver tarnishes",
+   "family": "oxidation",
+   "band": "apprentice",
+   "equation": "4Ag + 2H2S + O2 -> 2Ag2S + 2H2O",
+   "needs": [],
+   "heat": "releases",
+   "say": "Traces of hydrogen sulfide in air turn silver black.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "silver_chloride",
+   "name": "Salt makes a cloud",
+   "family": "precipitation",
+   "band": "sprout",
+   "equation": "AgNO3 + NaCl -> AgCl + NaNO3",
+   "needs": [],
+   "heat": "releases",
+   "say": "Silver nitrate and salt make a white cloud of silver chloride. It is the test for chloride.",
+   "short": "Salt water goes cloudy.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "silver_bromide",
+   "name": "Cream precipitate",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "AgNO3 + KBr -> AgBr + KNO3",
+   "needs": [],
+   "heat": "releases",
+   "say": "Silver nitrate and potassium bromide give pale cream silver bromide, used in old photographs.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "silver_iodide",
+   "name": "Yellow precipitate",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "AgNO3 + KI -> AgI + KNO3",
+   "needs": [],
+   "heat": "releases",
+   "say": "Silver nitrate and potassium iodide give yellow silver iodide, used to seed clouds.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "golden_rain",
+   "name": "Golden rain",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "Pb(NO3)2 + 2KI -> PbI2 + 2KNO3",
+   "needs": [],
+   "heat": null,
+   "say": "Two clear liquids make bright yellow lead iodide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "barium_sulfate",
+   "name": "Test for sulfate",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "BaCl2 + Na2SO4 -> BaSO4 + 2NaCl",
+   "needs": [],
+   "heat": "releases",
+   "say": "Barium chloride makes white barium sulfate with any sulfate.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "copper_hydroxide",
+   "name": "Blue jelly",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "CuSO4 + 2NaOH -> Cu(OH)2 + Na2SO4",
+   "needs": [],
+   "heat": null,
+   "say": "Sodium hydroxide makes a pale blue jelly of copper hydroxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron2_hydroxide",
+   "name": "Green precipitate",
+   "family": "precipitation",
+   "band": "adept",
+   "equation": "FeSO4 + 2NaOH -> Fe(OH)2 + Na2SO4",
+   "needs": [],
+   "heat": null,
+   "say": "Iron(II) ions give a dirty green precipitate with sodium hydroxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "iron3_hydroxide",
+   "name": "Rust-brown precipitate",
+   "family": "precipitation",
+   "band": "adept",
+   "equation": "FeCl3 + 3NaOH -> Fe(OH)3 + 3NaCl",
+   "needs": [],
+   "heat": null,
+   "say": "Iron(III) ions give a rust-brown precipitate with sodium hydroxide.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "calcium_carbonate_ppt",
+   "name": "Making chalk",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "CaCl2 + Na2CO3 -> CaCO3 + 2NaCl",
+   "needs": [],
+   "heat": "absorbs",
+   "say": "Two solutions make solid chalk that settles out; the mix cools very slightly.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "magnesium_hydroxide_ppt",
+   "name": "White precipitate",
+   "family": "precipitation",
+   "band": "adept",
+   "equation": "MgCl2 + 2NaOH -> Mg(OH)2 + 2NaCl",
+   "needs": [],
+   "heat": "little",
+   "say": "Magnesium ions give white magnesium hydroxide with a base.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "lead_chloride",
+   "name": "Lead chloride settles",
+   "family": "precipitation",
+   "band": "adept",
+   "equation": "Pb(NO3)2 + 2NaCl -> PbCl2 + 2NaNO3",
+   "needs": [],
+   "heat": null,
+   "say": "Lead nitrate and salt make white lead chloride.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "zinc_hydroxide",
+   "name": "Zinc hydroxide forms",
+   "family": "precipitation",
+   "band": "adept",
+   "equation": "ZnSO4 + 2NaOH -> Zn(OH)2 + Na2SO4",
+   "needs": [],
+   "heat": null,
+   "say": "Zinc ions give a white precipitate that dissolves again in more base.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "co2_water",
+   "name": "Fizzy water",
+   "family": "synthesis",
+   "band": "seedling",
+   "equation": "CO2 + H2O -> H2CO3",
+   "needs": [],
+   "heat": null,
+   "say": "A little carbon dioxide dissolves and makes weak carbonic acid.",
+   "short": "Bubbles make water fizzy.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "so2_water",
+   "name": "Acid rain starts",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "SO2 + H2O -> H2SO3",
+   "needs": [],
+   "heat": null,
+   "say": "Sulfur dioxide dissolves in rain to make sulfurous acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ammonia_water",
+   "name": "Ammonia in water",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "NH3 + H2O -> NH4OH",
+   "needs": [],
+   "heat": "releases",
+   "say": "Ammonia dissolves in water and makes it basic (written as ammonium hydroxide).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "sodium_oxide_water",
+   "name": "Sodium oxide meets water",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "Na2O + H2O -> 2NaOH",
+   "needs": [],
+   "heat": "releases",
+   "say": "A metal oxide dissolves in water and makes a base.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "p4o10_water",
+   "name": "Phosphoric acid forms",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "P4O10 + 6H2O -> 4H3PO4",
+   "needs": [],
+   "heat": "releases",
+   "say": "Phosphorus oxide grabs water fiercely and makes phosphoric acid.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ethene_hydrogen",
+   "name": "Hydrogenation",
+   "family": "organic",
+   "band": "adept",
+   "equation": "C2H4 + H2 -> C2H6",
+   "needs": [
+    "catalyst"
+   ],
+   "heat": "releases",
+   "say": "A nickel catalyst adds hydrogen across a double bond, as in making margarine.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ethene_bromine",
+   "name": "Bromine water test",
+   "family": "organic",
+   "band": "adept",
+   "equation": "C2H4 + Br2 -> C2H4Br2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Ethene takes up orange bromine, turning it colourless. It is the test for a double bond.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ethene_water",
+   "name": "Ethanol from ethene",
+   "family": "organic",
+   "band": "adept",
+   "equation": "C2H4 + H2O -> C2H5OH",
+   "needs": [
+    "catalyst",
+    "heat",
+    "pressure"
+   ],
+   "heat": "releases",
+   "say": "Steam adds to ethene over an acid catalyst, making ethanol.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "esterification",
+   "name": "Making a fruity ester",
+   "family": "organic",
+   "band": "adept",
+   "equation": "CH3COOH + C2H5OH -> CH3COOC2H5 + H2O",
+   "needs": [
+    "catalyst",
+    "heat"
+   ],
+   "heat": "little",
+   "say": "An acid and an alcohol join into ethyl ethanoate, which smells like pear drops.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "check": "reviewed"
+  },
+  {
+   "id": "methane_chlorine",
+   "name": "Methane meets chlorine",
+   "family": "organic",
+   "band": "adept",
+   "equation": "CH4 + Cl2 -> CH3Cl + HCl",
+   "needs": [
+    "light"
+   ],
+   "heat": "releases",
+   "say": "Light breaks chlorine apart and a chlorine atom takes a hydrogen's place.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ethanol_dehydration",
+   "name": "Ethanol loses water",
+   "family": "organic",
+   "band": "adept",
+   "equation": "C2H5OH -> C2H4 + H2O",
+   "needs": [
+    "catalyst",
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Hot ethanol over an acid catalyst loses water and becomes ethene.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "cracking",
+   "name": "Cracking oil",
+   "family": "organic",
+   "band": "adept",
+   "equation": "C10H22 -> C8H18 + C2H4",
+   "needs": [
+    "catalyst",
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Big oil molecules are cracked into petrol and ethene.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "sucrose_hydrolysis",
+   "name": "Sugar splits in two",
+   "family": "life",
+   "band": "adept",
+   "equation": "C12H22O11 + H2O -> 2C6H12O6",
+   "needs": [
+    "catalyst"
+   ],
+   "heat": "releases",
+   "say": "An enzyme splits table sugar into glucose and fructose (both C6H12O6).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ozone_forms",
+   "name": "Ozone forms",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "3O2 -> 2O3",
+   "needs": [
+    "electricity"
+   ],
+   "heat": "absorbs",
+   "say": "Electric sparks or UV light turn oxygen into ozone, which smells sharp.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "ozone_splits",
+   "name": "Ozone splits",
+   "family": "decomposition",
+   "band": "adept",
+   "equation": "2O3 -> 3O2",
+   "needs": [
+    "light"
+   ],
+   "heat": "releases",
+   "say": "Ozone breaks back into oxygen; high in the sky this soaks up UV light.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "nitrogen_dioxide_dimer",
+   "name": "Brown gas pales",
+   "family": "synthesis",
+   "band": "adept",
+   "equation": "2NO2 -> N2O4",
+   "needs": [],
+   "heat": "releases",
+   "say": "Brown nitrogen dioxide pairs up into colourless dinitrogen tetroxide when cooled.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "glass_making",
+   "name": "Making glass",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "Na2CO3 + SiO2 -> Na2SiO3 + CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "Sand and soda ash melt together, releasing carbon dioxide (soda glass, simplified).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "cement_clinker",
+   "name": "Lime meets sand",
+   "family": "industrial",
+   "band": "adept",
+   "equation": "CaCO3 + SiO2 -> CaSiO3 + CO2",
+   "needs": [
+    "heat"
+   ],
+   "heat": "absorbs",
+   "say": "At furnace heat, limestone and sand make calcium silicate (simplified; cement clinker is richer in calcium).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  },
+  {
+   "id": "nitrogen_triiodide",
+   "name": "Touch powder",
+   "family": "decomposition",
+   "band": "adept",
+   "equation": "2NI3 -> N2 + 3I2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Nitrogen triiodide explodes at a touch into nitrogen and purple iodine. Only trained chemists handle tiny amounts.",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "check": "reviewed"
+  }
+ ]
+}
