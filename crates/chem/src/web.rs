@@ -31,6 +31,13 @@ pub fn codex_json() -> String {
     json!({ "families": c.families, "reactions": c.entries }).to_string()
 }
 
+/// Element display data and everyday substance names
+/// (`content/chem/names.json`).
+#[wasm_bindgen]
+pub fn names_json() -> String {
+    crate::NAMES_JSON.to_string()
+}
+
 /// Judges `input`, which is either a whole equation (`2H2 + O2 -> 2H2O`) or
 /// just what is in the chamber (`2H2 + O2`). `have` is a comma list of
 /// needs; `band_id` is `sprout`, `seedling`, `apprentice` or `adept`.

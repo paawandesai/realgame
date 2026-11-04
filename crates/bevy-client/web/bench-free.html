@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chemistry Bench · Formula</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="bench-free.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Chemistry Bench <small>free play</small></h1>
+    <a class="btn" href="./" id="toGame">Back to the world</a>
+    <div class="band" role="group" aria-label="Age band">
+      <button type="button" data-band="sprout" aria-pressed="false">Sprout</button>
+      <button type="button" data-band="seedling" aria-pressed="false">Seedling</button>
+      <button type="button" data-band="apprentice" aria-pressed="true">Apprentice</button>
+      <button type="button" data-band="adept" aria-pressed="false">Adept</button>
+    </div>
+  </header>
+
+  <aside class="shelf" aria-label="Shelves">
+    <section>
+      <h2>Bottles</h2>
+      <p class="note" id="bottleNote">Tap a bottle to put it on the table.</p>
+      <div class="bottles" id="bottles"></div>
+    </section>
+    <section id="elementBox">
+      <h2>Element shelf</h2>
+      <div class="jars" id="jars"></div>
+      <p class="note">Tap a jar to put an atom on the plate and build your own molecule.</p>
+    </section>
+    <section id="typeBox" hidden>
+      <h2>Type it</h2>
+      <form class="type" id="typeForm">
+        <input id="typeIn" placeholder="H2O, or 2H2 + O2 -> 2H2O" autocomplete="off" aria-label="Formula or equation">
+        <button class="btn" type="submit">Go</button>
+      </form>
+      <p class="note">A formula goes on the table. A whole equation goes straight to the chamber.</p>
+    </section>
+  </aside>
+
+  <main class="stage">
+    <canvas id="scene" aria-label="The bench in 3D: build plate on the left, test chamber on the right. Drag to turn."></canvas>
+    <div class="hint">Drag to turn · scroll to zoom · tap an atom to take it off</div>
+    <div class="loading" id="loading">Setting up the bench…</div>
+    <div class="readout">
+      <div class="formula" id="formula">–<small id="fname">empty plate</small></div>
+      <div class="status" id="status">Put atoms on the plate.</div>
+      <div class="row">
+        <button class="btn" id="toLeft" type="button" disabled>Add to “in”</button>
+        <button class="btn" id="toRight" type="button" disabled>Add to “out”</button>
+        <button class="btn" id="clear" type="button">Clear</button>
+      </div>
+    </div>
+  </main>
+
+  <aside class="table" aria-label="Reaction table">
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="bench" aria-selected="true">Bench</button>
+      <button type="button" role="tab" data-tab="codex" aria-selected="false">Codex <span id="codexCount"></span></button>
+      <button type="button" role="tab" data-tab="notes" aria-selected="false">Notebook</button>
+    </div>
+    <div class="tabpane" data-pane="bench">
+      <section>
+        <h2>Reaction table</h2>
+        <div class="sides">
+          <div class="side" id="leftSide"><span class="lbl">In</span></div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="side" id="rightSide"><span class="lbl">Out</span></div>
+        </div>
+        <p class="note">Leave “out” empty to see what happens. Fill it in to test a guess.</p>
+      </section>
+      <section class="scale" id="scaleBox">
+        <h2>Balance scale</h2>
+        <svg viewBox="0 0 300 120" aria-hidden="true">
+          <polygon points="150,62 136,110 164,110" fill="#6b5434"></polygon>
+          <g id="beam">
+            <line x1="40" y1="60" x2="260" y2="60" stroke="#e8b04a" stroke-width="5" stroke-linecap="round"></line>
+            <line x1="50" y1="60" x2="50" y2="84" stroke="#9aa6bf" stroke-width="1.5"></line>
+            <line x1="250" y1="60" x2="250" y2="84" stroke="#9aa6bf" stroke-width="1.5"></line>
+            <path d="M22 84 h56 a28 10 0 0 1 -56 0z" fill="#34405a"></path>
+            <path d="M222 84 h56 a28 10 0 0 1 -56 0z" fill="#34405a"></path>
+            <text x="50" y="112" text-anchor="middle" fill="#9aa6bf" font-size="12">in</text>
+            <text x="250" y="112" text-anchor="middle" fill="#9aa6bf" font-size="12">out</text>
+          </g>
+          <circle cx="150" cy="60" r="5" fill="#e8b04a"></circle>
+        </svg>
+        <div class="tally" id="tally"></div>
+      </section>
+      <section>
+        <h2>Conditions</h2>
+        <div class="conds" id="conds"></div>
+      </section>
+      <button class="btn primary" id="test" type="button">Run the chamber</button>
+      <div class="row">
+        <button class="btn" id="emptyChamber" type="button">Empty the chamber</button>
+        <button class="btn" id="clearTable" type="button">Clear the table</button>
+      </div>
+      <div class="result" id="result" hidden aria-live="polite"></div>
+    </div>
+    <div class="tabpane" data-pane="codex" hidden>
+      <p class="note" id="codexNote"></p>
+      <div id="codex"></div>
+    </div>
+    <div class="tabpane" data-pane="notes" hidden>
+      <p class="note">Every run, newest first, including the ones that fizzled.</p>
+      <div id="notes"></div>
+    </div>
+  </aside>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script type="module" src="bench-free.js"></script>
+</body>
+</html>

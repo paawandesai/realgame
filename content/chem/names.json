@@ -1,0 +1,393 @@
+{
+ "about": "Everyday names and display data for the Chemistry Bench (content/chem/core.json species). colour = CPK-style display colour; bonds = usual bonds (for metals, usual charge), used only to draw ball-and-stick pictures. gases = substances that are gases at room conditions (for the bubble effect); families = kid-friendly names of reaction families; heat = what the page says for each heat value in core.json.",
+ "elements": {
+  "H": {
+   "name": "Hydrogen",
+   "color": "#f4f4f4",
+   "radius": 0.3,
+   "bonds": 1
+  },
+  "Li": {
+   "name": "Lithium",
+   "color": "#cc80ff",
+   "radius": 0.5,
+   "bonds": 1
+  },
+  "C": {
+   "name": "Carbon",
+   "color": "#333333",
+   "radius": 0.42,
+   "bonds": 4
+  },
+  "N": {
+   "name": "Nitrogen",
+   "color": "#3d6fe0",
+   "radius": 0.4,
+   "bonds": 3
+  },
+  "O": {
+   "name": "Oxygen",
+   "color": "#e0402f",
+   "radius": 0.4,
+   "bonds": 2
+  },
+  "F": {
+   "name": "Fluorine",
+   "color": "#90e050",
+   "radius": 0.38,
+   "bonds": 1
+  },
+  "Na": {
+   "name": "Sodium",
+   "color": "#9b59d0",
+   "radius": 0.52,
+   "bonds": 1
+  },
+  "Mg": {
+   "name": "Magnesium",
+   "color": "#3fbf3f",
+   "radius": 0.5,
+   "bonds": 2
+  },
+  "Al": {
+   "name": "Aluminium",
+   "color": "#bfa6a6",
+   "radius": 0.5,
+   "bonds": 3
+  },
+  "Si": {
+   "name": "Silicon",
+   "color": "#f0c8a0",
+   "radius": 0.48,
+   "bonds": 4
+  },
+  "P": {
+   "name": "Phosphorus",
+   "color": "#ff8000",
+   "radius": 0.46,
+   "bonds": 3
+  },
+  "S": {
+   "name": "Sulfur",
+   "color": "#ffe030",
+   "radius": 0.46,
+   "bonds": 2
+  },
+  "Cl": {
+   "name": "Chlorine",
+   "color": "#2fbf4f",
+   "radius": 0.48,
+   "bonds": 1
+  },
+  "K": {
+   "name": "Potassium",
+   "color": "#8f40d4",
+   "radius": 0.56,
+   "bonds": 1
+  },
+  "Ca": {
+   "name": "Calcium",
+   "color": "#6a8f6a",
+   "radius": 0.54,
+   "bonds": 2
+  },
+  "Fe": {
+   "name": "Iron",
+   "color": "#e06633",
+   "radius": 0.5,
+   "bonds": 3
+  },
+  "Cu": {
+   "name": "Copper",
+   "color": "#c88033",
+   "radius": 0.48,
+   "bonds": 2
+  },
+  "Zn": {
+   "name": "Zinc",
+   "color": "#7d80b0",
+   "radius": 0.48,
+   "bonds": 2
+  },
+  "Br": {
+   "name": "Bromine",
+   "color": "#a62929",
+   "radius": 0.5,
+   "bonds": 1
+  },
+  "Sr": {
+   "name": "Strontium",
+   "color": "#00ff00",
+   "radius": 0.56,
+   "bonds": 2
+  },
+  "Ag": {
+   "name": "Silver",
+   "color": "#c0c0c0",
+   "radius": 0.5,
+   "bonds": 1
+  },
+  "I": {
+   "name": "Iodine",
+   "color": "#940094",
+   "radius": 0.54,
+   "bonds": 1
+  },
+  "Ba": {
+   "name": "Barium",
+   "color": "#00c900",
+   "radius": 0.58,
+   "bonds": 2
+  },
+  "Hg": {
+   "name": "Mercury",
+   "color": "#b8b8d0",
+   "radius": 0.5,
+   "bonds": 2
+  },
+  "Pb": {
+   "name": "Lead",
+   "color": "#575961",
+   "radius": 0.54,
+   "bonds": 2
+  }
+ },
+ "substances": {
+  "H2": "hydrogen",
+  "O2": "oxygen",
+  "N2": "nitrogen",
+  "O3": "ozone",
+  "F2": "fluorine",
+  "Cl2": "chlorine",
+  "Br2": "bromine",
+  "I2": "iodine",
+  "P4": "white phosphorus",
+  "S": "sulfur",
+  "C": "carbon (charcoal)",
+  "Si": "silicon",
+  "Li": "lithium",
+  "Na": "sodium",
+  "K": "potassium",
+  "Mg": "magnesium",
+  "Ca": "calcium",
+  "Sr": "strontium",
+  "Ba": "barium",
+  "Al": "aluminium",
+  "Fe": "iron",
+  "Cu": "copper",
+  "Zn": "zinc",
+  "Ag": "silver",
+  "Hg": "mercury",
+  "Pb": "lead",
+  "H2O": "water",
+  "H2O2": "hydrogen peroxide",
+  "CO2": "carbon dioxide",
+  "CO": "carbon monoxide",
+  "CH4": "methane (natural gas)",
+  "C2H6": "ethane",
+  "C3H8": "propane",
+  "C4H10": "butane",
+  "C5H12": "pentane",
+  "C6H14": "hexane",
+  "C8H18": "octane (petrol)",
+  "C10H22": "decane (oil)",
+  "C25H52": "candle wax",
+  "C2H4": "ethene",
+  "C2H2": "acetylene",
+  "C6H6": "benzene",
+  "CH3OH": "methanol",
+  "C2H5OH": "ethanol (alcohol)",
+  "C3H7OH": "propanol",
+  "C6H12O6": "glucose (sugar)",
+  "C12H22O11": "sucrose (table sugar)",
+  "CH3COOH": "acetic acid (vinegar)",
+  "CH3COONa": "sodium acetate",
+  "CH3COOC2H5": "ethyl ethanoate (fruity ester)",
+  "CH3Cl": "chloromethane",
+  "C2H4Br2": "dibromoethane",
+  "CH4N2O": "urea",
+  "CS2": "carbon disulfide",
+  "SiH4": "silane",
+  "NH3": "ammonia",
+  "NH4Cl": "ammonium chloride",
+  "NH4NO3": "ammonium nitrate",
+  "(NH4)2SO4": "ammonium sulfate",
+  "NH4OH": "ammonia solution",
+  "NO": "nitric oxide",
+  "NO2": "nitrogen dioxide",
+  "N2O4": "dinitrogen tetroxide",
+  "NI3": "nitrogen triiodide",
+  "HCl": "hydrochloric acid",
+  "HBr": "hydrogen bromide",
+  "HF": "hydrogen fluoride",
+  "HNO3": "nitric acid",
+  "H2SO4": "sulfuric acid",
+  "H2SO3": "sulfurous acid",
+  "H2CO3": "carbonic acid",
+  "H3PO4": "phosphoric acid",
+  "H2S": "hydrogen sulfide",
+  "SO2": "sulfur dioxide",
+  "SO3": "sulfur trioxide",
+  "P4O10": "phosphorus oxide",
+  "SiO2": "sand (silica)",
+  "NaOH": "sodium hydroxide",
+  "KOH": "potassium hydroxide",
+  "LiOH": "lithium hydroxide",
+  "Ca(OH)2": "slaked lime (limewater)",
+  "Mg(OH)2": "milk of magnesia",
+  "Ba(OH)2": "barium hydroxide",
+  "Sr(OH)2": "strontium hydroxide",
+  "Cu(OH)2": "copper hydroxide",
+  "Fe(OH)2": "iron(II) hydroxide",
+  "Fe(OH)3": "iron(III) hydroxide",
+  "Zn(OH)2": "zinc hydroxide",
+  "NaCl": "table salt",
+  "KCl": "potassium chloride",
+  "LiCl": "lithium chloride",
+  "MgCl2": "magnesium chloride",
+  "CaCl2": "calcium chloride",
+  "BaCl2": "barium chloride",
+  "AlCl3": "aluminium chloride",
+  "FeCl2": "iron(II) chloride",
+  "FeCl3": "iron(III) chloride",
+  "CuCl2": "copper chloride",
+  "ZnCl2": "zinc chloride",
+  "PbCl2": "lead chloride",
+  "AgCl": "silver chloride",
+  "NaBr": "sodium bromide",
+  "KBr": "potassium bromide",
+  "AgBr": "silver bromide",
+  "KI": "potassium iodide",
+  "AgI": "silver iodide",
+  "PbI2": "lead iodide",
+  "AlI3": "aluminium iodide",
+  "ZnI2": "zinc iodide",
+  "NaH": "sodium hydride",
+  "NaClO": "bleach",
+  "KClO3": "potassium chlorate",
+  "CaCO3": "chalk (limestone)",
+  "MgCO3": "magnesium carbonate",
+  "CuCO3": "copper carbonate",
+  "Na2CO3": "washing soda",
+  "NaHCO3": "baking soda",
+  "CaO": "quicklime",
+  "MgO": "magnesium oxide",
+  "Li2O": "lithium oxide",
+  "Na2O": "sodium oxide",
+  "ZnO": "zinc oxide",
+  "CuO": "copper oxide",
+  "Al2O3": "aluminium oxide",
+  "Fe2O3": "rust (iron oxide)",
+  "HgO": "mercury oxide",
+  "Ag2O": "silver oxide",
+  "CuSO4": "copper sulfate",
+  "FeSO4": "iron sulfate",
+  "ZnSO4": "zinc sulfate",
+  "MgSO4": "magnesium sulfate",
+  "Na2SO4": "sodium sulfate",
+  "K2SO4": "potassium sulfate",
+  "CaSO4": "calcium sulfate",
+  "BaSO4": "barium sulfate",
+  "Al2(SO4)3": "aluminium sulfate",
+  "AgNO3": "silver nitrate",
+  "NaNO3": "sodium nitrate",
+  "KNO3": "saltpetre",
+  "Cu(NO3)2": "copper nitrate",
+  "Zn(NO3)2": "zinc nitrate",
+  "Pb(NO3)2": "lead nitrate",
+  "FeS": "iron sulfide",
+  "MgS": "magnesium sulfide",
+  "ZnS": "zinc sulfide",
+  "Cu2S": "copper sulfide",
+  "Ag2S": "silver tarnish",
+  "Mg3N2": "magnesium nitride",
+  "Li3N": "lithium nitride",
+  "Na2SiO3": "sodium silicate (glass)",
+  "CaSiO3": "calcium silicate"
+ },
+ "gases": [
+  "H2",
+  "O2",
+  "N2",
+  "O3",
+  "F2",
+  "Cl2",
+  "CO2",
+  "CO",
+  "NH3",
+  "SO2",
+  "NO",
+  "NO2",
+  "HCl",
+  "HF",
+  "HBr",
+  "H2S",
+  "CH4",
+  "C2H6",
+  "C3H8",
+  "C4H10",
+  "C2H4",
+  "C2H2",
+  "SiH4",
+  "N2O4"
+ ],
+ "families": {
+  "combustion": "Burning",
+  "synthesis": "Joining up",
+  "decomposition": "Breaking apart",
+  "thermal": "Heat breaks it down",
+  "electrolysis": "Electricity splits it",
+  "neutralisation": "Acids meet bases",
+  "metal_acid": "Metals in acid",
+  "carbonate_acid": "Fizzing carbonates",
+  "precipitation": "Cloudy solids",
+  "displacement": "Metal swaps",
+  "halogen": "Halogens",
+  "oxidation": "Oxygen takes hold",
+  "redox": "Oxygen thieves",
+  "water_metal": "Metals in water",
+  "industrial": "Big industry",
+  "life": "Living things",
+  "organic": "Carbon chemistry",
+  "gas_prep": "Making gases"
+ },
+ "heat": {
+  "releases": "It gives off heat.",
+  "absorbs": "It takes in heat, so it feels cold or needs energy.",
+  "little": "Barely any heat change."
+ },
+ "effects": {
+  "combustion": "flame",
+  "precipitation": "cloud"
+ },
+ "conditions": [
+  [
+   "heat",
+   "Heat"
+  ],
+  [
+   "spark",
+   "Spark"
+  ],
+  [
+   "light",
+   "Light"
+  ],
+  [
+   "electricity",
+   "Electricity"
+  ],
+  [
+   "catalyst",
+   "Catalyst"
+  ],
+  [
+   "pressure",
+   "High pressure"
+  ],
+  [
+   "water",
+   "A little water"
+  ]
+ ]
+}

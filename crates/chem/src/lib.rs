@@ -29,6 +29,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const CORE_JSON: &str = include_str!("../../../content/chem/core.json");
+/// Element display data and everyday names for every codex substance.
+pub const NAMES_JSON: &str = include_str!("../../../content/chem/names.json");
 
 /// A condition the chamber can supply.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -326,6 +328,22 @@ mod tests {
                 assert!(s.split_whitespace().count() <= 8, "{}: short", e.id);
             }
             assert!(e.check == "draft" || e.check == "reviewed", "{}", e.id);
+        }
+    }
+
+    #[test]
+    fn every_codex_substance_and_element_has_a_name() {
+        let c = Codex::load();
+        let names: serde_json::Value = serde_json::from_str(NAMES_JSON).unwrap();
+        for f in &c.known_species {
+            assert!(names["substances"][f].is_string(), "{f}: no everyday name");
+            let atoms = realgame_sim::formula::parse_formula(f).unwrap();
+            for el in atoms.keys() {
+                assert!(
+                    names["elements"][el]["name"].is_string(),
+                    "{el}: no element data"
+                );
+            }
         }
     }
 

@@ -507,6 +507,9 @@ body.intro-open #caption, body.intro-open #hint, body.intro-open #hotbar, body.i
 .title-play:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
 .title-play:not(:disabled):hover { background: #3a4d78; }
 .title-play:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.title-bench { font-size: calc(20px * var(--ui)); font-weight: 700; color: #ffd54a; text-decoration: none; padding: 8px 20px; border-radius: 12px; border: 2px solid rgba(255, 213, 74, 0.6); background: rgba(20, 28, 46, 0.7); }
+.title-bench:hover { background: #2b3a5c; }
+.title-bench:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .title-controls { background: rgba(20, 28, 48, 0.85); border-radius: 14px; padding: 12px 20px 14px; max-width: calc(100vw - 32px); box-sizing: border-box; }
 .title-controls h2 { margin: 0 0 8px; font-size: calc(18px * var(--ui)); color: #ffd54a; }
 .title-controls dl { display: grid; grid-template-columns: auto auto; gap: 6px 16px; margin: 0; text-align: left; font-size: calc(17px * var(--ui)); }
