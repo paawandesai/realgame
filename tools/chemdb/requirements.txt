@@ -1,0 +1,2 @@
+ord-schema==0.9.6   # pulls rdkit, pyarrow, protobuf
+py7zr>=0.22         # only for the USPTO (figshare) .7z archives
