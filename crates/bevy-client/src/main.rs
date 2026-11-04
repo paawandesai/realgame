@@ -629,6 +629,10 @@ struct Viewmodel;
 /// The gauntlet's gem (it swells while a cast charges).
 #[derive(Component)]
 struct GauntletGem;
+/// The Pick in the gauntlet: shown while hotbar slot 5 is selected, swung
+/// while a block is being dug.
+#[derive(Component)]
+struct PickTool;
 /// The gauntlet's flash light (on for a moment when a cast goes).
 #[derive(Component)]
 struct GauntletFlash;
@@ -1161,6 +1165,7 @@ fn setup(
     let gauntlet = meshes.add(models::gauntlet());
     let inlay = meshes.add(models::gauntlet_runes());
     let gem = meshes.add(models::gem());
+    let pick_mesh = meshes.add(models::pick());
     let root = commands
         .spawn((
             Transform::from_translation(Vec3::from(vm_rest))
@@ -1172,6 +1177,11 @@ fn setup(
         .with_children(|c| {
             c.spawn(vm(Transform::IDENTITY, &body, gauntlet));
             c.spawn(vm(Transform::IDENTITY, &rune, inlay));
+            c.spawn((
+                vm(Transform::IDENTITY, &body, pick_mesh),
+                Visibility::Hidden,
+                PickTool,
+            ));
             c.spawn((
                 vm(
                     Transform::from_xyz(0.0, 0.05, -0.11).with_scale(Vec3::splat(0.024)),
@@ -2840,7 +2850,34 @@ fn viewmodel(
     mut root: Query<&mut Transform, (With<Viewmodel>, Without<GauntletGem>)>,
     mut gem: Query<&mut Transform, (With<GauntletGem>, Without<Viewmodel>)>,
     mut flash: Query<&mut PointLight, With<GauntletFlash>>,
+    vkeys: Option<Res<voxel_view::Keys>>,
+    mut pick: Query<&mut Visibility, With<PickTool>>,
 ) {
+    // Slot 5 holds the Pick; digging swings it (the swing's phase follows
+    // the dig's progress, so a block breaks at the end of a stroke).
+    let holding_pick = vkeys.as_ref().is_some_and(|k| k.hot == 5);
+    let dig = vkeys.as_ref().map_or(0.0, |k| {
+        if k.dig_t > 0.0 && k.dig_t < 1.0 {
+            k.dig_t
+        } else {
+            0.0
+        }
+    });
+    for mut v in &mut pick {
+        let want = if holding_pick {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        if *v != want {
+            *v = want;
+        }
+    }
+    let swing = if holding_pick && dig > 0.0 {
+        (dig * std::f32::consts::TAU * 2.0).sin().max(0.0)
+    } else {
+        0.0
+    };
     let spell = Spell::ALL[game.spell.min(Spell::ALL.len() - 1)];
     let col = spell_color(spell);
     let l = col.to_linear();
@@ -2888,7 +2925,7 @@ fn viewmodel(
         let (rest, tilt) = feel::vm_rest(settings.fov_y());
         tr.translation = Vec3::from(rest) + Vec3::new(bx + cx, by + r * 0.015, r * 0.05 + cz);
         tr.rotation = Quat::from_rotation_x(tilt)
-            * Quat::from_rotation_x(r * 0.35 - charge * 0.08)
+            * Quat::from_rotation_x(r * 0.35 - charge * 0.08 - swing * 0.55)
             * Quat::from_rotation_y(0.1);
         game.vm = tr.translation;
     }

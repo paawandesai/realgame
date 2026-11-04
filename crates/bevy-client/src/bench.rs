@@ -146,6 +146,16 @@ pub fn record(st: &mut BenchState, book: &mut Book, spells: &[SpellDef], slot: u
     });
 }
 
+/// The spell (0-3) a correct build just judged counts for, if `n` moved past
+/// `before` with a correct verdict.
+fn practice_index(st: &BenchState, before: u32) -> Option<usize> {
+    let r = st
+        .result
+        .as_ref()
+        .filter(|r| r.n > before && r.verdict.ok)?;
+    usize::from(r.slot).checked_sub(1).filter(|&i| i < 4)
+}
+
 /// Applies one command. `Err` carries the reason it was ignored (warned,
 /// never an error).
 pub fn apply(
@@ -301,15 +311,22 @@ pub fn run(
     mut progress: ResMut<Progress>,
     player: Res<Player>,
     voxel: Option<Res<crate::voxel_view::VoxWorld>>,
+    mut working: Option<ResMut<crate::Working>>,
 ) {
     let spells = crate::spells::book().all();
     for line in std::mem::take(&mut web.bench) {
+        let before = bench.n;
         let ignored = match parse(&line) {
             Some(cmd) => apply(&mut bench, &mut progress.0, spells, cmd),
             None => Err("unknown or malformed command"),
         };
         if let Err(why) = ignored {
             warn!("bench: ignored {line:?}: {why}");
+        }
+        // Paawan's playtest (2026-11-04): every correct build at the Bench
+        // ("Build another") counts toward Practised, like a worked cast.
+        if let (Some(i), Some(w)) = (practice_index(&bench, before), working.as_mut()) {
+            w.cast_log.push((i, true));
         }
     }
     let at = if voxel.is_some() {

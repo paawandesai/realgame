@@ -327,8 +327,13 @@ function check(name, ok, detail = '') {
   r = await castAt(lit[1], 3);
   check('frost puts out fire 2', !r.s.objs[lit[1]].burning, r.s.caption);
 
-  // Pointer free: Esc (or exit pointer lock) shows the pause overlay.
+  // Pointer free: the first Esc (or exit pointer lock) only frees the mouse
+  // (Paawan's playtest, 2026-11-04); a second Esc shows the pause overlay.
   if (locked) {
+    await page.keyboard.press('Escape');
+    await sleep(500);
+    const free = await st();
+    check('first Esc frees the mouse without pausing', !free.locked && !free.paused, `locked=${free.locked} paused=${free.paused}`);
     await page.keyboard.press('Escape');
     await sleep(300);
     let paused = await page.evaluate(() => !document.getElementById('pause').classList.contains('hidden'));
@@ -2143,9 +2148,13 @@ async function castingYouCanSee({ page, st, cmd, until, frames, sleep, idx, lit,
       while (!(q.shown && q.s.paused && !q.s.locked && q.ple) && q.s.frame <= f0 + 10) { await sleep(20); q = await state17(); }
       return { ok: q.shown && q.s.paused && !q.s.locked && q.ple && q.s.frame <= f0 + 10, q };
     };
+    // First Esc frees the mouse only; the second opens the menu (Paawan's
+    // playtest, 2026-11-04).
+    await page.keyboard.press('Escape');
+    await sleep(500);
     await page.keyboard.press('Escape');
     const e = await pausedNow();
-    check('cast: Esc pauses and frees the mouse under automation', lk && e.ok,
+    check('cast: Esc frees the mouse, Esc again pauses, under automation', lk && e.ok,
       `locked before=${lk} pause shown=${e.q.shown} paused=${e.q.s.paused} locked=${e.q.s.locked} lockElement null=${e.q.ple}`);
     // Back in through #resume, then P.
     const lk2 = await relock();

@@ -287,6 +287,8 @@ canvas.hover-fire { cursor: pointer; }
 #bench .bench-done { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 #bench .bench-done-icon { width: 160px; height: 160px; animation: benchpop 300ms ease-out 1; }
 #bench .bench-done-line { font-size: calc(26px * var(--ui)); font-weight: 700; }
+#bench .bench-done-count { font-size: calc(20px * var(--ui)); font-weight: 600; color: var(--on); min-height: 1.3em; }
+#bench .bench-list-note { font-size: calc(17px * var(--ui)); opacity: 0.85; margin: 10px 0 0; }
 @keyframes benchpop { from { scale: 0.6; } to { scale: 1; } }
 @media (prefers-reduced-motion: reduce) {
   #bench .bench-done-icon { animation: none; }
@@ -536,7 +538,8 @@ button:not(:disabled):hover { filter: brightness(1.12); }
 #worked .worked-tip[hidden] { display: none; }
 /* B3: the Pick's slot (key 5) in the block world. */
 .slot.pick-slot { min-width: 120px; cursor: pointer; }
-.slot.bound-slot { min-width: 72px; cursor: pointer; }
+.slot.bound-slot { min-width: 96px; padding-top: calc(24px * var(--ui)); cursor: pointer; }
+.slot.bound-slot .stage { display: none; }
 .slot.bound-slot[hidden] { display: none; }
 .icon.pick { background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M9 27 L22 11' stroke='%2321140c' stroke-width='5.2' stroke-linecap='round'/><path d='M9 27 L22 11' stroke='%23b07a4f' stroke-width='3.2' stroke-linecap='round'/><path d='M5 10 Q16 1 28 9 Q26 11.5 24 11 Q16 6 7 12.5 Q5 12.5 5 10 Z' fill='%23dfe4ea' stroke='%2321140c' stroke-width='1.6' stroke-linejoin='round'/><circle cx='21.5' cy='9.6' r='1.6' fill='%237b8796'/></svg>") center / contain no-repeat; border-radius: 0; }
 @media (max-width: 700px) { .slot.pick-slot { width: 18%; min-width: 0; } }
@@ -561,3 +564,7 @@ body:has(#bench-chip:not([hidden])) #hint, body:has(.late-chip:not([hidden])) #h
 .late-moment.go { animation: late-moment-in 4.5s ease-out forwards; }
 @keyframes late-moment-in { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 8% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); } 14% { transform: translate(-50%, -50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .late-moment.go { animation: none; } }
+/* Paawan's playtest (2026-11-04): dig progress under the crosshair. */
+#digbar { position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%); width: 90px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.5); overflow: hidden; pointer-events: none; }
+#digbar[hidden] { display: none; }
+#digbar span { display: block; height: 100%; width: calc(var(--dig, 0) * 100%); background: var(--on); }

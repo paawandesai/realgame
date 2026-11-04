@@ -410,6 +410,10 @@ test("12: hotbar stage badges and the Practised toast", () => {
   const toast = t.doc.getElementById("worked-toast");
   assert.ok(toast && !toast.hidden && toast.textContent.includes("Practised"), "toast shows Practised");
   assert.ok(toast.textContent.includes("Water"));
+  // Paawan's playtest (2026-11-04): the count toward Practised shows.
+  t.w.update(ws(null, { stages: ["learning", "learning", "practised", "mastered"], casts: [0, 2, 3, 0], need: 3 }));
+  assert.deepEqual(read().map((s) => s[0]?.textContent), ["◔ 0/3", "◔ 2/3", "◑", "★"]);
+  assert.ok((read()[1]?.[0]?.getAttribute("aria-label") ?? "").includes("2 of 3"));
 });
 
 // Arbiter r2 (W18): a press on Make, and Enter in the Apprentice box, send

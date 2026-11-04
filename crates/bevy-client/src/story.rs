@@ -382,19 +382,26 @@ pub fn crossing_progress(story: &mut Story, pos: Vec3, gate_ice: u32) {
 }
 
 /// Step 5 (P3): every vent in the methane hollow is out at once
-/// (`vents_lit`, from `blockchem`) while the player is in the hollow (its
-/// stamp box, along the ground): the burning gas no longer blocks the way.
+/// (`vents_lit`, from `blockchem`) while the player is at the hollow: in its
+/// stamp box or within `HOLLOW_NEAR` of it, so smothering it from the rim
+/// counts (Paawan's playtest, 2026-11-04: walking in should not be needed).
 pub fn hollow_progress(story: &mut Story, pos: Vec3, vents_lit: u32) {
     let h = realgame_voxel::stamp::HOLLOW;
-    let inside = pos.x >= h.min[0] as f32
-        && pos.x < h.max[0] as f32
-        && pos.z >= h.min[2] as f32
-        && pos.z < h.max[2] as f32
-        && pos.y < (h.max[1] + 2) as f32;
-    if vents_lit == 0 && inside {
+    let dx = (h.min[0] as f32 - pos.x)
+        .max(pos.x - h.max[0] as f32)
+        .max(0.0);
+    let dz = (h.min[2] as f32 - pos.z)
+        .max(pos.z - h.max[2] as f32)
+        .max(0.0);
+    let near = dx.hypot(dz) <= HOLLOW_NEAR && pos.y < (h.max[1] + 8) as f32;
+    if vents_lit == 0 && near {
         story.quest.on(QuestEvent::CrossedHollow);
     }
 }
+
+/// How far from the hollow's box (horizontally, in metres) a player who
+/// smothered it still completes step 5.
+pub const HOLLOW_NEAR: f32 = 12.0;
 
 /// The intro's slow camera pan over the valley while the cards show.
 fn intro_camera(time: Res<Time>, story: Res<Story>, mut player: ResMut<Player>) {
@@ -746,7 +753,7 @@ mod tests {
     }
 
     /// Round 2 (P3): step 5 completes when no vent in the hollow burns and
-    /// the player is in the hollow (on its boardwalk or floor).
+    /// the player is at the hollow (in it, or on its rim: Paawan's playtest).
     #[test]
     fn the_hollow_step_completes_when_every_vent_is_out_and_the_player_is_in_it() {
         let mut s = Story {
@@ -763,6 +770,14 @@ mod tests {
         );
         hollow_progress(&mut s, Vec3::new(191.5, 29.0, 100.5), 0);
         assert_eq!(s.quest.step(), 6, "smothered and crossed");
+        let mut rim = Story {
+            quest: Quest::at(5),
+            ..Story::default()
+        };
+        hollow_progress(&mut rim, Vec3::new(180.0, 31.0, 100.5), 2);
+        assert_eq!(rim.quest.step(), 5, "on the rim, two vents still burn");
+        hollow_progress(&mut rim, Vec3::new(180.0, 31.0, 100.5), 0);
+        assert_eq!(rim.quest.step(), 6, "smothered from the rim, 6 m out");
     }
 
     #[test]

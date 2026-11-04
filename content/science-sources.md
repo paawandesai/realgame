@@ -172,6 +172,11 @@ The single register of every science claim the first-person 3D client shows the 
 
 | text | where | reason |
 |---|---|---|
+| `Click to look around. Esc frees the mouse; Esc again shows the menu.` | crates/bevy-client/web/hud.js, crates/bevy-client/web/index.html | Playtest 2026-11-04: game instruction (the two-step Esc); it states no science. |
+| `Mouse free. Click the game to look around again, or press Esc for the menu.` | crates/bevy-client/web/hud.js | Playtest 2026-11-04: game instruction after the first Esc; it states no science. |
+| `Fire is a starting spell at your age band: you can cast it already. You build its equation from the Seedling band up.` | crates/bevy-client/web/bench.js | Playtest 2026-11-04: explains the age-band rule (Fire is learnable from Seedling, `tier_min` in content/spells.json); a game rule, not a physical claim. |
+| `${name}: Practised! It casts instantly now.` | crates/bevy-client/web/bench.js | Playtest 2026-11-04: game progress (3 correct builds make a spell Practised); it states no science. |
+| `${name}: ${n} of ${need} builds to Practised. ${need - n} more and it casts instantly.` | crates/bevy-client/web/bench.js | Playtest 2026-11-04: game progress count; it states no science. |
 | `That can't be placed. Use it at the Invention Bench.` | crates/bevy-client/src/voxel_view.rs | Game instruction (a pack key bound to an item that is not a block); it states no science. |
 | `Something glows up there. Learn Water at the Formula Bench (B) to rise up to it.` | crates/bevy-client/src/powers.rs | Game instruction (the Plaza Tower before Water is learned); it states no science. |
 | `New power: H2 lift! Press 2 for Water, then F by the glowing tower.` | crates/bevy-client/src/powers.rs | Game instruction (the guided first lift); the science of the lift is C-106. |

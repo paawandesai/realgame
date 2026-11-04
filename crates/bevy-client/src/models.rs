@@ -717,3 +717,48 @@ pub fn kiln_door_runes() -> Mesh {
     );
     b.mesh()
 }
+
+/// The Pick held in the gauntlet (Paawan's playtest, 2026-11-04: with only
+/// the gauntlet the Pick looked like the casting hand). Root-local space of
+/// the viewmodel: the fist is near `(0, 0, -0.12)`; the ash handle rises
+/// from it and leans forward, the iron head crosses its top front to back.
+pub fn pick() -> Mesh {
+    let mut b = Builder::default();
+    let wood = hex(0x9A6A3C);
+    let grip = hex(0x4A3020);
+    let iron = hex(0x6E7378);
+    let edge = hex(0xB9C0C6);
+    let up = Quat::from_rotation_x(-0.35);
+    let base = Vec3::new(0.0, -0.06, -0.12);
+    let axis = up * Vec3::Y;
+    b.column(base, up, 0.018, 0.016, 0.42, 8, 0.004, wood);
+    // A leather grip where the hand holds it.
+    b.column(base + axis * 0.02, up, 0.021, 0.021, 0.1, 8, 0.004, grip);
+    // The head: a thick iron eye, then a long point forward and a short
+    // flat blade back, both narrowing.
+    let top = base + axis * 0.4;
+    let fwd = up * Vec3::NEG_Z;
+    b.rounded_box(top, up, Vec3::new(0.026, 0.03, 0.036), 0.008, iron);
+    let along = |d: Vec3| Quat::from_rotation_arc(Vec3::Y, d.normalize());
+    b.column(
+        top + fwd * 0.03,
+        along(fwd),
+        0.022,
+        0.004,
+        0.17,
+        8,
+        0.002,
+        edge,
+    );
+    b.column(
+        top - fwd * 0.03,
+        along(-fwd),
+        0.02,
+        0.012,
+        0.1,
+        6,
+        0.003,
+        iron,
+    );
+    b.mesh()
+}

@@ -609,6 +609,9 @@ pub fn near(feet: Vec3) -> Option<&'static str> {
     }
 }
 
+/// Seconds the cave stays dark after the rock overhead ends.
+pub const DARK_HOLD_S: f32 = 1.2;
+
 /// Rock overhead in the Crystal Cave: a solid block within 12 above the
 /// eye, only in the cave's area (Paawan's walkthrough: trees, eaves and the
 /// Kiln dome used to dim the world anywhere, so light came and went).
@@ -1592,7 +1595,7 @@ fn step(
     player: Res<Player>,
     world: Option<Res<VoxWorld>>,
     bench: Option<Res<BenchState>>,
-    mut scan: Local<(f32, bool)>,
+    mut scan: Local<(f32, bool, f32)>,
     powers: Option<Res<crate::powers::Powers>>,
 ) {
     let dt = time.delta_secs().min(0.1);
@@ -1604,7 +1607,15 @@ fn step(
     };
     late.near = near(player.pos);
     if let Some(w) = world.as_ref() {
-        late.dark = covered(&w.0, player.eye());
+        // Dark under the cave's rock, and it stays dark for a moment after
+        // a gap in the ceiling (Paawan's playtest: the light flickered when
+        // walking under holes and along the cave mouth).
+        if covered(&w.0, player.eye()) {
+            scan.2 = DARK_HOLD_S;
+        } else {
+            scan.2 = (scan.2 - dt).max(0.0);
+        }
+        late.dark = scan.2 > 0.0;
         // A placed torch nearby counts as light too (scanned twice a second).
         scan.0 -= dt;
         if scan.0 <= 0.0 {
@@ -1636,9 +1647,10 @@ fn light(
     let target = if late.dark { 1.0 } else { 0.0 };
     cave.0 += (target - cave.0) * (dt * 1.5).min(1.0);
     let has = late.light && late.dark;
-    // A torch flickers a little.
+    // A torch wavers a little, slowly (Paawan's playtest, 2026-11-04: the
+    // old 9 and 24 Hz flicker read as the cave flickering).
     let t = time.elapsed_secs();
-    let flicker = 0.9 + 0.06 * (t * 9.1).sin() + 0.04 * (t * 23.7).sin();
+    let flicker = 0.96 + 0.025 * (t * 2.3).sin() + 0.015 * (t * 3.7).sin();
     for (mut l, mut t) in &mut held {
         // Warm and strong near the player (art bible: the torch is the
         // cave's warm light; the crystals are the only other).
@@ -1650,22 +1662,33 @@ fn light(
         let ahead = Vec3::new(f.x, 0.0, f.z).normalize_or_zero();
         t.translation = player.eye() + ahead * 0.8 - Vec3::Y * 0.2;
     }
+    // The nearest placed torch is found twice a second; its light is set
+    // every frame (setting it only on the scan stepped the brightness twice
+    // a second, a visible flicker).
     *scan -= dt;
-    if *scan <= 0.0 {
+    let rescan = *scan <= 0.0;
+    if rescan {
         *scan = 0.5;
-        let at = world
+    }
+    let at = rescan.then(|| {
+        world
             .as_ref()
             .filter(|_| late.dark)
-            .and_then(|w| torch_near(&w.0, player.pos, 12));
-        for (mut l, mut t) in &mut placed {
+            .and_then(|w| torch_near(&w.0, player.pos, 12))
+    });
+    for (mut l, mut t) in &mut placed {
+        if let Some(at) = at {
             match at {
                 Some(p) => {
-                    l.intensity = 150_000.0 * flicker;
                     t.translation =
                         Vec3::new(p[0] as f32 + 0.5, p[1] as f32 + 1.4, p[2] as f32 + 0.5);
+                    l.intensity = 1.0;
                 }
                 None => l.intensity = 0.0,
             }
+        }
+        if l.intensity > 0.0 {
+            l.intensity = 150_000.0 * flicker;
         }
     }
 }
