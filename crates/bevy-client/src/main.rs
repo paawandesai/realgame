@@ -2312,7 +2312,7 @@ fn work_cmd(
                 return;
             };
             let text = a.get(3..).unwrap_or_default().join(" ");
-            let v = simbench::judge(spells, def.slot, band, &text);
+            let v = spells::book().judge(spells, def.slot, band, &text);
             match game.work.submit(id, v.ok) {
                 worked::Submit::Cast { spell, earns } => {
                     wk.prog.0.worked_cast(spell, earns);

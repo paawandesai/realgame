@@ -18,6 +18,10 @@ pub struct ClientSpells {
     pub reactions: ReactionBook,
     /// `spells.spells[i]` is the definition of `Spell::ALL[i]` (checked at init).
     spells: SpellBook,
+    /// The shared chemistry codex (`content/chem/core.json`): the bench's
+    /// judge asks it about reaction spells, so the world and the free-play
+    /// Bench agree (I-052 lane one-engine).
+    pub codex: realgame_chem::Codex,
 }
 
 impl ClientSpells {
@@ -55,7 +59,31 @@ impl ClientSpells {
                 Spell::ALL[i].effect_id()
             );
         }
-        ClientSpells { reactions, spells }
+        let codex = realgame_chem::Codex::load();
+        for def in &spells.spells {
+            assert!(
+                !def.formula.is_reaction() || realgame_sim::bench::codex_id(&codex, def).is_some(),
+                "spell {}: formula has no entry in content/chem/core.json",
+                def.id
+            );
+        }
+        ClientSpells {
+            reactions,
+            spells,
+            codex,
+        }
+    }
+
+    /// The bench's judge (`realgame_sim::bench::judge_with`) with the shared
+    /// codex. The only judge the client calls.
+    pub fn judge(
+        &self,
+        spells: &[SpellDef],
+        slot: u8,
+        band: realgame_sim::tier::Tier,
+        text: &str,
+    ) -> realgame_sim::bench::Verdict {
+        realgame_sim::bench::judge_with(&self.codex, spells, slot, band, text)
     }
 
     /// The definition of `s` (its index in `Spell::ALL`).

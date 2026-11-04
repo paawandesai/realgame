@@ -296,6 +296,23 @@ impl Codex {
     }
 }
 
+/// The in-world Formula Bench (`realgame_sim::bench::judge_with`) asks this
+/// codex whether a reaction spell's build is the real reaction, so the world
+/// and the free-play Bench give the same answer. Every condition is supplied:
+/// casting the spell is the spark or the heat, and the codex holds one entry
+/// per equation, so conditions never change which reaction an equation is.
+impl realgame_sim::bench::ReactionCodex for Codex {
+    fn call(&self, eq: &Equation, band: Tier) -> realgame_sim::bench::CodexCall {
+        use realgame_sim::bench::CodexCall;
+        match self.judge(eq, &Need::ALL, band) {
+            Outcome::Known { id } | Outcome::NeedsCondition { id, .. } => CodexCall::Known(id),
+            Outcome::Locked { id, .. } => CodexCall::Locked(id),
+            Outcome::Unbalanced { .. } => CodexCall::Unbalanced,
+            Outcome::Mystery { .. } | Outcome::NoReaction { .. } => CodexCall::Other,
+        }
+    }
+}
+
 /// Atom totals of one side, for the page's balance scale.
 pub fn atoms_of(terms: &[Term]) -> BTreeMap<String, u32> {
     side_atoms(terms)
