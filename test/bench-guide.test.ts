@@ -40,6 +40,7 @@ const names = JSON.parse(readFileSync("content/chem/names.json", "utf8")) as {
   elements: Record<string, unknown>;
   substances: Record<string, string>;
   conditions: [string, string][];
+  conditions_young: Record<string, string>;
 };
 const guide = JSON.parse(readFileSync("content/chem/guide.json", "utf8")) as Guide;
 
@@ -48,8 +49,10 @@ const rank = (b: string) => BANDS.indexOf(b);
 const byId = new Map(core.reactions.map((r) => [r.id, r]));
 const CONDS = new Set(names.conditions.map((c) => c[0]));
 const isEl = (e: string) => e in names.elements;
-/** The bench caps each side's count of one formula at 12 (bench-free.js putOn). */
-const SIDE_CAP = 12;
+/** The bench caps each side's count of one formula at 40 (bench-free.js putOn). */
+const SIDE_CAP = 40;
+/** Conditions the page hides at Sprout (bench-free.js SPROUT_HIDES). */
+const SPROUT_HIDES = new Set(["electricity", "pressure"]);
 /** The atom plate holds 16 atoms (bench-free.js addAtom). */
 const PLATE_CAP = 16;
 
@@ -66,6 +69,8 @@ function reduced(l: Side, r: Side): [Side, Side] {
 }
 const halves = (eq: string) => eq.split(" -> ").map((s) => sideOf(s)) as [Side, Side];
 const KEYS = core.reactions.map((r) => reduced(...halves(r.equation)).map(key) as [string, string]);
+/** A stored key's reactant side reduced on its own (Codex::run compares reactant ratios). */
+const RUN_KEYS = core.reactions.map((r) => key(reduced(halves(r.equation)[0], {})[0]));
 const met = (need: string, have: Set<string>) => have.has(need) || (need === "spark" && have.has("heat"));
 
 type Outcome = { kind: "known" | "needs_condition" | "locked" | "none" | "unbalanced"; id?: string };
@@ -77,8 +82,8 @@ function known(i: number, have: Set<string>, band: string): Outcome {
 /** Codex::run: only reactants in the chamber. */
 function run(left: Side, have: Set<string>, band: string): Outcome {
   const [l] = reduced(left, {});
-  const matches = KEYS.map((k, i) => [k, i] as const)
-    .filter(([k]) => k[0] === key(l))
+  const matches = RUN_KEYS.map((k, i) => [k, i] as const)
+    .filter(([k]) => k === key(l))
     .map(([, i]) => i);
   const score = (i: number) => {
     const r = core.reactions[i]!;
@@ -122,6 +127,7 @@ const shelf = (band: string) => new Set(visible(band).flatMap((r) => Object.keys
 const tapsOf = (list: string[]) => list.reduce<Side>((s, f) => ((s[f] = (s[f] ?? 0) + 1), s), {});
 /** Whether a player at `band` can discover `r`: by bottle taps with every need on, or (Apprentice+) by typing the equation. */
 function reachable(band: string, r: Reaction): boolean {
+  if (band === "sprout" && r.needs.some((n) => SPROUT_HIDES.has(n))) return false;
   const have = new Set(r.needs);
   const [l] = halves(r.equation);
   const bottles = Object.values(l).every((n) => n <= SIDE_CAP) && run(l, have, band).id === r.id && run(l, have, band).kind === "known";
@@ -200,6 +206,7 @@ for (const band of BANDS) {
         left[v] = (left[v] ?? 0) + 1;
       } else if (k === "condition") {
         assert.ok(typeof v === "string" && CONDS.has(v), `${where}: no condition ${String(v)}`);
+        assert.ok(!(band === "sprout" && SPROUT_HIDES.has(v)), `${where}: ${v} is hidden at Sprout`);
         if (have.has(v)) have.delete(v);
         else have.add(v);
       } else if (k === "run") {
@@ -244,6 +251,7 @@ for (const band of BANDS) {
       const r = reaction(where, t.expect, band);
       assert.ok(l.reactions.includes(t.expect), `${where}: expect ${t.expect} missing from reactions`);
       for (const c of t.conditions) assert.ok(CONDS.has(c), `${where}: no condition ${c}`);
+      for (const c of t.conditions) assert.ok(!(band === "sprout" && SPROUT_HIDES.has(c)), `${where}: ${c} is hidden at Sprout`);
       for (const n of r.needs) assert.ok(t.conditions.includes(n), `${where}: ${t.expect} needs ${n}`);
       for (const f of t.reactants) assert.ok(bottles.has(f), `${where}: ${f} is not on the ${band} shelf`);
       const left = tapsOf(t.reactants);
@@ -310,7 +318,28 @@ test("sprout text has no formulas (it is read aloud to pre-readers)", () => {
     ...core.reactions.filter((r) => r.band === "sprout").map((r) => guide.where_you_see_it[r.id] ?? ""),
   ];
   for (const t of texts) assert.equal(hasFormula(t), null);
+  // Sprout has no element shelf, no atom plate, no "out" side and no type box.
+  for (const t of texts) assert.doesNotMatch(t, /\bplate\b|\belement shelf\b|["“]out["”]|\bout side\b|\btype\b|\bscale\b/i, `Sprout has no such control: ${t}`);
   for (const t of texts) assert.ok(t.length <= 120, `too long for Sprout: ${t}`);
+});
+
+test("sprout and seedling text names conditions by their young labels", () => {
+  // The standard labels the young bands replace (Catalyst, Spark), not the ones they keep.
+  const young = Object.values(names.conditions_young);
+  const swapped = Object.keys(names.conditions_young)
+    .map((k) => names.conditions.find((c) => c[0] === k)?.[1] ?? k)
+    .filter((label) => !young.includes(label));
+  assert.ok(swapped.includes("Catalyst") && swapped.includes("Spark"), swapped.join(", "));
+  for (const band of ["sprout", "seedling"]) {
+    const g = guide.bands[band]!;
+    const texts = [...g.walkthrough.map((s) => s.say), ...g.lessons.flatMap((l) => [l.title, l.idea]), ...Object.values(g.hints).flat(), ...g.challenges.map((c) => c.title)];
+    for (const t of texts) for (const label of swapped) assert.ok(!new RegExp(`\\b${label}\\b`).test(t), `${band} names ${label}, not its young label: ${t}`);
+  }
+});
+
+test("the build ships the guide for the page to fetch", () => {
+  assert.match(readFileSync("crates/bevy-client/build-web.sh", "utf8"), /content\/chem\/guide\.json "\$OUT\/chem-guide\.json"/);
+  assert.match(readFileSync("crates/bevy-client/web/bench-free.js", "utf8"), /fetch\('chem-guide\.json'\)/);
 });
 
 test("every Sprout and Seedling reaction has a sourced everyday line", () => {
@@ -328,7 +357,9 @@ test("fixture: the replayed engine matches by ratio and names what is missing", 
   assert.deepEqual(run({ CH4: 1, O2: 2 }, new Set(["heat"]), "sprout"), { kind: "known", id: "methane_burns" });
   assert.deepEqual(run({ CH4: 1, O2: 2 }, new Set(), "sprout"), { kind: "needs_condition", id: "methane_burns" });
   assert.equal(run({ CH4: 1, O2: 1 }, new Set(["spark"]), "sprout").kind, "none");
-  assert.equal(run({ K: 1, H2O: 1 }, new Set(), "seedling").kind, "none");
+  assert.deepEqual(run({ K: 1, H2O: 1 }, new Set(), "seedling"), { kind: "locked", id: "potassium_water" });
+  assert.deepEqual(run({ H2O: 1 }, new Set(["electricity"]), "seedling"), { kind: "known", id: "water_splits" });
+  assert.deepEqual(run({ CO2: 1, H2O: 1 }, new Set(["light"]), "sprout"), { kind: "known", id: "photosynthesis" });
   assert.deepEqual(judge("2K + 2H2O -> 2KOH + H2", new Set(), "seedling"), { kind: "locked", id: "potassium_water" });
   assert.deepEqual(judge("4H2 + 2O2 -> 4H2O", new Set(["spark"]), "adept"), { kind: "known", id: "hydrogen_burns" });
   assert.equal(judge("H2 + O2 -> H2O", new Set(["spark"]), "adept").kind, "unbalanced");

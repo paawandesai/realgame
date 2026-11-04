@@ -16,7 +16,7 @@
         { "id": "sp_w1", "say": "This bottle has hydrogen. It is a very light gas. Tap it!", "do": { "tap_bottle": "H2" } },
         { "id": "sp_w2", "say": "Tap hydrogen one more time. Now you have two.", "do": { "tap_bottle": "H2" } },
         { "id": "sp_w3", "say": "Now tap oxygen. Oxygen is in the air we breathe.", "do": { "tap_bottle": "O2" } },
-        { "id": "sp_w4", "say": "Tap Spark. A tiny spark gets things started.", "do": { "condition": "spark" } },
+        { "id": "sp_w4", "say": "Tap A spark or flame. A tiny spark gets things started.", "do": { "condition": "spark" } },
         { "id": "sp_w5", "say": "Now tap Run! Pop! The two gases join and make water.", "do": { "run": true } }
       ],
       "walkthrough_sources": ["core", "R1"],
@@ -45,7 +45,7 @@
           "idea": "Two gases, hydrogen and oxygen, can join to make water. The same tiny pieces are put together in a new way.",
           "try": { "reactants": ["H2", "H2", "O2"], "conditions": ["spark"], "expect": "hydrogen_burns" },
           "ngss": "2-PS1-3",
-          "reactions": ["hydrogen_burns", "water_splits"],
+          "reactions": ["hydrogen_burns"],
           "sources": ["core", "R1", "R3"]
         },
         {
@@ -105,11 +105,10 @@
       ],
       "hints": {
         "combustion": ["Some things burn. What do they need?", "Fire happens when a fuel joins with oxygen. Some fuels need a spark, some need heat.", "Try charcoal and oxygen, then turn on Heat."],
-        "electrolysis": ["Can electricity change water?", "Electricity can split water into two gases.", "Tap water two times, then turn on Electricity."],
         "oxidation": ["What happens to iron in the rain?", "Wet iron slowly joins with oxygen. That makes rust.", "Tap iron 4 times and oxygen 3 times, then turn on A little water."],
         "carbonate_acid": ["Some things fizz when they meet vinegar.", "Baking soda and chalk give off a gas when an acid touches them.", "Try baking soda and vinegar."],
-        "life": ["Living things do chemistry too.", "Yeast and your body use sugar. Tiny helpers make it go. On the bench, that is Catalyst.", "Try sugar, then turn on Catalyst."],
-        "decomposition": ["Some things break apart with a helper.", "Hydrogen peroxide breaks into water and oxygen when a helper speeds it up.", "Tap hydrogen peroxide two times, then turn on Catalyst."],
+        "life": ["Living things do chemistry too.", "Yeast and your body use sugar. Tiny helpers make it go.", "Try sugar, then turn on A helper (like yeast)."],
+        "decomposition": ["Some things break apart with a helper.", "Hydrogen peroxide breaks into water and oxygen when a helper speeds it up.", "Try hydrogen peroxide, then turn on A helper (like yeast)."],
         "thermal": ["What happens if you heat a rock?", "Very strong heat can turn chalk into new stuff and a gas.", "Try chalk, then turn on Heat."],
         "synthesis": ["Some things get hot when you add water.", "Quicklime joins with water and gets very hot.", "Try quicklime and water."],
         "displacement": ["Put a metal in a blue liquid.", "Iron can push copper out of copper sulfate. The iron gets a copper coat.", "Try iron and copper sulfate."],
@@ -227,12 +226,12 @@
         }
       ],
       "hints": {
-        "combustion": ["Fuels burn when they join with oxygen.", "Fuels made of carbon and hydrogen burn to make carbon dioxide and water. Gases usually need a spark; solids like charcoal need heat.", "Try ethanol with 3 oxygen, then turn on Spark."],
-        "electrolysis": ["Can electricity pull water apart?", "Electricity splits water into hydrogen and oxygen. You get twice as much hydrogen as oxygen.", "Tap water two times, then turn on Electricity."],
+        "combustion": ["Fuels burn when they join with oxygen.", "Fuels made of carbon and hydrogen burn to make carbon dioxide and water. Gases usually need a spark; solids like charcoal need heat.", "Try ethanol with 3 oxygen, then turn on A spark or flame."],
+        "electrolysis": ["Can electricity pull water apart?", "Electricity splits water into hydrogen and oxygen. You get twice as much hydrogen as oxygen.", "Try water, then turn on Electricity."],
         "oxidation": ["Some metals change colour when heated in air.", "A metal that joins with oxygen makes an oxide. Hot copper turns black.", "Try 2 copper and 1 oxygen, then turn on Heat."],
         "carbonate_acid": ["Carbonates fizz in acid.", "The fizz is carbon dioxide gas. Chalk, baking soda and washing soda are all carbonates.", "Try washing soda with 2 hydrochloric acid."],
-        "life": ["Your cells use food and air.", "Respiration uses sugar and oxygen. It gives out carbon dioxide, water and energy.", "Try sugar with 6 oxygen, then turn on Catalyst."],
-        "decomposition": ["One substance can split into two.", "Hydrogen peroxide breaks down into water and oxygen gas. A catalyst makes it fast.", "Tap hydrogen peroxide two times, then turn on Catalyst."],
+        "life": ["Your cells use food and air.", "Respiration uses sugar and oxygen. It gives out carbon dioxide, water and energy.", "Try sugar with 6 oxygen, then turn on A helper (like yeast)."],
+        "decomposition": ["One substance can split into two.", "Hydrogen peroxide breaks down into water and oxygen gas. A helper called a catalyst makes it fast.", "Try hydrogen peroxide, then turn on A helper (like yeast)."],
         "thermal": ["Heat can break some things apart.", "Heating chalk (limestone) gives quicklime and carbon dioxide.", "Try chalk, then turn on Heat."],
         "synthesis": ["Two elements can join into a brand-new substance.", "Sodium and chlorine join to make table salt. Iron and sulfur join to make iron sulfide.", "Try iron and sulfur, then turn on Heat."],
         "displacement": ["A more reactive metal can push out a less reactive one.", "Zinc pushes copper out of copper sulfate. Copper pushes silver out of silver nitrate.", "Try copper with 2 silver nitrate."],
