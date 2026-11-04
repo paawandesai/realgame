@@ -185,6 +185,7 @@ async function main() {
     for (const e of els) { const a = L[e] || 0, b = R[e] || 0; diff += (a - b); html += `<span>${isYoung() ? `<i class="dot" style="background:${hex(EL[e]?.c ?? 0xcccccc)}"></i>${esc(EL[e]?.name ?? e)}` : e}</span><span>${a}</span><span>${b}</span><span class="${a === b ? 'ok' : 'no'}">${a === b ? '✓' : '✗'}</span>`; }
     $('tally').innerHTML = guessing && els.length ? html : '<span class="empty" style="grid-column:1/-1">Fill in “out” and the scale weighs the atoms on each side.</span>';
     tilt = guessing ? Math.max(-14, Math.min(14, diff * 1.5)) : 0;
+    previewIn();
   };
   const putOn = (/** @type {Record<string, number>} */ side, /** @type {string} */ f) => { side[f] = Math.min((side[f] || 0) + 1, 40); drawTable(); };
   $('toLeft').addEventListener('click', () => { if (plateOk()) { putOn(left, plateFormula()); clearPlate(); } });
@@ -437,14 +438,42 @@ async function main() {
     const input = Object.keys(right).length ? `${sideText(left)} -> ${sideText(right)}` : sideText(left);
     runChamber(input);
   });
-  const emptyChamber = () => scene3d.emptyChamber();
-  $('emptyChamber').addEventListener('click', () => { emptyChamber(); $('result').hidden = true; });
+  const emptyChamber = () => { scene3d.emptyChamber(); chamberMols = 0; previewKey = ''; ran = false; drawChamberTag(); };
+  // After a run this puts back what is on "in", ready to run again.
+  $('emptyChamber').addEventListener('click', () => { emptyChamber(); $('result').hidden = true; previewIn(); });
   $('clearTable').addEventListener('click', () => { for (const s of [left, right]) for (const k of Object.keys(s)) delete s[k]; emptyChamber(); $('result').hidden = true; drawTable(); });
 
   // The chamber animation is drawn by bench-scene.js; here each side becomes
   // up to 12 molecules with their drawn bonds.
   const mols = (/** @type {Record<string, number>} */ side) => Object.entries(side).flatMap(([f, n]) => Array(Math.min(n, 6)).fill(f)).slice(0, 12).map((f) => { const els = atomsOf(f); return { els, bonds: structure(els).bonds }; });
-  const animate = (/** @type {Record<string, number>} */ inSide, /** @type {Record<string, number>} */ outSide, /** @type {any} */ fx) => scene3d.playReaction(mols(inSide), mols(outSide), fx);
+  const animate = (/** @type {Record<string, number>} */ inSide, /** @type {Record<string, number>} */ outSide, /** @type {any} */ fx) => {
+    const a = mols(inSide); scene3d.playReaction(a, mols(outSide), fx); chamberMols = a.length; previewKey = sideText(left); ran = true; drawChamberTag();
+  };
+
+  // What is on "in" always shows in the 3D chamber: one molecule per count
+  // (up to 6 of each and 12 in all, as in a run), standing still until Run
+  // plays the reaction. Clear the table (or taking everything off) empties
+  // it. A small tag on the view names what is there, in the band's words.
+  let chamberMols = 0;
+  let previewKey = '';
+  /** The chamber shows a run's result, not "in": the tag waits for the next change. */
+  let ran = false;
+  const drawChamberTag = () => {
+    const tag = $('chamberTag'); const keys = Object.keys(left);
+    tag.hidden = ran || !keys.length;
+    if (tag.hidden) { tag.textContent = ''; return; }
+    const what = keys.map((f) => (isSprout() ? `${left[f]} × ${esc(nameOf(f))}` : `${(left[f] ?? 0) > 1 ? left[f] : ''}${show(f)}`)).join(' + ');
+    const total = Object.values(left).reduce((n, k) => n + k, 0);
+    tag.innerHTML = `In the chamber: <b>${what}</b>${total > chamberMols ? ` <small>(showing ${chamberMols})</small>` : ''}`;
+  };
+  const previewIn = () => {
+    const key = sideText(left);
+    if (key === previewKey) { drawChamberTag(); return; }
+    previewKey = key; ran = false;
+    if (!Object.keys(left).length) { scene3d.emptyChamber(); chamberMols = 0; }
+    else { const a = mols(left); scene3d.playReaction(a, a, 'fizzle'); chamberMols = a.length; }
+    drawChamberTag();
+  };
 
   /** @type {AudioContext | null} */
   let ac = null;
@@ -496,6 +525,8 @@ async function main() {
     unmark();
     const [k] = stepAction(step);
     if (k === 'condition' || k === 'run') showTab('bench');
+    // A switch the player already turned on counts: no need to turn it off and on again.
+    if (k === 'condition' && conds.has(stepAction(step)[1])) { walk.i++; if (walk.i < g.walkthrough.length) showStep(); return; }
     const t = targetOf(step);
     if (t) { t.classList.add('guide-target'); t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     coach(`Step ${walk.i + 1} of ${g.walkthrough.length}`, prose(step.say), []);
@@ -638,7 +669,7 @@ async function main() {
   setBand(band);
   drawTable(); drawNotes(); restructure();
   $('loading').hidden = true;
-  /** @type {any} */ (window).__benchFree = { codex, run: runChamber, left, right, conds, found: () => found, setBand, walk: () => walk, guide: () => guide };
+  /** @type {any} */ (window).__benchFree = { codex, run: runChamber, left, right, conds, found: () => found, setBand, walk: () => walk, guide: () => guide, sceneCount: () => chamberMols + atoms.length, chamberCount: () => chamberMols, plateCount: () => atoms.length };
   requestAnimationFrame(frame);
 }
 
