@@ -71,7 +71,13 @@ export function startTitle() {
   }
   card.append(h, list);
 
-  root.append(head, play, card);
+  // Bench plan Phase 1: the Chemistry Bench on its own, no world around it.
+  const bench = document.createElement('a');
+  bench.className = 'title-bench';
+  bench.href = 'bench-free.html' + location.search;
+  bench.textContent = 'Chemistry Bench';
+
+  root.append(head, play, bench, card);
   document.body.append(root);
   document.body.classList.add('title-open');
 
@@ -88,6 +94,7 @@ export function startTitle() {
   const keys = (/** @type {KeyboardEvent} */ e) => {
     if (root.hidden) return;
     if (e.target === play && (e.key === 'Enter' || e.key === ' ')) return; // the button's own click
+    if (e.target === bench && e.key === 'Enter') return; // the link's own navigation
     e.stopImmediatePropagation();
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); close(); }
   };

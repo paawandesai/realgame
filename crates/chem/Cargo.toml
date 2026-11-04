@@ -1,0 +1,20 @@
+[package]
+name = "realgame-chem"
+version = "0.1.0"
+edition = "2021"
+description = "The Formula chemistry engine: the reaction codex, judging what a player puts in the chamber, and mystery predictions (pure Rust; browser, servers and VR)"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+realgame-sim = { path = "../sim", default-features = false }
+wasm-bindgen = { version = "0.2", optional = true }
+
+# `web` adds the wasm-bindgen surface for the Bench free play page.
+[features]
+default = []
+web = ["dep:wasm-bindgen"]
