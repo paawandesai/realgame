@@ -22,6 +22,9 @@ cp web/index.html web/style.css web/boot.js web/hud.js web/progress.js web/bench
 # The Chemistry Bench free play page: vendored three.js and the chemistry
 # engine (crates/chem, root workspace) as its own small wasm module.
 mkdir -p "$OUT/vendor" && cp vendor/three.min.js vendor/OrbitControls.js vendor/README.txt "$OUT/vendor/"
+# Lab records: published reactions from the Open Reaction Database (CC BY-SA 4.0),
+# loaded only when a try isn't in the codex. Built by tools/chemdb/build_literature.py.
+cp ../../content/chem/literature.json "$OUT/chem-literature.json"
 ( cd ../.. && cargo build --release --locked --target wasm32-unknown-unknown -p realgame-chem --features web )
 CHEM_TARGET="${CARGO_TARGET_DIR:-../../target}"
 wasm-bindgen --target web --no-typescript --out-dir "$OUT" --out-name bevy-client \

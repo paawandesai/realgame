@@ -1,0 +1,1113 @@
+{
+ "built_utc": "2026-11-04T17:51:22Z",
+ "build_seconds": 1008,
+ "workers": 4,
+ "rdkit": "2026.09.1",
+ "caps": {
+  "ord_max_files": 0,
+  "uspto_max_rows": 0
+ },
+ "total_reactions": 1512217,
+ "balanced": 28864,
+ "pct_balanced": 1.909,
+ "distinct_reactant_sets": 1361907,
+ "sources": {
+  "ord": {
+   "commit": "3de641767062f83d998ec2664bd7bfb8e3d80c05",
+   "files": 93,
+   "lfs_bytes": 1285530714,
+   "rows_read": 2428291,
+   "kept_unique": 1512217,
+   "duplicates": 914764,
+   "balanced": 28864,
+   "pct_balanced": 1.909,
+   "rejected": {
+    "bad_structure": 756,
+    "no_products": 119,
+    "no_reactants": 50,
+    "structure_missing": 385
+   }
+  },
+  "uspto": {
+   "status": "unreachable: https://api.figshare.com/v2/articles/5104873: <urlopen error Tunnel connection failed: 403 Forbidden>",
+   "rows_read": 0,
+   "kept_unique": 0
+  }
+ },
+ "top50_reactant_formulas": [
+  [
+   "H2O",
+   164522
+  ],
+  [
+   "ClH",
+   158596
+  ],
+  [
+   "C3H7NO",
+   124256
+  ],
+  [
+   "C6H15N",
+   105014
+  ],
+  [
+   "Na+",
+   99205
+  ],
+  [
+   "C4H8O",
+   88728
+  ],
+  [
+   "C8H19N",
+   79847
+  ],
+  [
+   "CH2Cl2",
+   74007
+  ],
+  [
+   "C4H8O2",
+   71676
+  ],
+  [
+   "CH4O",
+   68285
+  ],
+  [
+   "CK2O3",
+   56805
+  ],
+  [
+   "HNaO",
+   54011
+  ],
+  [
+   "C2H6O",
+   49092
+  ],
+  [
+   "K+",
+   43831
+  ],
+  [
+   "CO32-",
+   43619
+  ],
+  [
+   "HO-",
+   43480
+  ],
+  [
+   "HNa",
+   35317
+  ],
+  [
+   "C2H4O2",
+   34281
+  ],
+  [
+   "C2HF3O2",
+   33445
+  ],
+  [
+   "CHNaO3",
+   31590
+  ],
+  [
+   "C5H5N",
+   27330
+  ],
+  [
+   "C7H8",
+   26365
+  ],
+  [
+   "C6H5N3O",
+   24626
+  ],
+  [
+   "C4H9Li",
+   24584
+  ],
+  [
+   "H-",
+   23718
+  ],
+  [
+   "C4H10O",
+   22671
+  ],
+  [
+   "C18H15P",
+   21041
+  ],
+  [
+   "Cl-",
+   20594
+  ],
+  [
+   "CNa2O3",
+   19802
+  ],
+  [
+   "C8H17N3",
+   19796
+  ],
+  [
+   "C2H3N",
+   19747
+  ],
+  [
+   "F6P-",
+   19667
+  ],
+  [
+   "CH3I",
+   19433
+  ],
+  [
+   "H2",
+   18906
+  ],
+  [
+   "C5H11NO",
+   17230
+  ],
+  [
+   "H2O4S",
+   16881
+  ],
+  [
+   "ClH4N",
+   16374
+  ],
+  [
+   "CCs2O3",
+   16164
+  ],
+  [
+   "Cl2OS",
+   15813
+  ],
+  [
+   "CHO3-",
+   15423
+  ],
+  [
+   "Li+",
+   15070
+  ],
+  [
+   "C2H6OS",
+   14810
+  ],
+  [
+   "H3N",
+   14745
+  ],
+  [
+   "C4H6O3",
+   14669
+  ],
+  [
+   "C13H22N2",
+   13863
+  ],
+  [
+   "HKO",
+   13686
+  ],
+  [
+   "C3H6O",
+   13248
+  ],
+  [
+   "BH4Na",
+   13210
+  ],
+  [
+   "CH3ClO2S",
+   12999
+  ],
+  [
+   "H4N+",
+   11627
+  ]
+ ],
+ "files": {
+  "reactions.jsonl.gz": 102620661,
+  "formula_pairs.json.gz": 7939638
+ },
+ "datasets": [
+  {
+   "dataset_id": "ord_dataset-00005539a1e04c809a9a78647bea649c",
+   "name": "750 AstraZeneca ELN dataset",
+   "path": "data/00/ord_dataset-00005539a1e04c809a9a78647bea649c.parquet",
+   "balanced": 0,
+   "duplicate": 277,
+   "kept": 473,
+   "rows": 750
+  },
+  {
+   "dataset_id": "ord_dataset-0078ecb24abd66512594995d2e098f5e",
+   "name": "uspto-grants-1986",
+   "path": "data/00/ord_dataset-0078ecb24abd66512594995d2e098f5e.parquet",
+   "balanced": 605,
+   "duplicate": 1269,
+   "kept": 11581,
+   "rejected:bad_structure": 20,
+   "rows": 12870
+  },
+  {
+   "dataset_id": "ord_dataset-0316886541d9435489859c2ad7edc863",
+   "name": "Styrene Mizoroki-Heck",
+   "path": "data/03/ord_dataset-0316886541d9435489859c2ad7edc863.parquet",
+   "rejected:structure_missing": 96,
+   "rows": 96
+  },
+  {
+   "dataset_id": "ord_dataset-0c0a93e5eb286a8fa697b1fdd8231f85",
+   "name": "uspto-grants-2009",
+   "path": "data/0c/ord_dataset-0c0a93e5eb286a8fa697b1fdd8231f85.parquet",
+   "balanced": 1366,
+   "duplicate": 7080,
+   "kept": 63631,
+   "rejected:bad_structure": 14,
+   "rows": 70725
+  },
+  {
+   "dataset_id": "ord_dataset-0c75d67751634f0594b24b9f498b77c2",
+   "name": "Shields Arylation",
+   "path": "data/0c/ord_dataset-0c75d67751634f0594b24b9f498b77c2.parquet",
+   "balanced": 0,
+   "duplicate": 255,
+   "kept": 1,
+   "rows": 256
+  },
+  {
+   "dataset_id": "ord_dataset-0fbb04349518b2a00ff291c9ac3263e9",
+   "name": "uspto-grants-2000",
+   "path": "data/0f/ord_dataset-0fbb04349518b2a00ff291c9ac3263e9.parquet",
+   "balanced": 764,
+   "duplicate": 5156,
+   "kept": 28439,
+   "rejected:bad_structure": 10,
+   "rows": 33605
+  },
+  {
+   "dataset_id": "ord_dataset-10b940e7982c4622b1e1ac879394aba6",
+   "name": "Imidazopyridines dataset",
+   "path": "data/10/ord_dataset-10b940e7982c4622b1e1ac879394aba6.parquet",
+   "balanced": 0,
+   "kept": 384,
+   "rows": 384
+  },
+  {
+   "dataset_id": "ord_dataset-1254900636d6635dfbfb46101295b2e2",
+   "name": "uspto-grants-2015",
+   "path": "data/12/ord_dataset-1254900636d6635dfbfb46101295b2e2.parquet",
+   "balanced": 2096,
+   "duplicate": 23719,
+   "kept": 123142,
+   "rejected:bad_structure": 28,
+   "rows": 146889
+  },
+  {
+   "dataset_id": "ord_dataset-166e12c0a91ded488db9e3129c1ad034",
+   "name": "uspto-grants-1988",
+   "path": "data/16/ord_dataset-166e12c0a91ded488db9e3129c1ad034.parquet",
+   "balanced": 463,
+   "duplicate": 3060,
+   "kept": 12205,
+   "rejected:bad_structure": 14,
+   "rows": 15279
+  },
+  {
+   "dataset_id": "ord_dataset-172039a759a440219a68af62d203b79b",
+   "name": "Cernak miniaturized N-alkylation with BOC deprotection",
+   "path": "data/17/ord_dataset-172039a759a440219a68af62d203b79b.parquet",
+   "balanced": 2,
+   "duplicate": 6,
+   "kept": 2,
+   "rejected:structure_missing": 96,
+   "rows": 104
+  },
+  {
+   "dataset_id": "ord_dataset-19ba360ec1bd15a2f73a937a1d161e4f",
+   "name": "uspto-grants-1983",
+   "path": "data/19/ord_dataset-19ba360ec1bd15a2f73a937a1d161e4f.parquet",
+   "balanced": 407,
+   "duplicate": 2720,
+   "kept": 8301,
+   "rejected:bad_structure": 5,
+   "rows": 11026
+  },
+  {
+   "dataset_id": "ord_dataset-1d3a1a6fb70d46c084602d0688967afc",
+   "name": "1-octene Mizoroki-Heck",
+   "path": "data/1d/ord_dataset-1d3a1a6fb70d46c084602d0688967afc.parquet",
+   "rejected:structure_missing": 96,
+   "rows": 96
+  },
+  {
+   "dataset_id": "ord_dataset-1ec2807f02fa4beda27d2a81b86eb843",
+   "name": "Transient flow exploration of the effect of temperature, residence time and binary solvent ratios on a uni-molecular allyl substituted catechol reaction.",
+   "path": "data/1e/ord_dataset-1ec2807f02fa4beda27d2a81b86eb843.parquet",
+   "balanced": 1,
+   "duplicate": 1226,
+   "kept": 1,
+   "rows": 1227
+  },
+  {
+   "dataset_id": "ord_dataset-2038a3c967db4a32a8fbce288437e929",
+   "name": "Reizman Suzuki Cross-Coupling",
+   "path": "data/20/ord_dataset-2038a3c967db4a32a8fbce288437e929.parquet",
+   "balanced": 0,
+   "duplicate": 95,
+   "kept": 1,
+   "rows": 96
+  },
+  {
+   "dataset_id": "ord_dataset-2644e8b8f6987d8aabf57f04dab558dd",
+   "name": "uspto-grants-1979",
+   "path": "data/26/ord_dataset-2644e8b8f6987d8aabf57f04dab558dd.parquet",
+   "balanced": 519,
+   "duplicate": 2490,
+   "kept": 9080,
+   "rejected:bad_structure": 6,
+   "rows": 11576
+  },
+  {
+   "dataset_id": "ord_dataset-286194ee34e80404838b65248be49461",
+   "name": "uspto-grants-2003",
+   "path": "data/28/ord_dataset-286194ee34e80404838b65248be49461.parquet",
+   "balanced": 872,
+   "duplicate": 10512,
+   "kept": 32952,
+   "rejected:bad_structure": 21,
+   "rows": 43485
+  },
+  {
+   "dataset_id": "ord_dataset-2ac92882468f4d47ec7ca0eda9b31cd6",
+   "name": "uspto-grants-1984",
+   "path": "data/2a/ord_dataset-2ac92882468f4d47ec7ca0eda9b31cd6.parquet",
+   "balanced": 337,
+   "duplicate": 4825,
+   "kept": 7914,
+   "rejected:bad_structure": 4,
+   "rows": 12743
+  },
+  {
+   "dataset_id": "ord_dataset-2be11f57f3304e678ea8469baf6dd1bc",
+   "name": "Cernak miniaturized reductive amination",
+   "path": "data/2b/ord_dataset-2be11f57f3304e678ea8469baf6dd1bc.parquet",
+   "balanced": 0,
+   "duplicate": 1088,
+   "kept": 64,
+   "rows": 1152
+  },
+  {
+   "dataset_id": "ord_dataset-2be30f5d8dcd471aa6ad410bdee05902",
+   "name": "Reizman Suzuki Cross-Coupling",
+   "path": "data/2b/ord_dataset-2be30f5d8dcd471aa6ad410bdee05902.parquet",
+   "balanced": 0,
+   "duplicate": 96,
+   "kept": 1,
+   "rows": 97
+  },
+  {
+   "dataset_id": "ord_dataset-30596ddbc19b4f46fb58751d65eb1982",
+   "name": "uspto-grants-2007",
+   "path": "data/30/ord_dataset-30596ddbc19b4f46fb58751d65eb1982.parquet",
+   "balanced": 890,
+   "duplicate": 13976,
+   "kept": 39117,
+   "rejected:bad_structure": 15,
+   "rows": 53108
+  },
+  {
+   "dataset_id": "ord_dataset-31989f1b2b9d4885b1dd2d9982da4517",
+   "name": "Reizman Suzuki Cross-Coupling",
+   "path": "data/31/ord_dataset-31989f1b2b9d4885b1dd2d9982da4517.parquet",
+   "balanced": 0,
+   "duplicate": 95,
+   "kept": 1,
+   "rows": 96
+  },
+  {
+   "dataset_id": "ord_dataset-35a5a513f1dd44a3a97c88da99f81a00",
+   "name": "Development of an automated kinetic profiling system with online HPLC for reaction optimization",
+   "path": "data/35/ord_dataset-35a5a513f1dd44a3a97c88da99f81a00.parquet",
+   "balanced": 0,
+   "duplicate": 3,
+   "kept": 4,
+   "rows": 7
+  },
+  {
+   "dataset_id": "ord_dataset-3b5db90e337942ea886b8f5bc5e3aa72",
+   "name": "Ni-catalyzed Suzuki Miyaura cross-coupling",
+   "path": "data/3b/ord_dataset-3b5db90e337942ea886b8f5bc5e3aa72.parquet",
+   "balanced": 0,
+   "duplicate": 446,
+   "kept": 4,
+   "rows": 450
+  },
+  {
+   "dataset_id": "ord_dataset-3b8a2ef300e145468579027f206a3ac8",
+   "name": "Cernak miniaturized Suzuki Cross-Coupling 12x10 Informer Library",
+   "path": "data/3b/ord_dataset-3b8a2ef300e145468579027f206a3ac8.parquet",
+   "balanced": 0,
+   "duplicate": 1320,
+   "kept": 120,
+   "rows": 1440
+  },
+  {
+   "dataset_id": "ord_dataset-3d996df040a270112aabe120c3727a51",
+   "name": "uspto-grants-2014",
+   "path": "data/3d/ord_dataset-3d996df040a270112aabe120c3727a51.parquet",
+   "balanced": 1957,
+   "duplicate": 51901,
+   "kept": 96021,
+   "rejected:bad_structure": 36,
+   "rows": 147958
+  },
+  {
+   "dataset_id": "ord_dataset-46ff9a32d9e04016b9380b1b1ef949c3",
+   "name": "Ahneman",
+   "path": "data/46/ord_dataset-46ff9a32d9e04016b9380b1b1ef949c3.parquet",
+   "balanced": 0,
+   "duplicate": 4297,
+   "kept": 15,
+   "rows": 4312
+  },
+  {
+   "dataset_id": "ord_dataset-47eaacc46c3a4487bbdf99adb1a15e41",
+   "name": "AIChemEco amide coupling conditions 47k dataset",
+   "path": "data/47/ord_dataset-47eaacc46c3a4487bbdf99adb1a15e41.parquet",
+   "balanced": 1,
+   "duplicate": 803,
+   "kept": 46212,
+   "rows": 47015
+  },
+  {
+   "dataset_id": "ord_dataset-488402f6ec0d441ca2f7d6fabea7c220",
+   "name": "Test data from https://doi.org/10.1039/C8SC04228D",
+   "path": "data/48/ord_dataset-488402f6ec0d441ca2f7d6fabea7c220.parquet",
+   "balanced": 265,
+   "duplicate": 1980,
+   "kept": 38014,
+   "rejected:bad_structure": 6,
+   "rows": 40000
+  },
+  {
+   "dataset_id": "ord_dataset-493459620170b5cfa2f6a0ff4c6f6c3e",
+   "name": "uspto-grants-1994",
+   "path": "data/49/ord_dataset-493459620170b5cfa2f6a0ff4c6f6c3e.parquet",
+   "balanced": 747,
+   "duplicate": 2527,
+   "kept": 17069,
+   "rejected:bad_structure": 3,
+   "rows": 19599
+  },
+  {
+   "dataset_id": "ord_dataset-4b5063eddeab92294a10ead7a637f15d",
+   "name": "uspto-grants-1992",
+   "path": "data/4b/ord_dataset-4b5063eddeab92294a10ead7a637f15d.parquet",
+   "balanced": 699,
+   "duplicate": 5245,
+   "kept": 14902,
+   "rejected:bad_structure": 12,
+   "rows": 20159
+  },
+  {
+   "dataset_id": "ord_dataset-4d431564f3ef4e9c91d8da5836f4eae6",
+   "name": "Figure 4 from Chemistry informer libraries",
+   "path": "data/4d/ord_dataset-4d431564f3ef4e9c91d8da5836f4eae6.parquet",
+   "balanced": 0,
+   "duplicate": 72,
+   "kept": 18,
+   "rows": 90
+  },
+  {
+   "dataset_id": "ord_dataset-52bd3b0ec72c443aab113bcea09bf3f4",
+   "name": "Vinyl ether Mizoroki-Heck",
+   "path": "data/52/ord_dataset-52bd3b0ec72c443aab113bcea09bf3f4.parquet",
+   "balanced": 0,
+   "duplicate": 94,
+   "kept": 2,
+   "rows": 96
+  },
+  {
+   "dataset_id": "ord_dataset-52eb859eec1d012e947a2cf560024948",
+   "name": "uspto-grants-2004",
+   "path": "data/52/ord_dataset-52eb859eec1d012e947a2cf560024948.parquet",
+   "balanced": 541,
+   "duplicate": 14496,
+   "kept": 22514,
+   "rejected:bad_structure": 33,
+   "rows": 37043
+  },
+  {
+   "dataset_id": "ord_dataset-5415f83da68e4797856ddd330dda5c61",
+   "name": "C-H activation of oxazoles from the second demo case in the PyParser paper",
+   "path": "data/54/ord_dataset-5415f83da68e4797856ddd330dda5c61.parquet",
+   "balanced": 0,
+   "duplicate": 47,
+   "kept": 1,
+   "rows": 48
+  },
+  {
+   "dataset_id": "ord_dataset-5481550056a14935b76e031fb94b88be",
+   "name": "Validation data from https://doi.org/10.1039/C8SC04228D",
+   "path": "data/54/ord_dataset-5481550056a14935b76e031fb94b88be.parquet",
+   "balanced": 159,
+   "duplicate": 1716,
+   "kept": 28282,
+   "rejected:bad_structure": 2,
+   "rows": 30000
+  },
+  {
+   "dataset_id": "ord_dataset-5540e162c09f4c04905ddc8ba9c931c6",
+   "name": "Copper-Catalyzed Enantioselective Hydroamination of Alkenes",
+   "path": "data/55/ord_dataset-5540e162c09f4c04905ddc8ba9c931c6.parquet",
+   "balanced": 0,
+   "kept": 3,
+   "rows": 3
+  },
+  {
+   "dataset_id": "ord_dataset-557fc289692260cdbb1f6fd86ff221eb",
+   "name": "uspto-grants-1991",
+   "path": "data/55/ord_dataset-557fc289692260cdbb1f6fd86ff221eb.parquet",
+   "balanced": 532,
+   "duplicate": 7050,
+   "kept": 12252,
+   "rejected:bad_structure": 30,
+   "rows": 19332
+  },
+  {
+   "dataset_id": "ord_dataset-55de08a995554f558c25fc43eac62359",
+   "name": "Microwave-assisted Biginelli Condensation Dataset",
+   "path": "data/55/ord_dataset-55de08a995554f558c25fc43eac62359.parquet",
+   "rejected:no_reactants": 48,
+   "rows": 48
+  },
+  {
+   "dataset_id": "ord_dataset-5c7e67eda2a18cecb036e009e11c60be",
+   "name": "uspto-grants-1995",
+   "path": "data/5c/ord_dataset-5c7e67eda2a18cecb036e009e11c60be.parquet",
+   "balanced": 449,
+   "duplicate": 7200,
+   "kept": 12962,
+   "rejected:bad_structure": 15,
+   "rows": 20177
+  },
+  {
+   "dataset_id": "ord_dataset-5c9a10329a8a48968d18879a48bb8ab2",
+   "name": "Chan-Lam coupling of primary sulfonamides with boronic acids",
+   "path": "data/5c/ord_dataset-5c9a10329a8a48968d18879a48bb8ab2.parquet",
+   "balanced": 0,
+   "duplicate": 9600,
+   "kept": 32,
+   "rows": 9632
+  },
+  {
+   "dataset_id": "ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c",
+   "name": "Ligand screening for Aza-Heck cyclization in total synthesis of Impatien A",
+   "path": "data/5e/ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c.parquet",
+   "balanced": 0,
+   "duplicate": 23,
+   "kept": 1,
+   "rows": 24
+  },
+  {
+   "dataset_id": "ord_dataset-5eb7f2689f4a42eba63ad9e37e49a5cd",
+   "name": "39 compound library from \"Building a Sulfonamide Library by Eco-Friendly Flow Synthesis\"",
+   "path": "data/5e/ord_dataset-5eb7f2689f4a42eba63ad9e37e49a5cd.parquet",
+   "balanced": 0,
+   "kept": 39,
+   "rows": 39
+  },
+  {
+   "dataset_id": "ord_dataset-5efc247455d702206edf2e3e9a7d611e",
+   "name": "uspto-grants-1998",
+   "path": "data/5e/ord_dataset-5efc247455d702206edf2e3e9a7d611e.parquet",
+   "balanced": 858,
+   "duplicate": 13496,
+   "kept": 20333,
+   "rejected:bad_structure": 12,
+   "rows": 33841
+  },
+  {
+   "dataset_id": "ord_dataset-658fd3543b0e967af40b7dc959a0d07b",
+   "name": "uspto-grants-2002",
+   "path": "data/65/ord_dataset-658fd3543b0e967af40b7dc959a0d07b.parquet",
+   "balanced": 514,
+   "duplicate": 24608,
+   "kept": 21831,
+   "rejected:bad_structure": 17,
+   "rows": 46456
+  },
+  {
+   "dataset_id": "ord_dataset-675eddcaa6674ce3ae61e79bbc1e1c08",
+   "name": "Pd-catalyzed C-H arylation of imidazole with aryl bromide",
+   "path": "data/67/ord_dataset-675eddcaa6674ce3ae61e79bbc1e1c08.parquet",
+   "balanced": 0,
+   "duplicate": 1473,
+   "kept": 63,
+   "rows": 1536
+  },
+  {
+   "dataset_id": "ord_dataset-68cb8b4b2b384e3d85b5b1efae58b203",
+   "name": "Rapid material-sparing screening of 5760 Suzuki-Miyaura coupling reactions",
+   "path": "data/68/ord_dataset-68cb8b4b2b384e3d85b5b1efae58b203.parquet",
+   "balanced": 0,
+   "duplicate": 5745,
+   "kept": 15,
+   "rows": 5760
+  },
+  {
+   "dataset_id": "ord_dataset-6a0bfcdf53a64c07987822162ae591e2",
+   "name": "synthesis of islatravir by biocatalytic cascade",
+   "path": "data/6a/ord_dataset-6a0bfcdf53a64c07987822162ae591e2.parquet",
+   "balanced": 0,
+   "kept": 1,
+   "rejected:no_reactants": 2,
+   "rows": 3
+  },
+  {
+   "dataset_id": "ord_dataset-7006210ae79ad5ca553ae4f011390193",
+   "name": "uspto-grants-1990",
+   "path": "data/70/ord_dataset-7006210ae79ad5ca553ae4f011390193.parquet",
+   "balanced": 442,
+   "duplicate": 8123,
+   "kept": 10505,
+   "rejected:bad_structure": 13,
+   "rows": 18641
+  },
+  {
+   "dataset_id": "ord_dataset-758207d0e333f96f6342bad3dfddf1e2",
+   "name": "uspto-grants-1999",
+   "path": "data/75/ord_dataset-758207d0e333f96f6342bad3dfddf1e2.parquet",
+   "balanced": 626,
+   "duplicate": 17811,
+   "kept": 15125,
+   "rejected:bad_structure": 18,
+   "rows": 32954
+  },
+  {
+   "dataset_id": "ord_dataset-7acd6ad2bf4d4cff841cad008ab726d5",
+   "name": "Aniline amide coupling reaction",
+   "path": "data/7a/ord_dataset-7acd6ad2bf4d4cff841cad008ab726d5.parquet",
+   "balanced": 0,
+   "duplicate": 950,
+   "kept": 10,
+   "rows": 960
+  },
+  {
+   "dataset_id": "ord_dataset-7d8f5fd922d4497d91cb81489b052746",
+   "name": "HTE Pd-catalyzed cross-coupling screen",
+   "path": "data/7d/ord_dataset-7d8f5fd922d4497d91cb81489b052746.parquet",
+   "balanced": 0,
+   "duplicate": 1520,
+   "kept": 16,
+   "rows": 1536
+  },
+  {
+   "dataset_id": "ord_dataset-805ad863feef48579d95d86a728035f4",
+   "name": "High-throughput exploration of 50,688 Pd-, Ni- and Cu-catalysed C\u2013N coupling reactions",
+   "path": "data/80/ord_dataset-805ad863feef48579d95d86a728035f4.parquet",
+   "balanced": 0,
+   "duplicate": 50684,
+   "kept": 4,
+   "rows": 50688
+  },
+  {
+   "dataset_id": "ord_dataset-8709a7a6729268b0ea8055fd8ab6ec2c",
+   "name": "uspto-grants-1996",
+   "path": "data/87/ord_dataset-8709a7a6729268b0ea8055fd8ab6ec2c.parquet",
+   "balanced": 461,
+   "duplicate": 16651,
+   "kept": 11577,
+   "rejected:bad_structure": 9,
+   "rows": 28237
+  },
+  {
+   "dataset_id": "ord_dataset-8739070cee44634940b6d9717333a5bb",
+   "name": "uspto-grants-2016",
+   "path": "data/87/ord_dataset-8739070cee44634940b6d9717333a5bb.parquet",
+   "balanced": 867,
+   "duplicate": 36603,
+   "kept": 57217,
+   "rejected:bad_structure": 15,
+   "rows": 93835
+  },
+  {
+   "dataset_id": "ord_dataset-89b083710e2d441aa0040c361d63359f",
+   "name": "Coupling of \u03b1-carboxyl sp3-carbons with aryl halides",
+   "path": "data/89/ord_dataset-89b083710e2d441aa0040c361d63359f.parquet",
+   "balanced": 0,
+   "kept": 24,
+   "rows": 24
+  },
+  {
+   "dataset_id": "ord_dataset-8d1e28ec1f6b4ee8ad372e0b5ed7a62e",
+   "name": "Electroreductive Coupling of Alkenyl and Benzyl Halides",
+   "path": "data/8d/ord_dataset-8d1e28ec1f6b4ee8ad372e0b5ed7a62e.parquet",
+   "balanced": 0,
+   "duplicate": 1,
+   "kept": 26,
+   "rows": 27
+  },
+  {
+   "dataset_id": "ord_dataset-8de1755b921e4726dc5a2851519cf398",
+   "name": "uspto-grants-2011",
+   "path": "data/8d/ord_dataset-8de1755b921e4726dc5a2851519cf398.parquet",
+   "balanced": 1179,
+   "duplicate": 36782,
+   "kept": 63452,
+   "rejected:bad_structure": 30,
+   "rows": 100264
+  },
+  {
+   "dataset_id": "ord_dataset-90d3da23f90d8b8e992251ddce471e0a",
+   "name": "uspto-grants-2010",
+   "path": "data/90/ord_dataset-90d3da23f90d8b8e992251ddce471e0a.parquet",
+   "balanced": 1063,
+   "duplicate": 39462,
+   "kept": 51852,
+   "rejected:bad_structure": 35,
+   "rows": 91349
+  },
+  {
+   "dataset_id": "ord_dataset-916293e0c239ca8463ad7468f8c46236",
+   "name": "uspto-grants-1978",
+   "path": "data/91/ord_dataset-916293e0c239ca8463ad7468f8c46236.parquet",
+   "balanced": 535,
+   "duplicate": 6310,
+   "kept": 9126,
+   "rejected:bad_structure": 6,
+   "rows": 15442
+  },
+  {
+   "dataset_id": "ord_dataset-92c79d38c8cb08545d77306934156875",
+   "name": "uspto-grants-2006",
+   "path": "data/92/ord_dataset-92c79d38c8cb08545d77306934156875.parquet",
+   "balanced": 497,
+   "duplicate": 27161,
+   "kept": 27555,
+   "rejected:bad_structure": 49,
+   "rows": 54765
+  },
+  {
+   "dataset_id": "ord_dataset-9477c7f5dc176dcc5657fe7df9476027",
+   "name": "uspto-grants-2005",
+   "path": "data/94/ord_dataset-9477c7f5dc176dcc5657fe7df9476027.parquet",
+   "balanced": 337,
+   "duplicate": 20956,
+   "kept": 15516,
+   "rejected:bad_structure": 6,
+   "rows": 36478
+  },
+  {
+   "dataset_id": "ord_dataset-9711b36895ef05e2fb77f0b439c5f985",
+   "name": "uspto-grants-2008",
+   "path": "data/97/ord_dataset-9711b36895ef05e2fb77f0b439c5f985.parquet",
+   "balanced": 467,
+   "duplicate": 32175,
+   "kept": 24267,
+   "rejected:bad_structure": 11,
+   "rows": 56453
+  },
+  {
+   "dataset_id": "ord_dataset-99c23cf435dc42f1af884053bc8b11c7",
+   "name": "Borylation dataset from Roche",
+   "path": "data/99/ord_dataset-99c23cf435dc42f1af884053bc8b11c7.parquet",
+   "balanced": 0,
+   "duplicate": 494,
+   "kept": 590,
+   "rejected:no_products": 27,
+   "rows": 1111
+  },
+  {
+   "dataset_id": "ord_dataset-9b8aa9a7835143ef8ce3f70abfab7545",
+   "name": "NiCOlit",
+   "path": "data/9b/ord_dataset-9b8aa9a7835143ef8ce3f70abfab7545.parquet",
+   "balanced": 0,
+   "duplicate": 829,
+   "kept": 840,
+   "rejected:no_products": 92,
+   "rejected:structure_missing": 1,
+   "rows": 1762
+  },
+  {
+   "dataset_id": "ord_dataset-a12fa15d036d489c971b0b514caeae52",
+   "name": "Fig 7 data from Golden paper",
+   "path": "data/a1/ord_dataset-a12fa15d036d489c971b0b514caeae52.parquet",
+   "balanced": 0,
+   "kept": 288,
+   "rows": 288
+  },
+  {
+   "dataset_id": "ord_dataset-a708306f1cb43cc6ef1301dfb9018191",
+   "name": "uspto-grants-1980",
+   "path": "data/a7/ord_dataset-a708306f1cb43cc6ef1301dfb9018191.parquet",
+   "balanced": 313,
+   "duplicate": 6135,
+   "kept": 7596,
+   "rejected:bad_structure": 8,
+   "rows": 13739
+  },
+  {
+   "dataset_id": "ord_dataset-a7599c88da61302505d456077341c429",
+   "name": "uspto-grants-1977",
+   "path": "data/a7/ord_dataset-a7599c88da61302505d456077341c429.parquet",
+   "balanced": 629,
+   "duplicate": 7248,
+   "kept": 9526,
+   "rejected:bad_structure": 3,
+   "rows": 16777
+  },
+  {
+   "dataset_id": "ord_dataset-ac78456835404910b3a4c840248b6ac9",
+   "name": "Nano CN PhotoChemistry Informers Library",
+   "path": "data/ac/ord_dataset-ac78456835404910b3a4c840248b6ac9.parquet",
+   "duplicate": 1728,
+   "rows": 1728
+  },
+  {
+   "dataset_id": "ord_dataset-b440f8c90b6343189093770060fc4098",
+   "name": "Photodehalogenation_HTE_estimated_conv_at_5hr",
+   "path": "data/b4/ord_dataset-b440f8c90b6343189093770060fc4098.parquet",
+   "balanced": 0,
+   "duplicate": 1151,
+   "kept": 1,
+   "rows": 1152
+  },
+  {
+   "dataset_id": "ord_dataset-bc349c19b4384756a2aee8aa525b6c2a",
+   "name": "Reizman Suzuki Cross-Coupling",
+   "path": "data/bc/ord_dataset-bc349c19b4384756a2aee8aa525b6c2a.parquet",
+   "balanced": 0,
+   "duplicate": 95,
+   "kept": 1,
+   "rows": 96
+  },
+  {
+   "dataset_id": "ord_dataset-bd016cde31e4e78205ecec8170787fd7",
+   "name": "uspto-grants-2001",
+   "path": "data/bd/ord_dataset-bd016cde31e4e78205ecec8170787fd7.parquet",
+   "balanced": 463,
+   "duplicate": 25905,
+   "kept": 16562,
+   "rejected:bad_structure": 16,
+   "rows": 42483
+  },
+  {
+   "dataset_id": "ord_dataset-bd77aaca65a9d5ef4cbc3f2808115f28",
+   "name": "uspto-grants-1987",
+   "path": "data/bd/ord_dataset-bd77aaca65a9d5ef4cbc3f2808115f28.parquet",
+   "balanced": 368,
+   "duplicate": 7033,
+   "kept": 7956,
+   "rejected:bad_structure": 12,
+   "rows": 15001
+  },
+  {
+   "dataset_id": "ord_dataset-c5b00523487a4211a194160edf45e9ab",
+   "name": "Dataset from `Ultra-high-throughput mapping of the chemical space of asymmetric catalysis enables accelerated reaction discovery`",
+   "path": "data/c5/ord_dataset-c5b00523487a4211a194160edf45e9ab.parquet",
+   "balanced": 0,
+   "duplicate": 1420,
+   "kept": 10,
+   "rows": 1430
+  },
+  {
+   "dataset_id": "ord_dataset-c703268ea43a4c7e802c6048b6166b34",
+   "name": "Bayesian optimization of 5 decarboxylative olefination reactions",
+   "path": "data/c7/ord_dataset-c703268ea43a4c7e802c6048b6166b34.parquet",
+   "balanced": 0,
+   "duplicate": 115,
+   "kept": 5,
+   "rows": 120
+  },
+  {
+   "dataset_id": "ord_dataset-ca811a23e9d44f4f0a65d6456701856e",
+   "name": "uspto-grants-1976",
+   "path": "data/ca/ord_dataset-ca811a23e9d44f4f0a65d6456701856e.parquet",
+   "balanced": 538,
+   "duplicate": 8079,
+   "kept": 9764,
+   "rejected:bad_structure": 12,
+   "rows": 17855
+  },
+  {
+   "dataset_id": "ord_dataset-cbcc4048add7468e850b6ec42549c70d",
+   "name": "Pd-catalyzed Buchwald-Hartwig C-N cross-coupling",
+   "path": "data/cb/ord_dataset-cbcc4048add7468e850b6ec42549c70d.parquet",
+   "balanced": 0,
+   "duplicate": 287,
+   "kept": 1,
+   "rows": 288
+  },
+  {
+   "dataset_id": "ord_dataset-ce5045aceb214cfc8bfd0ef3031e2737",
+   "name": "N-vinyl pyrrolidone Mizoroki-Heck",
+   "path": "data/ce/ord_dataset-ce5045aceb214cfc8bfd0ef3031e2737.parquet",
+   "rejected:structure_missing": 96,
+   "rows": 96
+  },
+  {
+   "dataset_id": "ord_dataset-d26118acda314269becc35db5c22dc59",
+   "name": "Shields Arylation",
+   "path": "data/d2/ord_dataset-d26118acda314269becc35db5c22dc59.parquet",
+   "duplicate": 1728,
+   "rows": 1728
+  },
+  {
+   "dataset_id": "ord_dataset-d319c2a22ecf4ce59db1a18ae71d529c",
+   "name": "Pd_CN_Coupling_Informer_Library",
+   "path": "data/d3/ord_dataset-d319c2a22ecf4ce59db1a18ae71d529c.parquet",
+   "balanced": 0,
+   "duplicate": 213,
+   "kept": 51,
+   "rows": 264
+  },
+  {
+   "dataset_id": "ord_dataset-d68bd72dc7a8c7c3db14a93e4d8f0d30",
+   "name": "uspto-grants-2013",
+   "path": "data/d6/ord_dataset-d68bd72dc7a8c7c3db14a93e4d8f0d30.parquet",
+   "balanced": 1163,
+   "duplicate": 79577,
+   "kept": 62330,
+   "rejected:bad_structure": 44,
+   "rows": 141951
+  },
+  {
+   "dataset_id": "ord_dataset-d92976309c3a48a3a64a4cf5e7048086",
+   "name": "39k HTE dataset from Pfizer",
+   "path": "data/d9/ord_dataset-d92976309c3a48a3a64a4cf5e7048086.parquet",
+   "balanced": 14,
+   "duplicate": 38757,
+   "kept": 590,
+   "rows": 39347
+  },
+  {
+   "dataset_id": "ord_dataset-dc0249930af34d17a3c76881a762aebf",
+   "name": "Transfer learning optimization of 26 decarboxylative olefination reactions",
+   "path": "data/dc/ord_dataset-dc0249930af34d17a3c76881a762aebf.parquet",
+   "balanced": 0,
+   "duplicate": 110,
+   "kept": 26,
+   "rows": 136
+  },
+  {
+   "dataset_id": "ord_dataset-e4994f55eb1de3d4e9f35f0c5160f213",
+   "name": "uspto-grants-1993",
+   "path": "data/e4/ord_dataset-e4994f55eb1de3d4e9f35f0c5160f213.parquet",
+   "balanced": 330,
+   "duplicate": 13803,
+   "kept": 8753,
+   "rejected:bad_structure": 11,
+   "rows": 22567
+  },
+  {
+   "dataset_id": "ord_dataset-e7830cd6b11158b43994ccfb5ee9acb3",
+   "name": "Training data from https://doi.org/10.1039/C8SC04228D",
+   "path": "data/e7/ord_dataset-e7830cd6b11158b43994ccfb5ee9acb3.parquet",
+   "balanced": 1177,
+   "duplicate": 58133,
+   "kept": 350873,
+   "rejected:bad_structure": 29,
+   "rows": 409035
+  },
+  {
+   "dataset_id": "ord_dataset-ed85599810a968b103e70c8b6f0aa3b0",
+   "name": "uspto-grants-1997",
+   "path": "data/ed/ord_dataset-ed85599810a968b103e70c8b6f0aa3b0.parquet",
+   "balanced": 348,
+   "duplicate": 26181,
+   "kept": 10866,
+   "rejected:bad_structure": 21,
+   "rows": 37068
+  },
+  {
+   "dataset_id": "ord_dataset-eeba974d3c284aed86d1c1d442260a1e",
+   "name": "HTE Suzuki coupling dataset",
+   "path": "data/ee/ord_dataset-eeba974d3c284aed86d1c1d442260a1e.parquet",
+   "balanced": 0,
+   "duplicate": 375,
+   "kept": 1,
+   "rows": 376
+  },
+  {
+   "dataset_id": "ord_dataset-f2718cd03ad7dd73fef23ea3c79f2c95",
+   "name": "uspto-grants-1981",
+   "path": "data/f2/ord_dataset-f2718cd03ad7dd73fef23ea3c79f2c95.parquet",
+   "balanced": 317,
+   "duplicate": 8061,
+   "kept": 6780,
+   "rejected:bad_structure": 6,
+   "rows": 14847
+  },
+  {
+   "dataset_id": "ord_dataset-f82e41201e406c71af831481565bcfb6",
+   "name": "uspto-grants-1989",
+   "path": "data/f8/ord_dataset-f82e41201e406c71af831481565bcfb6.parquet",
+   "balanced": 305,
+   "duplicate": 11450,
+   "kept": 8316,
+   "rejected:bad_structure": 24,
+   "rows": 19790
+  },
+  {
+   "dataset_id": "ord_dataset-f89bba9745e12c2116a5b6be9b2873ad",
+   "name": "uspto-grants-2012",
+   "path": "data/f8/ord_dataset-f89bba9745e12c2116a5b6be9b2873ad.parquet",
+   "balanced": 896,
+   "duplicate": 74129,
+   "kept": 45504,
+   "rejected:bad_structure": 64,
+   "rows": 119697
+  },
+  {
+   "dataset_id": "ord_dataset-fb9c9799c8535f36029173e90ba97497",
+   "name": "uspto-grants-1985",
+   "path": "data/fb/ord_dataset-fb9c9799c8535f36029173e90ba97497.parquet",
+   "balanced": 263,
+   "duplicate": 7549,
+   "kept": 6073,
+   "rejected:bad_structure": 6,
+   "rows": 13628
+  },
+  {
+   "dataset_id": "ord_dataset-fc83743b978f4deea7d6856deacbfe53",
+   "name": "Deoxyfluorination screen",
+   "path": "data/fc/ord_dataset-fc83743b978f4deea7d6856deacbfe53.parquet",
+   "balanced": 0,
+   "duplicate": 60,
+   "kept": 20,
+   "rows": 80
+  },
+  {
+   "dataset_id": "ord_dataset-fd38f429352a645714f44afdbc6807b5",
+   "name": "uspto-grants-1982",
+   "path": "data/fd/ord_dataset-fd38f429352a645714f44afdbc6807b5.parquet",
+   "balanced": 222,
+   "duplicate": 6842,
+   "kept": 4493,
+   "rejected:bad_structure": 5,
+   "rows": 11340
+  },
+  {
+   "dataset_id": "ord_dataset-feaf1b793c6d408aaec1cac7cc3ceadc",
+   "name": "Minisci dataset from Roche",
+   "path": "data/fe/ord_dataset-feaf1b793c6d408aaec1cac7cc3ceadc.parquet",
+   "balanced": 0,
+   "duplicate": 1,
+   "kept": 129,
+   "rows": 130
+  }
+ ]
+}
