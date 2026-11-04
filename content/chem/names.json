@@ -389,5 +389,10 @@
    "water",
    "A little water"
   ]
- ]
+ ],
+ "conditions_young": {
+  "catalyst": "A helper (like yeast)",
+  "spark": "A spark or flame",
+  "water": "A little water"
+ }
 }
