@@ -306,7 +306,9 @@ export function startLate() {
       import('./sfx.js').then((m) => { sfx = m; }).catch(() => {});
     }
     if (on) {
-      const prompt = st.near && !shown ? /** @type {any} */ (PROMPTS)[st.near] : '';
+      // An open Kiln door needs no "open the door" prompt (walkthrough).
+      const doneDoor = st.near === 'door' && st.door;
+      const prompt = st.near && !shown && !doneDoor ? /** @type {any} */ (PROMPTS)[st.near] : '';
       chip.hidden = !prompt;
       if (prompt && chip.textContent !== prompt) chip.textContent = prompt;
       if (st.sayN !== sayN) {
