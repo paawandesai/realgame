@@ -501,6 +501,15 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     solids.extend_from_slice(&ice);
     // The blocks themselves, without this frame's floor box.
     let blocks = solids.len();
+    let body = match unwedge(&solids, &body) {
+        Some(pos) => Body {
+            pos,
+            vel: [body.vel[0], body.vel[1].min(0.0), body.vel[2]],
+            ..body
+        },
+        None => body,
+    };
+    let p = Vec3::from_array(body.pos);
     // The drawn ground under the feet, as a floor box for this frame.
     let ground_at = |x: f32, z: f32, y: f32| vox::ground(world, x, z, y + STEP, y - 3.0);
     if smooth {
@@ -785,6 +794,13 @@ fn stand_on_surface(
             a.pos[2] = z0;
             a.vel[0] = 0.0;
             a.vel[2] = 0.0;
+        } else if g > y && from.grounded && !headroom(world, a.pos[0], a.pos[2], g) {
+            // No room to stand up there (a low ceiling over the rise; Paawan's
+            // playtest: the cave wedged the head into the rock): stay put.
+            a.pos[0] = x0;
+            a.pos[2] = z0;
+            a.vel[0] = 0.0;
+            a.vel[2] = 0.0;
         } else if g > y {
             // Up onto the surface (a ramp, or landing on it).
             if g - y > 0.05 {
@@ -810,6 +826,42 @@ fn stand_on_surface(
             a.grounded = true;
         }
     }
+}
+
+/// Whether a body standing at `(x, y, z)` has its height clear of solid
+/// cells (any material) in its own column.
+fn headroom(world: &World, x: f32, z: f32, y: f32) -> bool {
+    let (cx, cz) = (x.floor() as i32, z.floor() as i32);
+    let lo = (y + 0.25).floor() as i32;
+    let hi = (y + motion::HEIGHT - 0.05).floor() as i32;
+    !(lo..=hi).any(|cy| vox::materials::flags(world.get([cx, cy, cz]).mat).solid)
+}
+
+/// A body whose box is inside solid blocks (wedged against a ceiling after
+/// a step, or set there by a `tp`): the nearest free place a little below,
+/// beside or above it, so it never hangs frozen in the rock.
+fn unwedge(solids: &[Box3], b: &Body) -> Option<[f32; 3]> {
+    let inside = |p: [f32; 3]| {
+        let t = Body { pos: p, ..*b };
+        solids.iter().any(|s| s.overlaps(&body_box(&t)))
+    };
+    if !inside(b.pos) {
+        return None;
+    }
+    let [x, y, z] = b.pos;
+    let mut tries: Vec<[f32; 3]> = Vec::new();
+    for k in 1..=8 {
+        let d = k as f32 * 0.125;
+        tries.push([x, y - d, z]);
+        for (dx, dz) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+            tries.push([x + dx * d, y, z + dz * d]);
+            tries.push([x + dx * d, y - d, z + dz * d]);
+        }
+    }
+    for k in 1..=6 {
+        tries.push([x, y + k as f32 * 0.125, z]);
+    }
+    tries.into_iter().find(|&p| !inside(p))
 }
 
 fn box3(b: &[f32; 6]) -> Box3 {
@@ -1855,5 +1907,90 @@ mod tests {
         assert_eq!(parse_seed("0x524731"), Some(0x52_47_31));
         assert_eq!(parse_seed("12"), Some(12));
         assert_eq!(parse_seed("zz"), None);
+    }
+}
+
+#[cfg(test)]
+mod cave_walk {
+    use super::*;
+
+    /// Paawan's playtest (2026-11-04): walking in the cave was glitchy, and a
+    /// scripted walk froze for good at the mouth with the head wedged in the
+    /// rock. W (and Space when held up for a third of a second) along the
+    /// tunnels' centre lines reaches the rig room, never stuck for a second.
+    #[test]
+    fn w_walks_from_the_cave_mouth_to_the_rig_without_freezing() {
+        let world = vox::generate(vox::DEFAULT_SEED);
+        let pts: [[f32; 3]; 6] = [
+            [220.5, 31.0, 58.5],
+            [220.5, 22.0, 50.5],
+            [218.5, 13.0, 42.5],
+            [228.5, 12.0, 34.5],
+            [231.5, 11.0, 30.5],
+            [231.5, 11.0, 27.5],
+        ];
+        let mut path: Vec<Vec3> = Vec::new();
+        for k in 0..pts.len() - 1 {
+            let (a, b) = (Vec3::from_array(pts[k]), Vec3::from_array(pts[k + 1]));
+            let n = ((b - a).xz().length().ceil() as i32).max(1);
+            path.extend((0..n).map(|i| a.lerp(b, i as f32 / n as f32)));
+        }
+        path.push(Vec3::from_array(pts[5]));
+        let mut p = Player {
+            pos: Vec3::new(220.5, 28.0, 58.5),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        let (mut wp, mut held, mut worst) = (0usize, 0u32, 0u32);
+        for _ in 0..60 * 40 {
+            if wp >= path.len() {
+                break;
+            }
+            let d = path[wp] - p.pos;
+            if d.xz().length() < 0.6 {
+                wp += 1;
+                continue;
+            }
+            p.yaw = (-d.x).atan2(-d.z);
+            let before = p.pos;
+            let jump = held >= 20;
+            let input = crate::player::MoveInput {
+                wish: Vec2::new(0.0, 1.0),
+                sprint: false,
+                jump,
+            };
+            walk(&mut p, &mut w, &world, input, 1.0 / 60.0);
+            if (p.pos - before).xz().length() < 0.02 && !jump {
+                held += 1;
+            } else {
+                held = 0;
+            }
+            worst = worst.max(held);
+        }
+        assert_eq!(wp, path.len(), "reached the rig: at {:?}", p.pos);
+        assert!(worst < 60, "held up {worst} frames");
+    }
+
+    /// A body set inside the rock is moved to the nearest free place.
+    #[test]
+    fn a_wedged_body_is_moved_out_of_the_blocks() {
+        let ceiling = Box3 {
+            min: [-2.0, 1.5, -2.0],
+            max: [2.0, 2.5, 2.0],
+        };
+        let b = Body {
+            pos: [0.0, 0.0, 0.0],
+            vel: [0.0; 3],
+            grounded: false,
+            on_ice: false,
+        };
+        let out = unwedge(&[ceiling], &b).expect("moved");
+        assert!(out[1] + motion::HEIGHT <= 1.5 + 1e-4, "{out:?}");
+        let free = Body {
+            pos: [0.0, -1.0, 0.0],
+            ..b
+        };
+        assert_eq!(unwedge(&[ceiling], &free), None);
     }
 }

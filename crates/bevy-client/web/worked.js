@@ -10,7 +10,7 @@ import { mountBuilder, reasonFor, pretty } from './bench.js';
 /** @typedef {{ n?: number, slot: number, ok?: boolean, code: string }} Result */
 /** @typedef {{ band?: string, spells?: any[], recipe?: any[], result?: Result }} View */
 /** @typedef {{ id: number, spell: number, wrong: number, help: boolean, view: View | null }} Work */
-/** @typedef {{ stages?: string[], work?: Work | null }} WorkState */
+/** @typedef {{ stages?: string[], casts?: number[], need?: number, work?: Work | null }} WorkState */
 
 /** @type {Record<string, string>} */
 const SHAPE = { unknown: '○', learning: '◔', practised: '◑', mastered: '★' };
@@ -141,16 +141,26 @@ export function createWorked({ doc, win, cmd, bench }) {
     try { w.__game.sound('miss'); } catch { /* no sound */ }
   };
 
-  const badges = (/** @type {string[]} */ stages) => {
-    doc.querySelectorAll('.slot').forEach((slot, i) => {
+  // Paawan's playtest (2026-11-04): show the count toward Practised on each
+  // spell slot ("◔ 1/3"), so every correct build visibly counts. Only the
+  // four spell slots: the Pick and pack slots have no stage.
+  const badges = (/** @type {string[]} */ stages, /** @type {number[] | null} */ casts, /** @type {number} */ need) => {
+    const spellSlots = [...doc.querySelectorAll('.slot')]
+      .filter((s) => !s.classList.contains('pick-slot') && !s.classList.contains('bound-slot'));
+    spellSlots.forEach((slot, i) => {
+      if (i > 3) return;
       const st = stages[i] || 'unknown';
+      const n = casts ? Math.min(Number(casts[i]) || 0, need) : 0;
+      const counting = need > 0 && st !== 'practised' && st !== 'mastered' && (n > 0 || st === 'learning');
+      const text = `${SHAPE[st] || SHAPE.unknown || ''}${counting ? ` ${n}/${need}` : ''}`;
       let b = /** @type {any} */ (slot.querySelector('span.stage'));
       if (!b) slot.append(b = el('span', 'stage'));
-      if (b.getAttribute('data-stage') === st) return;
+      if (b.getAttribute('data-stage') === st && b.textContent === text) return;
       b.setAttribute('data-stage', st);
-      b.textContent = SHAPE[st] || SHAPE.unknown || '';
-      b.setAttribute('aria-label', WORD[st] || '');
-      b.setAttribute('title', WORD[st] || '');
+      b.textContent = text;
+      const word = `${WORD[st] || ''}${counting ? `: ${n} of ${need} builds to Practised` : ''}`;
+      b.setAttribute('aria-label', word);
+      b.setAttribute('title', word);
     });
   };
 
@@ -188,7 +198,7 @@ export function createWorked({ doc, win, cmd, bench }) {
       if (!ws || typeof ws !== 'object') return;
       const stages = Array.isArray(ws.stages) ? ws.stages : null;
       if (stages) {
-        badges(stages);
+        badges(stages, Array.isArray(ws.casts) ? ws.casts : null, Number(ws.need) || 0);
         stages.forEach((s, i) => { if (s === 'practised' && prev && prev[i] === 'learning') toast(i); });
         prev = stages.slice();
       }

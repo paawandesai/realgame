@@ -438,10 +438,10 @@ const LINES: [[&str; 4]; 9] = [
         "CH₄ burns in the hollow. Learn CO₂, seal the rim gap; dense CO₂ pools and smothers.",
     ],
     [
-        "It's dark! Make a torch, split water, lift the crate.",
-        "It's dark. Make a torch, split water at the rig, and lift the crate.",
-        "Make a torch, split water at the rig (2H₂O → 2H₂ + O₂), and lift the crate.",
-        "Light a torch, run the rig (2H₂O → 2H₂ + O₂), and choose the gas that lifts the crate.",
+        "It's dark! Make a torch at a Bench (wood + charcoal), split water, lift the crate.",
+        "It's dark. Make a torch (Bench: wood + charcoal), split water at the rig, lift the crate.",
+        "Torch at a Bench (wood + charcoal), then the rig: 2H₂O → 2H₂ + O₂. Lift the crate.",
+        "Torch (Bench: wood + charcoal); run the rig, 2H₂O → 2H₂ + O₂; pick the gas that lifts.",
     ],
     [
         "Take the Spark home and make the Kiln hot again!",

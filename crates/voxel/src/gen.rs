@@ -1009,6 +1009,13 @@ fn stamps(w: &mut World) {
             return c(mat::BRICK);
         }
         let door = (127..=129).contains(&x) && (41..=43).contains(&y) && z >= 172;
+        // The doorway's own brick jambs and lintel (Paawan's playtest,
+        // 2026-11-04: the dome's south face is thin there, so standing in
+        // the open doorway showed the outside through its sides).
+        let jamb = (126..=130).contains(&x) && (41..=44).contains(&y) && (171..=173).contains(&z);
+        if jamb && !door {
+            return c(mat::BRICK);
+        }
         if door && r2 <= 1.0 {
             return c(mat::RUNESTONE);
         }
