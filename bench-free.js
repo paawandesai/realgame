@@ -11,7 +11,8 @@
 // (walkthroughs, lessons, hints, challenges, everyday lines) comes from
 // content/chem/guide.json, shipped as chem-guide.json.
 
-import init, { codex_json, judge_json, literature_key_json, names_json } from './chem.js';
+import init, { codex_json, effects_json, judge_json, literature_key_json, names_json } from './chem.js';
+import { readSpells, saveSpell } from './formula-save.js';
 import { parseFormula as parseWith, hill, sideOf, sideText } from './bench-free-lib.js';
 import { createBenchScene } from './bench-scene.js';
 
@@ -267,6 +268,24 @@ async function main() {
   const learnUsual = (/** @type {string} */ f) => { const a = parseFormula(f); if (a) { const h = hill(a); if (!usual.has(h)) usual.set(h, f); } };
   for (const f of Object.keys(names.substances)) learnUsual(f);
   const plain = (/** @type {string} */ eq) => eq.split(' -> ').map((side) => side.split(' + ').map((t) => { const m = t.match(/^(\d*)(.+)$/); return m ? m[1] + (usual.get(m[2] ?? '') ?? m[2]) : t; }).join(' + ')).join(' -> ');
+  // ---------- discoveries become spells (I-053) ----------
+  // A found reaction can be saved as a spell for the game (formula-save.js,
+  // shared with the world). Free play keeps unlimited bottles; the world's
+  // story mode needs the bottles the player has found.
+  /** @type {Record<string, {kind: string, runs: string}>} */
+  const EFFECTS = JSON.parse(effects_json());
+  const KIND_WORD = { fire: 'a fire spell', water: 'a splash spell', frost: 'a cold spell', foam: 'a fizz spell', cloud: 'a cloud spell', glow: 'a warm glow spell' };
+  const saveSpellButton = (/** @type {any} */ r) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn save-spell';
+    const kind = EFFECTS[r.id] ? KIND_WORD[/** @type {keyof typeof KIND_WORD} */ (EFFECTS[r.id].kind)] || '' : '';
+    const done = () => { b.disabled = true; b.textContent = 'Saved! Open your pack in the game (Tab) to use it.'; };
+    if (r.id in readSpells(localStorage).saved) done();
+    else {
+      b.textContent = kind ? `✨ Save as a spell (${kind})` : '✨ Save as a spell';
+      b.addEventListener('click', () => { if (saveSpell(localStorage, r.id)) done(); });
+    }
+    return b;
+  };
   const drawCodex = () => {
     const seen = new Set(found);
     const vis = codex.reactions.filter(visible);
@@ -280,7 +299,7 @@ async function main() {
       html += `<details class="fam"><summary><b>${esc(FAMILY[fam] || fam)}</b> <span>${got} of ${rs.length}</span></summary>`;
       for (const r of rs) {
         html += seen.has(r.id)
-          ? `<div class="entry found"><b>${esc(r.name)}</b><div class="eq">${eqFor(r.equation)}</div><div>${esc(describe(r))}</div>${isYoung() && guide?.where_you_see_it[r.id] ? `<div class="where">👀 ${esc(guide.where_you_see_it[r.id])}</div>` : ''}</div>`
+          ? `<div class="entry found" data-id="${esc(r.id)}"><b>${esc(r.name)}</b><div class="eq">${eqFor(r.equation)}</div><div>${esc(describe(r))}</div>${isYoung() && guide?.where_you_see_it[r.id] ? `<div class="where">👀 ${esc(guide.where_you_see_it[r.id])}</div>` : ''}</div>`
           : `<div class="entry"><b>?</b><div>${r.needs.length ? 'Needs ' + r.needs.map(condName).join(' and ') + '.' : 'Needs nothing special.'}</div></div>`;
       }
       html += '</details>';
@@ -289,6 +308,7 @@ async function main() {
     if (labFinds.length) html += `<details class="fam" open><summary><b>Lab records</b> <span>${labFinds.length}</span></summary>${labFinds.map((m) => `<div class="entry found"><div class="eq">${eqFor(plain(m))}</div><div>Recorded by real chemists.</div></div>`).join('')}</details>`;
     html += `<p class="note">${LAB_CREDIT}</p>`;
     $('codex').innerHTML = html;
+    for (const el of $('codex').querySelectorAll('.entry.found[data-id]')) { const r = byId[/** @type {HTMLElement} */ (el).dataset.id || '']; if (r) el.append(saveSpellButton(r)); }
     drawGuide();
   };
   const drawNotes = () => {
@@ -372,6 +392,7 @@ async function main() {
       if (isNew) { found = [...found, r.id]; store.set('found', found); }
       drawCodex();
       result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
+      $('result').append(saveSpellButton(r));
       note(eqText, r.name, true); animate(inSide, out, fxFor(r, out)); return;
     }
     if (raw.kind === 'unbalanced') {

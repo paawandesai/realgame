@@ -100,7 +100,10 @@ export function createWorked({ doc, win, cmd, bench }) {
       let left = 0;
       try {
         const st = JSON.parse(w.__workState);
-        left = Math.max(0, (Number(st.need) || 0) - (Number((st.casts || [])[work.spell]) || 0));
+        // I-053: a discovered spell counts its own builds (2, then instant).
+        left = st.disc
+          ? Math.max(0, (Number(st.disc.need) || 0) - (Number(st.disc.builds) || 0))
+          : Math.max(0, (Number(st.need) || 0) - (Number((st.casts || [])[work.spell]) || 0));
       } catch { /* no state */ }
       if (left > 0) {
         const word = left === 1 ? 'Build it 1 more time' : `Build it ${left} more times`;

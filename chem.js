@@ -17,6 +17,24 @@ export function codex_json() {
 }
 
 /**
+ * Every codex reaction's spell effect (`discover::Effects`, I-053), keyed
+ * by reaction id, so the page can say what a saved discovery casts as.
+ * @returns {string}
+ */
+export function effects_json() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.effects_json();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Judges `input`, which is either a whole equation (`2H2 + O2 -> 2H2O`) or
  * just what is in the chamber (`2H2 + O2`). `have` is a comma list of
  * needs; `band_id` is `sprout`, `seedling`, `apprentice` or `adept`.
