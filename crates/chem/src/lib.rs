@@ -89,6 +89,17 @@ pub enum Heat {
     Little,
 }
 
+/// How dangerous a reaction is to try for real, so the Bench can show young
+/// players a safety badge. `Fire`: flames, sparks or strong heat; `Lab`:
+/// reactive metals, poisonous or explosive substances, or industrial
+/// conditions, for trained chemists only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Hazard {
+    Fire,
+    Lab,
+}
+
 /// One codex entry, as stored in `content/chem/core.json`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Entry {
@@ -110,6 +121,9 @@ pub struct Entry {
     pub source: String,
     /// `draft` until the internal science review, then `reviewed`.
     pub check: String,
+    /// A safety badge for trying it for real; `None` for kitchen-safe ones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hazard: Option<Hazard>,
 }
 
 #[derive(Deserialize)]
@@ -151,6 +165,12 @@ pub fn reduced(eq: &Equation) -> (SideKey, SideKey) {
         *v /= g;
     }
     (l, r)
+}
+
+/// `side` with its coefficients divided by their shared factor.
+fn reduce_side(side: &SideKey) -> SideKey {
+    let g = side.values().fold(0, |g, &c| gcd(g, c)).max(1);
+    side.iter().map(|(f, &n)| (f.clone(), n / g)).collect()
 }
 
 fn species(side: &SideKey) -> BTreeSet<String> {
@@ -259,8 +279,11 @@ impl Codex {
         let (l, _) = reduced(&probe);
         // Every reaction with these reactants; prefer one whose needs are met
         // and that the player's band can see.
+        // Compare reactant ratios: a stored key is reduced over the whole
+        // equation (2H2O -> 2H2 + O2 keeps its 2), so reduce its reactant side
+        // on its own, the same way the probe was.
         let mut matches: Vec<usize> = (0..self.entries.len())
-            .filter(|&i| self.keys[i].0 == l)
+            .filter(|&i| reduce_side(&self.keys[i].0) == l)
             .collect();
         matches.sort_by_key(|&i| {
             let e = &self.entries[i];
@@ -361,6 +384,41 @@ mod tests {
                     names["elements"][el]["name"].is_string(),
                     "{el}: no element data"
                 );
+            }
+        }
+    }
+
+    /// Tapping bottles finds every reaction, including ones whose reactant
+    /// coefficients share a factor (2H2O, 6CO2 + 6H2O).
+    #[test]
+    fn running_reactants_alone_finds_every_reaction() {
+        let c = Codex::load();
+        for (i, e) in c.entries.iter().enumerate() {
+            let eq = parse_equation(&e.equation).unwrap();
+            let (got, _) = c
+                .run(&eq.reactants, &e.needs, Tier::Adept)
+                .unwrap_or_else(|| panic!("{}", e.id));
+            assert_eq!(
+                c.keys[got].0, c.keys[i].0,
+                "{} found {}",
+                e.id, c.entries[got].id
+            );
+        }
+    }
+
+    #[test]
+    fn dangerous_reactions_carry_a_safety_badge() {
+        let c = Codex::load();
+        for e in &c.entries {
+            let fire = e.family == "combustion" || e.needs.contains(&Need::Spark);
+            let lab = ["water_metal", "halogen", "electrolysis", "industrial"]
+                .contains(&e.family.as_str())
+                || ["nitrogen_triiodide", "hf_synthesis", "salt_from_elements"]
+                    .contains(&e.id.as_str());
+            if lab {
+                assert_eq!(e.hazard, Some(Hazard::Lab), "{}", e.id);
+            } else if fire {
+                assert!(e.hazard.is_some(), "{} burns but has no badge", e.id);
             }
         }
     }

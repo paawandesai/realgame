@@ -44,6 +44,11 @@
   <main class="stage">
     <canvas id="scene" aria-label="The bench in 3D: build plate on the left, test chamber on the right. Drag to turn."></canvas>
     <div class="hint">Drag to turn · scroll to zoom · tap an atom to take it off</div>
+    <div class="coach" id="coach" hidden role="status" aria-live="polite">
+      <div class="coach-top"><span class="coach-step" id="coachStep"></span><button class="btn" id="coachSkip" type="button">Skip</button></div>
+      <p id="coachSay"></p>
+      <div class="row" id="coachRow"></div>
+    </div>
     <div class="loading" id="loading">Setting up the bench…</div>
     <div class="readout">
       <div class="formula" id="formula">–<small id="fname">empty plate</small></div>
@@ -61,6 +66,7 @@
       <button type="button" role="tab" data-tab="bench" aria-selected="true">Bench</button>
       <button type="button" role="tab" data-tab="codex" aria-selected="false">Codex <span id="codexCount"></span></button>
       <button type="button" role="tab" data-tab="notes" aria-selected="false">Notebook</button>
+      <button type="button" role="tab" data-tab="guide" aria-selected="false">Guide</button>
     </div>
     <div class="tabpane" data-pane="bench">
       <section>
@@ -70,7 +76,7 @@
           <div class="arrow" aria-hidden="true">→</div>
           <div class="side" id="rightSide"><span class="lbl">Out</span></div>
         </div>
-        <p class="note">Leave “out” empty to see what happens. Fill it in to test a guess.</p>
+        <p class="note" id="outNote">Leave “out” empty to see what happens. Fill it in to test a guess.</p>
       </section>
       <section class="scale" id="scaleBox">
         <h2>Balance scale</h2>
@@ -103,6 +109,9 @@
     <div class="tabpane" data-pane="codex" hidden>
       <p class="note" id="codexNote"></p>
       <div id="codex"></div>
+    </div>
+    <div class="tabpane" data-pane="guide" hidden>
+      <div id="guide"><p class="note">Loading the guide…</p></div>
     </div>
     <div class="tabpane" data-pane="notes" hidden>
       <p class="note">Every run, newest first, including the ones that fizzled.</p>
