@@ -72,6 +72,26 @@ async function main() {
   /** @type {{t:string, eq:string, what:string, ok:boolean}[]} */
   let notes = store.get('notes', []);
 
+  // ---------- age bands ----------
+  // Sprout (4 to 7) sees names and pictures, never formulas; Sprout and
+  // Seedling (8 to 10) get read-aloud, colour-coded atom counts, a "show me"
+  // for balancing and safety badges in plain words. See the Bench plan,
+  // section 1 (age-band audit).
+  const isSprout = () => band === 'sprout';
+  const isYoung = () => rank(band) <= rank('seedling');
+  const nameOf = (/** @type {string} */ f) => NAMES[f] || f;
+  /** An equation as this band reads it: names for Sprout, formulas otherwise. */
+  const eqFor = (/** @type {string} */ eq) => (isSprout()
+    ? esc(eq.split(' -> ').map((side) => side.split(' + ').map((t) => nameOf(t.replace(/^\d+/, '').trim())).join(' + ')).join(' → '))
+    : showEq(eq));
+  /** Conditions a Sprout never needs: hidden to keep the panel small. */
+  const SPROUT_HIDES = new Set(['electricity', 'pressure']);
+  /** @type {Record<string, string>} */
+  const YOUNG_COND = names.conditions_young || {};
+  const HAZARD_YOUNG = { fire: '🔥 Fire and heat: only try this with a grown-up.', lab: '🧪 Dangerous for real: only trained chemists, in a proper lab.' };
+  const HAZARD_OLDER = { fire: '🔥 Lab safety: flames or strong heat. Only with supervision, goggles and a fire-safe bench.', lab: '🧪 Lab only: reactive, poisonous or explosive for real. Trained chemists with proper equipment only.' };
+  const hazardText = (/** @type {string} */ h) => (isYoung() ? HAZARD_YOUNG : HAZARD_OLDER)[/** @type {'fire'|'lab'} */ (h)];
+
   // ---------- 3D scene (bench-scene.js) ----------
   const scene3d = createBenchScene(/** @type {HTMLCanvasElement} */ ($('scene')), { elements: EL });
 
@@ -142,11 +162,11 @@ async function main() {
     if (!keys.length) box.insertAdjacentHTML('beforeend', `<span class="empty">${label === 'In' ? 'Take a bottle, or build a molecule.' : 'Optional: your guess.'}</span>`);
     for (const f of keys) {
       const row = document.createElement('div'); row.className = 'mol';
-      row.innerHTML = `<strong title="${esc(NAMES[f] || f)}"><span class="coef">${side[f] > 1 ? side[f] : ''}</span>${show(f)}</strong>`;
+      row.innerHTML = `<strong title="${esc(NAMES[f] || f)}">${isSprout() ? `${esc(nameOf(f))}${side[f] > 1 ? ` <span class="coef">×${side[f]}</span>` : ''}` : `<span class="coef">${side[f] > 1 ? side[f] : ''}</span>${show(f)}`}</strong>`;
       const minus = document.createElement('button'); minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label', `One less ${f}`);
       const plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', `One more ${f}`);
       minus.addEventListener('click', () => { side[f]--; if (side[f] <= 0) delete side[f]; drawTable(); });
-      plus.addEventListener('click', () => { side[f] = Math.min(side[f] + 1, 12); drawTable(); });
+      plus.addEventListener('click', () => { side[f] = Math.min(side[f] + 1, 40); drawTable(); });
       row.append(minus, plus); box.append(row);
     }
   };
@@ -156,11 +176,11 @@ async function main() {
     const L = totals(left), R = totals(right); const els = [...new Set([...Object.keys(L), ...Object.keys(R)])];
     const guessing = Object.keys(right).length > 0;
     let diff = 0; let html = '<span class="h">Atom</span><span class="h">In</span><span class="h">Out</span><span class="h"></span>';
-    for (const e of els) { const a = L[e] || 0, b = R[e] || 0; diff += (a - b); html += `<span>${e}</span><span>${a}</span><span>${b}</span><span class="${a === b ? 'ok' : 'no'}">${a === b ? '✓' : '✗'}</span>`; }
+    for (const e of els) { const a = L[e] || 0, b = R[e] || 0; diff += (a - b); html += `<span>${isYoung() ? `<i class="dot" style="background:${hex(EL[e]?.c ?? 0xcccccc)}"></i>${esc(EL[e]?.name ?? e)}` : e}</span><span>${a}</span><span>${b}</span><span class="${a === b ? 'ok' : 'no'}">${a === b ? '✓' : '✗'}</span>`; }
     $('tally').innerHTML = guessing && els.length ? html : '<span class="empty" style="grid-column:1/-1">Fill in “out” and the scale weighs the atoms on each side.</span>';
     tilt = guessing ? Math.max(-14, Math.min(14, diff * 1.5)) : 0;
   };
-  const putOn = (/** @type {Record<string, number>} */ side, /** @type {string} */ f) => { side[f] = Math.min((side[f] || 0) + 1, 12); drawTable(); };
+  const putOn = (/** @type {Record<string, number>} */ side, /** @type {string} */ f) => { side[f] = Math.min((side[f] || 0) + 1, 40); drawTable(); };
   $('toLeft').addEventListener('click', () => { if (plateOk()) { putOn(left, plateFormula()); clearPlate(); } });
   $('toRight').addEventListener('click', () => { if (plateOk()) { putOn(right, plateFormula()); clearPlate(); } });
   $('clear').addEventListener('click', clearPlate);
@@ -176,7 +196,7 @@ async function main() {
     for (const f of list) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'bottle';
       const dots = atomsOf(f).slice(0, 8).map((e) => `<i style="background:${hex(EL[e].c)}"></i>`).join('');
-      b.innerHTML = `<span class="dots">${dots}</span><span><b>${show(f)}</b><small>${esc(NAMES[f] || '')}</small></span>`;
+      b.innerHTML = isSprout() ? `<span class="dots">${dots}</span><span><b>${esc(nameOf(f))}</b></span>` : `<span class="dots">${dots}</span><span><b>${show(f)}</b><small>${esc(NAMES[f] || '')}</small></span>`;
       b.setAttribute('aria-label', `${NAMES[f] || f} (${f}): put on the table`);
       b.addEventListener('click', () => putOn(left, f));
       box.append(b);
@@ -192,6 +212,13 @@ async function main() {
       jars.append(b);
     }
     $('typeBox').hidden = rank(band) < rank('apprentice');
+    document.body.dataset.band = band;
+    for (const b of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.cond'))) {
+      const k = b.dataset.cond || '';
+      b.hidden = isSprout() && SPROUT_HIDES.has(k);
+      if (b.hidden && conds.has(k)) { conds.delete(k); b.setAttribute('aria-pressed', 'false'); }
+      b.textContent = (isYoung() && YOUNG_COND[k]) || (COND.find((c) => c[0] === k) || [k, k])[1];
+    }
     $('scaleBox').hidden = rank(band) < rank('seedling');
   };
   const condBox = $('conds');
@@ -203,7 +230,7 @@ async function main() {
   const setBand = (/** @type {string} */ b) => {
     band = b; store.set('band', b);
     document.querySelectorAll('.band button').forEach((x) => x.setAttribute('aria-pressed', String(/** @type {HTMLElement} */ (x).dataset.band === b)));
-    drawShelves(); drawCodex();
+    drawShelves(); drawCodex(); drawTable(); drawNotes();
   };
   document.querySelectorAll('.band button').forEach((x) => x.addEventListener('click', () => setBand(/** @type {string} */ (/** @type {HTMLElement} */ (x).dataset.band))));
   $('typeForm').addEventListener('submit', (ev) => {
@@ -243,23 +270,33 @@ async function main() {
       html += `<details class="fam"><summary><b>${esc(FAMILY[fam] || fam)}</b> <span>${got} of ${rs.length}</span></summary>`;
       for (const r of rs) {
         html += seen.has(r.id)
-          ? `<div class="entry found"><b>${esc(r.name)}</b><div class="eq">${showEq(r.equation)}</div><div>${esc(describe(r))}</div></div>`
+          ? `<div class="entry found"><b>${esc(r.name)}</b><div class="eq">${eqFor(r.equation)}</div><div>${esc(describe(r))}</div></div>`
           : `<div class="entry"><b>?</b><div>${r.needs.length ? 'Needs ' + r.needs.map(condName).join(' and ') + '.' : 'Needs nothing special.'}</div></div>`;
       }
       html += '</details>';
     }
-    if (mysteries.length) html += `<details class="fam" open><summary><b>Mystery cards</b> <span>${mysteries.length}</span></summary>${mysteries.map((m) => `<div class="entry mystery"><div class="eq">${showEq(m)}</div><div>Predicted by the model, not confirmed.</div></div>`).join('')}</details>`;
-    if (labFinds.length) html += `<details class="fam" open><summary><b>Lab records</b> <span>${labFinds.length}</span></summary>${labFinds.map((m) => `<div class="entry found"><div class="eq">${showEq(plain(m))}</div><div>Recorded by real chemists.</div></div>`).join('')}</details>`;
+    if (mysteries.length) html += `<details class="fam" open><summary><b>Mystery cards</b> <span>${mysteries.length}</span></summary>${mysteries.map((m) => `<div class="entry mystery"><div class="eq">${eqFor(m)}</div><div>Predicted by the model, not confirmed.</div></div>`).join('')}</details>`;
+    if (labFinds.length) html += `<details class="fam" open><summary><b>Lab records</b> <span>${labFinds.length}</span></summary>${labFinds.map((m) => `<div class="entry found"><div class="eq">${eqFor(plain(m))}</div><div>Recorded by real chemists.</div></div>`).join('')}</details>`;
     html += `<p class="note">${LAB_CREDIT}</p>`;
     $('codex').innerHTML = html;
   };
   const drawNotes = () => {
-    $('notes').innerHTML = notes.length ? notes.map((x) => `<div class="entry${x.ok ? ' found' : ''}"><div class="eq">${showEq(x.eq)}</div><div>${esc(x.what)}</div></div>`).join('') : '<p class="note">Nothing yet.</p>';
+    $('notes').innerHTML = notes.length ? notes.map((x) => `<div class="entry${x.ok ? ' found' : ''}"><div class="eq">${eqFor(x.eq)}</div><div>${esc(x.what)}</div></div>`).join('') : '<p class="note">Nothing yet.</p>';
   };
   const note = (/** @type {string} */ eq, /** @type {string} */ what, /** @type {boolean} */ ok) => { notes = [{ t: new Date().toISOString(), eq, what, ok }, ...notes].slice(0, 40); store.set('notes', notes); drawNotes(); };
 
   // ---------- running the chamber ----------
-  const result = (/** @type {string} */ cls, /** @type {string} */ html) => { const r = $('result'); r.hidden = false; r.className = 'result ' + cls; r.innerHTML = html; r.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+  const result = (/** @type {string} */ cls, /** @type {string} */ html) => {
+    const r = $('result'); r.hidden = false; r.className = 'result ' + cls; r.innerHTML = html;
+    // Read-aloud for young players: plays only when tapped (voiceovers stay off by default).
+    if (isYoung() && 'speechSynthesis' in window) {
+      const text = r.innerText;
+      const say = document.createElement('button'); say.type = 'button'; say.className = 'btn say'; say.textContent = '🔊 Read it to me';
+      say.addEventListener('click', () => { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 0.9; speechSynthesis.speak(u); });
+      r.append(say);
+    }
+    r.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
   /** @type {Record<string, string>} */
   const HEAT = names.heat;
   const fxFor = (/** @type {any} */ r, /** @type {Record<string, number>} */ out) => (names.effects[r.family] === 'flame' ? 'flame' : Object.keys(out).some((f) => GASES.has(f)) ? 'bubbles' : names.effects[r.family] || 'glow');
@@ -311,12 +348,23 @@ async function main() {
       }
       const isNew = !found.includes(r.id);
       if (isNew) { found = [...found, r.id]; store.set('found', found); drawCodex(); }
-      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${showEq(eqText)}</p>${r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
+      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
       note(eqText, r.name, true); animate(inSide, out, fxFor(r, out)); return;
     }
     if (raw.kind === 'unbalanced') {
       const near = raw.close ? `<p>You’re close: these really do react. ${rank(band) <= rank('seedling') ? 'Try changing how many of each you use.' : 'Change the numbers in front.'}</p>` : '<p>Atoms are never made or destroyed, so both sides need the same atoms.</p>';
       result('bad', `<p><b>The scale isn’t level.</b> ${raw.report.map(esc).join(' ')}</p>${near}`);
+      const closeR = raw.close ? byId[raw.close] : null;
+      if (closeR && isYoung()) {
+        const show1 = document.createElement('button'); show1.type = 'button'; show1.className = 'btn'; show1.textContent = 'Show me how';
+        show1.addEventListener('click', () => {
+          const [l, rr] = closeR.equation.split(' -> ').map(sideOf);
+          for (const s of [left, right]) for (const k of Object.keys(s)) delete s[k];
+          Object.assign(left, l); Object.assign(right, rr); drawTable();
+          result('info', '<p><b>Here’s the level way.</b> Count each colour on both sides of the scale: they match.</p><p>Now run the chamber.</p>');
+        });
+        $('result').prepend(show1);
+      }
       note(input, 'Not balanced.', false); animate(inSide, inSide, 'fizzle'); return;
     }
     if (raw.kind === 'mystery' || raw.kind === 'no_reaction') {
@@ -326,16 +374,17 @@ async function main() {
         const isNew = !labFinds.includes(key);
         if (isNew) { labFinds = [...labFinds, key]; store.set('lab', labFinds); drawCodex(); }
         const surprise = raw.kind === 'no_reaction' && guess ? '<p>Our simple model didn’t expect this one, but the lab record says it happened.</p>' : '';
-        result('lab', `<p><b>Lab record!</b> It’s not in the codex, but real chemists have recorded ${guess ? 'this reaction' : 'these turning into something'} ${times === 1 ? 'once' : times + ' times'}:</p><p class="eq">${showEq(eq)}</p>${surprise}<p class="credit">Formulas only, so it could be a different molecule with the same atoms. ${LAB_CREDIT}</p><p>${isNew ? 'New lab record in your codex!' : 'Already in your codex.'}</p>`);
+        result('lab', `<p><b>Lab record!</b> It’s not in the codex, but real chemists have recorded ${guess ? 'this reaction' : 'these turning into something'} ${times === 1 ? 'once' : times + ' times'}:</p><p class="eq">${eqFor(eq)}</p>${surprise}<p class="credit">Formulas only, so it could be a different molecule with the same atoms. ${LAB_CREDIT}</p><p>${isNew ? 'New lab record in your codex!' : 'Already in your codex.'}</p>`);
         note(eq, 'Lab record (published reaction).', true); animate(inSide, sideOf(outText ?? ''), 'glow'); return;
       }
     }
     if (raw.kind === 'mystery' && guess) {
       if (!mysteries.includes(input)) { mysteries = [...mysteries, input]; store.set('mysteries', mysteries); drawCodex(); }
+      if (isYoung()) { result('mystery', '<p><b>Mystery card!</b> Nobody has tried this on our bench yet. It might work, but no one has checked.</p>'); note(input, 'Mystery card (predicted, not confirmed).', true); animate(inSide, guess, 'glow'); return; }
       result('mystery', `<p><b>Mystery card!</b> This isn’t in our reaction data. The model says it might hold together:</p><ul>${raw.checks.map((/** @type {string} */ c) => `<li>${esc(c)}</li>`).join('')}</ul><p>Predicted by the model, not confirmed. Real chemists would test it in a lab.</p>`);
       note(input, 'Mystery card (predicted, not confirmed).', true); animate(inSide, guess, 'glow'); return;
     }
-    result('bad', `<p><b>Fizzle.</b> ${esc(raw.reason || 'Nothing happens.')}</p>${guess ? '' : '<p>Try other bottles, another condition, or write your guess in “out”.</p>'}`);
+    result('bad', `<p><b>Fizzle.</b> ${esc(raw.reason || 'Nothing happens.')}</p>${guess ? '' : isSprout() ? '<p>Try other bottles, or another switch.</p>' : '<p>Try other bottles, another condition, or write your guess in “out”.</p>'}`);
     note(input, raw.reason || 'Nothing happened.', false); animate(inSide, inSide, 'fizzle');
   };
   $('test').addEventListener('click', () => {

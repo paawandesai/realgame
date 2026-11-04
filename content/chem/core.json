@@ -43,7 +43,8 @@
    "say": "Natural gas joins with oxygen and gives carbon dioxide, water and heat.",
    "short": "Gas plus air makes fire!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "hydrogen_burns",
@@ -58,13 +59,14 @@
    "say": "Hydrogen and oxygen join into water and give off a lot of heat.",
    "short": "Boom! Water!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "water_splits",
    "name": "Water splits",
    "family": "electrolysis",
-   "band": "sprout",
+   "band": "seedling",
    "equation": "2H2O -> 2H2 + O2",
    "needs": [
     "electricity"
@@ -73,7 +75,8 @@
    "say": "Electricity pulls water apart into hydrogen and oxygen gas.",
    "short": "Zap water, get bubbles!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "carbon_burns",
@@ -88,7 +91,8 @@
    "say": "Carbon joins with oxygen to make carbon dioxide and heat.",
    "short": "Charcoal glows hot!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "iron_rusts",
@@ -103,7 +107,8 @@
    "say": "Iron slowly joins with oxygen when water is around, making rust (simplified).",
    "short": "Wet iron turns red!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "baking_soda_vinegar",
@@ -161,7 +166,8 @@
    "say": "Wax is a long hydrocarbon. It burns to carbon dioxide and water (one typical wax molecule shown).",
    "short": "Wax makes a flame!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "peroxide_splits",
@@ -191,7 +197,8 @@
    "say": "Magnesium burns with a blinding white light and leaves white magnesium oxide. Never stare at it.",
    "short": "Super bright light!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "propane_burns",
@@ -206,7 +213,8 @@
    "say": "Barbecue gas burns to carbon dioxide and water.",
    "short": "Barbecue fire!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "ethanol_burns",
@@ -221,7 +229,8 @@
    "say": "Alcohol burns with a pale blue flame, giving carbon dioxide and water.",
    "short": "Blue alcohol flame.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "fermentation",
@@ -262,7 +271,8 @@
    "say": "Sodium fizzes across water, making hydrogen and a strong base.",
    "short": "Sodium zooms on water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "lithium_water",
@@ -275,7 +285,8 @@
    "say": "Lithium fizzes gently in water, making hydrogen and lithium hydroxide.",
    "short": "Lithium fizzes slowly.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "potassium_water",
@@ -287,7 +298,8 @@
    "heat": "releases",
    "say": "Potassium reacts even faster than sodium; the hydrogen catches fire with a lilac flame.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "calcium_water",
@@ -300,7 +312,8 @@
    "say": "Calcium sinks and bubbles, making hydrogen and cloudy calcium hydroxide.",
    "short": "Calcium bubbles in water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "barium_water",
@@ -312,7 +325,8 @@
    "heat": "releases",
    "say": "Barium reacts briskly with water, making hydrogen and barium hydroxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "strontium_water",
@@ -324,7 +338,8 @@
    "heat": "releases",
    "say": "Strontium reacts with water a little faster than calcium.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "magnesium_steam",
@@ -338,7 +353,8 @@
    "heat": "releases",
    "say": "Hot magnesium takes oxygen from steam and frees hydrogen.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "salt_from_elements",
@@ -353,7 +369,8 @@
    "say": "A soft metal and a poisonous gas join into ordinary table salt.",
    "short": "Metal plus gas makes salt!",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "potassium_chlorine",
@@ -367,7 +384,8 @@
    "heat": "releases",
    "say": "Potassium burns in chlorine to make potassium chloride.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "magnesium_chlorine",
@@ -381,7 +399,8 @@
    "heat": "releases",
    "say": "Magnesium burns in chlorine to make magnesium chloride.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "calcium_chlorine",
@@ -395,7 +414,8 @@
    "heat": "releases",
    "say": "Calcium and chlorine join into calcium chloride, used to melt road ice.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "aluminium_chlorine",
@@ -409,7 +429,8 @@
    "heat": "releases",
    "say": "Aluminium burns in chlorine to aluminium chloride.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "copper_chlorine",
@@ -423,7 +444,8 @@
    "heat": "releases",
    "say": "Hot copper burns in chlorine to make copper(II) chloride.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "sodium_bromine",
@@ -437,7 +459,8 @@
    "heat": "releases",
    "say": "Sodium and bromine join into sodium bromide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "iron_sulfur",
@@ -452,7 +475,8 @@
    "say": "Heated iron and sulfur join into iron sulfide, which is no longer magnetic.",
    "short": "Iron and sulfur join.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "magnesium_sulfur",
@@ -467,7 +491,8 @@
    "say": "Magnesium and sulfur react in a flash to make magnesium sulfide.",
    "short": "A flash makes new powder.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "copper_oxide",
@@ -482,7 +507,8 @@
    "say": "Heated copper joins with oxygen to make black copper oxide.",
    "short": "Hot copper turns black.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "zinc_oxide",
@@ -496,7 +522,8 @@
    "heat": "releases",
    "say": "Zinc burns with a blue-green flame to white zinc oxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "aluminium_oxide",
@@ -510,7 +537,8 @@
    "heat": "releases",
    "say": "Aluminium powder burns brightly to aluminium oxide. A thin oxide skin also protects cans from corroding.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "lithium_oxygen",
@@ -524,7 +552,8 @@
    "heat": "releases",
    "say": "Lithium burns with a crimson flame to lithium oxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "sodium_oxygen",
@@ -537,7 +566,8 @@
    "say": "Cut sodium goes dull in seconds as it joins with oxygen.",
    "short": "Shiny sodium goes dull.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "calcium_oxygen",
@@ -551,7 +581,8 @@
    "heat": "releases",
    "say": "Calcium burns with a brick-red flame to calcium oxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "silicon_oxygen",
@@ -565,7 +596,8 @@
    "heat": "releases",
    "say": "Silicon burns to silica, the stuff of sand and glass.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "sulfur_burns",
@@ -580,7 +612,8 @@
    "say": "Sulfur burns with a blue flame and makes choking sulfur dioxide.",
    "short": "Sulfur burns blue.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "phosphorus_burns",
@@ -592,7 +625,8 @@
    "heat": "releases",
    "say": "White phosphorus catches fire by itself in warm air, making white phosphorus oxide smoke.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "co_burns",
@@ -606,7 +640,8 @@
    "heat": "releases",
    "say": "Carbon monoxide burns with a blue flame to carbon dioxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "carbon_little_air",
@@ -620,7 +655,8 @@
    "heat": "releases",
    "say": "Without enough oxygen, carbon makes poisonous carbon monoxide instead of CO2.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "ethane_burns",
@@ -634,7 +670,8 @@
    "heat": "releases",
    "say": "Ethane burns to carbon dioxide and water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "butane_burns",
@@ -649,7 +686,8 @@
    "say": "Lighter fuel burns to carbon dioxide and water.",
    "short": "Lighter gas burns.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "pentane_burns",
@@ -663,7 +701,8 @@
    "heat": "releases",
    "say": "Pentane, a light fuel, burns to carbon dioxide and water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "hexane_burns",
@@ -677,7 +716,8 @@
    "heat": "releases",
    "say": "Hexane burns to carbon dioxide and water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "octane_burns",
@@ -691,7 +731,8 @@
    "heat": "releases",
    "say": "Octane, a main part of petrol, burns in car engines.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "ethene_burns",
@@ -705,7 +746,8 @@
    "heat": "releases",
    "say": "Ethene burns with a smoky yellow flame.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "acetylene_burns",
@@ -719,7 +761,8 @@
    "heat": "releases",
    "say": "Acetylene burns hot enough to cut steel in a welding torch.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "benzene_burns",
@@ -733,7 +776,8 @@
    "heat": "releases",
    "say": "Benzene burns with a very sooty flame.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "methanol_burns",
@@ -747,7 +791,8 @@
    "heat": "releases",
    "say": "Methanol burns with an almost invisible flame.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "propanol_burns",
@@ -761,7 +806,8 @@
    "heat": "releases",
    "say": "Propanol burns to carbon dioxide and water; its cousin isopropanol is rubbing alcohol.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "ammonia_burns",
@@ -775,7 +821,8 @@
    "heat": "releases",
    "say": "Ammonia burns in pure oxygen to nitrogen and water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "hydrogen_sulfide_burns",
@@ -789,7 +836,8 @@
    "heat": "releases",
    "say": "Rotten-egg gas burns to sulfur dioxide and water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "carbon_disulfide_burns",
@@ -803,7 +851,8 @@
    "heat": "releases",
    "say": "Carbon disulfide vapour catches fire very easily.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "silane_burns",
@@ -815,7 +864,8 @@
    "heat": "releases",
    "say": "Silane bursts into flame by itself in air, leaving silica dust.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "haber",
@@ -831,7 +881,8 @@
    "heat": "releases",
    "say": "Nitrogen from air and hydrogen join over an iron catalyst to make ammonia for fertiliser.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "ammonia_splits",
@@ -846,7 +897,8 @@
    "heat": "absorbs",
    "say": "Hot ammonia over a catalyst breaks back into nitrogen and hydrogen.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "hcl_synthesis",
@@ -860,7 +912,8 @@
    "heat": "releases",
    "say": "Light starts a fast reaction that makes hydrogen chloride gas.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "hbr_synthesis",
@@ -874,7 +927,8 @@
    "heat": "releases",
    "say": "Hot hydrogen and bromine join into hydrogen bromide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "hf_synthesis",
@@ -886,7 +940,8 @@
    "heat": "releases",
    "say": "Fluorine reacts with hydrogen explosively, even in the dark and cold.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "contact_so3",
@@ -901,7 +956,8 @@
    "heat": "releases",
    "say": "Sulfur dioxide joins more oxygen over a vanadium oxide catalyst, a step toward sulfuric acid.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "so3_water",
@@ -913,7 +969,8 @@
    "heat": "releases",
    "say": "Sulfur trioxide and water make sulfuric acid (done via oleum in industry).",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "ostwald_1",
@@ -928,7 +985,8 @@
    "heat": "releases",
    "say": "Ammonia burns over a platinum catalyst to nitric oxide, the first step to nitric acid.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "no_oxidises",
@@ -940,7 +998,8 @@
    "heat": "releases",
    "say": "Colourless nitric oxide joins air's oxygen to make brown nitrogen dioxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "ostwald_3",
@@ -952,7 +1011,8 @@
    "heat": "releases",
    "say": "Nitrogen dioxide dissolves in water to make nitric acid and nitric oxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "lightning_nitrogen",
@@ -981,7 +1041,8 @@
    "heat": "absorbs",
    "say": "Methane and steam over nickel make hydrogen for industry.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "water_gas_shift",
@@ -995,7 +1056,8 @@
    "heat": "releases",
    "say": "Carbon monoxide takes oxygen from steam, giving more hydrogen.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "water_gas",
@@ -1009,7 +1071,8 @@
    "heat": "absorbs",
    "say": "Steam over white-hot coke makes a fuel mix of carbon monoxide and hydrogen.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "boudouard",
@@ -1023,7 +1086,8 @@
    "heat": "absorbs",
    "say": "Hot carbon takes oxygen from carbon dioxide, making carbon monoxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "methanol_synthesis",
@@ -1039,7 +1103,8 @@
    "heat": "releases",
    "say": "Carbon monoxide and hydrogen join over a copper catalyst into methanol.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "urea_synthesis",
@@ -1054,7 +1119,8 @@
    "heat": "releases",
    "say": "Ammonia and carbon dioxide make urea, the most used fertiliser.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "limestone_roast",
@@ -1069,7 +1135,8 @@
    "say": "Heat drives carbon dioxide out of limestone, leaving quicklime.",
    "short": "Hot rock lets out gas.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "slaking_lime",
@@ -1082,7 +1149,8 @@
    "say": "Quicklime and water get very hot and make slaked lime.",
    "short": "Lime and water get hot.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "lime_dries",
@@ -1096,7 +1164,8 @@
    "heat": "absorbs",
    "say": "Strong heat drives water out of calcium hydroxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "copper_carbonate_heat",
@@ -1110,7 +1179,8 @@
    "heat": "absorbs",
    "say": "Green copper carbonate turns into black copper oxide when heated (simplified formula).",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "magnesium_carbonate_heat",
@@ -1124,7 +1194,8 @@
    "heat": "absorbs",
    "say": "Heat drives carbon dioxide out of magnesium carbonate.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "baking_soda_heat",
@@ -1139,7 +1210,8 @@
    "say": "Heat makes baking soda release carbon dioxide, which makes cakes rise.",
    "short": "Heat makes cakes rise.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "potassium_chlorate_heat",
@@ -1154,7 +1226,8 @@
    "heat": "releases",
    "say": "With manganese dioxide as catalyst, heated potassium chlorate releases oxygen.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "mercury_oxide_heat",
@@ -1168,7 +1241,8 @@
    "heat": "absorbs",
    "say": "Heating red mercury oxide gives mercury and oxygen; Priestley found oxygen this way.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "silver_oxide_heat",
@@ -1182,7 +1256,8 @@
    "heat": "absorbs",
    "say": "Silver oxide breaks into shiny silver and oxygen when heated.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "copper_nitrate_heat",
@@ -1196,7 +1271,8 @@
    "heat": "absorbs",
    "say": "Heated copper nitrate gives black copper oxide and brown nitrogen dioxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "ammonium_chloride_heat",
@@ -1210,7 +1286,8 @@
    "heat": "absorbs",
    "say": "Heated ammonium chloride splits into two gases that rejoin higher up.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "lab_ammonia",
@@ -1224,7 +1301,8 @@
    "heat": "absorbs",
    "say": "Warming slaked lime with ammonium chloride drives off ammonia gas.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "salt_electrolysis",
@@ -1239,7 +1317,8 @@
    "heat": "absorbs",
    "say": "Electricity splits melted salt into sodium metal and chlorine gas.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "brine_electrolysis",
@@ -1253,7 +1332,8 @@
    "heat": "absorbs",
    "say": "Salt water splits into sodium hydroxide, hydrogen and chlorine, a big industry.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "alumina_electrolysis",
@@ -1268,7 +1348,8 @@
    "heat": "absorbs",
    "say": "Electricity frees aluminium from its oxide (overall; real cells burn carbon anodes).",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "copper_chloride_electrolysis",
@@ -1282,7 +1363,8 @@
    "heat": "absorbs",
    "say": "Electricity plates copper on one side and frees chlorine on the other.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "hcl_electrolysis",
@@ -1296,7 +1378,8 @@
    "heat": "absorbs",
    "say": "Electricity splits hydrogen chloride into hydrogen and chlorine.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "neutralise_hcl_naoh",
@@ -1492,7 +1575,8 @@
    "heat": "releases",
    "say": "Copper oxide dissolves in warm sulfuric acid into blue copper sulfate.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "mgo_acid",
@@ -1566,7 +1650,8 @@
    "heat": "releases",
    "say": "Calcium fizzes hard in acid and gives off hydrogen.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "zinc_sulfuric",
@@ -1614,7 +1699,8 @@
    "heat": "releases",
    "say": "Copper won't dissolve in most acids, but nitric acid oxidises it and gives nitric oxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "chalk_acid",
@@ -1801,7 +1887,8 @@
    "heat": "releases",
    "say": "Aluminium steals oxygen from rust so violently it makes molten iron, far too hot to put out with water.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "blast_furnace",
@@ -1815,7 +1902,8 @@
    "heat": "releases",
    "say": "Carbon monoxide takes the oxygen out of iron ore, leaving iron.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "copper_oxide_carbon",
@@ -1829,7 +1917,8 @@
    "heat": "releases",
    "say": "Hot carbon takes oxygen from copper oxide, leaving copper metal.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "copper_oxide_hydrogen",
@@ -1843,7 +1932,8 @@
    "heat": "releases",
    "say": "Hot hydrogen turns black copper oxide back into shiny copper.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "zinc_oxide_carbon",
@@ -1857,7 +1947,8 @@
    "heat": "absorbs",
    "say": "Very hot carbon frees zinc from zinc oxide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "magnesium_co2",
@@ -1871,7 +1962,8 @@
    "heat": "releases",
    "say": "Burning magnesium is so hungry for oxygen it takes it from carbon dioxide, leaving soot.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "peroxide_iodide",
@@ -1883,7 +1975,8 @@
    "heat": "releases",
    "say": "Hydrogen peroxide turns iodide into brown iodine in acid.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "chlorine_bromide",
@@ -1895,7 +1988,8 @@
    "heat": "releases",
    "say": "Chlorine is more reactive, so it pushes bromine out; the liquid turns orange.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "chlorine_iodide",
@@ -1907,7 +2001,8 @@
    "heat": "releases",
    "say": "Chlorine pushes iodine out of potassium iodide; the liquid turns brown.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "bromine_iodide",
@@ -1919,7 +2014,8 @@
    "heat": "releases",
    "say": "Bromine pushes iodine out, because bromine is more reactive.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "bleach_making",
@@ -1931,7 +2027,8 @@
    "heat": "releases",
    "say": "Chlorine bubbled into cold sodium hydroxide makes household bleach.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "iron_chlorine",
@@ -1945,7 +2042,8 @@
    "heat": "releases",
    "say": "Hot iron wool glows in chlorine and makes brown iron(III) chloride.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "aluminium_iodine",
@@ -1959,7 +2057,8 @@
    "heat": "releases",
    "say": "A drop of water starts a fierce reaction with purple iodine fumes.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "zinc_iodine",
@@ -1973,7 +2072,8 @@
    "heat": "releases",
    "say": "Zinc and iodine join into zinc iodide when water helps them mix.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "magnesium_nitrogen",
@@ -1987,7 +2087,8 @@
    "heat": "releases",
    "say": "Burning magnesium even joins with nitrogen, making magnesium nitride.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "lithium_nitrogen",
@@ -1999,7 +2100,8 @@
    "heat": "releases",
    "say": "Lithium is one of the few metals that joins with nitrogen at room temperature.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "copper_sulfur",
@@ -2013,7 +2115,8 @@
    "heat": "releases",
    "say": "Hot copper and sulfur join into black copper(I) sulfide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "zinc_sulfur",
@@ -2027,7 +2130,8 @@
    "heat": "releases",
    "say": "Zinc and sulfur powder react in a flash to make zinc sulfide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "hydrogen_sulfur",
@@ -2041,7 +2145,8 @@
    "heat": "releases",
    "say": "Hydrogen over hot sulfur makes smelly hydrogen sulfide.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "sodium_hydride",
@@ -2055,7 +2160,8 @@
    "heat": "releases",
    "say": "Hot sodium takes up hydrogen to make sodium hydride.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "silver_tarnish",
@@ -2067,7 +2173,8 @@
    "heat": "releases",
    "say": "Traces of hydrogen sulfide in air turn silver black.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "silver_chloride",
@@ -2249,7 +2356,8 @@
    "heat": "releases",
    "say": "Ammonia dissolves in water and makes it basic (written as ammonium hydroxide).",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "sodium_oxide_water",
@@ -2261,7 +2369,8 @@
    "heat": "releases",
    "say": "A metal oxide dissolves in water and makes a base.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "p4o10_water",
@@ -2273,7 +2382,8 @@
    "heat": "releases",
    "say": "Phosphorus oxide grabs water fiercely and makes phosphoric acid.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "ethene_hydrogen",
@@ -2299,7 +2409,8 @@
    "heat": "releases",
    "say": "Ethene takes up orange bromine, turning it colourless. It is the test for a double bond.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "ethene_water",
@@ -2315,7 +2426,8 @@
    "heat": "releases",
    "say": "Steam adds to ethene over an acid catalyst, making ethanol.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "esterification",
@@ -2330,7 +2442,8 @@
    "heat": "little",
    "say": "An acid and an alcohol join into ethyl ethanoate, which smells like pear drops.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "methane_chlorine",
@@ -2344,7 +2457,8 @@
    "heat": "releases",
    "say": "Light breaks chlorine apart and a chlorine atom takes a hydrogen's place.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "ethanol_dehydration",
@@ -2359,7 +2473,8 @@
    "heat": "absorbs",
    "say": "Hot ethanol over an acid catalyst loses water and becomes ethene.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "cracking",
@@ -2374,7 +2489,8 @@
    "heat": "absorbs",
    "say": "Big oil molecules are cracked into petrol and ethene.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "sucrose_hydrolysis",
@@ -2428,7 +2544,8 @@
    "heat": "releases",
    "say": "Brown nitrogen dioxide pairs up into colourless dinitrogen tetroxide when cooled.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "fire"
   },
   {
    "id": "glass_making",
@@ -2442,7 +2559,8 @@
    "heat": "absorbs",
    "say": "Sand and soda ash melt together, releasing carbon dioxide (soda glass, simplified).",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "cement_clinker",
@@ -2456,7 +2574,8 @@
    "heat": "absorbs",
    "say": "At furnace heat, limestone and sand make calcium silicate (simplified; cement clinker is richer in calcium).",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "nitrogen_triiodide",
@@ -2468,7 +2587,8 @@
    "heat": "releases",
    "say": "Nitrogen triiodide explodes at a touch into nitrogen and purple iodine. Only trained chemists handle tiny amounts.",
    "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "check": "reviewed",
+   "hazard": "lab"
   }
  ]
 }
