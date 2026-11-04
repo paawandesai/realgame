@@ -47,7 +47,8 @@ const IDLE_HINT = 'Look for a fire. Press 2 for Water, aim at the fire and click
 const IDLE_SLOT = 1;
 // The locked hint, until the first fire is out.
 const AIM_HINT = 'Aim at a fire and click.';
-const START_HINT = 'Click to look around. Esc shows the controls and point-and-click mode.';
+const START_HINT = 'Click to look around. Esc frees the mouse; Esc again shows the menu.';
+const FREE_HINT = 'Mouse free. Click the game to look around again, or press Esc for the menu.';
 // Flame icons in the objective line, at most this many (then a plus sign).
 const MAX_PIPS = 8;
 // How long each hit marker stays, ms.
@@ -298,6 +299,7 @@ export function startHud() {
 
   // Polled every frame as well as on the event (some browsers, headless
   // Chromium among them, do not always fire pointerlockchange).
+  let unlockedAt = -1e9;
   const syncLock = () => {
     const locked = document.pointerLockElement === canvas;
     if (locked === input.locked) return;
@@ -311,9 +313,11 @@ export function startHud() {
       note = '';
       castIfRefused = false;
       showPause(false);
-    } else if (everLocked && !(state && state.outcome !== 'playing')) {
-      // Esc released the mouse: pause with the controls help.
-      showPause(true);
+    } else {
+      // Paawan's playtest (2026-11-04): Esc only frees the mouse; the game
+      // keeps going and a second Esc opens the menu.
+      unlockedAt = performance.now();
+      if (everLocked && !input.paused && !(state && state.outcome !== 'playing')) note = FREE_HINT;
     }
   };
   document.addEventListener('pointerlockchange', syncLock);
@@ -481,8 +485,12 @@ export function startHud() {
   };
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (input.locked) pauseNow();
-      else showPause(!input.paused);
+      // First Esc frees the mouse (the browser may already have done it this
+      // very keypress); a second Esc opens or closes the menu.
+      if (input.locked || document.pointerLockElement === canvas) {
+        try { document.exitPointerLock(); } catch (err) { /* nothing to free */ }
+        syncLock();
+      } else if (performance.now() - unlockedAt > 400) showPause(!input.paused);
     }
     // P (by key position, so AZERTY works too) pauses, and resumes like the
     // Resume button; if the lock is refused the game still unpauses.
@@ -903,7 +911,49 @@ export function startHud() {
       hudEl.dataset.frame = String(state.frame);
       drawn = state;
     }
+    digBar();
+    stack();
     requestAnimationFrame(frame);
+  };
+  // Paawan's playtest (2026-11-04): a progress bar under the crosshair while
+  // the Pick works on a block (chopping wood took a while with no sign).
+  /** @type {HTMLElement | null} */
+  let digEl = null;
+  const digBar = () => {
+    const t = state && state.mode === 'voxel' && state.hot === 5 ? Number(state.digT) || 0 : 0;
+    const on = t > 0.001 && t < 0.999;
+    if (!digEl) {
+      if (!on) return;
+      digEl = document.createElement('div');
+      digEl.id = 'digbar';
+      digEl.setAttribute('aria-hidden', 'true');
+      digEl.append(document.createElement('span'));
+      document.body.append(digEl);
+    }
+    digEl.hidden = !on;
+    if (on) digEl.style.setProperty('--dig', t.toFixed(3));
+  };
+  // Paawan's playtest (2026-11-04): the hint and a two-line caption (or a
+  // hotbar that wrapped to two rows) overlapped. Stack them from the real
+  // heights: hotbar, then caption, then hint, 8 px apart.
+  let stackKey = '';
+  const stack = () => {
+    const bar = document.getElementById('hotbar');
+    if (!bar) return;
+    const barTop = window.innerHeight - bar.getBoundingClientRect().top;
+    const capOn = caption.classList.contains('show') && !!caption.textContent;
+    const capH = capOn ? caption.offsetHeight : 0;
+    const key = `${Math.round(barTop)}|${capH}`;
+    if (key === stackKey) return;
+    stackKey = key;
+    if (barTop <= 0 || barTop > window.innerHeight * 0.6) {
+      caption.style.bottom = '';
+      hint.style.bottom = '';
+      return;
+    }
+    const capBottom = barTop + 8;
+    caption.style.bottom = `${Math.round(capBottom)}px`;
+    hint.style.bottom = `${Math.round(capOn ? capBottom + capH + 8 : capBottom)}px`;
   };
   requestAnimationFrame(frame);
 }

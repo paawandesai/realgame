@@ -836,6 +836,11 @@ export function startBench() {
       grid.append(card);
     }
     wrap.append(grid);
+    // Paawan's playtest asked why Fire is missing: at the youngest band it is
+    // a starting spell (methane is a Seedling-band equation), so say so.
+    if (spells.length && !spells.some((s) => s.id === 'fire')) {
+      wrap.append(mk(document, 'p', 'bench-list-note', 'Fire is a starting spell at your age band: you can cast it already. You build its equation from the Seedling band up.'));
+    }
     // I-052: the block world's "Make things" section (recipes from the pack).
     if (make) wrap.append(makeSection(make));
     body.append(wrap);
@@ -1034,6 +1039,25 @@ export function startBench() {
       if (coef > 1) wrap.append(mk(document, 'p', 'bench-done-extra', `A ${coef} in front would mean ${coef} molecules. One molecule is ${formula}.`));
     }
     if (r.learned) wrap.append(badge(r.stage || 'learning'));
+    // Paawan's playtest (2026-11-04): each build here counts toward
+    // Practised; say how far along it is (filled once the game has counted it).
+    const count = mk(document, 'p', 'bench-done-count', '');
+    wrap.append(count);
+    const fillCount = () => {
+      try {
+        const ws = JSON.parse(/** @type {any} */ (window).__workState || 'null');
+        const i = r.slot - 1;
+        const need = Number(ws && ws.need) || 0;
+        const n = Math.min(Number(ws && ws.casts && ws.casts[i]) || 0, need);
+        if (!need || !ws || !Array.isArray(ws.casts)) return;
+        const name = pretty((names[r.slot] || { name: '' }).name || '');
+        count.textContent = n >= need
+          ? `${name}: Practised! It casts instantly now.`
+          : `${name}: ${n} of ${need} builds to Practised. ${need - n} more and it casts instantly.`;
+      } catch { /* no count */ }
+    };
+    fillCount();
+    for (const ms of [150, 400, 900]) setTimeout(fillCount, ms);
     const row = mk(document, 'div', 'bench-actions');
     const again = mk(document, 'button', 'bench-again', 'Build another');
     again.setAttribute('type', 'button');
