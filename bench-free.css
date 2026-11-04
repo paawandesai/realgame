@@ -131,3 +131,10 @@ header .btn { text-decoration: none; }
 .sides .arrow { padding-top: 0; text-align: center; transform: rotate(90deg); line-height: 1; }
 .side { min-height: 56px; }
 .mol strong { overflow-wrap: anywhere; }
+/* Age bands (Bench plan section 1): Sprout builds no molecules by hand. */
+body[data-band="sprout"] #elementBox, body[data-band="sprout"] .readout, body[data-band="sprout"] .sides .arrow, body[data-band="sprout"] #rightSide, body[data-band="sprout"] #outNote { display: none; }
+body[data-band="sprout"] .bottle b { font-family: inherit; font-size: 16px; }
+.tally .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.result .hazard { color: #ffcf7a; font-weight: 600; }
+.result .say { margin-top: 6px; }
+.result > .btn:first-child { float: right; margin: 0 0 6px 8px; }
