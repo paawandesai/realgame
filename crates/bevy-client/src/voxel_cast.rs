@@ -35,6 +35,8 @@ pub(crate) struct Charge {
 
 struct Shot {
     spell: u8,
+    /// The emit scale and discovery (I-053); `CastTag::PLAIN` for a shipped spell.
+    tag: crate::discover::CastTag,
     hand: Vec3,
     forward: Vec3,
     held: f32,
@@ -48,10 +50,19 @@ struct Shot {
 impl Charge {
     /// The cast `aim_and_cast` makes in the block world, in place of the
     /// courtyard's beam: the hold is the release's, else the click's.
-    pub fn shoot(&mut self, spell: usize, hand: Vec3, forward: Vec3, held: f32, epoch: u32) {
+    pub fn shoot(
+        &mut self,
+        spell: usize,
+        hand: Vec3,
+        forward: Vec3,
+        held: f32,
+        epoch: u32,
+        tag: crate::discover::CastTag,
+    ) {
         let held = self.release.take().unwrap_or(held);
         self.shots.push(Shot {
             spell: spell as u8,
+            tag,
             hand,
             forward,
             held,
@@ -62,10 +73,19 @@ impl Charge {
 
     /// A worked cast: an arc spell picks the hold that lands nearest the
     /// block under the crosshair (`eye` along `forward`).
-    pub fn shoot_aimed(&mut self, spell: usize, hand: Vec3, eye: Vec3, forward: Vec3, epoch: u32) {
+    pub fn shoot_aimed(
+        &mut self,
+        spell: usize,
+        hand: Vec3,
+        eye: Vec3,
+        forward: Vec3,
+        epoch: u32,
+        tag: crate::discover::CastTag,
+    ) {
         self.release = None;
         self.shots.push(Shot {
             spell: spell as u8,
+            tag,
             hand,
             forward,
             held: 0.0,
@@ -84,6 +104,7 @@ struct Flying {
     spell: u8,
     landing: Option<Arrival>,
     epoch: u32,
+    tag: crate::discover::CastTag,
 }
 
 /// One dot of the arc preview.
@@ -339,6 +360,7 @@ fn fly(
                 spell: s.spell,
                 landing,
                 epoch: s.epoch,
+                tag: s.tag,
             },
         ));
     }
@@ -388,6 +410,8 @@ fn fly(
                 spell: Spell::ALL[f.spell as usize],
                 pos: l.pos,
                 normal: l.normal,
+                amount: f.tag.amount,
+                disc: f.tag.disc,
             });
             game.impacts += 1;
         }

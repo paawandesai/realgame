@@ -47,9 +47,78 @@ export function startPack() {
     grid.append(b);
     slots.push(b);
   }
-  card.append(head, grid);
+  // I-053: spells saved from the Chemistry Bench, the bottles the pack
+  // holds, and the chemistry quest (discover.rs publishes `__discState`).
+  const discBox = document.createElement('div');
+  discBox.className = 'pack-disc';
+  card.append(head, grid, discBox);
   root.append(card);
   document.body.append(root);
+  let lastDisc = '';
+  const sendDisc = (/** @type {string} */ c) => { w.__gameIn = w.__gameIn || {}; (w.__gameIn.disc = w.__gameIn.disc || []).push(c); };
+  const drawDisc = () => {
+    const st = parse(w.__discState);
+    const ws = parse(w.__workState);
+    const sprout = !!ws && ws.band === 'sprout';
+    const key = JSON.stringify([st && st.saved, st && st.slots, st && st.on, st && st.bottles, st && st.quests, sprout]);
+    if (key === lastDisc) return;
+    lastDisc = key;
+    discBox.replaceChildren();
+    if (!st) return;
+    const h = document.createElement('h3');
+    h.textContent = 'Spells from the Bench';
+    discBox.append(h);
+    const saved = Array.isArray(st.saved) ? st.saved : [];
+    if (!saved.length) {
+      const p = document.createElement('p');
+      p.className = 'pack-disc-empty';
+      p.append('Find a reaction on the ');
+      const a = document.createElement('a');
+      a.href = 'bench-free.html';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Chemistry Bench';
+      p.append(a, ' and save it as a spell. It shows up here.');
+      discBox.append(p);
+    }
+    for (const s of saved) {
+      const row = document.createElement('div');
+      row.className = 'pack-disc-row';
+      row.dataset.id = s.id;
+      row.dataset.kind = (s.effect && s.effect.kind) || '';
+      const name = document.createElement('span');
+      name.className = 'pack-disc-name';
+      name.textContent = s.name;
+      const info = document.createElement('span');
+      info.className = 'pack-disc-info';
+      const built = s.instant ? 'casts at once' : `built ${Math.min(s.builds, s.need)} of ${s.need}`;
+      const need = s.bottles ? 'bottles ready' : 'needs bottles';
+      info.textContent = `key ${s.slot} · ${built} · ${need}`;
+      const on = Array.isArray(st.slots) && st.slots[s.slot - 1] === s.id;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pack-disc-use';
+      b.disabled = s.usable === false;
+      b.textContent = on ? 'Take off' : `Put on key ${s.slot}`;
+      b.addEventListener('click', () => { sendDisc(on ? `unequip ${s.slot}` : `equip ${s.id}`); lastDisc = ''; });
+      row.append(name, info, b);
+      discBox.append(row);
+    }
+    const bottles = Array.isArray(st.bottles) ? st.bottles : [];
+    const bl = document.createElement('p');
+    bl.className = 'pack-disc-bottles';
+    bl.textContent = bottles.length
+      ? `Bottles: ${bottles.map((/** @type {any} */ x) => (sprout ? `${x.label} ×${x.n}` : `${x.label} (${x.species}) ×${x.n}`)).join(', ')}`
+      : 'Bottles: none yet. Dig coal to get one.';
+    discBox.append(bl);
+    for (const q of Array.isArray(st.quests) ? st.quests : []) {
+      const p = document.createElement('p');
+      p.className = 'pack-disc-quest';
+      p.classList.toggle('done', !!q.done);
+      p.textContent = `${q.done ? '✓ ' : ''}${q.line}`;
+      discBox.append(p);
+    }
+  };
 
   let open = false;
   let picked = -1;
@@ -106,6 +175,7 @@ export function startPack() {
     open = true;
     picked = -1;
     last = '';
+    lastDisc = '';
     wasPaused = !!(w.__gameIn && w.__gameIn.paused);
     try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* nothing to free */ }
     try { w.__game && w.__game.pause(true); } catch { /* no HUD */ }
@@ -165,7 +235,7 @@ export function startPack() {
   }, true);
 
   const tick = () => {
-    if (open) draw();
+    if (open) { draw(); drawDisc(); }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

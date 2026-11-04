@@ -18,7 +18,7 @@ fi
 cargo build --release --locked --target wasm32-unknown-unknown ${FEATURES[@]+"${FEATURES[@]}"}
 OUT=web/pkg-out
 rm -rf "$OUT" && mkdir -p "$OUT"
-cp web/index.html web/style.css web/boot.js web/hud.js web/progress.js web/bench.js web/worked.js web/story.js web/pack.js web/music.js web/sfx.js web/late.js web/rank.js web/title.js web/feel.js web/ambience.js web/loading.js web/favicon.svg web/bench-free.html web/bench-free.css web/bench-free.js web/bench-free-lib.js web/bench-scene.js "$OUT/"
+cp web/index.html web/style.css web/boot.js web/hud.js web/progress.js web/bench.js web/worked.js web/story.js web/pack.js web/music.js web/sfx.js web/late.js web/rank.js web/title.js web/feel.js web/ambience.js web/loading.js web/favicon.svg web/bench-free.html web/bench-free.css web/bench-free.js web/bench-free-lib.js web/bench-scene.js web/formula-save.js web/discover.js "$OUT/"
 # The Chemistry Bench free play page: vendored three.js and the chemistry
 # engine (crates/chem, root workspace) as its own small wasm module.
 mkdir -p "$OUT/vendor" && cp vendor/three.min.js vendor/OrbitControls.js vendor/README.txt "$OUT/vendor/"

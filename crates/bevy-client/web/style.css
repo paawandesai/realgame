@@ -425,6 +425,17 @@ body.intro-open #caption, body.intro-open #hint, body.intro-open #hotbar, body.i
 .pack-help { flex: 1; opacity: 0.8; font-size: calc(18px * var(--ui)); }
 .pack-close { font: inherit; padding: 6px 14px; border-radius: 10px; border: 1px solid #8fa3c8; background: #2b3a5c; color: #fff; cursor: pointer; }
 .pack-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+/* I-053: spells saved from the Bench, bottles and the chemistry quest. */
+.pack-disc { margin-top: calc(12px * var(--ui)); font-size: calc(16px * var(--ui)); max-height: 40vh; overflow-y: auto; }
+.pack-disc h3 { margin: 0 0 6px; font-size: calc(18px * var(--ui)); }
+.pack-disc a { color: #9fd3ff; }
+.pack-disc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.pack-disc-name { font-weight: 700; }
+.pack-disc-info { flex: 1; opacity: 0.8; }
+.pack-disc-use { padding: 6px 10px; border-radius: 8px; border: 0; background: #3c6df0; color: #fff; font: inherit; cursor: pointer; }
+.pack-disc-use:disabled { opacity: 0.5; cursor: default; }
+.pack-disc-quest.done { opacity: 0.75; }
+.slot.disc-slot { outline: 2px solid #ffd27a; }
 .pack-slot { position: relative; min-height: calc(64px * var(--ui)); border-radius: 10px; border: 2px solid #3c4b70; background: #26314f; color: #fff; font: inherit; font-size: calc(18px * var(--ui)); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
 .pack-slot.empty { opacity: 0.5; }
 .pack-slot.picked { border-color: #ffd54a; }

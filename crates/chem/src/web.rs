@@ -77,3 +77,16 @@ pub fn literature_key_json(input: &str) -> String {
         Err(e) => json!({ "kind": "parse_error", "message": e.to_string() }).to_string(),
     }
 }
+
+/// Every codex reaction's spell effect (`discover::Effects`, I-053), keyed
+/// by reaction id, so the page can say what a saved discovery casts as.
+#[wasm_bindgen]
+pub fn effects_json() -> String {
+    let fx = crate::discover::Effects::load();
+    let map: serde_json::Map<String, serde_json::Value> = fx
+        .all(codex())
+        .into_iter()
+        .map(|f| (f.reaction_id.clone(), json!(f)))
+        .collect();
+    serde_json::Value::Object(map).to_string()
+}
