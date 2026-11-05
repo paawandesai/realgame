@@ -509,7 +509,7 @@ export function mountSpells(o) {
     tick.setAttribute('aria-hidden', 'true');
     wrap.append(icon, tick, el('p', 'sb-done-line', line));
     if (r.learned) wrap.append(badge(r.stage || 'learning'), el('p', 'sb-done-extra', `You learned ${pretty(j.name)}! Cast it with key ${j.slot}.`));
-    // The old Bench's Apprentice lines (the world reads Adept as Apprentice).
+    // The old Bench's Apprentice lines, for Apprentice and Adept (Adept builds as Apprentice does).
     if (rank() >= 2) {
       if (r.simplest) wrap.append(el('p', 'sb-done-extra', `Simplest form: ${pretty(r.simplest)}`));
       const coef = r.coef || 0;

@@ -3227,7 +3227,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       const r = b.getBoundingClientRect();
       return { band: b.getAttribute('data-band'), w: r.width, h: r.height, svg: !!b.querySelector('svg') };
     }));
-    check('bench: the first open asks with three 160 px pictures', bands.length === 3 && bands.every((b) => b.w >= 160 && b.h >= 160 && b.svg), JSON.stringify(bands));
+    check('bench: the first open asks with four 160 px pictures (the grade picker\'s, Adept since I-060)', bands.length === 4 && bands.every((b) => b.w >= 160 && b.h >= 160 && b.svg), JSON.stringify(bands));
     await clickAt('#bench .bench-band[data-band="seedling"]');
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     const names = await cardNames();
@@ -3241,7 +3241,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await clickAt('#bench .bench-change');
     const u2 = await bui();
     const again = await count('#bench .bench-band[data-band]');
-    check('bench: Change grade shows the chooser again', u2.view === 'chooser' && again === 3, `${brief(u2)} buttons=${again}`);
+    check('bench: Change grade shows the chooser again', u2.view === 'chooser' && again === 4, `${brief(u2)} buttons=${again}`);
     await page.keyboard.press('Escape');
     await load();
     await page.keyboard.press('KeyB'); await readyWait();

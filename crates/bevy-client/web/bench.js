@@ -44,7 +44,10 @@ const SUB = '₀₁₂₃₄₅₆₇₈₉';
 // Pure helpers (exported ones are tested in test/bench.test.ts)
 // ---------------------------------------------------------------------------
 
-/** @param {unknown} b */
+/**
+ * The builder's three layouts: Adept builds as Apprentice does (typed).
+ * @param {unknown} b
+ */
 function bandOf(b) {
   if (b === 'adept') return 'apprentice';
   return typeof b === 'string' && BANDS.includes(b) ? b : null;
@@ -228,8 +231,10 @@ export function reasonFor(band, result, names, tries) {
 }
 
 /**
- * The age band: ?band= in the URL (adept reads as apprentice), else the age
- * picker's pick on this page load, else the bench chooser's; else null (ask).
+ * The grade band: ?band= in the URL, else the grade picker's pick on this
+ * page load, else the Bench's band question; else null (ask). All four bands
+ * (Adept is its own band since I-060; only the builder's layout reads it as
+ * Apprentice's, through `bandOf`).
  * @param {string} search
  * @param {string | null | undefined} picked
  * @param {string | null | undefined} chosen
@@ -237,7 +242,8 @@ export function reasonFor(band, result, names, tries) {
 export function bandFrom(search, picked, chosen) {
   let url = null;
   try { url = new URLSearchParams(search || '').get('band'); } catch { url = null; }
-  return bandOf(url) || bandOf(picked) || bandOf(chosen) || null;
+  const four = (/** @type {unknown} */ b) => (b === 'adept' ? 'adept' : bandOf(b));
+  return four(url) || four(picked) || four(chosen) || null;
 }
 
 // ---------------------------------------------------------------------------

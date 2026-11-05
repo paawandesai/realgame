@@ -195,7 +195,7 @@ async function main() {
   let openedOnce = false;
   const askBand = () => {
     const box = $('bandAsk'); const row = $('bandAskRow'); row.innerHTML = '';
-    // The world's picker offers its own bands (it reads Adept as Apprentice).
+    // The world's picker offers its own bands (all four since I-060).
     /** @type {string[]} */
     let offer = BANDS;
     try { const w = [...(story?.document.querySelectorAll('#age button[data-band]') || [])].map((x) => /** @type {HTMLElement} */ (x).dataset.band || ''); if (w.length) offer = BANDS.filter((b) => w.includes(b)); } catch { /* every band */ }
