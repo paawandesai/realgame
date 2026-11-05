@@ -144,7 +144,7 @@ fn set(terms: &[realgame_sim::formula::Term]) -> BTreeSet<String> {
 }
 
 /// The single species of `s` that `pick` accepts, if exactly one does.
-fn one<'a>(s: &'a BTreeSet<String>, pick: impl Fn(&str) -> bool) -> Option<&'a str> {
+fn one(s: &BTreeSet<String>, pick: impl Fn(&str) -> bool) -> Option<&str> {
     let mut it = s.iter().filter(|f| pick(f));
     let f = it.next()?;
     it.next().is_none().then_some(f.as_str())
@@ -385,7 +385,7 @@ mod tests {
     fn every_rule_reaction_balances_and_is_charge_neutral() {
         let c = Codex::load();
         let d = RuleData::load();
-        for (f, _) in &d.tables.salts {
+        for f in d.tables.salts.keys() {
             assert_eq!(d.charge(f), Some(0), "{f}: charge");
             assert!(d.salt_atoms_match(f), "{f}: its ions are not its atoms");
         }
