@@ -24,6 +24,7 @@ use realgame_voxel::{self as vox, materials, smooth, Biome, Cell, RayMode, World
 use crate::motion::{self, Body, Box3};
 use crate::player::{MoveInput, Player};
 use crate::{bridge::WebIn, clock, Game, PlayerEvent, Settings};
+use bevy::pbr::{DistanceFog, FogFalloff};
 
 /// This plugin's values for the voxel-mode state keys (spec section 8);
 /// `publish` formats them. Values, not JSON fragments (except `probe`, a
@@ -97,6 +98,12 @@ struct Chunks {
     smooth: Option<crate::voxel_tex::SmoothMats>,
     /// The spawn ring (3 x 2 x 3 chunks around the start) is meshed.
     ring_done: bool,
+    /// Meshing time owed (ms): a chunk that ran over the frame's budget
+    /// is paid back by skipping meshing in the next frames, so one heavy
+    /// chunk is one slow frame, not a slow frame every frame.
+    debt: f32,
+    /// Chunks hidden because they are wholly past the fog (`cull_far`).
+    culled: Vec<bool>,
 }
 
 /// What the Pick is doing.
@@ -164,7 +171,7 @@ pub fn plugin(app: &mut App) {
     .add_systems(PostStartup, hide_courtyard)
     .add_systems(
         Update,
-        (tools, mesh_chunks, prop_lod)
+        (tools, mesh_chunks, prop_lod, cull_far)
             .chain()
             .after(crate::control)
             .before(crate::aim_and_cast),
@@ -226,6 +233,8 @@ fn setup(
         clear: m.clear,
         smooth,
         ring_done: false,
+        debt: 0.0,
+        culled: vec![false; n],
     };
     // Everything is dirty after generation: queue it all.
     for c in 0..n {
@@ -1299,8 +1308,11 @@ fn ring(p: Vec3) -> Vec<usize> {
 }
 
 /// Remeshes dirty chunks, nearest first, within the frame's time budget
-/// (4 ms, 2 ms with `?low`; at least one chunk a frame). Until the spawn
-/// ring is meshed the budget is larger, while the intro shows. With
+/// (4 ms, 2 ms with `?low`). A chunk that runs over is paid back from the
+/// next frames' budgets (`Chunks::debt`, at most `MAX_DEBT_FRAMES`
+/// frames). Until the spawn ring is meshed, and while the game is paused
+/// (the title, the intro, a menu), the budget is `PAUSED_MESH_MS`, so the
+/// whole valley is usually meshed before play starts. With
 /// `?debug&meshms=N` (capture scripts on software GPUs, where a frame takes
 /// seconds) the budget is N ms.
 #[allow(clippy::too_many_arguments)]
@@ -1314,6 +1326,7 @@ fn mesh_chunks(
     mut chunks: ResMut<Chunks>,
     mut keys: ResMut<Keys>,
     mesh3d: Query<&Mesh3d>,
+    game: Res<Game>,
 ) {
     let t0 = Instant::now();
     let dirty = if chunks.smooth.is_some() {
@@ -1336,8 +1349,8 @@ fn mesh_chunks(
     });
     let budget_ms = if let Some(ms) = debug_ms {
         ms
-    } else if !chunks.ring_done {
-        40.0
+    } else if !chunks.ring_done || game.paused {
+        PAUSED_MESH_MS
     } else if settings.low {
         2.0
     } else {
@@ -1354,7 +1367,15 @@ fn mesh_chunks(
             .distance_squared(me)
             .total_cmp(&centre(a).distance_squared(me))
     });
-    while let Some(c) = chunks.queue.pop() {
+    // Pay back what earlier frames ran over before meshing again.
+    let allowance = budget_ms - chunks.debt;
+    if allowance <= 0.0 {
+        chunks.debt -= budget_ms;
+    }
+    while allowance > 0.0 {
+        let Some(c) = chunks.queue.pop() else {
+            break;
+        };
         chunks.queued[c] = false;
         let o = World::chunk_origin(c);
         // The smooth surface may bulge a little past the chunk's cells, and
@@ -1420,13 +1441,21 @@ fn mesh_chunks(
                         e.insert(Visibility::Hidden);
                         chunks.far[c] = None;
                     }
+                    if chunks.culled[c] {
+                        // Past the fog (`cull_far` shows it when near).
+                        e.insert(Visibility::Hidden);
+                    }
                     chunks.ents[c][pass] = Some(e.id());
                 }
             }
         }
-        if t0.elapsed().as_secs_f32() * 1000.0 >= budget_ms {
+        if t0.elapsed().as_secs_f32() * 1000.0 >= allowance {
             break;
         }
+    }
+    if allowance > 0.0 {
+        let over = t0.elapsed().as_secs_f32() * 1000.0 - allowance;
+        chunks.debt = over.clamp(0.0, budget_ms * MAX_DEBT_FRAMES);
     }
     if !chunks.ring_done {
         let r = ring(me);
@@ -1452,7 +1481,7 @@ fn prop_lod(player: Res<Player>, mut chunks: ResMut<Chunks>, mut vis: Query<&mut
     let me = player.pos;
     for c in 0..chunks.ents.len() {
         let [.., near, far] = chunks.ents[c];
-        if near.is_none() && far.is_none() {
+        if (near.is_none() && far.is_none()) || chunks.culled[c] {
             continue;
         }
         let o = World::chunk_origin(c);
@@ -1474,6 +1503,67 @@ fn prop_lod(player: Res<Player>, mut chunks: ResMut<Chunks>, mut vis: Query<&mut
                     Visibility::Inherited
                 } else {
                     Visibility::Hidden
+                };
+            }
+        }
+    }
+}
+
+/// The meshing budget before play (the spawn ring, the title, the intro,
+/// a menu): large, so the valley is meshed while nobody is walking.
+const PAUSED_MESH_MS: f32 = 120.0;
+/// The most frames one chunk's overrun may skip (so an edit near the
+/// player, a burning block, still shows within a few frames).
+const MAX_DEBT_FRAMES: f32 = 3.0;
+/// Chunks wholly this far past the fog's end are hidden (m).
+const CULL_MARGIN_M: f32 = 6.0;
+
+/// Hides chunks that lie wholly past the distance fog's end: they would
+/// be drawn as flat haze anyway (the new look's painted ridges stand in
+/// for the far valley). Fewer draws and far fewer triangles, which is most
+/// of a frame's cost on WebGL2. With 8 m of hysteresis.
+fn cull_far(
+    cam: Query<(&GlobalTransform, &DistanceFog), With<Camera3d>>,
+    mut chunks: ResMut<Chunks>,
+    mut vis: Query<&mut Visibility>,
+) {
+    let Some((t, fog)) = cam.iter().next() else {
+        return;
+    };
+    let end = match fog.falloff {
+        FogFalloff::Linear { end, .. } => end,
+        _ => return,
+    };
+    let eye = t.translation();
+    for c in 0..chunks.ents.len() {
+        if chunks.ents[c].iter().all(Option::is_none) {
+            continue;
+        }
+        let o = World::chunk_origin(c);
+        let lo = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32);
+        let hi = lo + Vec3::splat(CHUNK as f32);
+        let d = eye.clamp(lo, hi).distance(eye);
+        let was = chunks.culled[c];
+        let cull = if was {
+            d > end + CULL_MARGIN_M - 8.0
+        } else {
+            d > end + CULL_MARGIN_M
+        };
+        if cull == was {
+            continue;
+        }
+        chunks.culled[c] = cull;
+        if !cull {
+            // `prop_lod` sets the props again.
+            chunks.far[c] = None;
+        }
+        for (pass, e) in chunks.ents[c].iter().enumerate() {
+            let props = pass == PROPS_NEAR || pass == PROPS_FAR;
+            if let Some(mut v) = e.and_then(|e| vis.get_mut(e).ok()) {
+                *v = if cull || props {
+                    Visibility::Hidden
+                } else {
+                    Visibility::Inherited
                 };
             }
         }

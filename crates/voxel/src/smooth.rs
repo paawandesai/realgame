@@ -925,6 +925,22 @@ fn ice_sheets(g: &Grid, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
 }
 
 /// Appends mesh `b` to `a`.
+/// UV_0.x on modelled geometry (buildings, trees, crystals' stands): a
+/// small negative value, so a client can tell modelled shapes from the
+/// ground (the realistic look puts scanned ground textures only on the
+/// ground). Below zero reads as no glow; wet surfaces stay under -0.5.
+pub const MODEL_MARK: f32 = -0.25;
+
+/// Marks a modelled mesh's non-glowing vertices with `MODEL_MARK`.
+pub fn mark_modelled(mut m: MeshData) -> MeshData {
+    for uv in &mut m.uvs {
+        if uv[0] == 0.0 {
+            uv[0] = MODEL_MARK;
+        }
+    }
+    m
+}
+
 fn append(a: &mut MeshData, b: MeshData) {
     let off = a.positions.len() as u32;
     a.positions.extend(b.positions);
@@ -1121,8 +1137,8 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
         // Open air can still hold a tree's crown.
         return if first == Kind::Empty {
             SmoothMesh {
-                props: crate::props::models(world, lo, hi),
-                props_far: crate::props::models_far(world, lo, hi),
+                props: mark_modelled(crate::props::models(world, lo, hi)),
+                props_far: mark_modelled(crate::props::models_far(world, lo, hi)),
                 ..SmoothMesh::default()
             }
         } else {
@@ -1131,11 +1147,14 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
     }
     let mut opaque = surface(&g, lo, hi, Pass::Opaque, true);
     craggy(&mut opaque);
-    append(&mut opaque, crate::built::models(world, lo, hi));
+    append(
+        &mut opaque,
+        mark_modelled(crate::built::models(world, lo, hi)),
+    );
     SmoothMesh {
         opaque,
-        props: crate::props::models(world, lo, hi),
-        props_far: crate::props::models_far(world, lo, hi),
+        props: mark_modelled(crate::props::models(world, lo, hi)),
+        props_far: mark_modelled(crate::props::models_far(world, lo, hi)),
         clear: if g.has(Kind::Clear) {
             let mut m = surface(&g, lo, hi, Pass::Clear, true);
             append(&mut m, ice_sheets(&g, lo, hi));

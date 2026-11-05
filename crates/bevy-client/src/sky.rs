@@ -21,6 +21,8 @@ pub struct SkyParams {
     /// The horizon haze (rgb, the distance fog's colour) and how dark the
     /// cave makes the sky (a).
     pub haze: Vec4,
+    /// The new look's sky overhead (rgb, sRGB) and whether it's on (w).
+    pub top: Vec4,
 }
 
 /// The sky's material (`mood` keeps its sun and haze in step with the
@@ -79,6 +81,7 @@ fn setup(
                 low: Vec4::new(low, 0.0, 0.0, 0.0),
                 sun: Vec3::new(-0.6, 1.0, 0.45).normalize().extend(0.0),
                 haze: Vec4::new(0.86, 0.92, 0.96, 0.0),
+                top: Vec4::ZERO,
             },
         })),
         Transform::default(),

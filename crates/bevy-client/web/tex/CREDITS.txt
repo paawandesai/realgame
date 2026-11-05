@@ -1,0 +1,7 @@
+Scanned ground textures from Poly Haven, CC0 (public domain).
+Fetched and stacked by tools/textures/fetch.py.
+
+grass: sparse_grass https://polyhaven.com/a/sparse_grass (CC0)
+soil: forest_ground_04 https://polyhaven.com/a/forest_ground_04 (CC0)
+rock: aerial_rocks_02 https://polyhaven.com/a/aerial_rocks_02 (CC0)
+snow: snow_field_aerial https://polyhaven.com/a/snow_field_aerial (CC0)
