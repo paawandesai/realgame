@@ -5,9 +5,12 @@
 //!
 //! - **effects** (`content/chem/effects.json`): every codex reaction maps to
 //!   one of a small set of spell effects, derived from its family, heat,
-//!   hazard and products by ordered rules. `kind` is the look (a data value
-//!   the renderer styles), `runs` the world chemistry rule it reuses, with a
-//!   `strength` that scales that rule;
+//!   hazard, products and show record by ordered rules. `kind` is the look (a
+//!   data value the renderer styles), `runs` the world use (I-056: burns,
+//!   splashes, freezes, smothers, builds a wall, reveals, lifts or pushes),
+//!   with a `strength` that scales it. A reaction with no use that fits is
+//!   **Bench only**: it cannot be saved as a spell, and `bench_only` says why
+//!   in plain words;
 //! - **bottles** (`content/chem/bottles.json`): which pack item supplies
 //!   which substance in story mode, and what a cast needs and uses up;
 //! - **chemistry quests** (`content/chem/quests.json`);
@@ -25,6 +28,7 @@ use realgame_sim::spellbook::{Formula, ReactionRef, RefKind, Role, SpellDef};
 use realgame_sim::tier::Tier;
 use serde::{Deserialize, Serialize};
 
+use crate::show::{ShowRecord, Visible};
 use crate::{Codex, Entry, Hazard, Heat};
 
 pub const EFFECTS_JSON: &str = include_str!("../../../content/chem/effects.json");
@@ -49,16 +53,22 @@ pub enum EffectKind {
     Foam,
     Cloud,
     Glow,
+    /// A solid comes out of a solution: a short-lived wall (I-056).
+    Wall,
+    /// A colour appears or a metal coats: marks and reveals (I-056).
+    Reveal,
 }
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 6] = [
+    pub const ALL: [EffectKind; 8] = [
         EffectKind::Fire,
         EffectKind::Water,
         EffectKind::Frost,
         EffectKind::Foam,
         EffectKind::Cloud,
         EffectKind::Glow,
+        EffectKind::Wall,
+        EffectKind::Reveal,
     ];
 
     pub fn id(self) -> &'static str {
@@ -69,13 +79,15 @@ impl EffectKind {
             EffectKind::Foam => "foam",
             EffectKind::Cloud => "cloud",
             EffectKind::Glow => "glow",
+            EffectKind::Wall => "wall",
+            EffectKind::Reveal => "reveal",
         }
     }
 }
 
-/// The world chemistry rule a spell reuses: one of the four shipped spells'
-/// rules, or `None` (a puff that changes nothing, for a gas that neither
-/// burns nor smothers in the world's rules).
+/// What a spell does in the world: one of the four shipped spells' matter
+/// rules (fire, water, frost, foam), one of the world uses I-056 adds (a
+/// wall, a reveal, a lift or a push), or `None`: Bench only, never cast.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Runs {
@@ -83,32 +95,83 @@ pub enum Runs {
     Water,
     Frost,
     Foam,
+    /// A short-lived wall of blocks where it lands (a solid that forms).
+    Wall,
+    /// Hidden caches near where it lands show for a while (a colour that
+    /// appears marks them).
+    Reveal,
+    /// Hydrogen rises: it lifts a player standing where it lands.
+    Lift,
+    /// A burst of gas pushes a player near where it lands.
+    Push,
+    /// Bench only: it cannot be saved as a spell.
     None,
 }
 
 impl Runs {
+    pub const ALL: [Runs; 9] = [
+        Runs::Fire,
+        Runs::Water,
+        Runs::Frost,
+        Runs::Foam,
+        Runs::Wall,
+        Runs::Reveal,
+        Runs::Lift,
+        Runs::Push,
+        Runs::None,
+    ];
+
     pub fn id(self) -> &'static str {
         match self {
             Runs::Fire => "fire",
             Runs::Water => "water",
             Runs::Frost => "frost",
             Runs::Foam => "foam",
+            Runs::Wall => "wall",
+            Runs::Reveal => "reveal",
+            Runs::Lift => "lift",
+            Runs::Push => "push",
             Runs::None => "none",
         }
     }
 
-    /// The hotbar slot (1-4) whose shipped spell has this rule, where the
-    /// discovered spell goes; a `None` puff sits on the CO2 (foam) slot.
-    pub fn slot(self) -> u8 {
+    /// What the spell does in the world, in plain words (the Bench's Save
+    /// button and the pack say it).
+    pub fn world(self) -> &'static str {
         match self {
-            Runs::Fire => 1,
-            Runs::Water => 2,
-            Runs::Frost => 3,
-            Runs::Foam | Runs::None => 4,
+            Runs::Fire => "burns, melts ice and lights the dark",
+            Runs::Water => "splashes warm or plain water",
+            Runs::Frost => "freezes water and cools hot things",
+            Runs::Foam => "smothers a fire with carbon dioxide",
+            Runs::Wall => "builds a short-lived wall or plugs a gap",
+            Runs::Reveal => "shows hidden caches nearby for a while",
+            Runs::Lift => "lifts you like a hydrogen balloon",
+            Runs::Push => "pushes you with a burst of gas",
+            Runs::None => "",
         }
     }
 
-    /// The scale of the rule's emit for a spell of `strength` (0 for a puff).
+    /// Whether it lands as a matter emit (the four shipped spells' rules);
+    /// the other uses are carried out by the world (`world_use`).
+    pub fn matter(self) -> bool {
+        matches!(self, Runs::Fire | Runs::Water | Runs::Frost | Runs::Foam)
+    }
+
+    /// The hotbar slot (1-4) whose shipped spell's flight it uses, where the
+    /// discovered spell goes by default: a wall flies like Frost (a short
+    /// spray that stops at the first block), a reveal like Fire, a lift like
+    /// Water (whose power is the H2 lift) and a push like CO2 (the dash).
+    pub fn slot(self) -> u8 {
+        match self {
+            Runs::Fire | Runs::Reveal => 1,
+            Runs::Water | Runs::Lift => 2,
+            Runs::Frost | Runs::Wall => 3,
+            Runs::Foam | Runs::Push | Runs::None => 4,
+        }
+    }
+
+    /// The scale of the rule's emit for a spell of `strength` (0 for Bench
+    /// only, which never casts).
     pub fn amount(self, strength: f32) -> f32 {
         if self == Runs::None {
             0.0
@@ -133,6 +196,20 @@ pub struct Effect {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tint: Option<String>,
     pub runs: Runs,
+    /// What it does in the world, in plain words (empty for Bench only).
+    #[serde(rename = "use")]
+    pub world: String,
+    /// Why it stays on the Bench, in plain words: set exactly when `runs`
+    /// is `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bench_only: Option<String>,
+}
+
+impl Effect {
+    /// Whether it can be saved as a spell (it has a world use).
+    pub fn saveable(&self) -> bool {
+        self.runs != Runs::None
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -148,6 +225,12 @@ struct When {
     gas_product: Option<bool>,
     #[serde(default)]
     needs_any: Option<bool>,
+    /// The show record shows at least one of these.
+    #[serde(default)]
+    visible_any: Option<Vec<Visible>>,
+    /// At least one product gas is one of these.
+    #[serde(default)]
+    gas_any: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -179,6 +262,72 @@ struct Override {
     why: String,
 }
 
+/// A fizz whose gas does not smother a fire: what it does instead, by the
+/// first rule that matches (I-056).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GasUse {
+    when: When,
+    #[serde(default)]
+    runs: Option<Runs>,
+    /// Bench only, with this reason; `{gas}` is the matched gas's name.
+    #[serde(default)]
+    bench_only: Option<String>,
+    #[allow(dead_code)]
+    why: String,
+}
+
+/// The data values of the world uses I-056 adds; each scales with the
+/// spell's strength between its two values.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WallSpec {
+    /// The block it is built of (`realgame_voxel::mat::NAMES`).
+    pub material: String,
+    pub width: [u8; 2],
+    pub height: [u8; 2],
+    /// Seconds before it crumbles back to air.
+    pub seconds: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RevealSpec {
+    /// Caches within this many metres of the landing show.
+    pub radius_m: [f32; 2],
+    pub seconds: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LiftSpec {
+    /// A player within this many metres of the landing is lifted.
+    pub radius_m: f32,
+    pub blocks: [f32; 2],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PushSpec {
+    pub radius_m: f32,
+    /// m/s, away from the landing.
+    pub speed: [f32; 2],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorldSpec {
+    pub wall: WallSpec,
+    pub reveal: RevealSpec,
+    pub lift: LiftSpec,
+    pub push: PushSpec,
+}
+
+/// `lo + (hi - lo) * strength`.
+pub fn lerp(range: [f32; 2], strength: f32) -> f32 {
+    range[0] + (range[1] - range[0]) * strength.clamp(0.0, 1.0)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EffectsFile {
@@ -189,6 +338,8 @@ struct EffectsFile {
     kinds: Vec<EffectKind>,
     runs: BTreeMap<EffectKind, Runs>,
     smothers: Vec<String>,
+    gas_uses: Vec<GasUse>,
+    world: WorldSpec,
     aqueous_families: Vec<String>,
     kind_rules: Vec<KindRule>,
     strength_rules: Vec<StrengthRule>,
@@ -204,6 +355,7 @@ struct EffectsFile {
 pub struct Effects {
     file: EffectsFile,
     gases: BTreeSet<String>,
+    names: BTreeMap<String, String>,
     shows: crate::show::Shows,
 }
 
@@ -236,7 +388,7 @@ impl Effects {
     pub fn from_json(json: &str) -> Result<Effects, String> {
         let file: EffectsFile = serde_json::from_str(json).map_err(|e| e.to_string())?;
         if file.kinds != EffectKind::ALL {
-            return Err("effects.json: kinds must list the six effect kinds in order".into());
+            return Err("effects.json: kinds must list the eight effect kinds in order".into());
         }
         let names: serde_json::Value =
             serde_json::from_str(crate::NAMES_JSON).map_err(|e| e.to_string())?;
@@ -246,11 +398,23 @@ impl Effects {
             .iter()
             .filter_map(|g| g.as_str().map(str::to_string))
             .collect();
+        let names = names["substances"]
+            .as_object()
+            .ok_or("names.json: no substances")?
+            .iter()
+            .filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string())))
+            .collect();
         Ok(Effects {
             file,
             gases,
+            names,
             shows: crate::show::Shows::load(),
         })
+    }
+
+    /// The world uses' data values (wall, reveal, lift, push).
+    pub fn world(&self) -> &WorldSpec {
+        &self.file.world
     }
 
     /// The show records the effects are built from.
@@ -258,7 +422,7 @@ impl Effects {
         &self.shows
     }
 
-    fn matches(&self, w: &When, e: &Entry, eq: &Equation) -> bool {
+    fn matches(&self, w: &When, e: &Entry, eq: &Equation, rec: Option<&ShowRecord>) -> bool {
         let list =
             |l: &Option<Vec<String>>, v: &str| l.as_ref().is_none_or(|l| l.iter().any(|x| x == v));
         list(&w.family, &e.family)
@@ -266,6 +430,19 @@ impl Effects {
             && list(&w.hazard, hazard_id(e.hazard))
             && w.gas_product.is_none_or(|g| g == self.gas_product(eq))
             && w.needs_any.is_none_or(|n| n == !e.needs.is_empty())
+            && w.visible_any
+                .as_ref()
+                .is_none_or(|v| rec.is_some_and(|r| v.iter().any(|x| r.has(*x))))
+            && w.gas_any
+                .as_ref()
+                .is_none_or(|g| self.product_gases(eq).any(|f| g.contains(&f.to_string())))
+    }
+
+    fn product_gases<'a>(&'a self, eq: &'a Equation) -> impl Iterator<Item = &'a str> + 'a {
+        eq.products
+            .iter()
+            .map(|t| t.formula.as_str())
+            .filter(|f| self.gases.contains(*f))
     }
 
     fn gas_product(&self, eq: &Equation) -> bool {
@@ -276,14 +453,14 @@ impl Effects {
     pub fn of(&self, e: &Entry) -> Effect {
         let eq = eq_of(e);
         let over = self.file.overrides.get(&e.id);
+        let show = self.shows.get(&e.id);
         let kind = over.and_then(|o| o.kind).unwrap_or_else(|| {
             self.file
                 .kind_rules
                 .iter()
-                .find(|r| self.matches(&r.when, e, &eq))
+                .find(|r| self.matches(&r.when, e, &eq, show))
                 .map_or(EffectKind::Water, |r| r.kind)
         });
-        let show = self.shows.get(&e.id);
         // Strength comes from |ΔH| on the documented scale
         // (`show::strength_of`, I-054 spec section 6); with no ΔH, from the
         // heat-class rules.
@@ -298,20 +475,36 @@ impl Effects {
                         .file
                         .strength_rules
                         .iter()
-                        .find(|r| self.matches(&r.when, e, &eq))
+                        .find(|r| self.matches(&r.when, e, &eq, show))
                         .map_or(0.4, |r| r.strength),
                 });
         let mut runs = self.file.runs.get(&kind).copied().unwrap_or(Runs::None);
+        let mut bench_only = None;
         // A fizz smothers a fire only when every gas it gives is one that
         // neither burns nor feeds a flame (CO2, N2); H2 or O2 would not.
+        // Any other fizz takes the first gas use that fits (I-056): a flame
+        // burns, a poisonous gas stays on the Bench, hydrogen lifts, any
+        // other gas pushes.
         if kind == EffectKind::Foam {
-            let all_smother = eq
-                .products
-                .iter()
-                .filter(|t| self.gases.contains(&t.formula))
-                .all(|t| self.file.smothers.contains(&t.formula));
+            let all_smother = self
+                .product_gases(&eq)
+                .all(|f| self.file.smothers.iter().any(|s| s == f));
             if !all_smother {
-                runs = Runs::None;
+                let rule = self
+                    .file
+                    .gas_uses
+                    .iter()
+                    .find(|r| self.matches(&r.when, e, &eq, show));
+                runs = rule.and_then(|r| r.runs).unwrap_or(Runs::None);
+                if let Some(why) = rule.and_then(|r| r.bench_only.as_ref()) {
+                    let gas = rule
+                        .and_then(|r| r.when.gas_any.as_ref())
+                        .and_then(|g| self.product_gases(&eq).find(|f| g.iter().any(|x| x == f)))
+                        .map_or_else(String::new, |f| {
+                            self.names.get(f).cloned().unwrap_or_else(|| f.to_string())
+                        });
+                    bench_only = Some(why.replace("{gas}", &gas));
+                }
             }
         }
         // Heat given off in a solution warms a liquid: it splashes like
@@ -327,6 +520,9 @@ impl Effects {
         // The tint is the show record's: a fire's flame colour, otherwise the
         // first coloured product (precipitate, gas or solution).
         let tint = show.and_then(|r| r.tint(runs == Runs::Fire));
+        if runs == Runs::None && bench_only.is_none() {
+            bench_only = Some("Nothing it makes does anything out in the world yet.".into());
+        }
         Effect {
             reaction_id: e.id.clone(),
             kind,
@@ -334,6 +530,8 @@ impl Effects {
             strength,
             tint,
             runs,
+            world: runs.world().to_string(),
+            bench_only,
         }
     }
 
@@ -592,7 +790,7 @@ mod tests {
     fn the_effect_data_is_consistent() {
         let c = Codex::load();
         let f = Effects::load();
-        assert!(Effects::from_json(&EFFECTS_JSON.replace("\"glow\"]", "\"cloud\"]")).is_err());
+        assert!(Effects::from_json(&EFFECTS_JSON.replace("\"reveal\"]", "\"cloud\"]")).is_err());
         for k in EffectKind::ALL {
             assert!(f.file.runs.contains_key(&k), "{k:?} has no rule");
         }
@@ -641,10 +839,11 @@ mod tests {
         // CO2 from chalk and acid smothers: it runs the CO2 rule.
         let chalk = fx("chalk_acid");
         assert_eq!((chalk.kind, chalk.runs), (EffectKind::Foam, Runs::Foam));
-        // Hydrogen does not smother a fire.
+        // Hydrogen does not smother a fire: it lifts (I-056).
         let zinc = fx("zinc_acid");
-        assert_eq!((zinc.kind, zinc.runs), (EffectKind::Foam, Runs::None));
-        assert_eq!(fx("silver_chloride").kind, EffectKind::Cloud);
+        assert_eq!((zinc.kind, zinc.runs), (EffectKind::Foam, Runs::Lift));
+        assert_eq!(fx("silver_chloride").kind, EffectKind::Wall);
+        assert_eq!(fx("silver_chloride").runs, Runs::Wall);
         assert_eq!(fx("silver_chloride").tint.as_deref(), Some("#f4f4f4"));
         assert_eq!(fx("golden_rain").tint.as_deref(), Some("#ffd21f"));
         let mg = fx("magnesium_burns");
@@ -659,8 +858,89 @@ mod tests {
         assert_eq!(fx("thermite").strength, 1.0);
         // Driven reactions take in less heat than ones that feel cold.
         assert!(fx("limestone_roast").strength < fx("baking_soda_vinegar").strength);
+        // A metal coating a metal in a solution marks it: a reveal.
+        assert_eq!(fx("iron_copper_sulfate").runs, Runs::Reveal);
+        // Oxygen from peroxide pushes; a poisonous gas stays on the Bench.
+        assert_eq!(fx("peroxide_splits").runs, Runs::Push);
+        let no2 = fx("no_oxidises");
+        assert_eq!(no2.runs, Runs::None);
+        assert_eq!(
+            no2.bench_only.as_deref(),
+            Some("It makes nitrogen dioxide, a poisonous gas, so it stays on the Bench.")
+        );
+        // Potassium on water lights its hydrogen: it burns.
+        assert_eq!(fx("potassium_water").runs, Runs::Fire);
         assert_eq!(Runs::None.amount(0.5), 0.0);
         assert_eq!(Runs::Fire.amount(1.5), 1.0);
+    }
+
+    /// I-056: every reaction either has a world use (and can be saved as a
+    /// spell) or is Bench only with a reason; no spell is a dud puff.
+    #[test]
+    fn every_saveable_spell_has_a_world_use_and_bench_only_ones_say_why() {
+        let c = Codex::load();
+        let f = Effects::load();
+        let mut uses: BTreeMap<&str, usize> = BTreeMap::new();
+        for e in &c.entries {
+            let x = f.of(e);
+            *uses.entry(x.runs.id()).or_default() += 1;
+            if x.saveable() {
+                assert!(!x.world.is_empty(), "{}: no world use", e.id);
+                assert!(x.bench_only.is_none(), "{}", e.id);
+                assert!(x.runs.amount(x.strength) > 0.0, "{}: a dud", e.id);
+            } else {
+                let why = x
+                    .bench_only
+                    .as_deref()
+                    .unwrap_or_else(|| panic!("{}: Bench only with no reason", e.id));
+                assert!(
+                    why.ends_with('.') && why.len() <= 120 && !why.contains('{'),
+                    "{}: {why}",
+                    e.id
+                );
+                assert!(x.world.is_empty(), "{}", e.id);
+            }
+            // The world use follows the show record (the plan's table).
+            let rec = f.shows().get(&e.id).unwrap();
+            match x.runs {
+                Runs::Wall => assert!(rec.has(Visible::Precipitate), "{}", e.id),
+                Runs::Reveal => assert!(
+                    rec.has(Visible::Coating) || rec.has(Visible::ColourChange),
+                    "{}",
+                    e.id
+                ),
+                Runs::Lift => assert!(
+                    rec.gases.iter().any(|g| g.formula == "H2"
+                        && g.drift == crate::show::Drift::Rises
+                        && g.side == crate::show::Side::Product),
+                    "{}",
+                    e.id
+                ),
+                Runs::Push => assert!(!rec.gases.is_empty(), "{}", e.id),
+                Runs::Frost => assert_eq!(x.heat, -1, "{}", e.id),
+                _ => {}
+            }
+        }
+        // Every use is used, and the rule tier's precipitates build walls.
+        for r in Runs::ALL {
+            assert!(uses.get(r.id()).copied().unwrap_or(0) > 0, "{:?} unused", r);
+        }
+        for e in c
+            .entries
+            .iter()
+            .filter(|e| e.rule.as_deref() == Some("precipitate"))
+        {
+            assert_eq!(f.of(e).runs, Runs::Wall, "{}", e.id);
+        }
+        // The new uses' data values are sane.
+        let w = f.world();
+        assert!(w.wall.width[0] >= 1 && w.wall.width[0] <= w.wall.width[1]);
+        assert!(w.wall.height[0] >= 1 && w.wall.height[0] <= w.wall.height[1]);
+        assert!(w.wall.seconds > 0.0 && w.reveal.seconds > 0.0);
+        assert!(w.reveal.radius_m[0] > 0.0 && w.reveal.radius_m[0] <= w.reveal.radius_m[1]);
+        assert!(w.lift.radius_m > 0.0 && w.push.radius_m > 0.0);
+        assert_eq!(lerp([2.0, 4.0], 0.5), 3.0);
+        assert_eq!(lerp([2.0, 4.0], 7.0), 4.0);
     }
 
     #[test]
