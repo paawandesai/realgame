@@ -65,6 +65,8 @@ HAND_HF = {
     ("CaSiO3", "s"): (-1634.94, "NBS82"),
     ("Fe(OH)2", "s"): (-569.0, "NBS82"),
     ("Fe(OH)3", "s"): (-823.0, "NBS82"),
+    # Rule tier (I-056): freshly precipitated aluminium hydroxide is amorphous.
+    ("Al(OH)3", "s"): (-1276.0, "NBS82"),
     ("Mg3N2", "s"): (-461.08, "NBS82"),
     ("Li3N", "s"): (-164.56, "NBS82"),
     ("P4O10", "s"): (-2984.0, "NBS82"),
@@ -175,6 +177,10 @@ SMILES = {
     "HNO3": "O[N+](=O)[O-]", "H2SO4": "OS(=O)(=O)O", "H2SO3": "OS(=O)O", "H2CO3": "OC(=O)O",
     "H3PO4": "OP(=O)(O)O", "H2S": "S", "SO2": "O=S=O", "SO3": "O=S(=O)=O",
     "P4O10": "O=P12OP3(=O)OP(=O)(O1)OP(=O)(O2)O3",
+    # Rule tier (I-056) fuels.
+    "C7H16": "CCCCCCC", "C9H20": "CCCCCCCCC", "C11H24": "CCCCCCCCCCC", "C12H26": "CCCCCCCCCCCC",
+    "C16H34": "CCCCCCCCCCCCCCCC", "C6H12": "C1CCCCC1", "C3H6": "C=CC", "C4H8": "C=CCC", "C5H10": "C=CCCC",
+    "C3H4": "C#CC", "C4H9OH": "CCCCO", "C5H11OH": "CCCCCO",
 }
 
 # Colours: (state or "*") -> (described, hex or None, source). None hex: the
@@ -256,13 +262,28 @@ COLOURS = {
     "C12H22O11": {"s": ("white", "#f4f4f4", C)}, "C6H12O6": {"s": ("white", "#f4f4f4", C)},
     "CH4N2O": {"s": ("white", "#f4f4f4", C)}, "CaSiO3": {"s": ("white", "#f4f4f4", C)},
     "Na2SiO3": {"s": ("white", "#f4f4f4", C)}, "NaH": {"s": ("grey-white", "#d8d8d4", C)},
+    # Rule tier (I-056): precipitates and coloured solutions.
+    "Ag2CO3": {"s": ("pale yellow", "#f2e6a6", C)},
+    "BaCO3": {"s": ("white", "#f4f4f4", C)}, "ZnCO3": {"s": ("white", "#f4f4f4", C)},
+    "FeCO3": {"s": ("white, turning green-brown in air", "#e6e4da", C)},
+    "Al(OH)3": {"s": ("white", "#f4f4f4", C)}, "AlPO4": {"s": ("white", "#f4f4f4", C)},
+    "Ca3(PO4)2": {"s": ("white", "#f4f4f4", C)},
+    "CuBr2": {"aq": ("blue", "#3a9ee0", C), "s": ("black", "#1c1c1c", C)},
+    "Cu(CH3COO)2": {"aq": ("blue", "#3a9ee0", C), "s": ("blue-green", "#2e8b7a", C)},
+    "FeBr2": {"aq": ("pale green", "#b8d8a0", C)}, "Fe(NO3)2": {"aq": ("pale green", "#b8d8a0", C)},
+    "Fe(NO3)3": {"aq": ("yellow-brown", "#c8892a", C)}, "Fe2(SO4)3": {"aq": ("yellow-brown", "#c8892a", C)},
+    "FeBr3": {"aq": ("red-brown", "#9c4a1e", C)},
 }
 COLOURLESS_GASES = ["H2", "O2", "N2", "CO2", "CO", "CH4", "C2H6", "C3H8", "C4H10", "C2H4", "C2H2", "NH3",
-                    "HCl", "HF", "HBr", "SO2", "H2S", "NO", "SiH4", "CH3Cl"]
+                    "HCl", "HF", "HBr", "SO2", "H2S", "NO", "SiH4", "CH3Cl",
+                    # Rule tier (I-056) fuels.
+                    "C3H6", "C4H8", "C3H4"]
 COLOURLESS_LIQUIDS = ["H2O", "H2O2", "C2H5OH", "CH3OH", "C3H7OH", "CH3COOH", "CH3COOC2H5", "C5H12",
                       "C6H14", "C8H18", "C10H22", "C6H6", "CS2", "H2SO4", "HNO3", "C2H4Br2",
                       # Science review (I-054): SO3 melts at 290 K and boils at 318 K.
-                      "SO3"]
+                      "SO3",
+                      # Rule tier (I-056) fuels.
+                      "C7H16", "C9H20", "C11H24", "C12H26", "C16H34", "C6H12", "C5H10", "C4H9OH", "C5H11OH"]
 # Precipitate grain (how a solid that forms in a solution settles): cloudy =
 # a fine or gelatinous suspension that settles slowly; grainy = crystals or a
 # metal deposit that settles fast. Source: the same descriptions (COLOUR-GE).
@@ -271,7 +292,10 @@ COLOURLESS_LIQUIDS = ["H2O", "H2O2", "C2H5OH", "CH3OH", "C3H7OH", "CH3COOH", "CH
 GRAIN = {"Ca(OH)2": "cloudy", "AgCl": "cloudy", "AgBr": "cloudy", "AgI": "cloudy", "BaSO4": "cloudy", "CaCO3": "cloudy",
          "Mg(OH)2": "cloudy", "Zn(OH)2": "cloudy", "Cu(OH)2": "cloudy", "Fe(OH)2": "cloudy",
          "Fe(OH)3": "cloudy", "CaSO4": "cloudy", "PbI2": "cloudy", "PbCl2": "grainy", "Cu": "grainy",
-         "Ag": "grainy", "Pb": "grainy", "Zn": "grainy", "I2": "grainy"}
+         "Ag": "grainy", "Pb": "grainy", "Zn": "grainy", "I2": "grainy",
+         # Rule tier (I-056): fresh precipitates are fine or gelatinous.
+         "Ag2CO3": "cloudy", "BaCO3": "cloudy", "ZnCO3": "cloudy", "FeCO3": "cloudy", "Al(OH)3": "cloudy",
+         "AlPO4": "cloudy", "Ca3(PO4)2": "cloudy"}
 
 # Boiling or sublimation points missing from the CRC physical constants file
 # (K, at 1 atm), from the CRC Handbook's printed table (verified: false).
@@ -289,6 +313,41 @@ MASS = {"H": 1.008, "Li": 6.94, "C": 12.011, "N": 14.007, "O": 15.999, "F": 18.9
         "Mg": 24.305, "Al": 26.982, "Si": 28.085, "P": 30.974, "S": 32.06, "Cl": 35.45, "K": 39.098,
         "Ca": 40.078, "Fe": 55.845, "Cu": 63.546, "Zn": 65.38, "Br": 79.904, "Sr": 87.62, "Ag": 107.87,
         "I": 126.90, "Ba": 137.33, "Hg": 200.59, "Pb": 207.2}
+
+# Ion SMILES for the lattice clusters of the rule tier's salts (CRC-ION ion
+# names, as content/chem/rules.json writes them).
+ION_SMILES = {
+    "Na+": "[Na+]", "K+": "[K+]", "Li+": "[Li+]", "NH4+": "[NH4+]", "Ag+": "[Ag+]", "Mg+2": "[Mg+2]",
+    "Ca+2": "[Ca+2]", "Ba+2": "[Ba+2]", "Zn+2": "[Zn+2]", "Cu+2": "[Cu+2]", "Fe+2": "[Fe+2]", "Fe+3": "[Fe+3]",
+    "Al+3": "[Al+3]", "Pb+2": "[Pb+2]", "Cl-": "[Cl-]", "Br-": "[Br-]", "I-": "[I-]", "OH-": "[OH-]", "O-2": "[O-2]",
+    "NO3-": "[O-][N+]([O-])=O", "SO4-2": "[O-]S([O-])(=O)=O", "CO3-2": "[O-]C([O-])=O", "HCO3-": "OC([O-])=O",
+    "PO4-3": "[O-]P([O-])([O-])=O", "CH3COO-": "CC([O-])=O",
+}
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from show_names import NAMES  # noqa: E402  formula -> chemical name for the CAS lookup
+
+
+def load_rules(path):
+    """Folds the rule tier (content/chem/rules.json, written by
+    build_rules.py) into the tables: its new species' names and CAS numbers,
+    the ions of every soluble salt (Hf(aq) is the sum of its ions) and the
+    lattice of every salt."""
+    if not os.path.exists(path):
+        return
+    r = json.load(open(path))
+    for f, sp in r.get("species", {}).items():
+        NAMES.setdefault(f, sp["name"])
+        if sp.get("cas"):
+            EXTRA_CAS.setdefault(f, sp["cas"])
+    for f, salt in r["tables"]["salts"].items():
+        ions = {salt["cation"]: salt["n"], salt["anion"]: salt["m"]}
+        if f in r.get("species", {}) and r["tables"]["solubility"].get(f) == "soluble" and "O-2" not in ions:
+            IONS.setdefault(f, ions)
+        LATTICE.setdefault(f, [(ION_SMILES[salt["cation"]], salt["n"]), (ION_SMILES[salt["anion"]], salt["m"])])
+
+
+load_rules(os.path.join(OUT, "rules.json"))
 
 
 def atoms(formula):
@@ -318,9 +377,14 @@ def num(s):
 
 
 def species():
+    """Every species of the codex: the core tier and the rule tier."""
     core = json.load(open(os.path.join(OUT, "core.json")))
+    reactions = list(core["reactions"])
+    rpath = os.path.join(OUT, "rules.json")
+    if os.path.exists(rpath):
+        reactions += json.load(open(rpath))["reactions"]
     out = set()
-    for r in core["reactions"]:
+    for r in reactions:
         for side in r["equation"].split("->"):
             for t in side.split("+"):
                 out.add(re.match(r"\s*\d*(.*?)\s*$", t).group(1))
@@ -377,31 +441,49 @@ def centre(pos):
     return [[round(p[i] - c[i], 3) for i in range(3)] for p in pos]
 
 
-def main():
-    crc = tsv(os.path.join(BASE, "Heat Capacity", "CRC Standard Thermodynamic Properties of Chemical Substances.tsv"))
-    ions_t = tsv(os.path.join(BASE, "Electrolytes", "CRC Thermodynamic Properties of Aqueous Ions.tsv"), key="Formula")
+def tables():
+    """The machine-readable tables every substance record is built from."""
+    T = {}
+    T["crc"] = tsv(os.path.join(BASE, "Heat Capacity", "CRC Standard Thermodynamic Properties of Chemical Substances.tsv"))
+    T["ions"] = tsv(os.path.join(BASE, "Electrolytes", "CRC Thermodynamic Properties of Aqueous Ions.tsv"), key="Formula")
     phys = {}
     for f in ["Physical Constants of Inorganic Compounds.csv", "Physical Constants of Organic Compounds.csv"]:
         phys.update(tsv(os.path.join(BASE, "Misc", f)))
-    hfus = tsv(os.path.join(BASE, "Phase Change", "CRC Handbook Heat of Fusion.tsv"))
-    hvap = tsv(os.path.join(BASE, "Phase Change", "CRC Handbook Heat of Vaporization.tsv"))
-    api = tsv(os.path.join(BASE, "Reactions", "API TDB Albahri Hf (g).tsv"))
-    shomate = json.load(open(os.path.join(BASE, "Heat Capacity", "webbook_shomate_coefficients.json")))
-    ghaz = tsv(os.path.join(BASE, "Phase Change", "Ghazerati Appendix Vaporization Enthalpy.tsv"))
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from show_names import NAMES  # formula -> chemical name for the CAS lookup
+    T["phys"] = phys
+    T["hfus"] = tsv(os.path.join(BASE, "Phase Change", "CRC Handbook Heat of Fusion.tsv"))
+    T["hvap"] = tsv(os.path.join(BASE, "Phase Change", "CRC Handbook Heat of Vaporization.tsv"))
+    T["api"] = tsv(os.path.join(BASE, "Reactions", "API TDB Albahri Hf (g).tsv"))
+    T["shomate"] = json.load(open(os.path.join(BASE, "Heat Capacity", "webbook_shomate_coefficients.json")))
+    T["ghaz"] = tsv(os.path.join(BASE, "Phase Change", "Ghazerati Appendix Vaporization Enthalpy.tsv"))
+    return T
+
+
+def ion_table(T, ions):
+    """Hf(aq) of every ion in `ions` (CRC-ION)."""
+    out = {}
+    for ion in sorted(ions):
+        row = T["ions"][ion]
+        out[ion] = {"dhf": round(float(row["Hf(aq)"]) / 1000, 2), "src": "CRC-ION", "name": row["Name"]}
+    return out
+
+
+def cas_of(f):
     from chemicals.identifiers import CAS_from_any
+    if f in EXTRA_CAS:
+        return EXTRA_CAS[f]
+    try:
+        return CAS_from_any(NAMES[f])
+    except Exception:  # noqa: BLE001 - not every salt has an identifier entry
+        return None
 
-    ion_hf = {}
-    for ion in sorted({i for d in IONS.values() for i in d}):
-        row = ions_t[ion]
-        ion_hf[ion] = {"dhf": round(float(row["Hf(aq)"]) / 1000, 2), "src": "CRC-ION", "name": row["Name"]}
 
+def substance_records(fs, T):
+    """The substances.json record of every formula in `fs`."""
+    crc, phys, hfus, hvap, api, shomate, ghaz = (T[k] for k in ("crc", "phys", "hfus", "hvap", "api", "shomate", "ghaz"))
+    ion_hf = ion_table(T, {i for d in IONS.values() for i in d})
     subs = {}
-    for f in species():
-        cas = EXTRA_CAS.get(f)
-        if not cas:
-            cas = CAS_from_any(NAMES[f])
+    for f in fs:
+        cas = cas_of(f)
         mm = round(sum(MASS[el] * n for el, n in atoms(f).items()), 3)
         rec = {"cas": cas, "name": NAMES[f], "molar_mass": mm}
         t = crc.get(cas, {})
@@ -482,6 +564,12 @@ def main():
         if f in GRAIN:
             rec["grain"] = GRAIN[f]
         subs[f] = rec
+    return subs, ion_hf
+
+
+def main():
+    T = tables()
+    subs, ion_hf = substance_records(species(), T)
 
     # Geometry. Conformers already in geometry.json are kept (the xTB
     # optimisation is slow); pass --regeometry to recompute them all.

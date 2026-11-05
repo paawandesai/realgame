@@ -135,6 +135,11 @@
    "src": "CRC-ION",
    "name": "Hydroxyl ion"
   },
+  "PO4-3": {
+   "dhf": -1277.4,
+   "src": "CRC-ION",
+   "name": "Phosphate ion"
+  },
   "Pb+2": {
    "dhf": -1.7,
    "src": "CRC-ION",
@@ -157,6 +162,29 @@
   }
  },
  "substances": {
+  "(NH4)2CO3": {
+   "cas": "506-87-6",
+   "name": "ammonium carbonate",
+   "molar_mass": 96.086,
+   "dhf": {
+    "aq": {
+     "v": -942.1,
+     "src": "CRC-ION",
+     "ions": {
+      "NH4+": 2,
+      "CO3-2": 1
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "(NH4)2SO4": {
    "cas": "7783-20-2",
    "name": "ammonium sulfate",
@@ -176,6 +204,35 @@
     }
    },
    "density_kg_m3": 1770.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "(NH4)3PO4": {
+   "cas": "7783-28-0",
+   "name": "ammonium phosphate",
+   "molar_mass": 149.087,
+   "dhf": {
+    "s": {
+     "v": -1566.9,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -1674.9,
+     "src": "CRC-ION",
+     "ions": {
+      "NH4+": 3,
+      "PO4-3": 1
+     }
+    }
+   },
+   "density_kg_m3": 1619.0,
    "phys_src": "CRC-PHYS",
    "state": "s",
    "soluble": true,
@@ -216,6 +273,31 @@
     }
    },
    "grain": "grainy"
+  },
+  "Ag2CO3": {
+   "cas": "534-16-7",
+   "name": "silver carbonate",
+   "molar_mass": 275.748,
+   "dhf": {
+    "s": {
+     "v": -505.8,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 491.15,
+   "density_kg_m3": 6077.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "pale yellow",
+     "src": "COLOUR-GE",
+     "hex": "#f2e6a6",
+     "hex_estimated": true
+    }
+   },
+   "grain": "cloudy"
   },
   "Ag2O": {
    "cas": "20667-12-3",
@@ -449,6 +531,54 @@
     }
    }
   },
+  "Al(NO3)3": {
+   "cas": null,
+   "name": "aluminium nitrate",
+   "molar_mass": 212.994,
+   "dhf": {
+    "aq": {
+     "v": -1153.2,
+     "src": "CRC-ION",
+     "ions": {
+      "Al+3": 1,
+      "NO3-": 3
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "Al(OH)3": {
+   "cas": "21645-51-2",
+   "name": "aluminium hydroxide",
+   "molar_mass": 78.003,
+   "dhf": {
+    "s": {
+     "v": -1276.0,
+     "src": "NBS82",
+     "verified": false
+    }
+   },
+   "density_kg_m3": 2420.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   },
+   "grain": "cloudy"
+  },
   "Al2(SO4)3": {
    "cas": "10043-01-3",
    "name": "aluminium sulfate",
@@ -514,6 +644,79 @@
      "src": "COLOUR-GE",
      "hex": "#f4f4f4",
      "hex_estimated": true
+    }
+   }
+  },
+  "AlBr3": {
+   "cas": "7727-15-3",
+   "name": "aluminium bromide",
+   "molar_mass": 266.694,
+   "dhf": {
+    "s": {
+     "v": -527.2,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -425.1,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -895.8,
+     "src": "CRC-ION",
+     "ions": {
+      "Al+3": 1,
+      "Br-": 3
+     }
+    }
+   },
+   "mp_k": 370.65,
+   "bp_k": 528.15,
+   "density_kg_m3": 3200.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 11.25,
+   "hvap_kj": 23.5,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      370.6,
+      -1150.935,
+      5.961907,
+      -0.010063569999999999,
+      5.8720770000000005e-06,
+      18930130.0
+     ]
+    ],
+    "l": [
+     [
+      370.6,
+      1500.0,
+      124.9652,
+      -3.397768e-11,
+      3.287109e-14,
+      -1.033527e-17,
+      -0.0003983822
+     ]
+    ],
+    "g": [
+     [
+      1500.0,
+      6000.0,
+      82.352,
+      0.000674963,
+      -1.82731e-07,
+      1.5584e-11,
+      -648411.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
     }
    }
   },
@@ -673,6 +876,30 @@
     }
    }
   },
+  "AlPO4": {
+   "cas": "7784-30-7",
+   "name": "aluminium phosphate",
+   "molar_mass": 121.952,
+   "dhf": {
+    "s": {
+     "v": -1733.8,
+     "src": "CRC-T"
+    }
+   },
+   "density_kg_m3": 2560.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   },
+   "grain": "cloudy"
+  },
   "Ba": {
    "cas": "7440-39-3",
    "name": "barium",
@@ -767,6 +994,61 @@
     }
    }
   },
+  "Ba(CH3COO)2": {
+   "cas": "543-80-6",
+   "name": "barium acetate",
+   "molar_mass": 255.418,
+   "dhf": {
+    "aq": {
+     "v": -1509.6,
+     "src": "CRC-ION",
+     "ions": {
+      "Ba+2": 1,
+      "CH3COO-": 2
+     }
+    }
+   },
+   "density_kg_m3": 2470.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "Ba(NO3)2": {
+   "cas": "10022-31-8",
+   "name": "barium nitrate",
+   "molar_mass": 261.338,
+   "dhf": {
+    "s": {
+     "v": -988.0,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -952.4,
+     "src": "CRC-ION",
+     "ions": {
+      "Ba+2": 1,
+      "NO3-": 2
+     }
+    }
+   },
+   "mp_k": 863.15,
+   "density_kg_m3": 3240.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "Ba(OH)2": {
    "cas": "17194-00-2",
    "name": "barium hydroxide",
@@ -833,6 +1115,100 @@
     }
    }
   },
+  "BaBr2": {
+   "cas": "10553-31-8",
+   "name": "barium bromide",
+   "molar_mass": 297.138,
+   "dhf": {
+    "s": {
+     "v": -757.3,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -780.8,
+     "src": "CRC-ION",
+     "ions": {
+      "Ba+2": 1,
+      "Br-": 2
+     }
+    }
+   },
+   "mp_k": 1130.15,
+   "bp_k": 2108.15,
+   "density_kg_m3": 4781.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 32.2,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      1130.0,
+      70.5686,
+      0.02162065,
+      -1.626e-09,
+      1.652e-12,
+      -68.0
+     ]
+    ],
+    "l": [
+     [
+      1130.0,
+      3000.0,
+      104.851,
+      7.559148999999999e-12,
+      -3.399488e-15,
+      5.099125e-19,
+      0.001145659
+     ]
+    ],
+    "g": [
+     [
+      3000.0,
+      6000.0,
+      58.1778,
+      2.0217e-05,
+      -5.583e-09,
+      4.83e-13,
+      -103021.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "BaCO3": {
+   "cas": "513-77-9",
+   "name": "barium carbonate",
+   "molar_mass": 197.338,
+   "dhf": {
+    "s": {
+     "v": -1213.0,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 1828.15,
+   "density_kg_m3": 4308.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 40.0,
+   "state": "s",
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   },
+   "grain": "cloudy"
+  },
   "BaCl2": {
    "cas": "10361-37-2",
    "name": "barium chloride",
@@ -897,6 +1273,73 @@
       -1.5197e-08,
       1.297e-12,
       -178051.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "BaI2": {
+   "cas": "13718-50-8",
+   "name": "barium iodide",
+   "molar_mass": 391.13,
+   "dhf": {
+    "s": {
+     "v": -602.1,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -648.0,
+     "src": "CRC-ION",
+     "ions": {
+      "Ba+2": 1,
+      "I-": 2
+     }
+    }
+   },
+   "mp_k": 984.15,
+   "density_kg_m3": 5150.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 26.5,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      984.0,
+      73.11875,
+      0.0151234,
+      5.0079969999999994e-06,
+      -1.627769e-09,
+      -48376.0
+     ]
+    ],
+    "l": [
+     [
+      984.0,
+      2800.0,
+      112.968,
+      3e-09,
+      5.387979999999999e-13,
+      -3.171791e-16,
+      4.0
+     ]
+    ],
+    "g": [
+     [
+      2800.0,
+      6000.0,
+      58.19107,
+      8.639000000000001e-06,
+      -2.361e-09,
+      2.03e-13,
+      -65060.00000000001
      ]
     ]
    },
@@ -1064,6 +1507,35 @@
     }
    }
   },
+  "C11H24": {
+   "cas": "1120-21-4",
+   "name": "undecane",
+   "molar_mass": 156.313,
+   "dhf": {
+    "l": {
+     "v": -327.2,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -270.8,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 247.61,
+   "bp_k": 469.05,
+   "density_kg_m3": 740.22,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 22.2,
+   "hvap_kj": 41.91,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "C12H22O11": {
    "cas": "57-50-1",
    "name": "sucrose",
@@ -1085,6 +1557,64 @@
      "src": "COLOUR-GE",
      "hex": "#f4f4f4",
      "hex_estimated": true
+    }
+   }
+  },
+  "C12H26": {
+   "cas": "112-40-3",
+   "name": "dodecane",
+   "molar_mass": 170.34,
+   "dhf": {
+    "l": {
+     "v": -350.9,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -289.4,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 263.6,
+   "bp_k": 489.45,
+   "density_kg_m3": 749.52,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 36.8,
+   "hvap_kj": 44.09,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "C16H34": {
+   "cas": "544-76-3",
+   "name": "hexadecane",
+   "molar_mass": 226.448,
+   "dhf": {
+    "l": {
+     "v": -456.1,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -374.8,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 291.33,
+   "bp_k": 560.05,
+   "density_kg_m3": 770.125,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 53.36,
+   "hvap_kj": 51.84,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
     }
    }
   },
@@ -1293,6 +1823,56 @@
     }
    }
   },
+  "C3H4": {
+   "cas": "74-99-7",
+   "name": "propyne",
+   "molar_mass": 40.065,
+   "dhf": {
+    "g": {
+     "v": 184.9,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 170.15,
+   "bp_k": 249.95,
+   "phys_src": "CRC-PHYS",
+   "state": "g",
+   "soluble": false,
+   "colour": {
+    "g": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "C3H6": {
+   "cas": "115-07-1",
+   "name": "propene",
+   "molar_mass": 42.081,
+   "dhf": {
+    "l": {
+     "v": 4.0,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": 20.0,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 87.85,
+   "bp_k": 225.55,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 3.0,
+   "hvap_kj": 18.42,
+   "state": "g",
+   "soluble": false,
+   "colour": {
+    "g": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "C3H7OH": {
    "cas": "71-23-8",
    "name": "1-propanol",
@@ -1378,6 +1958,121 @@
     }
    }
   },
+  "C4H8": {
+   "cas": "106-98-9",
+   "name": "1-butene",
+   "molar_mass": 56.108,
+   "dhf": {
+    "l": {
+     "v": -20.8,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": 0.1,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 87.82,
+   "bp_k": 266.85,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 3.96,
+   "hvap_kj": 22.07,
+   "state": "g",
+   "soluble": false,
+   "colour": {
+    "g": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "C4H9OH": {
+   "cas": "71-36-3",
+   "name": "1-butanol",
+   "molar_mass": 74.123,
+   "dhf": {
+    "l": {
+     "v": -327.3,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -274.9,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 184.55,
+   "bp_k": 390.75,
+   "density_kg_m3": 809.52,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 9.37,
+   "hvap_kj": 43.29,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "C5H10": {
+   "cas": "109-67-1",
+   "name": "1-pentene",
+   "molar_mass": 70.135,
+   "dhf": {
+    "l": {
+     "v": -46.9,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -21.1,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 108.02,
+   "bp_k": 303.15,
+   "density_kg_m3": 640.52,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 5.94,
+   "hvap_kj": 25.2,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "C5H11OH": {
+   "cas": "71-41-0",
+   "name": "1-pentanol",
+   "molar_mass": 88.15,
+   "dhf": {
+    "l": {
+     "v": -351.6,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -294.6,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 195.57,
+   "bp_k": 410.75,
+   "density_kg_m3": 814.42,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 10.5,
+   "hvap_kj": 44.36,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "C5H12": {
    "cas": "109-66-0",
    "name": "pentane",
@@ -1398,6 +2093,35 @@
    "phys_src": "CRC-PHYS",
    "hfus_kj": 8.4,
    "hvap_kj": 25.79,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "C6H12": {
+   "cas": "110-82-7",
+   "name": "cyclohexane",
+   "molar_mass": 84.162,
+   "dhf": {
+    "l": {
+     "v": -156.4,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -123.4,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 279.85,
+   "bp_k": 353.85,
+   "density_kg_m3": 773.925,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 2.68,
+   "hvap_kj": 29.97,
    "state": "l",
    "soluble": false,
    "colour": {
@@ -1493,6 +2217,35 @@
     }
    }
   },
+  "C7H16": {
+   "cas": "142-82-5",
+   "name": "heptane",
+   "molar_mass": 100.205,
+   "dhf": {
+    "l": {
+     "v": -224.2,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -187.6,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 182.601,
+   "bp_k": 371.53,
+   "density_kg_m3": 679.525,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 14.03,
+   "hvap_kj": 31.77,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "C8H18": {
    "cas": "111-65-9",
    "name": "octane",
@@ -1513,6 +2266,35 @@
    "phys_src": "CRC-PHYS",
    "hfus_kj": 20.73,
    "hvap_kj": 34.41,
+   "state": "l",
+   "soluble": false,
+   "colour": {
+    "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "C9H20": {
+   "cas": "111-84-2",
+   "name": "nonane",
+   "molar_mass": 128.259,
+   "dhf": {
+    "l": {
+     "v": -274.7,
+     "src": "CRC-T"
+    },
+    "g": {
+     "v": -228.2,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 219.68,
+   "bp_k": 423.95,
+   "density_kg_m3": 719.22,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 15.47,
+   "hvap_kj": 37.18,
    "state": "l",
    "soluble": false,
    "colour": {
@@ -1580,6 +2362,88 @@
    "soluble": true,
    "colour": {
     "l": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "CH3COOK": {
+   "cas": "127-08-2",
+   "name": "potassium acetate",
+   "molar_mass": 98.142,
+   "dhf": {
+    "s": {
+     "v": -723.0,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -738.4,
+     "src": "CRC-ION",
+     "ions": {
+      "K+": 1,
+      "CH3COO-": 1
+     }
+    }
+   },
+   "mp_k": 582.15,
+   "density_kg_m3": 1570.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 7.65,
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "CH3COOLi": {
+   "cas": "546-89-4",
+   "name": "lithium acetate",
+   "molar_mass": 65.984,
+   "dhf": {
+    "aq": {
+     "v": -764.5,
+     "src": "CRC-ION",
+     "ions": {
+      "Li+": 1,
+      "CH3COO-": 1
+     }
+    }
+   },
+   "mp_k": 559.15,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "CH3COONH4": {
+   "cas": "631-61-8",
+   "name": "ammonium acetate",
+   "molar_mass": 77.083,
+   "dhf": {
+    "aq": {
+     "v": -618.5,
+     "src": "CRC-ION",
+     "ions": {
+      "NH4+": 1,
+      "CH3COO-": 1
+     }
+    }
+   },
+   "mp_k": 387.15,
+   "density_kg_m3": 1073.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
      "described": "colourless",
      "src": "COLOUR-GE"
     }
@@ -1972,6 +2836,62 @@
     }
    }
   },
+  "Ca(CH3COO)2": {
+   "cas": "62-54-4",
+   "name": "calcium acetate",
+   "molar_mass": 158.166,
+   "dhf": {
+    "aq": {
+     "v": -1514.8,
+     "src": "CRC-ION",
+     "ions": {
+      "Ca+2": 1,
+      "CH3COO-": 2
+     }
+    }
+   },
+   "density_kg_m3": 1500.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "Ca(NO3)2": {
+   "cas": "10124-37-5",
+   "name": "calcium nitrate",
+   "molar_mass": 164.086,
+   "dhf": {
+    "s": {
+     "v": -938.2,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -957.6,
+     "src": "CRC-ION",
+     "ions": {
+      "Ca+2": 1,
+      "NO3-": 2
+     }
+    }
+   },
+   "mp_k": 834.15,
+   "density_kg_m3": 2500.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 23.4,
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "Ca(OH)2": {
    "cas": "1305-62-0",
    "name": "calcium hydroxide",
@@ -2032,6 +2952,54 @@
     }
    },
    "grain": "cloudy"
+  },
+  "Ca3(PO4)2": {
+   "cas": "7758-87-4",
+   "name": "calcium phosphate",
+   "molar_mass": 310.174,
+   "dhf": {
+    "s": {
+     "v": -4120.8,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 1943.15,
+   "density_kg_m3": 3140.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   },
+   "grain": "cloudy"
+  },
+  "CaBr2": {
+   "cas": null,
+   "name": "calcium bromide",
+   "molar_mass": 199.886,
+   "dhf": {
+    "aq": {
+     "v": -786.0,
+     "src": "CRC-ION",
+     "ions": {
+      "Ca+2": 1,
+      "Br-": 2
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
   },
   "CaCO3": {
    "cas": "471-34-1",
@@ -2379,6 +3347,37 @@
    },
    "grain": "grainy"
   },
+  "Cu(CH3COO)2": {
+   "cas": "142-71-2",
+   "name": "copper(II) acetate",
+   "molar_mass": 181.634,
+   "dhf": {
+    "aq": {
+     "v": -907.2,
+     "src": "CRC-ION",
+     "ions": {
+      "Cu+2": 1,
+      "CH3COO-": 2
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "blue",
+     "src": "COLOUR-GE",
+     "hex": "#3a9ee0",
+     "hex_estimated": true
+    },
+    "s": {
+     "described": "blue-green",
+     "src": "COLOUR-GE",
+     "hex": "#2e8b7a",
+     "hex_estimated": true
+    }
+   }
+  },
   "Cu(NO3)2": {
    "cas": "3251-23-8",
    "name": "copper(II) nitrate",
@@ -2471,6 +3470,45 @@
    "state": "s",
    "soluble": false,
    "colour": {
+    "s": {
+     "described": "black",
+     "src": "COLOUR-GE",
+     "hex": "#1c1c1c",
+     "hex_estimated": true
+    }
+   }
+  },
+  "CuBr2": {
+   "cas": "7789-45-9",
+   "name": "copper(II) bromide",
+   "molar_mass": 223.354,
+   "dhf": {
+    "s": {
+     "v": -141.8,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -178.4,
+     "src": "CRC-ION",
+     "ions": {
+      "Cu+2": 1,
+      "Br-": 2
+     }
+    }
+   },
+   "mp_k": 771.15,
+   "bp_k": 1173.15,
+   "density_kg_m3": 4710.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "blue",
+     "src": "COLOUR-GE",
+     "hex": "#3a9ee0",
+     "hex_estimated": true
+    },
     "s": {
      "described": "black",
      "src": "COLOUR-GE",
@@ -2763,6 +3801,56 @@
     }
    }
   },
+  "Fe(NO3)2": {
+   "cas": null,
+   "name": "iron(II) nitrate",
+   "molar_mass": 179.853,
+   "dhf": {
+    "aq": {
+     "v": -503.9,
+     "src": "CRC-ION",
+     "ions": {
+      "Fe+2": 1,
+      "NO3-": 2
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "pale green",
+     "src": "COLOUR-GE",
+     "hex": "#b8d8a0",
+     "hex_estimated": true
+    }
+   }
+  },
+  "Fe(NO3)3": {
+   "cas": null,
+   "name": "iron(III) nitrate",
+   "molar_mass": 241.857,
+   "dhf": {
+    "aq": {
+     "v": -670.7,
+     "src": "CRC-ION",
+     "ions": {
+      "Fe+3": 1,
+      "NO3-": 3
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "yellow-brown",
+     "src": "COLOUR-GE",
+     "hex": "#c8892a",
+     "hex_estimated": true
+    }
+   }
+  },
   "Fe(OH)2": {
    "cas": "18624-44-7",
    "name": "iron(II) hydroxide",
@@ -2861,6 +3949,56 @@
    },
    "grain": "cloudy"
   },
+  "Fe2(SO4)3": {
+   "cas": "10028-22-5",
+   "name": "iron(III) sulfate",
+   "molar_mass": 399.858,
+   "dhf": {
+    "aq": {
+     "v": -2824.9,
+     "src": "CRC-ION",
+     "ions": {
+      "Fe+3": 2,
+      "SO4-2": 3
+     }
+    }
+   },
+   "density_kg_m3": 3100.0,
+   "phys_src": "CRC-PHYS",
+   "cp": {
+    "s": [
+     [
+      298.0,
+      1200.0,
+      85.69794,
+      0.8039765,
+      -0.0006957574,
+      2.1560990000000002e-07,
+      -396145.0
+     ],
+     [
+      1200.0,
+      2000.0,
+      397.2001,
+      0.030627759999999997,
+      -8.45243e-07,
+      2.55514e-10,
+      -18016560.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "yellow-brown",
+     "src": "COLOUR-GE",
+     "hex": "#c8892a",
+     "hex_estimated": true
+    }
+   }
+  },
   "Fe2O3": {
    "cas": "1309-37-1",
    "name": "iron(III) oxide",
@@ -2885,6 +4023,80 @@
      "hex_estimated": true
     }
    }
+  },
+  "FeBr2": {
+   "cas": null,
+   "name": "iron(II) bromide",
+   "molar_mass": 215.653,
+   "dhf": {
+    "aq": {
+     "v": -332.3,
+     "src": "CRC-ION",
+     "ions": {
+      "Fe+2": 1,
+      "Br-": 2
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "pale green",
+     "src": "COLOUR-GE",
+     "hex": "#b8d8a0",
+     "hex_estimated": true
+    }
+   }
+  },
+  "FeBr3": {
+   "cas": null,
+   "name": "iron(III) bromide",
+   "molar_mass": 295.557,
+   "dhf": {
+    "aq": {
+     "v": -413.3,
+     "src": "CRC-ION",
+     "ions": {
+      "Fe+3": 1,
+      "Br-": 3
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "red-brown",
+     "src": "COLOUR-GE",
+     "hex": "#9c4a1e",
+     "hex_estimated": true
+    }
+   }
+  },
+  "FeCO3": {
+   "cas": "563-71-3",
+   "name": "iron(II) carbonate",
+   "molar_mass": 115.853,
+   "dhf": {
+    "s": {
+     "v": -740.6,
+     "src": "CRC-T"
+    }
+   },
+   "density_kg_m3": 3944.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white, turning green-brown in air",
+     "src": "COLOUR-GE",
+     "hex": "#e6e4da",
+     "hex_estimated": true
+    }
+   },
+   "grain": "cloudy"
   },
   "FeCl2": {
    "cas": "7758-94-3",
@@ -3959,6 +5171,62 @@
     }
    }
   },
+  "K2CO3": {
+   "cas": "584-08-7",
+   "name": "potassium carbonate",
+   "molar_mass": 138.204,
+   "dhf": {
+    "s": {
+     "v": -1151.0,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -1181.9,
+     "src": "CRC-ION",
+     "ions": {
+      "K+": 2,
+      "CO3-2": 1
+     }
+    }
+   },
+   "mp_k": 1172.15,
+   "density_kg_m3": 2290.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 27.6,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      1174.0,
+      97.08093,
+      0.09422326,
+      -2.0532910000000003e-06,
+      7.096440000000001e-10,
+      -947860.0
+     ]
+    ],
+    "l": [
+     [
+      1174.0,
+      2500.0,
+      209.2,
+      -1.629015e-10,
+      8.00985e-14,
+      -1.336428e-17,
+      -0.02105289
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "K2SO4": {
    "cas": "7778-80-5",
    "name": "potassium sulfate",
@@ -4006,6 +5274,36 @@
     ]
    },
    "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "K3PO4": {
+   "cas": "7778-53-2",
+   "name": "potassium phosphate",
+   "molar_mass": 212.264,
+   "dhf": {
+    "s": {
+     "v": -1950.2,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -2034.6,
+     "src": "CRC-ION",
+     "ions": {
+      "K+": 3,
+      "PO4-3": 1
+     }
+    }
+   },
+   "mp_k": 1613.15,
+   "density_kg_m3": 2564.0,
+   "phys_src": "CRC-PHYS",
    "state": "s",
    "soluble": true,
    "colour": {
@@ -4210,6 +5508,35 @@
      "hex": "#f4f4f4",
      "hex_estimated": true
     },
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "KHCO3": {
+   "cas": "298-14-6",
+   "name": "potassium hydrogencarbonate",
+   "molar_mass": 100.114,
+   "dhf": {
+    "s": {
+     "v": -963.2,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -944.4,
+     "src": "CRC-ION",
+     "ions": {
+      "K+": 1,
+      "HCO3-": 1
+     }
+    }
+   },
+   "density_kg_m3": 2170.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
     "aq": {
      "described": "colourless",
      "src": "COLOUR-GE"
@@ -4471,6 +5798,57 @@
     }
    }
   },
+  "Li2CO3": {
+   "cas": "554-13-2",
+   "name": "lithium carbonate",
+   "molar_mass": 73.888,
+   "dhf": {
+    "s": {
+     "v": -1215.9,
+     "src": "CRC-T"
+    }
+   },
+   "mp_k": 1005.15,
+   "density_kg_m3": 2110.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 44.8,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      683.0,
+      68.3323,
+      0.14663900000000002,
+      -0.000162573,
+      2.4802600000000003e-07,
+      -702297.0
+     ],
+     [
+      683.0,
+      993.0,
+      -6.39474,
+      0.26146600000000003,
+      -0.000102005,
+      4.2472299999999994e-08,
+      -168328.0
+     ]
+    ],
+    "l": [
+     [
+      993.0,
+      2000.0,
+      185.435,
+      -5.1e-08,
+      3e-11,
+      -6.0000000000000005e-15,
+      -3.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": false
+  },
   "Li2O": {
    "cas": "12057-24-8",
    "name": "lithium oxide",
@@ -4540,6 +5918,62 @@
     }
    }
   },
+  "Li2SO4": {
+   "cas": "10377-48-7",
+   "name": "lithium sulfate",
+   "molar_mass": 109.936,
+   "dhf": {
+    "s": {
+     "v": -1436.5,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -1466.3,
+     "src": "CRC-ION",
+     "ions": {
+      "Li+": 2,
+      "SO4-2": 1
+     }
+    }
+   },
+   "mp_k": 1133.15,
+   "density_kg_m3": 2210.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 9.0,
+   "cp": {
+    "l": [
+     [
+      1132.0,
+      3000.0,
+      205.016,
+      -4.033794e-11,
+      1.85194e-14,
+      -2.810235e-18,
+      -0.005071804
+     ]
+    ],
+    "g": [
+     [
+      3000.0,
+      6000.0,
+      156.8703,
+      0.000617274,
+      -1.25008e-07,
+      8.661e-12,
+      -8872424.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "Li3N": {
    "cas": "26134-62-3",
    "name": "lithium nitride",
@@ -4576,6 +6010,74 @@
      "src": "COLOUR-GE",
      "hex": "#8a3b2a",
      "hex_estimated": true
+    }
+   }
+  },
+  "LiBr": {
+   "cas": "7550-35-8",
+   "name": "lithium bromide",
+   "molar_mass": 86.844,
+   "dhf": {
+    "s": {
+     "v": -351.2,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -400.1,
+     "src": "CRC-ION",
+     "ions": {
+      "Li+": 1,
+      "Br-": 1
+     }
+    }
+   },
+   "mp_k": 823.15,
+   "bp_k": 1573.15,
+   "density_kg_m3": 3464.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 17.66,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      823.0,
+      71.38155,
+      -0.08189008,
+      0.0001188879,
+      -3.237918e-08,
+      -689063.0
+     ]
+    ],
+    "l": [
+     [
+      823.0,
+      2000.0,
+      65.26998,
+      1.7102149999999999e-12,
+      -1.312539e-15,
+      3.215501e-19,
+      3.0145729999999997e-05
+     ]
+    ],
+    "g": [
+     [
+      2000.0,
+      6000.0,
+      36.87263,
+      0.0010991249999999998,
+      -1.24519e-07,
+      1.0609e-11,
+      -295577.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
     }
    }
   },
@@ -4638,6 +6140,105 @@
     ]
    },
    "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "LiI": {
+   "cas": "10377-51-2",
+   "name": "lithium iodide",
+   "molar_mass": 133.84,
+   "dhf": {
+    "s": {
+     "v": -270.4,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -333.7,
+     "src": "CRC-ION",
+     "ions": {
+      "Li+": 1,
+      "I-": 1
+     }
+    }
+   },
+   "mp_k": 742.15,
+   "bp_k": 1444.15,
+   "density_kg_m3": 4060.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 14.6,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      742.0,
+      101.5068,
+      -0.1922945,
+      0.0002858199,
+      -1.216126e-07,
+      -1447109.0
+     ]
+    ],
+    "l": [
+     [
+      742.0,
+      2500.0,
+      63.17798,
+      -5.685763e-13,
+      4.080517e-16,
+      -8.942505e-20,
+      -1.004394e-05
+     ]
+    ],
+    "g": [
+     [
+      2500.0,
+      6000.0,
+      37.05802,
+      0.001011596,
+      -8.219e-08,
+      7.009e-12,
+      -252429.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "LiNO3": {
+   "cas": "7790-69-4",
+   "name": "lithium nitrate",
+   "molar_mass": 68.944,
+   "dhf": {
+    "s": {
+     "v": -483.1,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -485.9,
+     "src": "CRC-ION",
+     "ions": {
+      "Li+": 1,
+      "NO3-": 1
+     }
+    }
+   },
+   "mp_k": 526.15,
+   "density_kg_m3": 2380.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 26.7,
    "state": "s",
    "soluble": true,
    "colour": {
@@ -4795,6 +6396,60 @@
     }
    }
   },
+  "Mg(CH3COO)2": {
+   "cas": "142-72-3",
+   "name": "magnesium acetate",
+   "molar_mass": 142.393,
+   "dhf": {
+    "aq": {
+     "v": -1438.9,
+     "src": "CRC-ION",
+     "ions": {
+      "Mg+2": 1,
+      "CH3COO-": 2
+     }
+    }
+   },
+   "density_kg_m3": 1500.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "Mg(NO3)2": {
+   "cas": "10377-60-3",
+   "name": "magnesium nitrate",
+   "molar_mass": 148.313,
+   "dhf": {
+    "s": {
+     "v": -790.7,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -881.7,
+     "src": "CRC-ION",
+     "ions": {
+      "Mg+2": 1,
+      "NO3-": 2
+     }
+    }
+   },
+   "density_kg_m3": 2300.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "Mg(OH)2": {
    "cas": "1309-42-8",
    "name": "magnesium hydroxide",
@@ -4898,6 +6553,73 @@
      "src": "COLOUR-GE",
      "hex": "#c9c46a",
      "hex_estimated": true
+    }
+   }
+  },
+  "MgBr2": {
+   "cas": "7789-48-2",
+   "name": "magnesium bromide",
+   "molar_mass": 184.113,
+   "dhf": {
+    "s": {
+     "v": -524.3,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -710.1,
+     "src": "CRC-ION",
+     "ions": {
+      "Mg+2": 1,
+      "Br-": 2
+     }
+    }
+   },
+   "mp_k": 984.15,
+   "density_kg_m3": 3720.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 39.3,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      984.0,
+      85.69418,
+      -0.01667119,
+      2.590026e-05,
+      -5.87827e-09,
+      -859787.0
+     ]
+    ],
+    "l": [
+     [
+      984.0,
+      2000.0,
+      104.6,
+      -2.538651e-10,
+      1.516441e-13,
+      -3.089926e-17,
+      -0.01906223
+     ]
+    ],
+    "g": [
+     [
+      2000.0,
+      6000.0,
+      62.01316,
+      0.000294116,
+      -7.9647e-08,
+      6.7939999999999995e-12,
+      -305897.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
     }
    }
   },
@@ -5377,6 +7099,58 @@
     }
    }
   },
+  "NH4Br": {
+   "cas": "12124-97-9",
+   "name": "ammonium bromide",
+   "molar_mass": 97.943,
+   "dhf": {
+    "s": {
+     "v": -270.8,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -254.1,
+     "src": "CRC-ION",
+     "ions": {
+      "NH4+": 1,
+      "Br-": 1
+     }
+    }
+   },
+   "density_kg_m3": 2429.0,
+   "phys_src": "CRC-PHYS",
+   "cp": {
+    "s": [
+     [
+      298.0,
+      411.0,
+      15.77418,
+      0.9827672,
+      -0.003031375,
+      2.870274e-06,
+      -2374655.0
+     ],
+     [
+      411.0,
+      1500.0,
+      -12.56903,
+      0.25714030000000004,
+      -0.0001233636,
+      2.503053e-08,
+      -206848.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "NH4Cl": {
    "cas": "12125-02-9",
    "name": "ammonium chloride",
@@ -5430,6 +7204,50 @@
      "hex": "#f4f4f4",
      "hex_estimated": true
     },
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "NH4I": {
+   "cas": "12027-06-4",
+   "name": "ammonium iodide",
+   "molar_mass": 144.939,
+   "dhf": {
+    "s": {
+     "v": -201.4,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -187.7,
+     "src": "CRC-ION",
+     "ions": {
+      "NH4+": 1,
+      "I-": 1
+     }
+    }
+   },
+   "density_kg_m3": 2514.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 21.0,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      2000.0,
+      76.35256,
+      0.009301953,
+      8.170975e-05,
+      -3.425776e-08,
+      -326712.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
+   "state": "s",
+   "soluble": true,
+   "colour": {
     "aq": {
      "described": "colourless",
      "src": "COLOUR-GE"
@@ -5906,6 +7724,32 @@
     }
    }
   },
+  "Na3PO4": {
+   "cas": "7601-54-9",
+   "name": "sodium phosphate",
+   "molar_mass": 163.94,
+   "dhf": {
+    "aq": {
+     "v": -1997.7,
+     "src": "CRC-ION",
+     "ions": {
+      "Na+": 3,
+      "PO4-3": 1
+     }
+    }
+   },
+   "mp_k": 1856.15,
+   "density_kg_m3": 2540.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "NaBr": {
    "cas": "7647-15-6",
    "name": "sodium bromide",
@@ -6162,6 +8006,63 @@
    "density_kg_m3": 2200.0,
    "phys_src": "CRC-PHYS",
    "hfus_kj": 25.0,
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "NaI": {
+   "cas": "7681-82-5",
+   "name": "sodium iodide",
+   "molar_mass": 149.89,
+   "dhf": {
+    "s": {
+     "v": -287.8,
+     "src": "CRC-T"
+    },
+    "aq": {
+     "v": -295.3,
+     "src": "CRC-ION",
+     "ions": {
+      "Na+": 1,
+      "I-": 1
+     }
+    }
+   },
+   "mp_k": 934.15,
+   "bp_k": 1577.15,
+   "density_kg_m3": 3670.0,
+   "phys_src": "CRC-PHYS",
+   "hfus_kj": 23.7,
+   "cp": {
+    "s": [
+     [
+      298.0,
+      933.0,
+      50.19963,
+      0.01022787,
+      5.64543e-07,
+      -2.2101799999999999e-10,
+      -94625.0
+     ]
+    ],
+    "l": [
+     [
+      933.0,
+      3000.0,
+      64.8519,
+      6.5e-08,
+      -2.4e-11,
+      3.0000000000000002e-15,
+      20.0
+     ]
+    ]
+   },
+   "cp_src": "NIST-SHOMATE",
    "state": "s",
    "soluble": true,
    "colour": {
@@ -7281,6 +9182,29 @@
    },
    "grain": "grainy"
   },
+  "Zn(CH3COO)2": {
+   "cas": "557-34-6",
+   "name": "zinc acetate",
+   "molar_mass": 183.468,
+   "dhf": {
+    "aq": {
+     "v": -1125.9,
+     "src": "CRC-ION",
+     "ions": {
+      "Zn+2": 1,
+      "CH3COO-": 2
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
   "Zn(NO3)2": {
    "cas": "7779-88-6",
    "name": "zinc nitrate",
@@ -7319,6 +9243,53 @@
     }
    },
    "density_kg_m3": 3050.0,
+   "phys_src": "CRC-PHYS",
+   "state": "s",
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   },
+   "grain": "cloudy"
+  },
+  "ZnBr2": {
+   "cas": null,
+   "name": "zinc bromide",
+   "molar_mass": 225.188,
+   "dhf": {
+    "aq": {
+     "v": -397.1,
+     "src": "CRC-ION",
+     "ions": {
+      "Zn+2": 1,
+      "Br-": 2
+     }
+    }
+   },
+   "state": "s",
+   "soluble": true,
+   "colour": {
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
+  },
+  "ZnCO3": {
+   "cas": "3486-35-9",
+   "name": "zinc carbonate",
+   "molar_mass": 125.388,
+   "dhf": {
+    "s": {
+     "v": -812.8,
+     "src": "CRC-T"
+    }
+   },
+   "density_kg_m3": 4434.0,
    "phys_src": "CRC-PHYS",
    "state": "s",
    "soluble": false,
