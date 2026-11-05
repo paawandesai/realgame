@@ -2,10 +2,47 @@
 
 The game is a static site on Cloudflare Pages, with two small Pages Functions (`/api/event`, `/api/stats`) and a D1 database for anonymous play counts (see `docs/ANALYTICS.md`). Everything fits in Cloudflare's free plan.
 
-There are two ways to deploy. **Pick one and stay with it**: a Pages project made by uploading from your computer (option A) cannot later be switched to building from GitHub (option B), and the other way round.
+There are three ways to deploy. **Pick one family and stay with it**: a Pages project made by uploading (options A and C, which can be mixed) cannot later be switched to building from GitHub (option B), and the other way round.
 
-- **Option A, from your computer (recommended to start).** One command builds and uploads. You decide when the site changes.
+- **Option C, a button in GitHub Actions (what this project uses).** Nothing to install on any computer. You decide when the site changes.
+- **Option A, from your computer.** One command builds and uploads.
 - **Option B, Cloudflare builds from GitHub.** Every push to `main` deploys by itself.
+
+## Option C: deploy from GitHub Actions
+
+`.github/workflows/deploy.yml` builds the whole site in the cloud (the 3D game at `/`, the free-play Chemistry Bench at `/bench-free.html`, the classic game at `/classic/`, the dashboard at `/dashboard/`) and runs `scripts/deploy.sh --prebuilt`, the same steps as option A.
+
+**One-time setup**
+
+1. A free Cloudflare account. Copy the **Account ID** from the dashboard home (Workers & Pages → Account details, right-hand side).
+2. Make an API token: **My Profile → API Tokens → Create Token → Custom token**, with these account permissions and nothing else:
+
+   | Permission | Level |
+   | --- | --- |
+   | Account · Cloudflare Pages | Edit |
+   | Account · D1 | Edit |
+
+   Account Resources: your account only. Copy the token (shown once).
+3. In GitHub, signed in as the repository owner: **Settings → Secrets and variables → Actions → New repository secret**, and add:
+
+   | Name | Value |
+   | --- | --- |
+   | `CLOUDFLARE_API_TOKEN` | the token from step 2 |
+   | `CLOUDFLARE_ACCOUNT_ID` | the account id from step 1 |
+   | `DASHBOARD_TOKEN` (optional) | a long random string, the password for `/dashboard/` |
+
+   Secrets never appear in logs, and pull requests from forks cannot read them.
+
+**Each deploy:** **Actions → Deploy → Run workflow**, then pick:
+
+- `production` with `main` (the default): the live site at `https://realgame.pages.dev`. Only commits on `main` are accepted, so only merged, approved work goes live. To roll back, run it again with an older commit from `main`.
+- `preview` with any branch or commit: its own URL, `https://<branch>.realgame.pages.dev`, with analytics off and no database migrations.
+
+The first production run creates the Pages project, the D1 database and its tables. The database id is looked up on every run, so nothing needs committing. Deploys run one at a time; the run's page links to the deployed URL and lists the biggest files.
+
+A pull request that changes the deploy scripts runs only the build half (no secrets, no upload).
+
+**Caching.** Pages serves every file with an ETag and `max-age=0, must-revalidate`, so a returning player re-downloads the game only when it changed, and a new deploy is never hidden behind a stale cache. The file names are not content-hashed, so a longer cache lifetime would risk an old `.wasm` with new JavaScript; leave the default.
 
 ## Before you start (both options)
 
