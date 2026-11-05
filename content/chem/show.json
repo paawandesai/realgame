@@ -168,6 +168,7 @@
     "chlorine_iodide": { "states": { "Cl2": "aq" }, "why": "chlorine water" },
     "bromine_iodide": { "states": { "Br2": "aq" }, "why": "bromine water" },
     "copper_nitric": { "note": "The gas made is colourless nitric oxide, which turns brown as soon as it meets air.", "why": "the classroom demonstration" },
+    "baking_soda_vinegar": { "states": { "NaHCO3": "s" }, "why": "the baking soda goes in as a powder; dissolving it is part of why the mix gets colder" },
     "antacid": { "note": "The white, milky suspension clears as the solid dissolves; the mixture warms a little.", "why": "milk of magnesia in acid" },
     "neutralise_hcl_naoh": { "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.", "why": "a colourless solution" },
     "neutralise_hcl_koh": { "note": "Colourless solutions; the mixture warms a little.", "why": "a colourless solution" },

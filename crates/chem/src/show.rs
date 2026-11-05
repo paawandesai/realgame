@@ -2062,6 +2062,18 @@ mod tests {
         }
     }
 
+    /// Prints one record as JSON: `SHOW_ID=carbon_burns cargo test -p
+    /// realgame-chem show_print -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn show_print() {
+        let s = shows();
+        let id = std::env::var("SHOW_ID").unwrap_or_else(|_| "carbon_burns".into());
+        let mut v = serde_json::to_value(s.get(&id).unwrap()).unwrap();
+        v["atom_story"]["atoms"] = serde_json::json!("...");
+        println!("{}", serde_json::to_string_pretty(&v).unwrap());
+    }
+
     #[test]
     fn strength_follows_the_documented_scale() {
         assert_eq!(strength_of(-890.0, false), 1.0);
