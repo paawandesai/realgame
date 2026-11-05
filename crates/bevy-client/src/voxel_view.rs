@@ -1372,7 +1372,7 @@ fn mesh_chunks(
     if allowance <= 0.0 {
         chunks.debt -= budget_ms;
     }
-    while allowance > 0.0 {
+    while allowance > 0.0 && !chunks.queue.is_empty() {
         let Some(c) = chunks.queue.pop() else {
             break;
         };
