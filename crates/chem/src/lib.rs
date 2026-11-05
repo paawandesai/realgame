@@ -5,7 +5,7 @@
 //! everywhere. It holds three things:
 //!
 //! - the **codex**: the core tier of known reactions (`content/chem/core.json`),
-//!   each balanced, sourced and tagged with the lowest age band it is taught at;
+//!   each balanced, sourced and tagged with the lowest grade band it is taught at;
 //! - **judging**: what happens when a player puts something in the chamber
 //!   (a known reaction, one that needs a condition, one above their band, an
 //!   unbalanced try, or a combination that is not in our data);
@@ -552,16 +552,24 @@ mod tests {
         }
     }
 
+    /// I-059 grade bands: Sprout (grades 6-7) is a small, simple codex of
+    /// everyday reactions, and each band above it adds more.
     #[test]
     fn every_band_has_a_codex_to_finish() {
         let c = Codex::load();
+        let upto = |band: Tier| c.entries.iter().filter(|e| e.band <= band).count();
+        let sprout = upto(Tier::Sprout);
+        assert!((10..=16).contains(&sprout), "Sprout reaches {sprout}");
         for (band, min) in [
-            (Tier::Sprout, 15),
             (Tier::Seedling, 30),
             (Tier::Apprentice, 90),
+            (Tier::Adept, 400),
         ] {
-            let n = c.entries.iter().filter(|e| e.band <= band).count();
+            let n = upto(band);
             assert!(n >= min, "{band:?} reaches only {n}");
+        }
+        for w in Tier::ALL.windows(2) {
+            assert!(upto(w[1]) > upto(w[0]), "{:?} adds nothing", w[1]);
         }
     }
 

@@ -250,8 +250,10 @@ APPRENTICE_NEW = {"K2CO3", "KHCO3", "Ca(NO3)2", "Mg(NO3)2", "NaI", "Ca(CH3COO)2"
 SEEDLING_OK = {"HCl", "CH3COOH", "NaOH", "Ca(OH)2", "Mg(OH)2", "CaO", "Mg", "Zn", "H2O", "H2",
                "NaCl", "CaCl2", "MgCl2", "ZnCl2", "CH3COONa", "Ca(CH3COO)2", "Mg(CH3COO)2",
                "CaCO3", "Na2CO3", "NaHCO3", "CO2"}
-# The spec's Adept-only species (by element): bromides and lead.
-ADEPT_ELEMENTS = {"Br", "Pb"}
+# Adept-only species (by element): lead, which is toxic. Bromides were
+# Adept-only too until the grade re-band (I-059): halide tests with silver
+# nitrate and halogen displacement are high-school chemistry (Apprentice).
+ADEPT_ELEMENTS = {"Pb"}
 
 RULES = [
     {"id": "acid_base", "family": "neutralisation", "name": "acid + base",
@@ -680,7 +682,7 @@ def band_of(f, product=False):
     """The band a species is familiar at. A bottle (reactant) not on the
     core shelf is Adept unless listed in APPRENTICE_NEW (S9: a core product
     is not a familiar bottle); a product a core reaction makes is
-    Apprentice. Bromides and lead are Adept (the spec)."""
+    Apprentice. Lead is Adept."""
     if any(el in bsd.atoms(f) for el in ADEPT_ELEMENTS):
         return BANDS.index("adept")
     if f in SHELF:

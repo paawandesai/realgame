@@ -3518,6 +3518,37 @@
    }
   },
   {
+   "id": "rule_acid_base_hcl_fe2o3",
+   "name": "Rust and hydrochloric acid",
+   "family": "neutralisation",
+   "band": "apprentice",
+   "equation": "6HCl + Fe2O3 -> 2FeCl3 + 3H2O",
+   "needs": [
+    "heat"
+   ],
+   "heat": "releases",
+   "say": "Hydrochloric acid neutralises rust, giving iron(III) chloride and water.",
+   "source": "By rule (acid + base): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of H2O.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "acid_base",
+   "dh_kj": -130.2,
+   "per": "H2O",
+   "dh_per_kj": -43.4,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2 'Acid-Base Reactions'; Wikipedia, 'Basic oxide'; Wikipedia, 'Ammonia'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "An acid and a base give a salt and water (OpenStax: Mg(OH)2(s) + 2HCl(aq) -> MgCl2(aq) + 2H2O(l); Ba(OH)2(aq) + 2HNO3(aq) -> Ba(NO3)2(aq) + 2H2O(l)); 'basic oxides react with an acid to form salt and water' (Wikipedia 'Basic oxide'); ammonia takes the acid's proton: NH3 + HCl -> NH4Cl (Wikipedia 'Ammonia').",
+    "entries": [
+     "Table 4.1: FeCl3 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "dH = -130.2 kJ per equation, -43.4 kJ per mol H2O (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): HCl(aq) -167.2, Fe2O3(s) -824.2, FeCl3(aq) -550.1, H2O(l) -285.8"
+    ]
+   }
+  },
+  {
    "id": "rule_acid_base_hno3_cao",
    "name": "Quicklime and nitric acid",
    "family": "neutralisation",
@@ -4605,37 +4636,6 @@
      "Table 4.1: CuCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
      "dH = -57 kJ per equation, -28.5 kJ per mol H2O (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): HCl(aq) -167.2, Cu(OH)2(s) -449.8, CuCl2(aq) -269.6, H2O(l) -285.8"
-    ]
-   }
-  },
-  {
-   "id": "rule_acid_base_hcl_fe2o3",
-   "name": "Rust and hydrochloric acid",
-   "family": "neutralisation",
-   "band": "adept",
-   "equation": "6HCl + Fe2O3 -> 2FeCl3 + 3H2O",
-   "needs": [
-    "heat"
-   ],
-   "heat": "releases",
-   "say": "Hydrochloric acid neutralises rust, giving iron(III) chloride and water.",
-   "source": "By rule (acid + base): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of H2O.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "acid_base",
-   "dh_kj": -130.2,
-   "per": "H2O",
-   "dh_per_kj": -43.4,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2 'Acid-Base Reactions'; Wikipedia, 'Basic oxide'; Wikipedia, 'Ammonia'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "An acid and a base give a salt and water (OpenStax: Mg(OH)2(s) + 2HCl(aq) -> MgCl2(aq) + 2H2O(l); Ba(OH)2(aq) + 2HNO3(aq) -> Ba(NO3)2(aq) + 2H2O(l)); 'basic oxides react with an acid to form salt and water' (Wikipedia 'Basic oxide'); ammonia takes the acid's proton: NH3 + HCl -> NH4Cl (Wikipedia 'Ammonia').",
-    "entries": [
-     "Table 4.1: FeCl3 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "dH = -130.2 kJ per equation, -43.4 kJ per mol H2O (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): HCl(aq) -167.2, Fe2O3(s) -824.2, FeCl3(aq) -550.1, H2O(l) -285.8"
     ]
    }
   },
@@ -6823,6 +6823,41 @@
    "hazard_why": "AgNO3 (silver nitrate burns and stains skin)"
   },
   {
+   "id": "rule_precipitate_agno3_mgcl2",
+   "name": "Silver chloride from silver nitrate and magnesium chloride",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "2AgNO3 + MgCl2 -> 2AgCl + Mg(NO3)2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Mixing silver nitrate and magnesium chloride solutions makes silver chloride, a white solid that does not dissolve.",
+   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of AgCl.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "precipitate",
+   "dh_kj": -130.8,
+   "per": "AgCl",
+   "dh_per_kj": -65.4,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
+    "entries": [
+     "Table 4.1: AgCl insoluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: Mg(NO3)2 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
+     "Table 4.1: AgNO3 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
+     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "colour of AgCl(s): white (COLOUR-GE, substances.json)",
+     "dH = -130.8 kJ per equation, -65.4 kJ per mol AgCl (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): AgNO3(aq) -101.8, MgCl2(aq) -801.3, AgCl(s) -127, Mg(NO3)2(aq) -881.7"
+    ]
+   },
+   "hazard": "lab",
+   "hazard_why": "AgNO3 (silver nitrate burns and stains skin)"
+  },
+  {
    "id": "rule_precipitate_agno3_na2co3",
    "name": "Silver carbonate from silver nitrate and washing soda",
    "family": "precipitation",
@@ -6957,6 +6992,41 @@
      "colour of BaSO4(s): white (COLOUR-GE, substances.json)",
      "dH = -26.3 kJ per equation, -26.3 kJ per mol BaSO4 (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): BaCl2(aq) -872, CuSO4(aq) -844.5, BaSO4(s) -1473.2, CuCl2(aq) -269.6"
+    ]
+   },
+   "hazard": "lab",
+   "hazard_why": "BaCl2 (soluble barium compounds are toxic)"
+  },
+  {
+   "id": "rule_precipitate_bacl2_feso4",
+   "name": "Barium sulfate from barium chloride and iron sulfate",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "BaCl2 + FeSO4 -> BaSO4 + FeCl2",
+   "needs": [],
+   "heat": "releases",
+   "say": "Mixing barium chloride and iron sulfate solutions makes barium sulfate, a white solid that does not dissolve.",
+   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of BaSO4.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "precipitate",
+   "dh_kj": -26.3,
+   "per": "BaSO4",
+   "dh_per_kj": -26.3,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
+    "entries": [
+     "Table 4.1: BaSO4 insoluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
+     "Table 4.1: FeCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: BaCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
+     "colour of BaSO4(s): white (COLOUR-GE, substances.json)",
+     "dH = -26.3 kJ per equation, -26.3 kJ per mol BaSO4 (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): BaCl2(aq) -872, FeSO4(aq) -998.4, BaSO4(s) -1473.2, FeCl2(aq) -423.5"
     ]
    },
    "hazard": "lab",
@@ -7295,6 +7365,171 @@
      "colour of Cu(OH)2(s): pale blue (COLOUR-GE, substances.json)",
      "dH = -54.6 kJ per equation, -54.6 kJ per mol Cu(OH)2 (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): CuSO4(aq) -844.5, KOH(aq) -482.4, Cu(OH)2(s) -449.8, K2SO4(aq) -1414.1"
+    ]
+   }
+  },
+  {
+   "id": "rule_precipitate_fecl3_koh",
+   "name": "Iron(III) hydroxide",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "FeCl3 + 3KOH -> Fe(OH)3 + 3KCl",
+   "needs": [],
+   "heat": "releases",
+   "say": "Mixing iron(III) chloride and potassium hydroxide solutions makes iron(III) hydroxide, a red-brown solid that does not dissolve.",
+   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe(OH)3.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "precipitate",
+   "dh_kj": -84.5,
+   "per": "Fe(OH)3",
+   "dh_per_kj": -84.5,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
+    "entries": [
+     "Table 4.1: Fe(OH)3 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
+     "Table 4.1: KCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "Table 4.1: FeCl3 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: KOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "colour of Fe(OH)3(s): red-brown (COLOUR-GE, substances.json)",
+     "dH = -84.5 kJ per equation, -84.5 kJ per mol Fe(OH)3 (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): FeCl3(aq) -550.1, KOH(aq) -482.4, Fe(OH)3(s) -823, KCl(aq) -419.6"
+    ]
+   }
+  },
+  {
+   "id": "rule_precipitate_fecl3_lioh",
+   "name": "Iron(III) hydroxide",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "FeCl3 + 3LiOH -> Fe(OH)3 + 3LiCl",
+   "needs": [],
+   "heat": "releases",
+   "say": "Mixing iron(III) chloride and lithium hydroxide solutions makes iron(III) hydroxide, a red-brown solid that does not dissolve.",
+   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe(OH)3.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "precipitate",
+   "dh_kj": -84.5,
+   "per": "Fe(OH)3",
+   "dh_per_kj": -84.5,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
+    "entries": [
+     "Table 4.1: Fe(OH)3 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
+     "Table 4.1: LiCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "Table 4.1: FeCl3 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: LiOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "colour of Fe(OH)3(s): red-brown (COLOUR-GE, substances.json)",
+     "dH = -84.5 kJ per equation, -84.5 kJ per mol Fe(OH)3 (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): FeCl3(aq) -550.1, LiOH(aq) -508.5, Fe(OH)3(s) -823, LiCl(aq) -445.7"
+    ]
+   }
+  },
+  {
+   "id": "rule_precipitate_feso4_koh",
+   "name": "Iron(II) hydroxide from iron sulfate and potassium hydroxide",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "FeSO4 + 2KOH -> Fe(OH)2 + K2SO4",
+   "needs": [],
+   "heat": "little",
+   "say": "Mixing iron sulfate and potassium hydroxide solutions makes iron(II) hydroxide, a dirty green solid that does not dissolve.",
+   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe(OH)2.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "precipitate",
+   "dh_kj": -19.9,
+   "per": "Fe(OH)2",
+   "dh_per_kj": -19.9,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
+    "entries": [
+     "Table 4.1: Fe(OH)2 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
+     "Table 4.1: K2SO4 soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
+     "Table 4.1: KOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "colour of Fe(OH)2(s): dirty green (COLOUR-GE, substances.json)",
+     "dH = -19.9 kJ per equation, -19.9 kJ per mol Fe(OH)2 (little)",
+     "dHf kJ/mol (CRC/NBS, substances.json): FeSO4(aq) -998.4, KOH(aq) -482.4, Fe(OH)2(s) -569, K2SO4(aq) -1414.1"
+    ]
+   }
+  },
+  {
+   "id": "rule_precipitate_mgcl2_koh",
+   "name": "Magnesium hydroxide (as in milk of magnesia)",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "MgCl2 + 2KOH -> Mg(OH)2 + 2KCl",
+   "needs": [],
+   "heat": "little",
+   "say": "The two solutions swap partners and magnesium hydroxide (as in milk of magnesia), a white solid, comes out.",
+   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Mg(OH)2.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "precipitate",
+   "dh_kj": 2.4,
+   "per": "Mg(OH)2",
+   "dh_per_kj": 2.4,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
+    "entries": [
+     "Table 4.1: Mg(OH)2 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
+     "Table 4.1: KCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: KOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "colour of Mg(OH)2(s): white (COLOUR-GE, substances.json)",
+     "dH = 2.4 kJ per equation, 2.4 kJ per mol Mg(OH)2 (little)",
+     "dHf kJ/mol (CRC/NBS, substances.json): MgCl2(aq) -801.3, KOH(aq) -482.4, Mg(OH)2(s) -924.5, KCl(aq) -419.6"
+    ]
+   }
+  },
+  {
+   "id": "rule_precipitate_mgcl2_lioh",
+   "name": "Magnesium hydroxide (as in milk of magnesia)",
+   "family": "precipitation",
+   "band": "apprentice",
+   "equation": "MgCl2 + 2LiOH -> Mg(OH)2 + 2LiCl",
+   "needs": [],
+   "heat": "little",
+   "say": "The two solutions swap partners and magnesium hydroxide (as in milk of magnesia), a white solid, comes out.",
+   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Mg(OH)2.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "precipitate",
+   "dh_kj": 2.4,
+   "per": "Mg(OH)2",
+   "dh_per_kj": 2.4,
+   "evidence": {
+    "kind": "data",
+    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+    "checked": true,
+    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
+    "entries": [
+     "Table 4.1: Mg(OH)2 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
+     "Table 4.1: LiCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: LiOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
+     "colour of Mg(OH)2(s): white (COLOUR-GE, substances.json)",
+     "dH = 2.4 kJ per equation, 2.4 kJ per mol Mg(OH)2 (little)",
+     "dHf kJ/mol (CRC/NBS, substances.json): MgCl2(aq) -801.3, LiOH(aq) -508.5, Mg(OH)2(s) -924.5, LiCl(aq) -445.7"
     ]
    }
   },
@@ -7812,41 +8047,6 @@
      "colour of AgBr(s): cream (COLOUR-GE, substances.json)",
      "dH = -168.8 kJ per equation, -84.4 kJ per mol AgBr (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): AgNO3(aq) -101.8, MgBr2(aq) -710.1, AgBr(s) -100.4, Mg(NO3)2(aq) -881.7"
-    ]
-   },
-   "hazard": "lab",
-   "hazard_why": "AgNO3 (silver nitrate burns and stains skin)"
-  },
-  {
-   "id": "rule_precipitate_agno3_mgcl2",
-   "name": "Silver chloride from silver nitrate and magnesium chloride",
-   "family": "precipitation",
-   "band": "adept",
-   "equation": "2AgNO3 + MgCl2 -> 2AgCl + Mg(NO3)2",
-   "needs": [],
-   "heat": "releases",
-   "say": "Mixing silver nitrate and magnesium chloride solutions makes silver chloride, a white solid that does not dissolve.",
-   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of AgCl.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "precipitate",
-   "dh_kj": -130.8,
-   "per": "AgCl",
-   "dh_per_kj": -65.4,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
-    "entries": [
-     "Table 4.1: AgCl insoluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: Mg(NO3)2 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
-     "Table 4.1: AgNO3 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
-     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "colour of AgCl(s): white (COLOUR-GE, substances.json)",
-     "dH = -130.8 kJ per equation, -65.4 kJ per mol AgCl (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): AgNO3(aq) -101.8, MgCl2(aq) -801.3, AgCl(s) -127, Mg(NO3)2(aq) -881.7"
     ]
    },
    "hazard": "lab",
@@ -8622,41 +8822,6 @@
      "colour of BaSO4(s): white (COLOUR-GE, substances.json)",
      "dH = -78.9 kJ per equation, -26.3 kJ per mol BaSO4 (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): BaCl2(aq) -872, Fe2(SO4)3(aq) -2824.9, BaSO4(s) -1473.2, FeCl3(aq) -550.1"
-    ]
-   },
-   "hazard": "lab",
-   "hazard_why": "BaCl2 (soluble barium compounds are toxic)"
-  },
-  {
-   "id": "rule_precipitate_bacl2_feso4",
-   "name": "Barium sulfate from barium chloride and iron sulfate",
-   "family": "precipitation",
-   "band": "adept",
-   "equation": "BaCl2 + FeSO4 -> BaSO4 + FeCl2",
-   "needs": [],
-   "heat": "releases",
-   "say": "Mixing barium chloride and iron sulfate solutions makes barium sulfate, a white solid that does not dissolve.",
-   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of BaSO4.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "precipitate",
-   "dh_kj": -26.3,
-   "per": "BaSO4",
-   "dh_per_kj": -26.3,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
-    "entries": [
-     "Table 4.1: BaSO4 insoluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
-     "Table 4.1: FeCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: BaCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
-     "colour of BaSO4(s): white (COLOUR-GE, substances.json)",
-     "dH = -26.3 kJ per equation, -26.3 kJ per mol BaSO4 (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): BaCl2(aq) -872, FeSO4(aq) -998.4, BaSO4(s) -1473.2, FeCl2(aq) -423.5"
     ]
    },
    "hazard": "lab",
@@ -10952,72 +11117,6 @@
    }
   },
   {
-   "id": "rule_precipitate_fecl3_koh",
-   "name": "Iron(III) hydroxide",
-   "family": "precipitation",
-   "band": "adept",
-   "equation": "FeCl3 + 3KOH -> Fe(OH)3 + 3KCl",
-   "needs": [],
-   "heat": "releases",
-   "say": "Mixing iron(III) chloride and potassium hydroxide solutions makes iron(III) hydroxide, a red-brown solid that does not dissolve.",
-   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe(OH)3.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "precipitate",
-   "dh_kj": -84.5,
-   "per": "Fe(OH)3",
-   "dh_per_kj": -84.5,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
-    "entries": [
-     "Table 4.1: Fe(OH)3 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
-     "Table 4.1: KCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "Table 4.1: FeCl3 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: KOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "colour of Fe(OH)3(s): red-brown (COLOUR-GE, substances.json)",
-     "dH = -84.5 kJ per equation, -84.5 kJ per mol Fe(OH)3 (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): FeCl3(aq) -550.1, KOH(aq) -482.4, Fe(OH)3(s) -823, KCl(aq) -419.6"
-    ]
-   }
-  },
-  {
-   "id": "rule_precipitate_fecl3_lioh",
-   "name": "Iron(III) hydroxide",
-   "family": "precipitation",
-   "band": "adept",
-   "equation": "FeCl3 + 3LiOH -> Fe(OH)3 + 3LiCl",
-   "needs": [],
-   "heat": "releases",
-   "say": "Mixing iron(III) chloride and lithium hydroxide solutions makes iron(III) hydroxide, a red-brown solid that does not dissolve.",
-   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe(OH)3.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "precipitate",
-   "dh_kj": -84.5,
-   "per": "Fe(OH)3",
-   "dh_per_kj": -84.5,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
-    "entries": [
-     "Table 4.1: Fe(OH)3 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
-     "Table 4.1: LiCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "Table 4.1: FeCl3 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: LiOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "colour of Fe(OH)3(s): red-brown (COLOUR-GE, substances.json)",
-     "dH = -84.5 kJ per equation, -84.5 kJ per mol Fe(OH)3 (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): FeCl3(aq) -550.1, LiOH(aq) -508.5, Fe(OH)3(s) -823, LiCl(aq) -445.7"
-    ]
-   }
-  },
-  {
    "id": "rule_precipitate_feno33_koh",
    "name": "Iron(III) hydroxide",
    "family": "precipitation",
@@ -11146,39 +11245,6 @@
      "colour of FeCO3(s): white, turning green-brown in air (COLOUR-GE, substances.json)",
      "dH = 25.6 kJ per equation, 25.6 kJ per mol FeCO3 (absorbs)",
      "dHf kJ/mol (CRC/NBS, substances.json): FeSO4(aq) -998.4, K2CO3(aq) -1181.9, FeCO3(s) -740.6, K2SO4(aq) -1414.1"
-    ]
-   }
-  },
-  {
-   "id": "rule_precipitate_feso4_koh",
-   "name": "Iron(II) hydroxide from iron sulfate and potassium hydroxide",
-   "family": "precipitation",
-   "band": "adept",
-   "equation": "FeSO4 + 2KOH -> Fe(OH)2 + K2SO4",
-   "needs": [],
-   "heat": "little",
-   "say": "Mixing iron sulfate and potassium hydroxide solutions makes iron(II) hydroxide, a dirty green solid that does not dissolve.",
-   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe(OH)2.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "precipitate",
-   "dh_kj": -19.9,
-   "per": "Fe(OH)2",
-   "dh_per_kj": -19.9,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
-    "entries": [
-     "Table 4.1: Fe(OH)2 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
-     "Table 4.1: K2SO4 soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
-     "Table 4.1: KOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "colour of Fe(OH)2(s): dirty green (COLOUR-GE, substances.json)",
-     "dH = -19.9 kJ per equation, -19.9 kJ per mol Fe(OH)2 (little)",
-     "dHf kJ/mol (CRC/NBS, substances.json): FeSO4(aq) -998.4, KOH(aq) -482.4, Fe(OH)2(s) -569, K2SO4(aq) -1414.1"
     ]
    }
   },
@@ -11377,72 +11443,6 @@
      "colour of Mg(OH)2(s): white (COLOUR-GE, substances.json)",
      "dH = 2.4 kJ per equation, 2.4 kJ per mol Mg(OH)2 (little)",
      "dHf kJ/mol (CRC/NBS, substances.json): MgBr2(aq) -710.1, NaOH(aq) -470.1, Mg(OH)2(s) -924.5, NaBr(aq) -361.7"
-    ]
-   }
-  },
-  {
-   "id": "rule_precipitate_mgcl2_koh",
-   "name": "Magnesium hydroxide (as in milk of magnesia)",
-   "family": "precipitation",
-   "band": "adept",
-   "equation": "MgCl2 + 2KOH -> Mg(OH)2 + 2KCl",
-   "needs": [],
-   "heat": "little",
-   "say": "The two solutions swap partners and magnesium hydroxide (as in milk of magnesia), a white solid, comes out.",
-   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Mg(OH)2.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "precipitate",
-   "dh_kj": 2.4,
-   "per": "Mg(OH)2",
-   "dh_per_kj": 2.4,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
-    "entries": [
-     "Table 4.1: Mg(OH)2 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
-     "Table 4.1: KCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: KOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "colour of Mg(OH)2(s): white (COLOUR-GE, substances.json)",
-     "dH = 2.4 kJ per equation, 2.4 kJ per mol Mg(OH)2 (little)",
-     "dHf kJ/mol (CRC/NBS, substances.json): MgCl2(aq) -801.3, KOH(aq) -482.4, Mg(OH)2(s) -924.5, KCl(aq) -419.6"
-    ]
-   }
-  },
-  {
-   "id": "rule_precipitate_mgcl2_lioh",
-   "name": "Magnesium hydroxide (as in milk of magnesia)",
-   "family": "precipitation",
-   "band": "adept",
-   "equation": "MgCl2 + 2LiOH -> Mg(OH)2 + 2LiCl",
-   "needs": [],
-   "heat": "little",
-   "say": "The two solutions swap partners and magnesium hydroxide (as in milk of magnesia), a white solid, comes out.",
-   "source": "By rule (two salts swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Mg(OH)2.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "precipitate",
-   "dh_kj": 2.4,
-   "per": "Mg(OH)2",
-   "dh_per_kj": 2.4,
-   "evidence": {
-    "kind": "data",
-    "source": "OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
-    "url": "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
-    "checked": true,
-    "claim": "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid (OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq)).",
-    "entries": [
-     "Table 4.1: Mg(OH)2 insoluble (OH-: insoluble except with group 1 cations and Ba2+)",
-     "Table 4.1: LiCl soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: LiOH soluble (NH4+ and group 1 cations: soluble, no exceptions)",
-     "colour of Mg(OH)2(s): white (COLOUR-GE, substances.json)",
-     "dH = 2.4 kJ per equation, 2.4 kJ per mol Mg(OH)2 (little)",
-     "dHf kJ/mol (CRC/NBS, substances.json): MgCl2(aq) -801.3, LiOH(aq) -508.5, Mg(OH)2(s) -924.5, LiCl(aq) -445.7"
     ]
    }
   },
@@ -12176,21 +12176,21 @@
    }
   },
   {
-   "id": "rule_displacement_mg_agno3",
-   "name": "Magnesium and silver nitrate",
+   "id": "rule_displacement_mg_cucl2",
+   "name": "Magnesium and copper chloride",
    "family": "displacement",
    "band": "apprentice",
-   "equation": "Mg + 2AgNO3 -> Mg(NO3)2 + 2Ag",
+   "equation": "Mg + CuCl2 -> MgCl2 + Cu",
    "needs": [],
    "heat": "releases",
-   "say": "Magnesium is more reactive than silver, so it pushes silver out of silver nitrate solution.",
-   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Ag.",
+   "say": "Magnesium is more reactive than copper, so it pushes copper out of copper chloride solution.",
+   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Cu.",
    "check": "draft",
    "tier": "rule",
    "rule": "displacement",
-   "dh_kj": -678.1,
-   "per": "Ag",
-   "dh_per_kj": -339.1,
+   "dh_kj": -531.7,
+   "per": "Cu",
+   "dh_per_kj": -531.7,
    "evidence": {
     "kind": "data",
     "source": "Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
@@ -12198,15 +12198,44 @@
     "checked": true,
     "claim": "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement reaction'), the list ordered by standard reduction potential.",
     "entries": [
-     "E(Mg+2/Mg) = -2.372 V < E(Ag+/Ag) = 0.7996 V (the game also asks for a gap of at least 0.25 V)",
-     "Table 4.1: AgNO3 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
-     "Table 4.1: Mg(NO3)2 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
-     "dH = -678.1 kJ per equation, -339.1 kJ per mol Ag (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, AgNO3(aq) -101.8, Mg(NO3)2(aq) -881.7, Ag(s) 0"
+     "E(Mg+2/Mg) = -2.372 V < E(Cu+2/Cu) = 0.337 V (the game also asks for a gap of at least 0.25 V)",
+     "Table 4.1: CuCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
+     "dH = -531.7 kJ per equation, -531.7 kJ per mol Cu (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, CuCl2(aq) -269.6, MgCl2(aq) -801.3, Cu(s) 0"
     ]
-   },
-   "hazard": "lab",
-   "hazard_why": "AgNO3 (silver nitrate burns and stains skin)"
+   }
+  },
+  {
+   "id": "rule_displacement_mg_feso4",
+   "name": "Magnesium and iron sulfate",
+   "family": "displacement",
+   "band": "apprentice",
+   "equation": "Mg + FeSO4 -> MgSO4 + Fe",
+   "needs": [],
+   "heat": "releases",
+   "say": "Magnesium is more reactive than iron, so it pushes iron out of iron sulfate solution.",
+   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "displacement",
+   "dh_kj": -377.8,
+   "per": "Fe",
+   "dh_per_kj": -377.8,
+   "evidence": {
+    "kind": "data",
+    "source": "Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
+    "url": "https://en.wikipedia.org/wiki/Standard_electrode_potential_(data_page)",
+    "checked": true,
+    "claim": "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement reaction'), the list ordered by standard reduction potential.",
+    "entries": [
+     "E(Mg+2/Mg) = -2.372 V < E(Fe+2/Fe) = -0.44 V (the game also asks for a gap of at least 0.25 V)",
+     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
+     "Table 4.1: MgSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
+     "dH = -377.8 kJ per equation, -377.8 kJ per mol Fe (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, FeSO4(aq) -998.4, MgSO4(aq) -1376.2, Fe(s) 0"
+    ]
+   }
   },
   {
    "id": "rule_displacement_zn_cucl2",
@@ -12236,6 +12265,37 @@
      "Table 4.1: ZnCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
      "dH = -218.7 kJ per equation, -218.7 kJ per mol Cu (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): Zn(s) 0, CuCl2(aq) -269.6, ZnCl2(aq) -488.3, Cu(s) 0"
+    ]
+   }
+  },
+  {
+   "id": "rule_displacement_zn_feso4",
+   "name": "Zinc and iron sulfate",
+   "family": "displacement",
+   "band": "apprentice",
+   "equation": "Zn + FeSO4 -> ZnSO4 + Fe",
+   "needs": [],
+   "heat": "releases",
+   "say": "Zinc is more reactive than iron, so it pushes iron out of iron sulfate solution.",
+   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "displacement",
+   "dh_kj": -64.8,
+   "per": "Fe",
+   "dh_per_kj": -64.8,
+   "evidence": {
+    "kind": "data",
+    "source": "Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
+    "url": "https://en.wikipedia.org/wiki/Standard_electrode_potential_(data_page)",
+    "checked": true,
+    "claim": "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement reaction'), the list ordered by standard reduction potential.",
+    "entries": [
+     "E(Zn+2/Zn) = -0.7618 V < E(Fe+2/Fe) = -0.44 V (the game also asks for a gap of at least 0.25 V)",
+     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
+     "Table 4.1: ZnSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
+     "dH = -64.8 kJ per equation, -64.8 kJ per mol Fe (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): Zn(s) 0, FeSO4(aq) -998.4, ZnSO4(aq) -1063.2, Fe(s) 0"
     ]
    }
   },
@@ -12531,6 +12591,39 @@
    "hazard_why": "Pb (lead compounds are toxic (reproductive toxicity 1A)), Pb(NO3)2 (lead compounds are toxic (reproductive toxicity 1A))"
   },
   {
+   "id": "rule_displacement_mg_agno3",
+   "name": "Magnesium and silver nitrate",
+   "family": "displacement",
+   "band": "adept",
+   "equation": "Mg + 2AgNO3 -> Mg(NO3)2 + 2Ag",
+   "needs": [],
+   "heat": "releases",
+   "say": "Magnesium is more reactive than silver, so it pushes silver out of silver nitrate solution.",
+   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Ag.",
+   "check": "draft",
+   "tier": "rule",
+   "rule": "displacement",
+   "dh_kj": -678.1,
+   "per": "Ag",
+   "dh_per_kj": -339.1,
+   "evidence": {
+    "kind": "data",
+    "source": "Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
+    "url": "https://en.wikipedia.org/wiki/Standard_electrode_potential_(data_page)",
+    "checked": true,
+    "claim": "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement reaction'), the list ordered by standard reduction potential.",
+    "entries": [
+     "E(Mg+2/Mg) = -2.372 V < E(Ag+/Ag) = 0.7996 V (the game also asks for a gap of at least 0.25 V)",
+     "Table 4.1: AgNO3 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
+     "Table 4.1: Mg(NO3)2 soluble (C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions)",
+     "dH = -678.1 kJ per equation, -339.1 kJ per mol Ag (releases)",
+     "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, AgNO3(aq) -101.8, Mg(NO3)2(aq) -881.7, Ag(s) 0"
+    ]
+   },
+   "hazard": "lab",
+   "hazard_why": "AgNO3 (silver nitrate burns and stains skin)"
+  },
+  {
    "id": "rule_displacement_mg_cubr2",
    "name": "Magnesium and copper bromide",
    "family": "displacement",
@@ -12558,37 +12651,6 @@
      "Table 4.1: MgBr2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
      "dH = -531.7 kJ per equation, -531.7 kJ per mol Cu (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, CuBr2(aq) -178.4, MgBr2(aq) -710.1, Cu(s) 0"
-    ]
-   }
-  },
-  {
-   "id": "rule_displacement_mg_cucl2",
-   "name": "Magnesium and copper chloride",
-   "family": "displacement",
-   "band": "adept",
-   "equation": "Mg + CuCl2 -> MgCl2 + Cu",
-   "needs": [],
-   "heat": "releases",
-   "say": "Magnesium is more reactive than copper, so it pushes copper out of copper chloride solution.",
-   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Cu.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "displacement",
-   "dh_kj": -531.7,
-   "per": "Cu",
-   "dh_per_kj": -531.7,
-   "evidence": {
-    "kind": "data",
-    "source": "Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
-    "url": "https://en.wikipedia.org/wiki/Standard_electrode_potential_(data_page)",
-    "checked": true,
-    "claim": "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement reaction'), the list ordered by standard reduction potential.",
-    "entries": [
-     "E(Mg+2/Mg) = -2.372 V < E(Cu+2/Cu) = 0.337 V (the game also asks for a gap of at least 0.25 V)",
-     "Table 4.1: CuCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
-     "dH = -531.7 kJ per equation, -531.7 kJ per mol Cu (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, CuCl2(aq) -269.6, MgCl2(aq) -801.3, Cu(s) 0"
     ]
    }
   },
@@ -12682,37 +12744,6 @@
      "Table 4.1: MgCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
      "dH = -377.8 kJ per equation, -377.8 kJ per mol Fe (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, FeCl2(aq) -423.5, MgCl2(aq) -801.3, Fe(s) 0"
-    ]
-   }
-  },
-  {
-   "id": "rule_displacement_mg_feso4",
-   "name": "Magnesium and iron sulfate",
-   "family": "displacement",
-   "band": "adept",
-   "equation": "Mg + FeSO4 -> MgSO4 + Fe",
-   "needs": [],
-   "heat": "releases",
-   "say": "Magnesium is more reactive than iron, so it pushes iron out of iron sulfate solution.",
-   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "displacement",
-   "dh_kj": -377.8,
-   "per": "Fe",
-   "dh_per_kj": -377.8,
-   "evidence": {
-    "kind": "data",
-    "source": "Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
-    "url": "https://en.wikipedia.org/wiki/Standard_electrode_potential_(data_page)",
-    "checked": true,
-    "claim": "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement reaction'), the list ordered by standard reduction potential.",
-    "entries": [
-     "E(Mg+2/Mg) = -2.372 V < E(Fe+2/Fe) = -0.44 V (the game also asks for a gap of at least 0.25 V)",
-     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
-     "Table 4.1: MgSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
-     "dH = -377.8 kJ per equation, -377.8 kJ per mol Fe (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): Mg(s) 0, FeSO4(aq) -998.4, MgSO4(aq) -1376.2, Fe(s) 0"
     ]
    }
   },
@@ -12963,37 +12994,6 @@
      "Table 4.1: ZnCl2 soluble (Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+)",
      "dH = -64.8 kJ per equation, -64.8 kJ per mol Fe (releases)",
      "dHf kJ/mol (CRC/NBS, substances.json): Zn(s) 0, FeCl2(aq) -423.5, ZnCl2(aq) -488.3, Fe(s) 0"
-    ]
-   }
-  },
-  {
-   "id": "rule_displacement_zn_feso4",
-   "name": "Zinc and iron sulfate",
-   "family": "displacement",
-   "band": "adept",
-   "equation": "Zn + FeSO4 -> ZnSO4 + Fe",
-   "needs": [],
-   "heat": "releases",
-   "say": "Zinc is more reactive than iron, so it pushes iron out of iron sulfate solution.",
-   "source": "By rule (metal swap): OpenStax Chemistry 2e. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of Fe.",
-   "check": "draft",
-   "tier": "rule",
-   "rule": "displacement",
-   "dh_kj": -64.8,
-   "per": "Fe",
-   "dh_per_kj": -64.8,
-   "evidence": {
-    "kind": "data",
-    "source": "Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
-    "url": "https://en.wikipedia.org/wiki/Standard_electrode_potential_(data_page)",
-    "checked": true,
-    "claim": "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement reaction'), the list ordered by standard reduction potential.",
-    "entries": [
-     "E(Zn+2/Zn) = -0.7618 V < E(Fe+2/Fe) = -0.44 V (the game also asks for a gap of at least 0.25 V)",
-     "Table 4.1: FeSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
-     "Table 4.1: ZnSO4 soluble (SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+)",
-     "dH = -64.8 kJ per equation, -64.8 kJ per mol Fe (releases)",
-     "dHf kJ/mol (CRC/NBS, substances.json): Zn(s) 0, FeSO4(aq) -998.4, ZnSO4(aq) -1063.2, Fe(s) 0"
     ]
    }
   }
