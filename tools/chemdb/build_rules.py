@@ -642,9 +642,12 @@ for rule, rs, ps, extra in cands:
         ppt = extra["precipitate"]
         col = subs[ppt]["colour"]["s"]["described"]
         name = f"{plain(ppt)[0].upper() + plain(ppt)[1:]} from {plain(rs[0])} and {plain(rs[1])}"
-        say = f"Mixing {plain(rs[0])} and {plain(rs[1])} solutions makes {plain(ppt)}, a {col} solid that does not dissolve."
+        # A colour with a clause ("white, turning green-brown in air")
+        # follows the noun: "a solid (white, turning ...)".
+        a_solid = f"a solid ({col})" if "," in col else f"a {col} solid"
+        say = f"Mixing {plain(rs[0])} and {plain(rs[1])} solutions makes {plain(ppt)}, {a_solid} that does not dissolve."
         if len(say) > 140:
-            say = f"The two solutions swap partners and {plain(ppt)}, a {col} solid, comes out."
+            say = f"The two solutions swap partners and {plain(ppt)}, {a_solid}, comes out."
         short = "Two clear liquids make a solid."
     else:
         m1, s = rs
