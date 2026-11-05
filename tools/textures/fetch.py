@@ -4,7 +4,8 @@ look; Paawan chose free scanned photo textures on 2026-11-04).
 
     python3 tools/textures/fetch.py            # writes crates/bevy-client/web/tex/
 
-Layers, in order (the shader's layer index): grass, soil, rock, snow.
+Layers, in order (the shader's layer index): grass, soil, rock, snow (the
+ground), then bark, leaves, planks, brick, metal (models).
 Each map is a vertical strip of 1024 x 1024 tiles: terrain-albedo.jpg
 (colour) and terrain-normal.jpg (OpenGL normal maps). The game stacks them
 into a texture array. Re-run only to change a texture; the outputs are
@@ -23,6 +24,12 @@ LAYERS = [
     ("soil", "forest_ground_04"),
     ("rock", "aerial_rocks_02"),
     ("snow", "snow_field_aerial"),
+    # Models (2026-11-05, Paawan: everything in the same realistic look).
+    ("bark", "bark_brown_02"),
+    ("leaves", "forest_leaves_02"),
+    ("planks", "brown_planks_03"),
+    ("brick", "red_brick_03"),
+    ("metal", "rusty_metal_02"),
 ]
 SIZE = 1024
 OUT = Path(__file__).resolve().parents[2] / "crates/bevy-client/web/tex"
@@ -52,7 +59,7 @@ def main() -> None:
             strip.paste(t, (0, i * SIZE))
         strip.save(OUT / f"terrain-{key}.jpg", quality=86, optimize=True, progressive=False)
     (OUT / "CREDITS.txt").write_text(
-        "Scanned ground textures from Poly Haven, CC0 (public domain).\n"
+        "Scanned textures from Poly Haven, CC0 (public domain).\n"
         "Fetched and stacked by tools/textures/fetch.py.\n\n" + "\n".join(credits) + "\n"
     )
 

@@ -176,6 +176,9 @@ fn load_ground(
             mat.extension.ground_albedo = Some(albedo.clone());
             mat.extension.ground_normal = Some(normal.clone());
             mat.extension.ground.x = 1.0;
+            // How many layers there are: the models' textures (bark,
+            // leaves, planks, brick, metal) follow the ground's four.
+            mat.extension.ground.y = m.layers as f32;
         }
     }
     info!("ground textures: {} layers of {} px", m.layers, m.size);

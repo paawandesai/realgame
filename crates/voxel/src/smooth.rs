@@ -924,23 +924,31 @@ fn ice_sheets(g: &Grid, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     out
 }
 
-/// Appends mesh `b` to `a`.
 /// UV_0.x on modelled geometry (buildings, trees, crystals' stands): a
 /// small negative value, so a client can tell modelled shapes from the
 /// ground (the realistic look puts scanned ground textures only on the
 /// ground). Below zero reads as no glow; wet surfaces stay under -0.5.
-pub const MODEL_MARK: f32 = -0.25;
+pub const MODEL_MARK: f32 = -0.2;
 
-/// Marks a modelled mesh's non-glowing vertices with `MODEL_MARK`.
+/// The UV_0.x a modelled vertex of material `mat` carries: `MODEL_MARK`
+/// less a hundredth per material id, so the shader can tell a model from
+/// the terrain (any value in (-0.5, -0.1)) and texture it by what it is
+/// made of (bark, planks, brick; the realistic look).
+pub fn model_uv(mat: u8) -> f32 {
+    MODEL_MARK - mat as f32 * 0.01
+}
+
+/// Marks a model's non-glowing vertices (`model_uv`).
 pub fn mark_modelled(mut m: MeshData) -> MeshData {
-    for uv in &mut m.uvs {
+    for (uv, &mat) in m.uvs.iter_mut().zip(&m.mats) {
         if uv[0] == 0.0 {
-            uv[0] = MODEL_MARK;
+            uv[0] = model_uv(mat);
         }
     }
     m
 }
 
+/// Appends mesh `b` to `a`.
 fn append(a: &mut MeshData, b: MeshData) {
     let off = a.positions.len() as u32;
     a.positions.extend(b.positions);
