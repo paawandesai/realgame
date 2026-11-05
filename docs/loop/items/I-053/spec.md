@@ -21,6 +21,8 @@ A reaction found on the Bench page gets a **Save as a spell** button (on the res
 
 ## 3. Effects: every codex reaction maps to one effect (step 3)
 
+> **Changed by I-056 (B2, `loop/bench-b2`):** `runs` has four more values and **none** now means **Bench only**. A precipitation (kind `wall`) runs **Wall**; a solution reaction with a colour change or a metal coating (kind `reveal`) runs **Reveal**; a fizz that does not smother runs by its gas (`gas_uses`): a flame → Fire, a poisonous gas → Bench only with a reason, hydrogen → **Lift**, any other gas → **Push**. Wall, Reveal, Lift and Push are not matter emits: `world_use.rs` carries them out. No reaction lands as a puff with amount 0 any more. See `docs/loop/items/I-056/spec.md` sections 4 to 6.
+
 > **Changed by I-054 (B1, `loop/bench-show`):** an effect's `strength` and `tint` now come from the reaction's show record: strength from |ΔH| on a log scale, tint from the flame emitter or the first coloured product. See `docs/loop/items/I-054/spec.md` section 6. The strength and tint rules below and in effects.json describe this branch before I-054.
 
 `content/chem/effects.json` + `crates/chem/src/discover.rs` (`Effects::of`). Ordered rules, first match wins, on data only (family, heat, hazard, whether a product is a gas in `names.json`, whether it has needs); one override (`thermite`).
@@ -96,6 +98,8 @@ The world loads the save into the game with `found`, `saved`, `slots`, `quests` 
 
 ## 8. What the graphics thread needs to know
 
+> **Changed by I-056:** two more kinds (`wall`, `reveal`) and four more runs (`wall`, `reveal`, `lift`, `push`); the effect value also carries `use` (what it does in the world, plain words) and `bench_only` (why it cannot be saved, or null). A Wall flies as Frost, a Reveal as Fire, a Lift as Water and a Push as CO2 (`Runs::slot`). The data values for walls and reveals are in I-056 spec section 6.
+
 > **Changed by I-054:** `tint` and `strength` are computed from the show record (`show_json(id)`), which the Bench now also passes to `playReaction` as a 4th argument. See I-054 spec section 4.
 
 - **The effect value** (`realgame_chem::discover::Effect`, serialised in `effects_json()` for the Bench page and in `__discState.saved[].effect`): `reaction_id` (codex id), `kind` (fire, water, frost, foam, cloud, glow), `heat` (-1, 0, +1), `strength` (0 to 1), optional `tint` (`#rrggbb`), and `runs` (the gameplay rule). Hit position and normal come from the cast (`SpellLanded.pos`, `.normal`).
@@ -112,11 +116,13 @@ The world loads the save into the game with `found`, `saved`, `slots`, `quests` 
 ## 10. Acceptance tests
 
 - `crates/chem/src/discover.rs`: `every_codex_reaction_maps_to_an_effect` (kind, heat, strength in 0..1, reaction_id, tint format, heat agrees with the codex); `the_effect_data_is_consistent`; `effects_follow_the_chemistry` (methane fire 1.0; chalk + acid foam runs CO2; zinc + acid foam runs none; silver chloride a white cloud; magnesium a white flame; a neutralisation glows and splashes; thermite fire); `bottles_name_codex_substances_and_supply_carbon_burning` (every live quest has a Sprout reaction the world supplies); `a_discovered_spell_is_judged_by_the_codex` (every one of the 182 equations is Ok against its own spell; wrong products fail; a higher band is NotForBand); `mastery_is_two_builds_and_sprout_never_builds`.
-- `crates/bevy-client/src/discover.rs`: the save loads and drops unknown ids; equip puts a spell on its rule's slot and the key switches; two builds master it and a puff's amount is 0; a cast needs its bottles and uses them; the melt quest needs a hot discovered spell nearby and in time.
+- `crates/bevy-client/src/discover.rs`: the save loads and drops unknown ids; equip puts a spell on its rule's slot and the key switches; two builds master it and a puff's amount is 0 (I-056: a hydrogen fizz now lifts, with its strength, and a Bench-only reaction is never saved or equipped); a cast needs its bottles and uses them; the melt quest needs a hot discovered spell nearby and in time.
 - `test/bench-spells.test.ts`: the shared keys, saving and merging, corrupt or blocked storage, load commands, the world's sync (load, write back, `storage` reload, Fire becomes a find), content shape.
 - Playable check (Playwright on the release build, section 12 of the report): save on the Bench page, the pack lists it, dig coal, cast twice with builds, then instantly, melt ice, quest done.
 
 ## 11. The mapping table (all 182 codex reactions)
+
+> **Stale after I-056:** the `kind` and `runs` columns below are pre-I-056 for precipitations, reveals and the 31 former puffs. The current table is in `docs/loop/items/I-056/spec.md` section 10.
 
 > **Stale after I-054:** the `strength` and `tint` columns below are the pre-I-054 values. The current ones are in `docs/loop/items/I-054/spec.md` section 10.
 
