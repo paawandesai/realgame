@@ -85,7 +85,8 @@ function check(name, ok, detail = '') {
   // Pack bottles: walking up to the workshop stash gives copper sulfate and iron.
   const packN = (s, item) => ((s && s.pack) || []).filter((e) => e.item === item).reduce((n, e) => n + e.n, 0);
   await cmd('tp 137.6 35 190.5');
-  const s0 = await poll(st, (x) => packN(x, 'copper_sulfate') >= 4, 120000);
+  // (The stash gives its bottles once the world has loaded round the new spot: slow in software rendering.)
+  const s0 = await poll(st, (x) => packN(x, 'copper_sulfate') >= 4 && packN(x, 'iron') >= 4, 360000);
   check('setup: the workshop stash puts bottles in the pack', packN(s0, 'copper_sulfate') >= 4 && packN(s0, 'iron') >= 4, JSON.stringify(s0 && s0.pack));
 
   // B1. B in the world opens the one Bench over it, in story mode.

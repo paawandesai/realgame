@@ -64,5 +64,6 @@ The world (`discover.js`) and the Bench page read and write the same keys. The w
 
 - `tests/e2e/one-bench.mjs` (new). B opens the one Bench in story mode with the pack's bottles. Fire is learned by building its formula. Closing the Bench puts Fire on the hotbar as Learning. The title screen's Bench is free play and shows Fire as Learning from the same save.
 - `tests/e2e/golden.mjs` `formulaBench` (tests 12–28b and round 2) and `valleyPuzzles` P1 now drive the Bench inside the frame. Every check is kept: the old selectors map onto the one Bench's, the size, text and contrast checks measure the Spells tab, and the animation probe builds Water for real instead of using the retired `fake()`.
+- `golden.mjs` test 17 now loads with `voice: true` saved. Spoken lines have been opt-in since db6ddf1 ("Read lines aloud"), so its three speech checks were failing before this item too. They now check what is spoken when voice is on, and the sound-off check still checks that nothing is.
 - `tests/e2e/analytics-e2e.mjs` test 15 reads the chooser and cards from the frame.
 - Unit tests: `test/bench-spells.test.ts` (shared-save helpers), and `test/bench-free.test.ts` and `test/bench-layout.test.ts` (the new files and the Spells tab).
