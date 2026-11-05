@@ -50,6 +50,7 @@ SOURCES = {
     "CRC-T": "CRC Handbook of Chemistry and Physics, 'Standard Thermodynamic Properties of Chemical Substances' (section 5), as tabulated in the chemicals package (https://github.com/CalebBell/chemicals, file 'CRC Standard Thermodynamic Properties of Chemical Substances.tsv').",
     "CRC-ION": "CRC Handbook of Chemistry and Physics, 'Thermodynamic Properties of Aqueous Ions' (section 5), as tabulated in the chemicals package (file 'CRC Thermodynamic Properties of Aqueous Ions.tsv'). A dissolved strong electrolyte is the sum of its ions at infinite dilution.",
     "CRC-PHYS": "CRC Handbook of Chemistry and Physics, 'Physical Constants of Inorganic Compounds' and 'Physical Constants of Organic Compounds' (melting point, boiling point, density), as tabulated in the chemicals package.",
+    "CRC-PRINTED": "CRC Handbook of Chemistry and Physics, 'Physical Constants of Inorganic Compounds', the printed boiling or sublimation point (KCl boils at 1420 C; CaO at 2850 C; ZnS sublimes at 1185 C). Entered by hand (verified: false).",
     "CRC-PC": "CRC Handbook of Chemistry and Physics, heat of fusion and heat of vaporization tables (section 6), as tabulated in the chemicals package.",
     "NIST-SHOMATE": "NIST Chemistry WebBook (SRD 69), Shomate heat capacity coefficients per phase, as tabulated in the chemicals package (file 'webbook_shomate_coefficients.json'). Cp = A + B T + C T^2 + D T^3 + E / T^2 in J/(mol K), T in K.",
     "API-TDB": "API Technical Data Book, gas-phase enthalpies of formation (Albahri), as tabulated in the chemicals package (file 'API TDB Albahri Hf (g).tsv').",
@@ -180,7 +181,7 @@ SMILES = {
 # colour is known but not rendered (colourless, or unsure of a hex).
 C = "COLOUR-GE"
 COLOURS = {
-    "AgCl": {"s": ("white (darkens to grey-violet in light)", "#f4f4f4", C)},
+    "AgCl": {"s": ("white", "#f4f4f4", C)},
     "AgBr": {"s": ("cream (pale yellow)", "#f1e6b0", C)},
     "AgI": {"s": ("pale yellow", "#f2df73", C)},
     "PbI2": {"s": ("bright yellow", "#ffd21f", C)},
@@ -192,46 +193,46 @@ COLOURS = {
     "Ca(OH)2": {"s": ("white", "#f4f4f4", C), "aq": ("colourless", None, C)},
     "Zn(OH)2": {"s": ("white", "#f4f4f4", C)},
     "Cu(OH)2": {"s": ("pale blue", "#3d8fe0", C)},
-    "Fe(OH)2": {"s": ("dirty green (white when pure, greens at once in air)", "#5b7f4f", C)},
+    "Fe(OH)2": {"s": ("dirty green", "#5b7f4f", C)},
     "Fe(OH)3": {"s": ("red-brown", "#a0522d", C)},
     "Cl2": {"g": ("pale yellow-green", "#c8d84a", C), "aq": ("very pale yellow-green", None, C)},
     "NO2": {"g": ("red-brown", "#a2401c", C)},
     "N2O4": {"g": ("colourless", None, C), "l": ("colourless to pale yellow", None, C)},
     "Br2": {"l": ("deep red-brown", "#6b1d0e", C), "g": ("red-brown", "#a3411f", C), "aq": ("yellow-orange", "#e8a33a", C)},
-    "I2": {"s": ("grey-black, shiny", "#2b2530", C), "g": ("violet", "#8a3fa0", C), "aq": ("brown (as triiodide in iodide solution)", "#8b4513", C)},
+    "I2": {"s": ("shiny grey-black", "#2b2530", C), "g": ("violet", "#8a3fa0", C), "aq": ("brown", "#8b4513", C)},
     "F2": {"g": ("very pale yellow", None, C)},
-    "O3": {"g": ("very pale blue (colourless at bench strength)", None, C)},
+    "O3": {"g": ("colourless at bench strength (pale blue when concentrated)", None, C)},
     "CuSO4": {"aq": ("blue", "#2f7fd0", C), "s": ("white (anhydrous)", "#f4f4f4", C)},
     "Cu(NO3)2": {"aq": ("blue", "#2f7fd0", C)},
     "CuCl2": {"aq": ("blue-green", "#2aa198", C), "s": ("yellow-brown (anhydrous)", "#b5852a", C)},
     "FeSO4": {"aq": ("pale green", "#b8d8a0", C)},
     "FeCl2": {"aq": ("pale green", "#b8d8a0", C)},
     "FeCl3": {"aq": ("yellow-orange", "#d98c1e", C), "s": ("dark brown-black", "#3a2a1a", C)},
-    "Cu": {"s": ("salmon-pink metal; brown when freshly deposited", "#b87333", C)},
+    "Cu": {"s": ("pink-brown", "#b87333", C)},
     "Ag": {"s": ("silvery grey crystals", "#c0c0c0", C)},
     "Pb": {"s": ("dull grey", "#5a5f66", C)},
     "Zn": {"s": ("bluish grey", "#8e9aa6", C)},
-    "Fe": {"s": ("grey", "#6e6e6e", C), "l": ("glowing liquid metal", None, C)},
+    "Fe": {"s": ("grey", "#6e6e6e", C), "l": ("glowing", None, C)},
     "Mg": {"s": ("silvery", "#c8c8c8", C)},
     "Al": {"s": ("silvery", "#c8c8c8", C)},
-    "Na": {"s": ("silvery, tarnishes at once", "#c8c8c8", C)},
-    "K": {"s": ("silvery, tarnishes at once", "#c8c8c8", C)},
+    "Na": {"s": ("silvery", "#c8c8c8", C)},
+    "K": {"s": ("silvery", "#c8c8c8", C)},
     "Li": {"s": ("silvery", "#c8c8c8", C)},
     "Ca": {"s": ("silvery grey", "#b0b0b0", C)},
     "Hg": {"l": ("silvery liquid", "#c0c0c8", C)},
     "S": {"s": ("bright yellow", "#f2d72e", C)},
     "C": {"s": ("black", "#1c1c1c", C)},
-    "Si": {"s": ("grey, shiny", "#6a6f78", C)},
-    "P4": {"s": ("white to pale yellow, waxy", "#f2ecc8", C)},
+    "Si": {"s": ("shiny grey", "#6a6f78", C)},
+    "P4": {"s": ("waxy white to pale yellow", "#f2ecc8", C)},
     "CuO": {"s": ("black", "#1c1c1c", C)},
     "Cu2S": {"s": ("black", "#1c1c1c", C)},
-    "CuCO3": {"s": ("green (basic copper carbonate)", "#3f8f4f", C)},
+    "CuCO3": {"s": ("green", "#3f8f4f", C)},
     "Fe2O3": {"s": ("red-brown", "#8b3a1e", C)},
     "FeS": {"s": ("black", "#1c1c1c", C)},
     "Ag2S": {"s": ("black", "#1c1c1c", C)},
     "Ag2O": {"s": ("brown-black", "#3b2a20", C)},
     "HgO": {"s": ("red", "#c0392b", C)},
-    "ZnO": {"s": ("white (yellow while hot)", "#f4f4f4", C)},
+    "ZnO": {"s": ("white", "#f4f4f4", C)},
     "MgO": {"s": ("white", "#f4f4f4", C)},
     "CaO": {"s": ("white", "#f4f4f4", C)},
     "Al2O3": {"s": ("white", "#f4f4f4", C)},
@@ -246,8 +247,8 @@ COLOURS = {
     "MgCl2": {"s": ("white", "#f4f4f4", C)}, "NaCl": {"s": ("white", "#f4f4f4", C)},
     "KCl": {"s": ("white", "#f4f4f4", C)}, "CaCl2": {"s": ("white", "#f4f4f4", C)},
     "AlCl3": {"s": ("white to pale yellow", "#f4f4f4", C)}, "NaBr": {"s": ("white", "#f4f4f4", C)},
-    "ZnI2": {"s": ("white", "#f4f4f4", C)}, "AlI3": {"s": ("white (often yellow-brown from iodine)", None, C)},
-    "MgS": {"s": ("white to reddish-brown", None, C)}, "ZnS": {"s": ("white", "#f4f4f4", C)},
+    "ZnI2": {"s": ("white", "#f4f4f4", C)}, "AlI3": {"s": ("white", "#f4f4f4", C)},
+    "MgS": {"s": ("white", "#f4f4f4", C)}, "ZnS": {"s": ("white", "#f4f4f4", C)},
     "C25H52": {"s": ("white wax", "#f4f4f0", C)},
 }
 COLOURLESS_GASES = ["H2", "O2", "N2", "CO2", "CO", "CH4", "C2H6", "C3H8", "C4H10", "C2H4", "C2H2", "NH3",
@@ -261,6 +262,11 @@ GRAIN = {"Ca(OH)2": "cloudy", "AgCl": "cloudy", "AgBr": "cloudy", "AgI": "cloudy
          "Mg(OH)2": "cloudy", "Zn(OH)2": "cloudy", "Cu(OH)2": "cloudy", "Fe(OH)2": "cloudy",
          "Fe(OH)3": "cloudy", "CaSO4": "cloudy", "PbI2": "grainy", "PbCl2": "grainy", "Cu": "grainy",
          "Ag": "grainy", "Pb": "grainy", "Zn": "grainy", "I2": "grainy"}
+
+# Boiling or sublimation points missing from the CRC physical constants file
+# (K, at 1 atm), from the CRC Handbook's printed table (verified: false).
+# They cap the adiabatic temperature of a product.
+HAND_BP = {"KCl": 1693.0, "CaO": 3123.0, "ZnS": 1458.0}
 
 EXTRA_CAS = {"AgI": "7783-96-2", "Al2O3": "1344-28-1", "Ba(OH)2": "17194-00-2", "C": "7782-42-5",
              "Li2O": "12057-24-8", "Na2O": "1313-59-3", "SiO2": "14808-60-7", "Cu(OH)2": "20427-59-2",
@@ -403,6 +409,9 @@ def main():
             rec["density_kg_m3"] = rho
         if tm or tb or rho:
             rec["phys_src"] = "CRC-PHYS"
+        if f in HAND_BP and not tb:
+            rec["bp_k"] = HAND_BP[f]
+            rec["bp_src"] = "CRC-PRINTED"
         if cas in hfus and num(hfus[cas].get("Hfus")):
             rec["hfus_kj"] = round(float(hfus[cas]["Hfus"]) / 1000, 2)
         if cas in hvap and num(hvap[cas].get("HvapTb")):

@@ -85,8 +85,9 @@ pub struct Colour {
 }
 
 impl Colour {
+    /// Colourless, at least at bench strength.
     pub fn colourless(&self) -> bool {
-        self.described == "colourless"
+        self.described.starts_with("colourless")
     }
 }
 
@@ -646,7 +647,12 @@ fn state_of(f: &str, side: Side, sub: &Substance, medium: Medium, hot: bool, fix
             (st, _) => st,
         };
     }
-    if hot && side == Side::Product && s == State::L && sub.bp_k.is_some_and(|b| b <= 400.0) {
+    if hot
+        && medium != Medium::Water
+        && side == Side::Product
+        && s == State::L
+        && sub.bp_k.is_some_and(|b| b <= 400.0)
+    {
         s = State::G;
     }
     s
@@ -906,6 +912,11 @@ fn adiabatic(
         }
         (lo + hi) / 2.0
     };
+    // Above about 4000 K dissociation and vaporisation hold a real flame far
+    // lower; with no boiling point to cap at, no honest estimate is left.
+    if capped_by.is_none() && k > 4000.0 {
+        return None;
+    }
     let mut basis = format!(
         "adiabatic: stoichiometric {}, no heat lost and no dissociation, so an upper bound (heat capacities: NIST Shomate)",
         if in_air && o2 > 0 {
@@ -988,9 +999,12 @@ fn build_record(
             .clone(),
         temp: temp(),
     });
+    // A glow is given a temperature only when the reaction heats itself
+    // (ΔH at most -50 kJ); an externally heated one glows at its furnace
+    // temperature, which the record does not know.
     let glow = fix.glow.then(|| Glow {
         blackbody: true,
-        temp: temp(),
+        temp: dh.kj.filter(|&k| k <= -50.0).and_then(|_| temp()),
     });
     let products = || species.iter().filter(|s| s.side == Side::Product);
     let reactants = || species.iter().filter(|s| s.side == Side::Reactant);
@@ -1001,9 +1015,8 @@ fn build_record(
     if glow.is_some() {
         visible.insert(Visible::Glow);
     }
-    let in_water =
-        medium == Medium::Water || reactants().any(|s| matches!(s.state, State::Aq | State::L));
-    if in_water && products().any(|s| s.state == State::G) {
+    // Bubbles: a gas made in water (gas from a melt is added by show.json).
+    if medium == Medium::Water && products().any(|s| s.state == State::G) {
         visible.insert(Visible::Bubbles);
     }
     // In water, a product that stays solid comes out of the solution (the
@@ -1023,33 +1036,42 @@ fn build_record(
     if !precipitates.is_empty() {
         visible.insert(Visible::Precipitate);
     }
-    // Colour changes: a coloured species that is there before and not after
-    // (or the other way round).
+    // Colour changes: the colour of the liquid or gas changes (a coloured
+    // dissolved, liquid or gaseous species comes or goes), or a solid turns
+    // into a solid of another colour. A solid that only dissolves or a
+    // precipitate that only appears is not a colour change.
     let coloured = |s: &SpeciesShow| s.colour.as_ref().filter(|c| !c.colourless()).cloned();
-    let before: BTreeSet<String> = reactants()
-        .filter_map(coloured)
-        .map(|c| c.described)
-        .collect();
-    let after: BTreeSet<String> = products()
-        .filter_map(coloured)
-        .map(|c| c.described)
-        .collect();
+    let fluid = |s: &&SpeciesShow| s.state != State::S;
+    let solid = |s: &&SpeciesShow| s.state == State::S;
+    let set = |side: Side, keep: &dyn Fn(&&SpeciesShow) -> bool| -> BTreeSet<String> {
+        species
+            .iter()
+            .filter(|s| s.side == side)
+            .filter(keep)
+            .filter_map(coloured)
+            .map(|c| c.described)
+            .collect()
+    };
+    let (fluid_before, fluid_after) = (set(Side::Reactant, &fluid), set(Side::Product, &fluid));
+    let (solid_before, solid_after) = (set(Side::Reactant, &solid), set(Side::Product, &solid));
+    let solids_change =
+        !solid_before.is_empty() && !solid_after.is_empty() && solid_before != solid_after;
     let mut colour_changes = Vec::new();
     for s in &species {
-        if let Some(c) = coloured(s) {
-            let other = if s.side == Side::Reactant {
-                &after
-            } else {
-                &before
-            };
-            if !other.contains(&c.described) {
-                colour_changes.push(ColourChange {
-                    formula: s.formula.clone(),
-                    state: s.state,
-                    appears: s.side == Side::Product,
-                    colour: c,
-                });
-            }
+        let Some(c) = coloured(s) else { continue };
+        let (mine, other) = match (s.state == State::S, s.side) {
+            (false, Side::Reactant) => (true, &fluid_after),
+            (false, Side::Product) => (true, &fluid_before),
+            (true, Side::Reactant) => (solids_change, &solid_after),
+            (true, Side::Product) => (solids_change, &solid_before),
+        };
+        if mine && !other.contains(&c.described) {
+            colour_changes.push(ColourChange {
+                formula: s.formula.clone(),
+                state: s.state,
+                appears: s.side == Side::Product,
+                colour: c,
+            });
         }
     }
     if !colour_changes.is_empty() {
@@ -1661,16 +1683,20 @@ mod tests {
                     .as_ref()
                     .unwrap_or_else(|| panic!("{}: flame", e.id));
                 assert!(!f.light.described.is_empty());
-                let t = f
-                    .temp
-                    .as_ref()
-                    .unwrap_or_else(|| panic!("{}: flame temperature", e.id));
-                assert!(
-                    t.estimated && (900.0..=6000.0).contains(&t.k),
-                    "{}: {}",
-                    e.id,
-                    t.k
-                );
+                // Every burning has a flame temperature; a metal flame with
+                // no boiling point to bound it may have none (the spec lists
+                // them).
+                if e.family == "combustion" {
+                    assert!(f.temp.is_some(), "{}: flame temperature", e.id);
+                }
+                if let Some(t) = &f.temp {
+                    assert!(
+                        t.estimated && (900.0..=4000.0).contains(&t.k),
+                        "{}: {}",
+                        e.id,
+                        t.k
+                    );
+                }
             }
             if r.has(Visible::Precipitate) {
                 assert!(!r.precipitates.is_empty(), "{}", e.id);
@@ -1984,6 +2010,55 @@ mod tests {
                     e.id
                 );
             }
+        }
+    }
+
+    /// Prints every record's summary (for the spec's table):
+    /// `cargo test -p realgame-chem show_table -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn show_table() {
+        let s = shows();
+        let fx = Effects::load();
+        let c = Codex::load();
+        for (e, r) in c.entries.iter().zip(&s.records) {
+            let f = fx.of(e);
+            let t = r
+                .flame
+                .as_ref()
+                .and_then(|x| x.temp.as_ref())
+                .or(r.glow.as_ref().and_then(|g| g.temp.as_ref()))
+                .map(|t| format!("{:.0}", t.k))
+                .unwrap_or_default();
+            let vis: Vec<String> = r
+                .visible
+                .iter()
+                .map(|v| {
+                    serde_json::to_value(v)
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_string()
+                })
+                .collect();
+            println!(
+                "| `{}` | {} | {}{} | {:?} | {} | {} | {:?}{} | {} | {} |",
+                e.id,
+                serde_json::to_value(r.medium).unwrap().as_str().unwrap(),
+                r.dh.kj.map(|k| format!("{k:+.1}")).unwrap_or("?".into()),
+                if r.dh.dh_estimated { " est." } else { "" },
+                e.heat.map(|h| serde_json::to_value(h)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string()),
+                vis.join(", "),
+                t,
+                r.speed,
+                if r.sped_up { " (sped up)" } else { "" },
+                f.strength,
+                f.tint.unwrap_or_default(),
+            );
         }
     }
 

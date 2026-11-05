@@ -121,6 +121,8 @@ header .btn { text-decoration: none; }
 .result.mystery { border-color: var(--brass); }
 .result.info { border-color: #7fa8ff; }
 .result.lab { border-color: #6fd3a8; }
+.result p.see { font-size: 13px; }
+.result p.see.eq { font-size: 14px; }
 .result .credit, .tabpane .note a { font-size: 11px; color: var(--dim, #9aa6bf); }
 .result .credit a { color: inherit; }
 .result ul { margin: 0 0 6px; padding-left: 18px; }
