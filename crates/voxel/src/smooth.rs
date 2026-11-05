@@ -939,10 +939,25 @@ pub fn model_uv(mat: u8) -> f32 {
 }
 
 /// Marks a model's non-glowing vertices (`model_uv`).
-pub fn mark_modelled(mut m: MeshData) -> MeshData {
+pub fn mark_modelled(m: MeshData) -> MeshData {
+    mark(m, false)
+}
+
+/// Marks a building's vertices: its wood is sawn timber (beams, frames,
+/// doors), so it is textured as planks, not as a tree's bark.
+pub fn mark_built(m: MeshData) -> MeshData {
+    mark(m, true)
+}
+
+fn mark(mut m: MeshData, timber: bool) -> MeshData {
     for (uv, &mat) in m.uvs.iter_mut().zip(&m.mats) {
         if uv[0] == 0.0 {
-            uv[0] = model_uv(mat);
+            let as_mat = if timber && mat == crate::mat::WOOD {
+                crate::mat::PLANKS
+            } else {
+                mat
+            };
+            uv[0] = model_uv(as_mat);
         }
     }
     m
@@ -1155,10 +1170,7 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
     }
     let mut opaque = surface(&g, lo, hi, Pass::Opaque, true);
     craggy(&mut opaque);
-    append(
-        &mut opaque,
-        mark_modelled(crate::built::models(world, lo, hi)),
-    );
+    append(&mut opaque, mark_built(crate::built::models(world, lo, hi)));
     SmoothMesh {
         opaque,
         props: mark_modelled(crate::props::models(world, lo, hi)),
