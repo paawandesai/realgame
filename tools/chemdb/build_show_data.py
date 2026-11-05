@@ -36,11 +36,6 @@ import re
 import sys
 
 import chemicals
-from rdkit import Chem
-from rdkit.Chem import AllChem
-from ase import Atoms
-from ase.optimize import BFGS
-from tblite.ase import TBLite
 
 OUT = next((a for a in sys.argv[1:] if not a.startswith("--")), "content/chem")
 BASE = os.path.dirname(chemicals.__file__)
@@ -112,10 +107,15 @@ IONS = {
     "AgNO3": {"Ag+": 1, "NO3-": 1}, "NaNO3": {"Na+": 1, "NO3-": 1}, "KNO3": {"K+": 1, "NO3-": 1},
     "Cu(NO3)2": {"Cu+2": 1, "NO3-": 2}, "Zn(NO3)2": {"Zn+2": 1, "NO3-": 2},
     "Pb(NO3)2": {"Pb+2": 1, "NO3-": 2}, "NH4NO3": {"NH4+": 1, "NO3-": 1}, "NH4Cl": {"NH4+": 1, "Cl-": 1},
+    # Science review (I-054): very soluble salts (CRC aqueous solubility).
+    "ZnI2": {"Zn+2": 1, "I-": 2}, "AlI3": {"Al+3": 1, "I-": 3}, "KClO3": {"K+": 1, "ClO3-": 1},
 }
 # Other species that dissolve (as molecules) in the Bench's water.
 DISSOLVES = {"NH3", "CO2", "SO2", "CH3COOH", "H2O2", "Cl2", "Br2", "I2", "H3PO4", "C2H5OH",
-             "C6H12O6", "H2CO3", "H2SO3", "NH4OH"}
+             "C6H12O6", "H2CO3", "H2SO3", "NH4OH",
+             # Science review (I-054): sucrose (about 2000 g/L), HF, methanol and
+             # propan-1-ol (miscible), urea (about 1000 g/L), water glass.
+             "C12H22O11", "HF", "CH3OH", "C3H7OH", "CH4N2O", "Na2SiO3"}
 
 # Lattice decomposition for geometry: formula -> list of (ion SMILES, count).
 LATTICE = {
@@ -182,7 +182,7 @@ SMILES = {
 C = "COLOUR-GE"
 COLOURS = {
     "AgCl": {"s": ("white", "#f4f4f4", C)},
-    "AgBr": {"s": ("cream (pale yellow)", "#f1e6b0", C)},
+    "AgBr": {"s": ("cream", "#f1e6b0", C)},
     "AgI": {"s": ("pale yellow", "#f2df73", C)},
     "PbI2": {"s": ("bright yellow", "#ffd21f", C)},
     "PbCl2": {"s": ("white", "#f4f4f4", C)},
@@ -192,7 +192,7 @@ COLOURS = {
     "Mg(OH)2": {"s": ("white", "#f4f4f4", C)},
     "Ca(OH)2": {"s": ("white", "#f4f4f4", C), "aq": ("colourless", None, C)},
     "Zn(OH)2": {"s": ("white", "#f4f4f4", C)},
-    "Cu(OH)2": {"s": ("pale blue", "#3d8fe0", C)},
+    "Cu(OH)2": {"s": ("pale blue", "#8cc4ea", C)},
     "Fe(OH)2": {"s": ("dirty green", "#5b7f4f", C)},
     "Fe(OH)3": {"s": ("red-brown", "#a0522d", C)},
     "Cl2": {"g": ("pale yellow-green", "#c8d84a", C), "aq": ("very pale yellow-green", None, C)},
@@ -202,28 +202,28 @@ COLOURS = {
     "I2": {"s": ("shiny grey-black", "#2b2530", C), "g": ("violet", "#8a3fa0", C), "aq": ("brown", "#8b4513", C)},
     "F2": {"g": ("very pale yellow", None, C)},
     "O3": {"g": ("colourless at bench strength (pale blue when concentrated)", None, C)},
-    "CuSO4": {"aq": ("blue", "#2f7fd0", C), "s": ("white (anhydrous)", "#f4f4f4", C)},
-    "Cu(NO3)2": {"aq": ("blue", "#2f7fd0", C)},
-    "CuCl2": {"aq": ("blue-green", "#2aa198", C), "s": ("yellow-brown (anhydrous)", "#b5852a", C)},
+    "CuSO4": {"aq": ("blue", "#3a9ee0", C), "s": ("white", "#f4f4f4", C)},
+    "Cu(NO3)2": {"aq": ("blue", "#3a9ee0", C), "s": ("blue", "#2f6fc0", C)},
+    "CuCl2": {"aq": ("blue-green", "#2aa198", C), "s": ("yellow-brown", "#b5852a", C)},
     "FeSO4": {"aq": ("pale green", "#b8d8a0", C)},
     "FeCl2": {"aq": ("pale green", "#b8d8a0", C)},
     "FeCl3": {"aq": ("yellow-orange", "#d98c1e", C), "s": ("dark brown-black", "#3a2a1a", C)},
     "Cu": {"s": ("pink-brown", "#b87333", C)},
-    "Ag": {"s": ("silvery grey crystals", "#c0c0c0", C)},
+    "Ag": {"s": ("shiny silver", "#c0c0c0", C)},
     "Pb": {"s": ("dull grey", "#5a5f66", C)},
     "Zn": {"s": ("bluish grey", "#8e9aa6", C)},
-    "Fe": {"s": ("grey", "#6e6e6e", C), "l": ("glowing", None, C)},
+    "Fe": {"s": ("grey", "#6e6e6e", C), "l": ("glowing orange", None, C)},
     "Mg": {"s": ("silvery", "#c8c8c8", C)},
     "Al": {"s": ("silvery", "#c8c8c8", C)},
     "Na": {"s": ("silvery", "#c8c8c8", C)},
     "K": {"s": ("silvery", "#c8c8c8", C)},
     "Li": {"s": ("silvery", "#c8c8c8", C)},
     "Ca": {"s": ("silvery grey", "#b0b0b0", C)},
-    "Hg": {"l": ("silvery liquid", "#c0c0c8", C)},
+    "Hg": {"l": ("silvery", "#c0c0c8", C)},
     "S": {"s": ("bright yellow", "#f2d72e", C)},
     "C": {"s": ("black", "#1c1c1c", C)},
     "Si": {"s": ("shiny grey", "#6a6f78", C)},
-    "P4": {"s": ("waxy white to pale yellow", "#f2ecc8", C)},
+    "P4": {"s": ("waxy pale yellow", "#f2ecc8", C)},
     "CuO": {"s": ("black", "#1c1c1c", C)},
     "Cu2S": {"s": ("black", "#1c1c1c", C)},
     "CuCO3": {"s": ("green", "#3f8f4f", C)},
@@ -241,7 +241,7 @@ COLOURS = {
     "Li2O": {"s": ("white", "#f4f4f4", C)},
     "Na2O": {"s": ("white", "#f4f4f4", C)},
     "NH4Cl": {"s": ("white", "#f4f4f4", C)},
-    "Mg3N2": {"s": ("greenish-yellow powder", "#c9c46a", C)},
+    "Mg3N2": {"s": ("greenish-yellow", "#c9c46a", C)},
     "Li3N": {"s": ("red-brown", "#8a3b2a", C)},
     "NI3": {"s": ("black-purple", "#2a1830", C)},
     "MgCl2": {"s": ("white", "#f4f4f4", C)}, "NaCl": {"s": ("white", "#f4f4f4", C)},
@@ -249,18 +249,28 @@ COLOURS = {
     "AlCl3": {"s": ("white to pale yellow", "#f4f4f4", C)}, "NaBr": {"s": ("white", "#f4f4f4", C)},
     "ZnI2": {"s": ("white", "#f4f4f4", C)}, "AlI3": {"s": ("white", "#f4f4f4", C)},
     "MgS": {"s": ("white", "#f4f4f4", C)}, "ZnS": {"s": ("white", "#f4f4f4", C)},
-    "C25H52": {"s": ("white wax", "#f4f4f0", C)},
+    "C25H52": {"s": ("white", "#f4f4f0", C)},
+    # Science review (I-054), nit 19.
+    "Ba": {"s": ("silvery", "#c8c8c8", C)}, "Sr": {"s": ("silvery", "#c8c8c8", C)},
+    "MgCO3": {"s": ("white", "#f4f4f4", C)}, "KClO3": {"s": ("white", "#f4f4f4", C)},
+    "C12H22O11": {"s": ("white", "#f4f4f4", C)}, "C6H12O6": {"s": ("white", "#f4f4f4", C)},
+    "CH4N2O": {"s": ("white", "#f4f4f4", C)}, "CaSiO3": {"s": ("white", "#f4f4f4", C)},
+    "Na2SiO3": {"s": ("white", "#f4f4f4", C)}, "NaH": {"s": ("grey-white", "#d8d8d4", C)},
 }
 COLOURLESS_GASES = ["H2", "O2", "N2", "CO2", "CO", "CH4", "C2H6", "C3H8", "C4H10", "C2H4", "C2H2", "NH3",
-                    "HCl", "HF", "HBr", "SO2", "SO3", "H2S", "NO", "SiH4", "CH3Cl"]
+                    "HCl", "HF", "HBr", "SO2", "H2S", "NO", "SiH4", "CH3Cl"]
 COLOURLESS_LIQUIDS = ["H2O", "H2O2", "C2H5OH", "CH3OH", "C3H7OH", "CH3COOH", "CH3COOC2H5", "C5H12",
-                      "C6H14", "C8H18", "C10H22", "C6H6", "CS2", "H2SO4", "HNO3", "C2H4Br2"]
+                      "C6H14", "C8H18", "C10H22", "C6H6", "CS2", "H2SO4", "HNO3", "C2H4Br2",
+                      # Science review (I-054): SO3 melts at 290 K and boils at 318 K.
+                      "SO3"]
 # Precipitate grain (how a solid that forms in a solution settles): cloudy =
 # a fine or gelatinous suspension that settles slowly; grainy = crystals or a
 # metal deposit that settles fast. Source: the same descriptions (COLOUR-GE).
+# PbI2 mixed from cold solutions is a fine suspension; its glittering plates
+# come only from a hot solution cooling (science review, I-054).
 GRAIN = {"Ca(OH)2": "cloudy", "AgCl": "cloudy", "AgBr": "cloudy", "AgI": "cloudy", "BaSO4": "cloudy", "CaCO3": "cloudy",
          "Mg(OH)2": "cloudy", "Zn(OH)2": "cloudy", "Cu(OH)2": "cloudy", "Fe(OH)2": "cloudy",
-         "Fe(OH)3": "cloudy", "CaSO4": "cloudy", "PbI2": "grainy", "PbCl2": "grainy", "Cu": "grainy",
+         "Fe(OH)3": "cloudy", "CaSO4": "cloudy", "PbI2": "cloudy", "PbCl2": "grainy", "Cu": "grainy",
          "Ag": "grainy", "Pb": "grainy", "Zn": "grainy", "I2": "grainy"}
 
 # Boiling or sublimation points missing from the CRC physical constants file
@@ -319,6 +329,13 @@ def species():
 
 def embed(smiles, seed=61453):
     """An RDKit ETKDGv3 conformer, optimised with GFN2-xTB (gas phase)."""
+    # Imported here so the data tables can be rebuilt with only `chemicals`
+    # installed when every conformer is already in geometry.json.
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    from ase import Atoms
+    from ase.optimize import BFGS
+    from tblite.ase import TBLite
     m = Chem.AddHs(Chem.MolFromSmiles(smiles))
     if m.GetNumAtoms() == 1:
         a = m.GetAtomWithIdx(0)
@@ -341,7 +358,17 @@ def embed(smiles, seed=61453):
     bonds = []
     for b in m.GetBonds():
         bonds.append([b.GetBeginAtomIdx(), b.GetEndAtomIdx(), b.GetBondTypeAsDouble()])
-    return els, pos, bonds, "GFN2-xTB"
+    return els, pos, no_false_aromatic(els, bonds), "GFN2-xTB"
+
+
+def no_false_aromatic(els, bonds):
+    """RDKit perceives the P4 tetrahedron as aromatic (order 1.5); white
+    phosphorus has six P-P single bonds. Aromatic orders are kept only in
+    molecules with carbon (benzene)."""
+    if "C" in els:
+        return bonds
+    return [[a, b, 1.0 if o == 1.5 else o] for a, b, o in bonds]
+
 
 
 def centre(pos):
@@ -466,6 +493,8 @@ def main():
     for f in species():
         if f in old and (old[f].get("method") in ("GFN2-xTB", "monatomic ions") or old[f]["src"] == "ATOM"):
             geo[f] = old[f]
+            if old[f]["src"] == "RDKIT":
+                geo[f]["bonds"] = no_false_aromatic(old[f]["elements"], old[f]["bonds"])
             continue
         print("geometry", f, file=sys.stderr, flush=True)
         rho = subs[f].get("density_kg_m3")
@@ -486,6 +515,7 @@ def main():
                  "bonds": [[0, 1, 1.0], [0, 2, 1.0]], "lattice": True,
                  "src": "ATOM", "note": "One SiO2 unit of the quartz network: Si-O 1.61 A, O-Si-O 109.5 degrees (Greenwood and Earnshaw)."}
         elif f in LATTICE:
+            from rdkit import Chem
             parts = []
             for smi, n in LATTICE[f]:
                 els, pos, bonds, ff = embed(smi)

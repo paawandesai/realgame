@@ -46,6 +46,12 @@ pub const FULL_STRENGTH_KJ: f64 = 800.0;
 /// A reaction whose |ΔH| is at most this many kJ per mole of reaction as
 /// written counts as "little heat change".
 pub const LITTLE_KJ: f64 = 25.0;
+/// K: the Draper point, below which a hot solid gives off no visible light.
+pub const DRAPER_K: f64 = 798.0;
+/// The metals among the codex elements (a deposit of one coats a surface).
+const METALS: [&str; 14] = [
+    "Ag", "Al", "Ba", "Ca", "Cu", "Fe", "Hg", "K", "Li", "Mg", "Na", "Pb", "Sr", "Zn",
+];
 
 // ---------------------------------------------------------------------------
 // Data files
@@ -227,6 +233,8 @@ pub enum Visible {
     Glow,
     Bubbles,
     Precipitate,
+    /// A metal deposits on a surface: the reactant metal or an electrode.
+    Coating,
     ColourChange,
     Smoke,
     Frost,
@@ -254,6 +262,10 @@ pub struct Emitter {
     pub lines_nm: Vec<f64>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub blackbody: bool,
+    /// K: the temperature a blackbody emitter (soot) typically glows at, for
+    /// its colour; the adiabatic bound in `temp` is far above it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typical_k: Option<f64>,
     pub src: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
@@ -278,6 +290,23 @@ struct Fix {
     medium: Option<Medium>,
     #[serde(default)]
     note: Option<String>,
+    /// Solid products that stay behind as a residue, not smoke.
+    #[serde(default)]
+    residue: Vec<String>,
+    /// Species seen as a coloured vapour cloud (their gas colour).
+    #[serde(default)]
+    vapour: Vec<String>,
+    /// Species whose colour visibly comes or goes beyond the general rule,
+    /// in their colour at room temperature.
+    #[serde(default)]
+    colour_changes: Vec<String>,
+    /// What the heat feels like, when the codex heat line would overstate it.
+    #[serde(default)]
+    feel: Option<String>,
+    /// The reaction whose flame temperature this flame has (the flame burns
+    /// a product, such as hydrogen, in air).
+    #[serde(default)]
+    temp_from: Option<String>,
     /// Why ΔH and the codex heat class disagree, when they do.
     #[serde(default)]
     dh_note: Option<String>,
@@ -364,7 +393,8 @@ pub struct Enthalpy {
     pub kj: Option<f64>,
     /// True when `kj` is missing or any term is estimated.
     pub dh_estimated: bool,
-    /// -1 takes in heat, 0 little, +1 gives out heat.
+    /// The heat direction, not the sign of ΔH: +1 gives out heat
+    /// (ΔH < −25 kJ), −1 takes in heat (ΔH > +25 kJ), 0 little.
     pub heat: i8,
     pub terms: Vec<DhTerm>,
     /// Species whose ΔHf at the record's state was missing, so the standard
@@ -413,13 +443,43 @@ pub enum Opacity {
     Dense,
 }
 
+/// What a gas does in still room air, from its density relative to air.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Drift {
+    /// Less than 0.85 times as dense as air.
+    Rises,
+    /// Within about 15 % of air (CO, N2, O2): draughts and diffusion mix it
+    /// through the room.
+    Mixes,
+    /// More than 1.15 times as dense as air.
+    Sinks,
+}
+
+/// Below this density relative to air a gas rises; above `SINKS_ABOVE` it
+/// sinks; between, it mixes with the air.
+pub const RISES_BELOW: f64 = 0.85;
+pub const SINKS_ABOVE: f64 = 1.15;
+
+impl Drift {
+    pub fn of(density_rel_air: f64) -> Drift {
+        if density_rel_air < RISES_BELOW {
+            Drift::Rises
+        } else if density_rel_air > SINKS_ABOVE {
+            Drift::Sinks
+        } else {
+            Drift::Mixes
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct GasShow {
     pub formula: String,
     pub side: Side,
-    /// Molar mass / 28.96: below 1 rises in air, above 1 sinks.
+    /// Molar mass / 28.96.
     pub density_rel_air: f64,
-    pub rises: bool,
+    pub drift: Drift,
     pub opacity: Opacity,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub colour: Option<Colour>,
@@ -428,11 +488,23 @@ pub struct GasShow {
     pub condenses_to: Option<Colour>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CloudKind {
+    /// Solid particles.
+    Smoke,
+    /// Liquid droplets.
+    Mist,
+    /// A coloured gas (violet iodine vapour).
+    Vapour,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct SmokeShow {
-    /// The solid the smoke is made of (absent for soot).
+    /// What the cloud is made of (absent for soot).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub formula: Option<String>,
+    pub kind: CloudKind,
     pub opacity: Opacity,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub colour: Option<Colour>,
@@ -445,6 +517,16 @@ pub struct SolidShow {
     pub colour: Option<Colour>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grain: Option<Grain>,
+}
+
+/// A metal deposited on a surface (displacement, electrolysis).
+#[derive(Clone, Debug, Serialize)]
+pub struct CoatingShow {
+    pub formula: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub colour: Option<Colour>,
+    /// The reactant metal it coats, or "electrode".
+    pub on: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -516,7 +598,12 @@ pub struct ShowRecord {
     pub gases: Vec<GasShow>,
     pub smoke: Vec<SmokeShow>,
     pub precipitates: Vec<SolidShow>,
+    pub coatings: Vec<CoatingShow>,
     pub colour_changes: Vec<ColourChange>,
+    /// What the heat feels like at bench strength, when the codex heat line
+    /// would overstate it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feel: Option<String>,
     pub atom_story: AtomStory,
     pub check: String,
 }
@@ -585,7 +672,7 @@ impl Shows {
         sources.extend(fixes.sources.clone());
         sources.extend(geometry.sources.clone());
         let none = Fix::default();
-        let records: Vec<ShowRecord> = codex
+        let mut records: Vec<ShowRecord> = codex
             .entries
             .iter()
             .map(|e| {
@@ -593,6 +680,31 @@ impl Shows {
                 build_record(e, fix, &fixes, &subs.substances, &geometry)
             })
             .collect();
+        // A flame that burns one of the products in air (potassium on water
+        // lights its hydrogen) takes that burning's temperature: the
+        // reaction's own heat goes mostly into the water.
+        for (id, fix) in &fixes.reactions {
+            let Some(from) = &fix.temp_from else { continue };
+            let src = records
+                .iter()
+                .find(|r| &r.reaction_id == from)
+                .and_then(|r| r.flame.as_ref())
+                .and_then(|f| f.temp.clone())
+                .unwrap_or_else(|| panic!("show.json temp_from {from} has no flame temperature"));
+            if let Some(f) = records
+                .iter_mut()
+                .find(|r| &r.reaction_id == id)
+                .and_then(|r| r.flame.as_mut())
+            {
+                f.temp = Some(Temperature {
+                    basis: format!(
+                        "the flame is a product burning in air: {from}'s bound ({})",
+                        src.basis
+                    ),
+                    ..src
+                });
+            }
+        }
         let by_id = records
             .iter()
             .enumerate()
@@ -739,8 +851,8 @@ fn enthalpy(
     let agrees = match (e.heat, kj) {
         (None, _) | (_, None) => None,
         (Some(Heat::Little), Some(v)) => Some(v.abs() <= LITTLE_KJ),
-        (Some(Heat::Releases), Some(v)) => Some(v < 0.0),
-        (Some(Heat::Absorbs), Some(v)) => Some(v > 0.0),
+        (Some(Heat::Releases), Some(v)) => Some(v < -LITTLE_KJ),
+        (Some(Heat::Absorbs), Some(v)) => Some(v > LITTLE_KJ),
     };
     Enthalpy {
         kj,
@@ -917,6 +1029,13 @@ fn adiabatic(
     if capped_by.is_none() && k > 4000.0 {
         return None;
     }
+    // A cap below the Draper point (about 798 K, where hot solids start to
+    // glow visibly) means the product boils or sublimes away as smoke (FeCl3
+    // from hot iron in chlorine) while the metal glows far hotter: the cap
+    // says nothing about what glows, so no temperature is given.
+    if capped && k < DRAPER_K {
+        return None;
+    }
     let mut basis = format!(
         "adiabatic: stoichiometric {}, no heat lost and no dissociation, so an upper bound (heat capacities: NIST Shomate)",
         if in_air && o2 > 0 {
@@ -1021,9 +1140,35 @@ fn build_record(
     }
     // In water, a product that stays solid comes out of the solution (the
     // soluble ones are aq by the state rules).
+    // A metal made in water does not fall out as a powder: it coats the
+    // reactant metal (displacement) or the electrode (electrolysis).
+    let is_metal = |s: &SpeciesShow| METALS.contains(&s.formula.as_str());
+    let substrate = reactants()
+        .find(|s| is_metal(s) && s.state == State::S)
+        .map(|s| s.formula.clone());
+    let coatings: Vec<CoatingShow> = if medium == Medium::Water {
+        products()
+            .filter(|s| s.state == State::S && is_metal(s))
+            .map(|s| CoatingShow {
+                formula: s.formula.clone(),
+                colour: s.colour.clone(),
+                on: substrate.clone().unwrap_or_else(|| "electrode".into()),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if !coatings.is_empty() {
+        visible.insert(Visible::Coating);
+    }
+    let coated = |s: &SpeciesShow| {
+        !coatings.is_empty()
+            && (coatings.iter().any(|c| c.formula == s.formula)
+                || substrate.as_deref() == Some(s.formula.as_str()))
+    };
     let precipitates: Vec<SolidShow> = if medium == Medium::Water {
         products()
-            .filter(|s| s.state == State::S)
+            .filter(|s| s.state == State::S && !is_metal(s))
             .map(|s| SolidShow {
                 formula: s.formula.clone(),
                 colour: s.colour.clone(),
@@ -1042,7 +1187,7 @@ fn build_record(
     // precipitate that only appears is not a colour change.
     let coloured = |s: &SpeciesShow| s.colour.as_ref().filter(|c| !c.colourless()).cloned();
     let fluid = |s: &&SpeciesShow| s.state != State::S;
-    let solid = |s: &&SpeciesShow| s.state == State::S;
+    let solid = |s: &&SpeciesShow| s.state == State::S && !coated(s);
     let set = |side: Side, keep: &dyn Fn(&&SpeciesShow) -> bool| -> BTreeSet<String> {
         species
             .iter()
@@ -1059,6 +1204,9 @@ fn build_record(
     let mut colour_changes = Vec::new();
     for s in &species {
         let Some(c) = coloured(s) else { continue };
+        if s.state == State::S && coated(s) {
+            continue;
+        }
         let (mine, other) = match (s.state == State::S, s.side) {
             (false, Side::Reactant) => (true, &fluid_after),
             (false, Side::Product) => (true, &fluid_before),
@@ -1069,6 +1217,35 @@ fn build_record(
             colour_changes.push(ColourChange {
                 formula: s.formula.clone(),
                 state: s.state,
+                appears: s.side == Side::Product,
+                colour: c,
+            });
+        }
+    }
+    for f in &fix.colour_changes {
+        let s = species
+            .iter()
+            .find(|s| &s.formula == f)
+            .unwrap_or_else(|| panic!("show.json colour_changes: {} has no {f}", e.id));
+        let sub = substance(subs, f);
+        let room = match s.at_room {
+            Some(AfterRoom::Condenses) => State::L,
+            Some(AfterRoom::Freezes) => State::S,
+            _ => s.state,
+        };
+        let c = sub
+            .colour
+            .get(&room)
+            .or(s.colour.as_ref())
+            .cloned()
+            .unwrap_or_else(|| panic!("show.json colour_changes: {f} has no colour"));
+        if !colour_changes
+            .iter()
+            .any(|x: &ColourChange| &x.formula == f)
+        {
+            colour_changes.push(ColourChange {
+                formula: f.clone(),
+                state: room,
                 appears: s.side == Side::Product,
                 colour: c,
             });
@@ -1095,17 +1272,40 @@ fn build_record(
         .iter()
         .map(|c| SmokeShow {
             formula: None,
+            kind: CloudKind::Smoke,
             opacity: Opacity::Dense,
             colour: Some(c.clone()),
         })
         .collect();
+    // A coloured vapour cloud: the species' gas colour (violet iodine), not
+    // the colour of the crystals it deposits later.
+    let vapour = |f: &str| SmokeShow {
+        formula: Some(f.to_string()),
+        kind: CloudKind::Vapour,
+        opacity: Opacity::Tinted,
+        colour: substance(subs, f).colour.get(&State::G).cloned(),
+    };
+    for f in &fix.vapour {
+        smoke.push(vapour(f));
+    }
     if visible.contains(&Visible::Smoke) {
         for s in products().filter(|s| {
-            s.state == State::S || (s.state == State::G && s.at_room == Some(AfterRoom::Freezes))
+            (s.state == State::S || (s.state == State::G && s.at_room == Some(AfterRoom::Freezes)))
+                && !fix.residue.contains(&s.formula)
+                && !fix.vapour.contains(&s.formula)
+                && !coated(s)
         }) {
             let sub = substance(subs, &s.formula);
+            let gas_colour = (s.state == State::G)
+                .then(|| s.colour.as_ref().filter(|c| !c.colourless()))
+                .flatten();
+            if gas_colour.is_some() {
+                smoke.push(vapour(&s.formula));
+                continue;
+            }
             smoke.push(SmokeShow {
                 formula: Some(s.formula.clone()),
+                kind: CloudKind::Smoke,
                 opacity: Opacity::Dense,
                 colour: sub.colour.get(&State::S).or(s.colour.as_ref()).cloned(),
             });
@@ -1114,10 +1314,31 @@ fn build_record(
             // The fog is droplets of the acid made.
             smoke.push(SmokeShow {
                 formula: Some("H2SO4".into()),
+                kind: CloudKind::Mist,
                 opacity: Opacity::Dense,
-                colour: Some(mist()),
+                colour: Some(Colour {
+                    described: "white".into(),
+                    ..mist()
+                }),
             });
         }
+    }
+    // A vapour cloud already shows its colour: no second colour change.
+    colour_changes.retain(|c| {
+        !(c.state == State::G
+            && smoke
+                .iter()
+                .any(|x| x.kind == CloudKind::Vapour && x.formula.as_deref() == Some(&c.formula)))
+    });
+    if colour_changes.is_empty() {
+        visible.remove(&Visible::ColourChange);
+    }
+    // Smoke is shown only when something makes it: a residue left behind is
+    // a colour change, not smoke.
+    if smoke.is_empty() {
+        visible.remove(&Visible::Smoke);
+    } else {
+        visible.insert(Visible::Smoke);
     }
     let gases = species
         .iter()
@@ -1129,7 +1350,7 @@ fn build_record(
                 formula: s.formula.clone(),
                 side: s.side,
                 density_rel_air: d,
-                rises: d < 1.0,
+                drift: Drift::of(d),
                 opacity: if tinted {
                     Opacity::Tinted
                 } else {
@@ -1161,7 +1382,9 @@ fn build_record(
         gases,
         smoke,
         precipitates,
+        coatings,
         colour_changes,
+        feel: fix.feel.clone(),
         atom_story,
         check: file.check.clone(),
     }
@@ -1711,6 +1934,17 @@ mod tests {
                     e.id
                 );
             }
+            if r.has(Visible::Coating) {
+                assert!(!r.coatings.is_empty(), "{}", e.id);
+            }
+            // Smoke is listed, and every cloud has a colour.
+            assert_eq!(r.has(Visible::Smoke), !r.smoke.is_empty(), "{}", e.id);
+            for c in &r.smoke {
+                assert!(c.colour.is_some(), "{}: a cloud with no colour", e.id);
+            }
+            if let Some(t) = r.glow.as_ref().and_then(|g| g.temp.as_ref()) {
+                assert!(t.k >= DRAPER_K, "{}: a glow below the Draper point", e.id);
+            }
             assert!(r.atom_story.illustrative);
             assert!(!r.atom_story.events.is_empty(), "{}: no atom story", e.id);
             for ev in &r.atom_story.events {
@@ -1835,14 +2069,18 @@ mod tests {
                 .clone()
         };
         let h2 = gas("zinc_acid", "H2");
-        assert!(h2.density_rel_air < 0.1 && h2.rises);
+        assert!(h2.density_rel_air < 0.1 && h2.drift == Drift::Rises);
         let co2 = gas("chalk_acid", "CO2");
-        assert!((co2.density_rel_air - 1.52).abs() < 0.01 && !co2.rises);
+        assert!((co2.density_rel_air - 1.52).abs() < 0.01 && co2.drift == Drift::Sinks);
         assert!(gas("water_splits", "O2").density_rel_air > 1.0);
         let no2 = gas("no_oxidises", "NO2");
         assert_eq!(no2.opacity, Opacity::Tinted);
         let steam = gas("methane_burns", "H2O");
-        assert!(steam.rises && steam.opacity == Opacity::Clear && steam.condenses_to.is_some());
+        assert!(
+            steam.drift == Drift::Rises
+                && steam.opacity == Opacity::Clear
+                && steam.condenses_to.is_some()
+        );
         let cl2 = gas("salt_electrolysis", "Cl2");
         assert!(cl2.density_rel_air > 2.4 && cl2.colour.as_ref().unwrap().hex.is_some());
     }
@@ -2069,9 +2307,139 @@ mod tests {
     fn show_print() {
         let s = shows();
         let id = std::env::var("SHOW_ID").unwrap_or_else(|_| "carbon_burns".into());
+        if id == "all" {
+            // One record per line, for checking the result cards.
+            for r in &s.records {
+                println!("{}", serde_json::to_string(r).unwrap());
+            }
+            return;
+        }
         let mut v = serde_json::to_value(s.get(&id).unwrap()).unwrap();
         v["atom_story"]["atoms"] = serde_json::json!("...");
         println!("{}", serde_json::to_string_pretty(&v).unwrap());
+    }
+
+    /// M1 (science review): cut sodium tarnishes in air; it does not burn.
+    #[test]
+    fn sodium_in_air_tarnishes_without_a_flame() {
+        let s = shows();
+        let r = s.get("sodium_oxygen").unwrap();
+        assert!(
+            r.flame.is_none() && !r.has(Visible::Flame),
+            "{:?}",
+            r.visible
+        );
+        assert!(!r.has(Visible::Smoke) && !r.has(Visible::Shimmer));
+        assert!(r.has(Visible::ColourChange));
+        assert!(r.note.as_ref().unwrap().contains("dull"));
+    }
+
+    /// M2 (science review): a displaced metal coats the reactant metal (or
+    /// the electrode); it is not a precipitate, and the coated metal does
+    /// not "go".
+    #[test]
+    fn a_displaced_metal_coats_the_metal_or_the_electrode() {
+        let s = shows();
+        for (id, metal, on) in [
+            ("iron_copper_sulfate", "Cu", "Fe"),
+            ("zinc_copper_sulfate", "Cu", "Zn"),
+            ("copper_silver_nitrate", "Ag", "Cu"),
+            ("magnesium_copper_sulfate", "Cu", "Mg"),
+            ("aluminium_copper_sulfate", "Cu", "Al"),
+            ("magnesium_zinc_sulfate", "Zn", "Mg"),
+            ("zinc_lead_nitrate", "Pb", "Zn"),
+            ("zinc_silver_nitrate", "Ag", "Zn"),
+            ("copper_chloride_electrolysis", "Cu", "electrode"),
+        ] {
+            let r = s.get(id).unwrap_or_else(|| panic!("{id}"));
+            assert!(r.has(Visible::Coating), "{id}: {:?}", r.visible);
+            assert!(
+                r.coatings.iter().any(|c| c.formula == metal && c.on == on),
+                "{id}: {:?}",
+                r.coatings
+            );
+            assert!(
+                !r.precipitates.iter().any(|p| p.formula == metal),
+                "{id}: the metal is listed as a precipitate"
+            );
+            assert!(
+                !r.colour_changes
+                    .iter()
+                    .any(|c| c.state == State::S && (c.formula == metal || c.formula == on)),
+                "{id}: {:?}",
+                r.colour_changes
+            );
+        }
+        // The blue of copper sulfate still fades.
+        let r = s.get("iron_copper_sulfate").unwrap();
+        assert!(r
+            .colour_changes
+            .iter()
+            .any(|c| c.formula == "CuSO4" && !c.appears));
+    }
+
+    /// M3 (science review): gases within 15 % of air's density mix with it;
+    /// carbon monoxide never "rises".
+    #[test]
+    fn gases_about_as_dense_as_air_mix() {
+        let s = shows();
+        let drift = |id: &str, f: &str| {
+            s.get(id)
+                .unwrap()
+                .gases
+                .iter()
+                .find(|g| g.formula == f)
+                .unwrap_or_else(|| panic!("{id}: {f}"))
+                .drift
+        };
+        assert_eq!(drift("carbon_little_air", "CO"), Drift::Mixes);
+        assert_eq!(drift("ammonia_burns", "N2"), Drift::Mixes);
+        assert_eq!(drift("water_splits", "O2"), Drift::Mixes);
+        for r in &s.records {
+            for g in r.gases.iter().filter(|g| g.formula == "CO") {
+                assert_ne!(g.drift, Drift::Rises, "{}: CO rises", r.reaction_id);
+            }
+        }
+        assert_eq!(Drift::of(0.84), Drift::Rises);
+        assert_eq!(Drift::of(1.16), Drift::Sinks);
+    }
+
+    /// M4 (science review): the iodine cloud is violet vapour.
+    #[test]
+    fn the_iodine_cloud_is_violet_vapour() {
+        let s = shows();
+        for id in ["nitrogen_triiodide", "aluminium_iodine"] {
+            let r = s.get(id).unwrap();
+            let i2 = r
+                .smoke
+                .iter()
+                .find(|c| c.formula.as_deref() == Some("I2"))
+                .unwrap_or_else(|| panic!("{id}: no iodine cloud in {:?}", r.smoke));
+            assert_eq!(i2.kind, CloudKind::Vapour, "{id}");
+            assert_eq!(i2.colour.as_ref().unwrap().described, "violet", "{id}");
+            assert!(
+                !r.smoke.iter().any(|c| c.kind == CloudKind::Smoke),
+                "{id}: {:?}",
+                r.smoke
+            );
+        }
+    }
+
+    /// M5 (science review): heating mercury oxide is a lab-only hazard for
+    /// its poisonous vapour, and the card says so.
+    #[test]
+    fn mercury_oxide_warns_of_poisonous_vapour() {
+        let c = Codex::load();
+        let e = c
+            .entries
+            .iter()
+            .find(|e| e.id == "mercury_oxide_heat")
+            .unwrap();
+        assert_eq!(e.hazard, Some(crate::Hazard::Lab));
+        let s = shows();
+        let r = s.get("mercury_oxide_heat").unwrap();
+        assert!(r.note.as_ref().unwrap().contains("poisonous"));
+        assert!(r.has(Visible::ColourChange));
     }
 
     #[test]

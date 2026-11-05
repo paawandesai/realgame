@@ -65,6 +65,11 @@
    "src": "CRC-ION",
    "name": "Hypochlorite ion"
   },
+  "ClO3-": {
+   "dhf": -104.0,
+   "src": "CRC-ION",
+   "name": "Chlorate ion"
+  },
   "Cu+2": {
    "dhf": 64.8,
    "src": "CRC-ION",
@@ -204,7 +209,7 @@
    "soluble": false,
    "colour": {
     "s": {
-     "described": "silvery grey crystals",
+     "described": "shiny silver",
      "src": "COLOUR-GE",
      "hex": "#c0c0c0",
      "hex_estimated": true
@@ -282,7 +287,7 @@
    "soluble": false,
    "colour": {
     "s": {
-     "described": "cream (pale yellow)",
+     "described": "cream",
      "src": "COLOUR-GE",
      "hex": "#f1e6b0",
      "hex_estimated": true
@@ -601,6 +606,14 @@
     "g": {
      "v": -289.4,
      "src": "CRC-T"
+    },
+    "aq": {
+     "v": -696.6,
+     "src": "CRC-ION",
+     "ions": {
+      "Al+3": 1,
+      "I-": 3
+     }
     }
    },
    "mp_k": 461.43,
@@ -646,13 +659,17 @@
    },
    "cp_src": "NIST-SHOMATE",
    "state": "s",
-   "soluble": false,
+   "soluble": true,
    "colour": {
     "s": {
      "described": "white",
      "src": "COLOUR-GE",
      "hex": "#f4f4f4",
      "hex_estimated": true
+    },
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
     }
    }
   },
@@ -740,7 +757,15 @@
    },
    "cp_src": "NIST-SHOMATE",
    "state": "s",
-   "soluble": false
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "silvery",
+     "src": "COLOUR-GE",
+     "hex": "#c8c8c8",
+     "hex_estimated": true
+    }
+   }
   },
   "Ba(OH)2": {
    "cas": "17194-00-2",
@@ -1053,7 +1078,15 @@
    "density_kg_m3": 1580.517,
    "phys_src": "CRC-PHYS",
    "state": "s",
-   "soluble": false
+   "soluble": true,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   }
   },
   "C25H52": {
    "cas": "629-99-2",
@@ -1075,7 +1108,7 @@
    "soluble": false,
    "colour": {
     "s": {
-     "described": "white wax",
+     "described": "white",
      "src": "COLOUR-GE",
      "hex": "#f4f4f0",
      "hex_estimated": true
@@ -1281,7 +1314,7 @@
    "hfus_kj": 5.37,
    "hvap_kj": 41.44,
    "state": "l",
-   "soluble": false,
+   "soluble": true,
    "colour": {
     "l": {
      "described": "colourless",
@@ -1392,7 +1425,15 @@
    "density_kg_m3": 1562.018,
    "phys_src": "CRC-PHYS",
    "state": "s",
-   "soluble": true
+   "soluble": true,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   }
   },
   "C6H14": {
    "cas": "110-54-3",
@@ -1643,7 +1684,7 @@
    "hfus_kj": 3.21,
    "hvap_kj": 35.21,
    "state": "l",
-   "soluble": false,
+   "soluble": true,
    "colour": {
     "l": {
      "described": "colourless",
@@ -1717,7 +1758,15 @@
    "phys_src": "CRC-PHYS",
    "hfus_kj": 13.9,
    "state": "s",
-   "soluble": false
+   "soluble": true,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   }
   },
   "CO": {
    "cas": "630-08-0",
@@ -2185,7 +2234,15 @@
     }
    },
    "state": "s",
-   "soluble": false
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   }
   },
   "Cl2": {
    "cas": "7782-50-5",
@@ -2348,7 +2405,13 @@
     "aq": {
      "described": "blue",
      "src": "COLOUR-GE",
-     "hex": "#2f7fd0",
+     "hex": "#3a9ee0",
+     "hex_estimated": true
+    },
+    "s": {
+     "described": "blue",
+     "src": "COLOUR-GE",
+     "hex": "#2f6fc0",
      "hex_estimated": true
     }
    }
@@ -2385,7 +2448,7 @@
     "s": {
      "described": "pale blue",
      "src": "COLOUR-GE",
-     "hex": "#3d8fe0",
+     "hex": "#8cc4ea",
      "hex_estimated": true
     }
    },
@@ -2485,7 +2548,7 @@
      "hex_estimated": true
     },
     "s": {
-     "described": "yellow-brown (anhydrous)",
+     "described": "yellow-brown",
      "src": "COLOUR-GE",
      "hex": "#b5852a",
      "hex_estimated": true
@@ -2591,11 +2654,11 @@
     "aq": {
      "described": "blue",
      "src": "COLOUR-GE",
-     "hex": "#2f7fd0",
+     "hex": "#3a9ee0",
      "hex_estimated": true
     },
     "s": {
-     "described": "white (anhydrous)",
+     "described": "white",
      "src": "COLOUR-GE",
      "hex": "#f4f4f4",
      "hex_estimated": true
@@ -2695,7 +2758,7 @@
      "hex_estimated": true
     },
     "l": {
-     "described": "glowing",
+     "described": "glowing orange",
      "src": "COLOUR-GE"
     }
    }
@@ -3563,7 +3626,7 @@
    },
    "cp_src": "NIST-SHOMATE",
    "state": "g",
-   "soluble": false,
+   "soluble": true,
    "colour": {
     "g": {
      "described": "colourless",
@@ -3672,7 +3735,7 @@
    "soluble": false,
    "colour": {
     "l": {
-     "described": "silvery liquid",
+     "described": "silvery",
      "src": "COLOUR-GE",
      "hex": "#c0c0c8",
      "hex_estimated": true
@@ -4125,13 +4188,33 @@
     "s": {
      "v": -397.7,
      "src": "CRC-T"
+    },
+    "aq": {
+     "v": -356.4,
+     "src": "CRC-ION",
+     "ions": {
+      "K+": 1,
+      "ClO3-": 1
+     }
     }
    },
    "mp_k": 630.15,
    "density_kg_m3": 2340.0,
    "phys_src": "CRC-PHYS",
    "state": "s",
-   "soluble": false
+   "soluble": true,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    },
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
+    }
+   }
   },
   "KI": {
    "cas": "7681-11-0",
@@ -4811,7 +4894,7 @@
    "soluble": false,
    "colour": {
     "s": {
-     "described": "greenish-yellow powder",
+     "described": "greenish-yellow",
      "src": "COLOUR-GE",
      "hex": "#c9c46a",
      "hex_estimated": true
@@ -4847,7 +4930,15 @@
    },
    "cp_src": "NIST-SHOMATE",
    "state": "s",
-   "soluble": false
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   }
   },
   "MgCl2": {
    "cas": "7786-30-3",
@@ -5805,7 +5896,15 @@
    },
    "cp_src": "NIST-SHOMATE",
    "state": "s",
-   "soluble": false
+   "soluble": true,
+   "colour": {
+    "s": {
+     "described": "white",
+     "src": "COLOUR-GE",
+     "hex": "#f4f4f4",
+     "hex_estimated": true
+    }
+   }
   },
   "NaBr": {
    "cas": "7647-15-6",
@@ -6031,7 +6130,15 @@
    },
    "cp_src": "NIST-SHOMATE",
    "state": "s",
-   "soluble": false
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "grey-white",
+     "src": "COLOUR-GE",
+     "hex": "#d8d8d4",
+     "hex_estimated": true
+    }
+   }
   },
   "NaHCO3": {
    "cas": "144-55-8",
@@ -6338,7 +6445,7 @@
    "soluble": false,
    "colour": {
     "s": {
-     "described": "waxy white to pale yellow",
+     "described": "waxy pale yellow",
      "src": "COLOUR-GE",
      "hex": "#f2ecc8",
      "hex_estimated": true
@@ -6624,7 +6731,7 @@
      "hex_estimated": true
     }
    },
-   "grain": "grainy"
+   "grain": "cloudy"
   },
   "S": {
    "cas": "7704-34-9",
@@ -6803,10 +6910,10 @@
     ]
    },
    "cp_src": "NIST-SHOMATE",
-   "state": "g",
+   "state": "l",
    "soluble": false,
    "colour": {
-    "g": {
+    "l": {
      "described": "colourless",
      "src": "COLOUR-GE"
     }
@@ -7030,7 +7137,15 @@
    },
    "cp_src": "NIST-SHOMATE",
    "state": "s",
-   "soluble": false
+   "soluble": false,
+   "colour": {
+    "s": {
+     "described": "silvery",
+     "src": "COLOUR-GE",
+     "hex": "#c8c8c8",
+     "hex_estimated": true
+    }
+   }
   },
   "Sr(OH)2": {
    "cas": "18480-07-4",
@@ -7262,6 +7377,14 @@
     "s": {
      "v": -208.0,
      "src": "CRC-T"
+    },
+    "aq": {
+     "v": -264.3,
+     "src": "CRC-ION",
+     "ions": {
+      "Zn+2": 1,
+      "I-": 2
+     }
     }
    },
    "mp_k": 723.15,
@@ -7270,13 +7393,17 @@
    "phys_src": "CRC-PHYS",
    "hfus_kj": 17.0,
    "state": "s",
-   "soluble": false,
+   "soluble": true,
    "colour": {
     "s": {
      "described": "white",
      "src": "COLOUR-GE",
      "hex": "#f4f4f4",
      "hex_estimated": true
+    },
+    "aq": {
+     "described": "colourless",
+     "src": "COLOUR-GE"
     }
    }
   },

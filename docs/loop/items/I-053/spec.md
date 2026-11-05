@@ -118,7 +118,7 @@ The world loads the save into the game with `found`, `saved`, `slots`, `quests` 
 
 ## 11. The mapping table (all 182 codex reactions)
 
-> **Stale after I-054:** the `strength` and `tint` columns below are the pre-I-054 values. The current ones are in `docs/loop/items/I-054/spec.md` section 9.
+> **Stale after I-054:** the `strength` and `tint` columns below are the pre-I-054 values. The current ones are in `docs/loop/items/I-054/spec.md` section 10.
 
 `world` = every reactant can come from the air or a bottle item today.
 
