@@ -502,8 +502,17 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     let soft = |b: &[f32; 6]| {
         smooth::kind(world.get([b[0] as i32, b[1] as i32, b[2] as i32]).mat) == smooth::Kind::Soft
     };
+    // Leaves never stop the body: low canopies at head
+    // height and bushes were the most common snag (Paawan, 2026-11-05:
+    // "places that movement gets stuck"). Protected thickets (the Ember
+    // Vault's door, which cannot be dug) and trunks still do.
+    let canopy = |b: &[f32; 6]| {
+        let c = [b[0] as i32, b[1] as i32, b[2] as i32];
+        world.get(c).mat == vox::mat::LEAVES && (b[1] >= p.y + 1.0 - 1e-3 || world.can_break(c))
+    };
     let mut solids: Vec<Box3> = vox::solid_boxes(world, aabb)
         .iter()
+        .filter(|b| !canopy(b))
         .filter(|b| !smooth || !soft(b) || b[1] >= p.y + 1.0 - 1e-3)
         .map(box3)
         .collect();
@@ -1656,6 +1665,101 @@ mod tests {
             top = top.max(p.pos.y);
         }
         top
+    }
+
+    /// Sweep for places where walking snags (Paawan, 2026-11-05: "some
+    /// places that movement gets stuck"). Not a check: run with
+    /// `cargo test snag_sweep -- --ignored --nocapture` to list them.
+    #[test]
+    #[ignore]
+    fn snag_sweep() {
+        let world = vox::generate(vox::DEFAULT_SEED);
+        let dirs: Vec<f32> = (0..8)
+            .map(|i| i as f32 * std::f32::consts::FRAC_PI_4)
+            .collect();
+        let (mut trapped, mut snags) = (Vec::new(), Vec::new());
+        let mut x = 4.5f32;
+        while x < 252.0 {
+            let mut z = 4.5f32;
+            while z < 252.0 {
+                let y0 = vox::gen::ground_below(&world, x as i32, z as i32, 90);
+                if y0 > 2 {
+                    let vox::Ground::Floor(g) =
+                        vox::ground(&world, x, z, y0 as f32 + 1.5, y0 as f32 - 3.0)
+                    else {
+                        z += 3.0;
+                        continue;
+                    };
+                    let mut free = 0;
+                    for &yaw in &dirs {
+                        let mut p = Player {
+                            pos: Vec3::new(x, g, z),
+                            yaw,
+                            grounded: true,
+                            ..Player::default()
+                        };
+                        let mut w = Walk::default();
+                        press(&mut p, &mut w, &world, Vec2::ZERO, false, 10);
+                        let start = p.pos;
+                        press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 30);
+                        let d = (p.pos - start).xz().length();
+                        if d > 0.8 {
+                            free += 1;
+                            continue;
+                        }
+                        // Gentle ground ahead (the drawn surface 1.5 m on
+                        // rises less than a step) yet blocked: a snag.
+                        let ahead = start + Vec3::new(-yaw.sin(), 0.0, -yaw.cos()) * 1.5;
+                        if let vox::Ground::Floor(h) =
+                            vox::ground(&world, ahead.x, ahead.z, start.y + 1.0, start.y - 2.0)
+                        {
+                            if h - start.y < 0.45 {
+                                // What is in the way: the first solid cell
+                                // ahead at knee to head height.
+                                let mut what = String::from("-");
+                                'find: for k in 1..8 {
+                                    let q = start
+                                        + Vec3::new(-yaw.sin(), 0.0, -yaw.cos())
+                                            * (k as f32 * 0.25);
+                                    for dy in [0.3f32, 0.9, 1.5] {
+                                        let c = world.get([
+                                            q.x.floor() as i32,
+                                            (start.y + dy).floor() as i32,
+                                            q.z.floor() as i32,
+                                        ]);
+                                        if materials::flags(c.mat).solid || c.mat == vox::mat::ICE {
+                                            what = format!(
+                                                "{} dy{dy} soft{}",
+                                                c.mat,
+                                                smooth::kind(c.mat) == smooth::Kind::Soft
+                                            );
+                                            break 'find;
+                                        }
+                                    }
+                                }
+                                snags.push((start, yaw.to_degrees() as i32, d, h - start.y, what));
+                            }
+                        }
+                    }
+                    if free == 0 {
+                        trapped.push(Vec3::new(x, g, z));
+                    }
+                }
+                z += 3.0;
+            }
+            x += 3.0;
+        }
+        println!("trapped {}:", trapped.len());
+        for t in &trapped {
+            println!("  T {:.1} {:.1} {:.1}", t.x, t.y, t.z);
+        }
+        println!("snags {}:", snags.len());
+        for (p, yaw, d, rise, what) in &snags {
+            println!(
+                "  S {:.1} {:.1} {:.1} yaw {yaw} moved {d:.2} rise {rise:.2} hit {what}",
+                p.x, p.y, p.z
+            );
+        }
     }
 
     #[test]
