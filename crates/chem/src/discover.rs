@@ -37,6 +37,22 @@ pub const QUESTS_JSON: &str = include_str!("../../../content/chem/quests.json");
 
 /// The quest event the block world reports when ice or snow melts.
 pub const EVENT_MELTED: &str = "melted";
+/// A burning gas vent or block went out for lack of oxygen (I-057).
+pub const EVENT_SMOTHERED: &str = "smothered";
+/// Something cold landed in the hot vent of the charcoal clamp (I-057).
+pub const EVENT_COOLED: &str = "cooled";
+/// A wall of solid took the place of water in the river (I-057).
+pub const EVENT_WALLED_WATER: &str = "walled_water";
+/// A reveal showed something hidden: a cache or the hidden mark (I-057).
+pub const EVENT_REVEALED: &str = "revealed";
+/// Every quest event the world reports.
+pub const EVENTS: [&str; 5] = [
+    EVENT_MELTED,
+    EVENT_SMOTHERED,
+    EVENT_COOLED,
+    EVENT_WALLED_WATER,
+    EVENT_REVEALED,
+];
 
 /// Correct worked builds before a discovered spell casts instantly (the
 /// mastery rule: build its equation twice).
@@ -602,6 +618,45 @@ pub struct BottleItem {
     /// Where the player gets this item, in plain words for the youngest band
     /// (the missing-bottle caption and the pack show it).
     pub find: String,
+    /// How the world gives it (I-057): never by digging.
+    pub from: Source,
+}
+
+/// How the world gives a bottle item (I-057). Mining and digging were
+/// dropped (Paawan); these are the ways left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+    /// A bottle stash (`Bottles::stashes`): walk up to it.
+    Stash,
+    /// The charcoal clamp (step 4).
+    Clamp,
+    /// The electrolysis rig in the cave.
+    Rig,
+    /// The Pick scoops it up from a block on the surface.
+    Pick,
+    /// Not given anywhere in this valley (an alternative only).
+    Nowhere,
+}
+
+/// A place in the valley where bottle items can be picked up (I-057): walk
+/// up to it and they go into the pack; it fills again after
+/// `Bottles::refill_s`. A hidden stash shows only once a Reveal spell lands
+/// near it.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Stash {
+    pub id: String,
+    /// Where it is, in plain words.
+    pub place: String,
+    /// The feet cell it stands on (x, y, z): a marker block goes there.
+    pub at: [i32; 3],
+    /// The existing block that marks it (a material name).
+    pub block: String,
+    #[serde(default)]
+    pub hidden: bool,
+    /// Pack item keys and how many of each one visit gives.
+    pub items: Vec<(String, u16)>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -612,6 +667,10 @@ pub struct Bottles {
     /// Substances the air supplies free.
     pub air: Vec<String>,
     pub items: Vec<BottleItem>,
+    /// Where bottle items are found (I-057).
+    pub stashes: Vec<Stash>,
+    /// Seconds before a stash fills again after a visit.
+    pub refill_s: f32,
 }
 
 /// What a cast of a discovered spell takes from the pack.
@@ -666,6 +725,28 @@ impl Bottles {
     pub fn suppliable(&self, e: &Entry) -> bool {
         self.plan(e, &|_| 1).missing.is_empty()
     }
+
+    /// Whether a player can find bottle item `item` in story mode: the
+    /// clamp, the rig or the Pick give it, or a stash that is not hidden
+    /// holds it (I-057).
+    pub fn findable(&self, item: &str) -> bool {
+        match self.of_item(item).map(|b| b.from) {
+            Some(Source::Clamp | Source::Rig | Source::Pick) => true,
+            Some(Source::Stash) => self
+                .stashes
+                .iter()
+                .any(|s| !s.hidden && s.items.iter().any(|(k, n)| k == item && *n > 0)),
+            Some(Source::Nowhere) | None => false,
+        }
+    }
+
+    /// Whether every reactant of `e` comes from the air or from a bottle
+    /// item the player can find (I-057).
+    pub fn findable_plan(&self, e: &Entry) -> bool {
+        self.plan(e, &|k| u32::from(self.findable(k)))
+            .missing
+            .is_empty()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -703,6 +784,51 @@ pub struct ChemQuest {
     /// The world event that finishes it near the landing.
     pub event: String,
     pub radius_m: f32,
+    /// How long (s) after a matching spell lands the event still counts.
+    #[serde(default = "default_window")]
+    pub window_s: f32,
+    /// Where it happens, in plain words (I-057).
+    #[serde(default)]
+    pub place: String,
+    /// The event must happen within `near_m` of `at` (x, y, z), when set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<[f32; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub near_m: Option<f32>,
+    /// The objective line (Seedling and up) and Sprout's.
+    #[serde(default)]
+    pub line: String,
+    #[serde(default)]
+    pub line_sprout: String,
+    /// Names the kind of reaction it needs, never the answer.
+    #[serde(default)]
+    pub hint: String,
+    #[serde(default)]
+    pub hint_sprout: String,
+    /// Said when it is done.
+    #[serde(default)]
+    pub done: String,
+    /// Example reactions that solve it (checked by the tests; the spec's
+    /// quest table and the Guide's links use them).
+    #[serde(default)]
+    pub solved_by: Vec<String>,
+}
+
+fn default_window() -> f32 {
+    2.5
+}
+
+impl ChemQuest {
+    /// Whether an event at `p` is in the quest's place.
+    pub fn in_place(&self, p: [f32; 3]) -> bool {
+        match (self.at, self.near_m) {
+            (Some(a), Some(r)) => {
+                let d = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+                (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt() <= r
+            }
+            _ => true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1089,6 +1215,20 @@ mod tests {
             u32::from(k == "h2_balloon")
         });
         assert!(h.missing.is_empty() && h.take.is_empty());
+        // Never by digging: every stash item is a bottle item from a stash,
+        // and stashes are on real cells with something in them.
+        for st in &b.stashes {
+            assert!(!st.items.is_empty() && !st.place.is_empty(), "{}", st.id);
+            for (k, n) in &st.items {
+                let item = b
+                    .of_item(k)
+                    .unwrap_or_else(|| panic!("{}: {k} is no bottle", st.id));
+                assert_eq!(item.from, Source::Stash, "{k} is in a stash");
+                assert!(*n > 0);
+            }
+            assert!(st.at[1] > 0, "{}", st.id);
+        }
+        assert!(b.refill_s > 0.0);
         // The world supplies at least one Sprout fire-type and the quest's needs.
         let quests = Quests::load();
         let live: Vec<_> = quests.quests.iter().filter(|q| q.live).collect();
@@ -1103,6 +1243,132 @@ mod tests {
                 q.id
             );
         }
+    }
+
+    /// I-057: one live quest per world use, each solvable with bottles the
+    /// player can find (no debug `give`, no digging), its examples real.
+    #[test]
+    fn every_quest_is_solvable_from_findable_bottles() {
+        let c = Codex::load();
+        let b = Bottles::load();
+        let fx = Effects::load();
+        let quests = Quests::load();
+        // Every bottle item says how the world gives it; a stash item is in
+        // a stash anyone can see.
+        for i in &b.items {
+            if i.from == Source::Stash {
+                assert!(b.findable(&i.item), "{} is in no visible stash", i.item);
+            }
+        }
+        assert!(b.findable("charcoal") && b.findable("vinegar") && !b.findable("coal_ore"));
+        let live: Vec<_> = quests.quests.iter().filter(|q| q.live).collect();
+        // One per world use: melt (fire), smother (foam), cool (frost),
+        // wall and reveal.
+        let mut uses: Vec<Runs> = live.iter().filter_map(|q| q.needs.runs).collect();
+        uses.sort();
+        assert_eq!(
+            uses,
+            vec![
+                Runs::Fire,
+                Runs::Frost,
+                Runs::Foam,
+                Runs::Wall,
+                Runs::Reveal
+            ]
+        );
+        for q in live {
+            assert!(EVENTS.contains(&q.event.as_str()), "{}: {}", q.id, q.event);
+            for t in [
+                &q.line,
+                &q.line_sprout,
+                &q.hint,
+                &q.hint_sprout,
+                &q.done,
+                &q.place,
+            ] {
+                assert!(!t.is_empty(), "{}: a text is missing", q.id);
+            }
+            assert!(q.hint.starts_with("Hint: ") && q.hint_sprout.starts_with("Hint: "));
+            assert!(q.window_s > 0.0 && q.radius_m > 0.0);
+            assert_eq!(q.at.is_some(), q.near_m.is_some(), "{}", q.id);
+            // Its examples are real reactions that meet its needs.
+            assert!(!q.solved_by.is_empty(), "{}", q.id);
+            for id in &q.solved_by {
+                let e = c
+                    .get(id)
+                    .unwrap_or_else(|| panic!("{}: no reaction {id}", q.id));
+                let f = fx.of(e);
+                assert!(
+                    f.saveable() && q.needs.met_by(&f),
+                    "{}: {id} does not solve it",
+                    q.id
+                );
+                // The hint names the kind of reaction, never the answer.
+                assert!(!q.hint.contains(&e.name) && !q.hint_sprout.contains(&e.name));
+            }
+            // At least one example's bottles can all be found, and one at
+            // Sprout (every band can do every quest).
+            let findable = |e: &Entry| q.needs.met_by(&fx.of(e)) && b.findable_plan(e);
+            assert!(
+                q.solved_by.iter().any(|id| findable(c.get(id).unwrap())),
+                "{}: no example's bottles can be found",
+                q.id
+            );
+            assert!(
+                c.entries
+                    .iter()
+                    .any(|e| e.band == Tier::Sprout && findable(e)),
+                "{}: no Sprout reaction's bottles can be found",
+                q.id
+            );
+        }
+        // A shipped-like spell that does not match never meets a quest's
+        // needs: a fizz that lifts is no smother, a hot fizz no frost.
+        let need = |id: &str| {
+            quests
+                .quests
+                .iter()
+                .find(|q| q.id == id)
+                .unwrap()
+                .needs
+                .clone()
+        };
+        assert!(!need("smother_with_co2").met_by(&fx.of(c.get("zinc_acid").unwrap())));
+        assert!(!need("cool_the_vent").met_by(&fx.of(c.get("limestone_roast").unwrap())));
+        assert!(!need("wall_in_the_river").met_by(&fx.of(c.get("iron_copper_sulfate").unwrap())));
+        assert!(!need("reveal_the_hidden_mark").met_by(&fx.of(c.get("silver_chloride").unwrap())));
+    }
+
+    /// I-057: a Guide lesson that points at a quest teaches a reaction that
+    /// solves it.
+    #[test]
+    fn guide_lessons_point_at_quests_their_reactions_solve() {
+        let guide: serde_json::Value =
+            serde_json::from_str(include_str!("../../../content/chem/guide.json")).unwrap();
+        let c = Codex::load();
+        let fx = Effects::load();
+        let quests = Quests::load();
+        let mut n = 0;
+        for (band, b) in guide["bands"].as_object().unwrap() {
+            for l in b["lessons"].as_array().unwrap() {
+                let Some(id) = l["world"]["quest"].as_str() else {
+                    continue;
+                };
+                let q = quests.quests.iter().find(|q| q.id == id && q.live);
+                let q = q.unwrap_or_else(|| panic!("{band} {}: no live quest {id}", l["id"]));
+                let solves = l["reactions"].as_array().unwrap().iter().any(|r| {
+                    c.get(r.as_str().unwrap())
+                        .is_some_and(|e| q.needs.met_by(&fx.of(e)))
+                });
+                assert!(
+                    solves,
+                    "{band} {}: none of its reactions solves {id}",
+                    l["id"]
+                );
+                n += 1;
+            }
+        }
+        assert!(n >= 5);
     }
 
     #[test]

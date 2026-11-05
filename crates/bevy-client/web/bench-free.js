@@ -739,10 +739,12 @@ async function main() {
     const ls = sec('Lessons');
     for (const l of g.lessons) {
       const d = document.createElement('div'); d.className = 'lesson';
-      d.innerHTML = `<b>${prose(l.title)}</b><p>${prose(l.idea)}</p><small class="ngss" title="Next Generation Science Standards">NGSS ${esc(l.ngss)}</small>`;
+      // I-057: a lesson's `world` points at the chemistry quest that uses it.
+      const world = l.world && l.world.say ? `<p class="world">${prose(l.world.say)}</p>` : '';
+      d.innerHTML = `<b>${prose(l.title)}</b><p>${prose(l.idea)}</p>${world}<small class="ngss" title="Next Generation Science Standards">NGSS ${esc(l.ngss)}</small>`;
       const row = document.createElement('div'); row.className = 'row';
       if (l.try) row.append(button('Try it', () => tryLesson(l)));
-      const say = sayButton(`${l.title}. ${l.idea}`); if (say) row.append(say);
+      const say = sayButton(`${l.title}. ${l.idea}${l.world && l.world.say ? ` ${l.world.say}` : ''}`); if (say) row.append(say);
       d.append(row); ls.append(d);
     }
   };

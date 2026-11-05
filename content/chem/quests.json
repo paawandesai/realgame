@@ -1,36 +1,143 @@
 {
   "version": 1,
-  "about": "Chemistry quests (docs/loop/items/I-053/spec.md section 6): side quests that need a discovered reaction with the right effect, not just good aim. A quest completes when a discovered spell whose effect matches `needs` lands and the world reports `event` within `radius_m` of it in the same moment. `live` quests run in the block world now; the others are specified for later.",
+  "about": "Chemistry quests (docs/loop/items/I-053/spec.md section 6; docs/loop/items/I-057/spec.md): side quests that need a discovered reaction with the right effect, not just good aim. A quest completes when a discovered spell whose effect matches `needs` lands and the world reports `event` within `radius_m` of the landing and within `window_s` seconds (default 2.5), in the quest's place (`at`, `near_m`) when one is given. A shipped spell never completes one. `live` quests run in the block world; one per world use (I-057). `line` and `line_sprout` are the objective, `hint` and `hint_sprout` name the kind of reaction it needs (never the answer), `done` is said when it is done, and `solved_by` lists example reactions that solve it (the tests check each one, and that at least one Sprout reaction's bottles can all be found in the valley).",
   "quests": [
     {
       "id": "melt_with_reaction",
       "live": true,
       "title": "Melt ice with a reaction",
-      "needs": { "heat": 1, "runs": "fire" },
+      "needs": {
+        "heat": 1,
+        "runs": "fire"
+      },
       "event": "melted",
-      "radius_m": 3.0
+      "radius_m": 3.0,
+      "place": "any ice or snow, like the ice gate in the Frozen Fields",
+      "line": "Chemistry quest: melt some ice with a reaction from the Bench that gives off heat.",
+      "line_sprout": "Chemistry quest: melt some ice with a hot reaction you found!",
+      "hint": "Hint: you need a reaction that gives off heat, like something burning.",
+      "hint_sprout": "Hint: find a hot reaction on the Bench.",
+      "done": "Chemistry quest done! Your reaction gave off heat and the ice melted.",
+      "solved_by": [
+        "carbon_burns",
+        "hydrogen_burns",
+        "methane_burns",
+        "magnesium_burns"
+      ]
     },
     {
       "id": "smother_with_co2",
-      "live": false,
-      "title": "Smother a fire with a reaction's gas",
-      "needs": { "runs": "foam" },
-      "event": "extinguished_no_oxygen",
-      "radius_m": 4.0
+      "live": true,
+      "title": "Smother the marsh gas fire with a reaction's gas",
+      "needs": {
+        "runs": "foam"
+      },
+      "event": "smothered",
+      "radius_m": 6.0,
+      "window_s": 20.0,
+      "place": "the gas fire in the marsh hollow",
+      "at": [
+        191.5,
+        28.0,
+        100.5
+      ],
+      "near_m": 10.0,
+      "line": "Chemistry quest: put out the gas fire in the marsh hollow with a reaction that makes carbon dioxide.",
+      "line_sprout": "Chemistry quest: put out the marsh fire with a gas you made!",
+      "hint": "Hint: you need a reaction whose only gas is carbon dioxide. It is heavier than air and smothers flames.",
+      "hint_sprout": "Hint: find a reaction that makes a gas that stops fires.",
+      "done": "Chemistry quest done! The carbon dioxide from your reaction kept oxygen away, so the gas fire went out.",
+      "solved_by": [
+        "limestone_roast",
+        "chalk_acid",
+        "rule_carbonate_acid_caco3_ch3cooh",
+        "washing_soda_acid"
+      ]
     },
     {
       "id": "cool_the_vent",
-      "live": false,
-      "title": "Cool a hot steam vent with a reaction that takes in heat",
-      "needs": { "heat": -1 },
+      "live": true,
+      "title": "Cool the hot vent on the charcoal mound with a reaction that takes in heat",
+      "needs": {
+        "heat": -1,
+        "runs": "frost"
+      },
       "event": "cooled",
-      "radius_m": 3.0
+      "radius_m": 4.0,
+      "place": "the vent on the charcoal mound in the Frozen Fields",
+      "at": [
+        60.5,
+        43.0,
+        72.5
+      ],
+      "near_m": 4.0,
+      "line": "Chemistry quest: light the charcoal mound, then cool its hot vent with a reaction that takes in heat.",
+      "line_sprout": "Chemistry quest: make the mound's hot vent cold with a cold reaction you found!",
+      "hint": "Hint: some reactions take in heat by themselves, so the mix gets cold. Cast Fire into the vent first to make it hot.",
+      "hint_sprout": "Hint: some fizzy mixes get cold all by themselves. Make the mound hot with Fire first!",
+      "done": "Chemistry quest done! Your reaction took in heat, so the hot vent cooled down.",
+      "solved_by": [
+        "baking_soda_vinegar",
+        "baking_soda_hcl"
+      ]
+    },
+    {
+      "id": "wall_in_the_river",
+      "live": true,
+      "title": "Build a wall in the river with a reaction that makes a solid",
+      "needs": {
+        "runs": "wall"
+      },
+      "event": "walled_water",
+      "radius_m": 6.0,
+      "place": "the river at the ford",
+      "at": [
+        128.0,
+        29.0,
+        154.0
+      ],
+      "near_m": 10.0,
+      "line": "Chemistry quest: build a wall in the river at the ford with a reaction that makes a solid.",
+      "line_sprout": "Chemistry quest: make a wall in the river with a reaction that makes something solid!",
+      "hint": "Hint: mix two clear solutions and a solid can appear. That solid builds the wall. Aim at the water.",
+      "hint_sprout": "Hint: some mixes turn cloudy because a solid appears. Aim at the river!",
+      "done": "Chemistry quest done! A solid came out of your mix and walled off the water.",
+      "solved_by": [
+        "silver_chloride",
+        "limewater_test",
+        "calcium_carbonate_ppt",
+        "copper_hydroxide"
+      ]
+    },
+    {
+      "id": "reveal_the_hidden_mark",
+      "live": true,
+      "title": "Find the hidden mark with a reaction that changes colour",
+      "needs": {
+        "runs": "reveal"
+      },
+      "event": "revealed",
+      "radius_m": 3.0,
+      "place": "the hidden mark west of the village",
+      "line": "Chemistry quest: find the hidden mark near the village with a reaction that changes colour.",
+      "line_sprout": "Chemistry quest: find a hidden thing with a colour-change reaction!",
+      "hint": "Hint: a metal can coat another metal in a solution, and the colour changes. Cast it near the village.",
+      "hint_sprout": "Hint: some mixes change colour. Cast one near the village!",
+      "done": "Chemistry quest done! Your reaction's colour change showed where something was hidden.",
+      "solved_by": [
+        "iron_copper_sulfate",
+        "zinc_copper_sulfate",
+        "copper_silver_nitrate",
+        "magnesium_copper_sulfate"
+      ]
     },
     {
       "id": "cloud_in_the_well",
       "live": false,
       "title": "Make a cloud in the well with a precipitation reaction",
-      "needs": { "kind": "cloud" },
+      "needs": {
+        "kind": "cloud"
+      },
       "event": "landed_in_water",
       "radius_m": 2.0
     }

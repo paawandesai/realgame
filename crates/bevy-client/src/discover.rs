@@ -11,8 +11,11 @@
 //!   instantly; a Sprout casts it without building.
 //! - In the block world a cast needs a bottle (pack item) of every reactant
 //!   the air does not supply, and uses one up.
-//! - One chemistry quest runs here: melt ice with a discovered spell that
-//!   gives off heat.
+//! - Five chemistry quests run here, one per world use
+//!   (`content/chem/quests.json`, I-057): melt ice, smother the marsh gas
+//!   fire, cool the charcoal mound's hot vent, wall the river at the ford,
+//!   find the hidden mark. Each needs a discovered spell whose effect
+//!   matches, landing close to the world event that finishes it.
 //!
 //! The page loads the save through `window.__gameIn.disc` (`found`,
 //! `saved`, `slots`, `quests`, and the player's `equip <id> [key]` /
@@ -34,15 +37,10 @@ use crate::spells;
 /// Says what is missing when a cast has no bottle; `{}` is the item names.
 /// `Disc::need_line` adds where to get the first of them.
 pub const NEED_LINE: &str = "This spell needs {} from your pack, and you have none.";
-/// The live chemistry quest's line, and Sprout's.
-pub const QUEST_LINE: &str =
-    "Chemistry quest: melt some ice with a reaction from the Bench that gives off heat.";
-pub const QUEST_LINE_SPROUT: &str = "Chemistry quest: melt some ice with a hot reaction you found!";
-/// Said when the quest is done.
+/// The melt quest's done line (`content/chem/quests.json`), kept as a name
+/// for the tests.
 pub const QUEST_DONE: &str =
     "Chemistry quest done! Your reaction gave off heat and the ice melted.";
-/// How long (s) a landed discovered spell can still be the cause of a melt.
-const QUEST_WINDOW_S: f32 = 2.5;
 
 /// The effect rules, bottles and quests, loaded once.
 pub struct Data {
@@ -133,8 +131,12 @@ pub struct Disc {
     pub rev: u32,
     /// The open worked cast builds this discovery.
     pub working: Option<usize>,
-    /// Discovered spells that gave off heat and landed: where, and when.
-    recent: Vec<(Vec3, f32)>,
+    /// Discovered spells that match a live quest's needs and landed: the
+    /// quest, where and when.
+    recent: Vec<(String, Vec3, f32)>,
+    /// World events other systems reported this frame (`report`), handled
+    /// by the quest system with the game time.
+    pending: Vec<(&'static str, Vec3)>,
     /// A caption to say this frame.
     pub say: Option<String>,
     last_json: String,
@@ -429,41 +431,54 @@ impl Disc {
         }
     }
 
-    /// A discovered spell landed at `pos` at game time `now`.
+    /// A discovered spell landed at `pos` at game time `now`: it may be
+    /// the cause of a quest's event for a while.
     pub fn landed(&mut self, idx: usize, pos: Vec3, now: f32) {
         let Some((_, fx)) = entry(idx) else { return };
         for q in data().quests.quests.iter().filter(|q| q.live) {
-            if !self.quests_done.contains(&q.id) && q.needs.met_by(fx) && q.event == d::EVENT_MELTED
-            {
-                self.recent.push((pos, now));
+            if !self.quests_done.contains(&q.id) && q.needs.met_by(fx) {
+                self.recent.push((q.id.clone(), pos, now));
             }
         }
     }
 
-    /// The world melted ice at `cell` at time `now`: finishes the live quest
-    /// when a qualifying discovered spell landed nearby just before.
-    pub fn melted(&mut self, cell: [i32; 3], now: f32) {
-        self.recent.retain(|r| now - r.1 <= QUEST_WINDOW_S);
-        let p = Vec3::new(
-            cell[0] as f32 + 0.5,
-            cell[1] as f32 + 0.5,
-            cell[2] as f32 + 0.5,
-        );
-        for q in data()
-            .quests
-            .quests
-            .iter()
-            .filter(|q| q.live && q.event == d::EVENT_MELTED)
-        {
-            if self.quests_done.contains(&q.id) {
+    /// Another system saw world event `ev` at `at` (handled by `event` in
+    /// the quest system, with the game time).
+    pub fn report(&mut self, ev: &'static str, at: Vec3) {
+        self.pending.push((ev, at));
+    }
+
+    /// The world reported event `ev` at `at`, at game time `now`: finishes
+    /// each live quest waiting on it whose matching discovered spell landed
+    /// within its radius and window, when the event is in the quest's place.
+    pub fn event(&mut self, ev: &str, at: Vec3, now: f32) {
+        let quests = &data().quests.quests;
+        self.recent.retain(|r| {
+            quests
+                .iter()
+                .find(|q| q.id == r.0)
+                .is_some_and(|q| now - r.2 <= q.window_s)
+        });
+        for q in quests.iter().filter(|q| q.live && q.event == ev) {
+            if self.quests_done.contains(&q.id) || !q.in_place(at.into()) {
                 continue;
             }
-            if self.recent.iter().any(|r| r.0.distance(p) <= q.radius_m) {
+            let hit = self
+                .recent
+                .iter()
+                .any(|r| r.0 == q.id && r.1.distance(at) <= q.radius_m && r.2 <= now + 1e-3);
+            if hit {
                 self.quests_done.push(q.id.clone());
+                self.recent.retain(|r| r.0 != q.id);
                 self.rev += 1;
-                self.say = Some(QUEST_DONE.to_string());
+                self.say = Some(q.done.clone());
             }
         }
+    }
+
+    /// The world melted ice at `cell` at time `now`.
+    pub fn melted(&mut self, cell: [i32; 3], now: f32) {
+        self.event(d::EVENT_MELTED, centre(cell), now);
     }
 
     /// `window.__discState`.
@@ -506,18 +521,25 @@ impl Disc {
                 })
             })
             .collect();
+        let sprout = band == Some(Tier::Sprout);
         let quests: Vec<_> = data()
             .quests
             .quests
             .iter()
             .filter(|q| q.live)
             .map(|q| {
-                let line = if band == Some(Tier::Sprout) {
-                    QUEST_LINE_SPROUT
+                let (line, hint) = if sprout {
+                    (&q.line_sprout, &q.hint_sprout)
                 } else {
-                    QUEST_LINE
+                    (&q.line, &q.hint)
                 };
-                json!({ "id": q.id, "line": line, "done": self.quests_done.contains(&q.id) })
+                json!({
+                    "id": q.id,
+                    "line": line,
+                    "hint": hint,
+                    "place": q.place,
+                    "done": self.quests_done.contains(&q.id),
+                })
             })
             .collect();
         let slots: Vec<Option<String>> = self.slot.iter().map(|s| s.map(id)).collect();
@@ -556,6 +578,15 @@ impl Disc {
         })
         .to_string()
     }
+}
+
+/// The centre of block `cell`.
+pub fn centre(cell: [i32; 3]) -> Vec3 {
+    Vec3::new(
+        cell[0] as f32 + 0.5,
+        cell[1] as f32 + 0.5,
+        cell[2] as f32 + 0.5,
+    )
 }
 
 /// Said when a discovery goes on key `k` (0-3).
@@ -597,23 +628,48 @@ fn commands(mut disc: ResMut<Disc>) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn quest(
     time: Res<Time>,
     mut disc: ResMut<Disc>,
     mut game: ResMut<crate::Game>,
+    late: Option<Res<crate::late::Late>>,
     mut landed: MessageReader<crate::SpellLanded>,
     mut matter: MessageReader<crate::MatterEvent>,
 ) {
+    use realgame_matter::{By, MatterEvent as M};
     let now = time.elapsed_secs();
     for l in landed.read() {
         if let Some(i) = l.disc {
             disc.landed(usize::from(i), l.pos, now);
         }
+        // Something cold landing in the charcoal mound's hot vent cools it:
+        // the shipped Frost or a discovery that runs Frost.
+        let cold = match runs_of(l.disc) {
+            Some(r) => r == d::Runs::Frost,
+            None => l.spell == crate::chem::Spell::Frost,
+        };
+        if cold
+            && late
+                .as_ref()
+                .is_some_and(|lt| lt.vent_hot() && crate::late::in_vent(l.pos))
+        {
+            disc.event(d::EVENT_COOLED, l.pos, now);
+        }
     }
     for e in matter.read() {
-        if let realgame_matter::MatterEvent::Melted { cell } = e.0 {
-            disc.melted(cell, now);
+        match e.0 {
+            M::Melted { cell } => disc.melted(cell, now),
+            M::Smothered { vent } => disc.event(d::EVENT_SMOTHERED, centre(vent), now),
+            M::Extinguished {
+                cell,
+                by: By::NoOxygen,
+            } => disc.event(d::EVENT_SMOTHERED, centre(cell), now),
+            _ => {}
         }
+    }
+    for (ev, at) in std::mem::take(&mut disc.pending) {
+        disc.event(ev, at, now);
     }
     if let Some(s) = disc.say.take() {
         game.say(&s);
@@ -869,5 +925,154 @@ mod tests {
         assert_eq!(v["save"]["quests"][0], "melt_with_reaction");
         assert_eq!(v["save"]["saved"]["carbon_burns"], 1);
         assert_eq!(v["saved"][0]["effect"]["kind"], "fire");
+    }
+
+    /// A live quest by id.
+    fn quest(id: &str) -> &'static d::ChemQuest {
+        data().quests.quests.iter().find(|q| q.id == id).unwrap()
+    }
+
+    /// Where each quest's event happens in the valley (its place).
+    fn place_of(q: &d::ChemQuest) -> Vec3 {
+        q.at.map_or(Vec3::new(100.0, 35.0, 200.0), Vec3::from)
+    }
+
+    /// I-057: every live quest completes only when a matching discovered
+    /// spell lands close to its event, in time, in its place.
+    #[test]
+    fn each_quest_completes_only_with_a_matching_discovered_spell() {
+        // (quest, a reaction that solves it, one that does not)
+        let cases = [
+            ("melt_with_reaction", "carbon_burns", "baking_soda_vinegar"),
+            ("smother_with_co2", "limestone_roast", "zinc_acid"),
+            ("cool_the_vent", "baking_soda_vinegar", "limestone_roast"),
+            (
+                "wall_in_the_river",
+                "silver_chloride",
+                "iron_copper_sulfate",
+            ),
+            (
+                "reveal_the_hidden_mark",
+                "iron_copper_sulfate",
+                "silver_chloride",
+            ),
+        ];
+        let live: Vec<_> = data().quests.quests.iter().filter(|q| q.live).collect();
+        assert_eq!(live.len(), cases.len(), "one case per live quest");
+        for (id, good, bad) in cases {
+            let q = quest(id);
+            let at = place_of(q);
+            let good = index_of(good).unwrap();
+            let bad = index_of(bad).unwrap();
+            let done = |d: &Disc| d.quests_done.contains(&q.id);
+            let mut d = Disc::default();
+            // A shipped spell never calls `landed`: the event alone does
+            // nothing.
+            d.event(&q.event, at, 1.0);
+            assert!(!done(&d), "{id}: the event alone");
+            // A discovered spell that does not match.
+            d.landed(bad, at, 2.0);
+            d.event(&q.event, at, 2.1);
+            assert!(!done(&d), "{id}: a spell that does not match");
+            // Another quest's event.
+            d.landed(good, at, 3.0);
+            for ev in d::EVENTS.iter().filter(|e| **e != q.event) {
+                d.event(ev, at, 3.1);
+            }
+            assert!(!done(&d), "{id}: another event");
+            // Too far from the landing.
+            let far = at + Vec3::new(q.radius_m + 1.0, 0.0, 0.0);
+            let mut d = Disc::default();
+            d.landed(good, far, 1.0);
+            d.event(&q.event, at, 1.1);
+            assert!(!done(&d), "{id}: too far");
+            // Too late.
+            d.landed(good, at, 5.0);
+            d.event(&q.event, at, 5.0 + q.window_s + 0.5);
+            assert!(!done(&d), "{id}: too late");
+            // Out of its place (a quest with a place).
+            if let (Some(_), Some(r)) = (q.at, q.near_m) {
+                let away = at + Vec3::new(r + 5.0, 0.0, 0.0);
+                d.landed(good, away, 20.0);
+                d.event(&q.event, away, 20.1);
+                assert!(!done(&d), "{id}: not in its place");
+            }
+            // The matching spell, close by and in time.
+            d.landed(good, at, 30.0);
+            d.event(
+                &q.event,
+                at + Vec3::new(0.5, 0.0, 0.0),
+                30.0 + q.window_s * 0.5,
+            );
+            assert!(done(&d), "{id}: done");
+            assert_eq!(d.say.as_deref(), Some(q.done.as_str()));
+            let rev = d.rev;
+            d.landed(good, at, 31.0);
+            d.event(&q.event, at, 31.1);
+            assert_eq!(d.quests_done.len(), 1, "{id}: done once");
+            assert_eq!(d.rev, rev);
+        }
+    }
+
+    /// A reported event is handled in the quest system (`pending`).
+    #[test]
+    fn reported_events_wait_for_the_quest_system() {
+        let mut d = Disc::default();
+        let q = quest("wall_in_the_river");
+        let at = place_of(q);
+        d.landed(index_of("silver_chloride").unwrap(), at, 1.0);
+        d.report(d::EVENT_WALLED_WATER, at);
+        assert!(d.quests_done.is_empty());
+        for (ev, p) in std::mem::take(&mut d.pending) {
+            d.event(ev, p, 1.2);
+        }
+        assert_eq!(d.quests_done, vec![q.id.clone()]);
+    }
+
+    /// Quest state goes into the shared save and comes back from it.
+    #[test]
+    fn the_save_round_trips_quest_state() {
+        let mut d = loaded();
+        for (id, r) in [
+            ("smother_with_co2", "limestone_roast"),
+            ("reveal_the_hidden_mark", "iron_copper_sulfate"),
+        ] {
+            let q = quest(id);
+            d.landed(index_of(r).unwrap(), place_of(q), 1.0);
+            d.event(&q.event, place_of(q), 1.5);
+        }
+        let json = d.state_json(Some(Tier::Seedling), &realgame_sim::valley::Pack::default());
+        let v: realgame_chem::serde_json::Value =
+            realgame_chem::serde_json::from_str(&json).unwrap();
+        let saved: Vec<String> = v["save"]["quests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(saved, vec!["smother_with_co2", "reveal_the_hidden_mark"]);
+        // Every live quest is listed with its line, hint and place.
+        let list = v["quests"].as_array().unwrap();
+        assert_eq!(list.len(), 5);
+        for row in list {
+            let q = quest(row["id"].as_str().unwrap());
+            assert_eq!(row["line"], q.line.as_str());
+            assert_eq!(row["hint"], q.hint.as_str());
+            assert_eq!(row["place"], q.place.as_str());
+            assert_eq!(row["done"], d.quests_done.contains(&q.id));
+        }
+        // A new run loads it (formula-save.js sends `quests a,b`), and
+        // unknown ids are dropped.
+        let mut back = Disc::default();
+        back.command(&format!("quests {},nonsense", saved.join(",")));
+        assert_eq!(back.quests_done, d.quests_done);
+        let again = back.state_json(Some(Tier::Sprout), &realgame_sim::valley::Pack::default());
+        let w: realgame_chem::serde_json::Value =
+            realgame_chem::serde_json::from_str(&again).unwrap();
+        assert_eq!(w["save"]["quests"], v["save"]["quests"]);
+        // Sprout gets its own wording.
+        let row = &w["quests"][1];
+        assert_eq!(row["line"], quest("smother_with_co2").line_sprout.as_str());
+        assert_eq!(row["hint"], quest("smother_with_co2").hint_sprout.as_str());
     }
 }

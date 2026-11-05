@@ -18,6 +18,8 @@ type Lesson = {
   ngss: string;
   reactions: string[];
   sources: string[];
+  /** I-057: the chemistry quest that uses this lesson in the block world. */
+  world?: { quest: string; say: string };
 };
 type Goal = { kind: string; family?: string; ids?: string[]; count?: number; reaction?: string };
 type Band = {
@@ -43,6 +45,7 @@ const names = JSON.parse(readFileSync("content/chem/names.json", "utf8")) as {
   conditions_young: Record<string, string>;
 };
 const guide = JSON.parse(readFileSync("content/chem/guide.json", "utf8")) as Guide;
+const quests = JSON.parse(readFileSync("content/chem/quests.json", "utf8")) as { quests: { id: string; live: boolean; solved_by?: string[] }[] };
 
 const BANDS = ["sprout", "seedling", "apprentice", "adept"];
 const rank = (b: string) => BANDS.indexOf(b);
@@ -321,7 +324,7 @@ test("sprout text has no formulas (it is read aloud to pre-readers)", () => {
   const g = guide.bands.sprout!;
   const texts = [
     ...g.walkthrough.map((s) => s.say),
-    ...g.lessons.flatMap((l) => [l.title, l.idea]),
+    ...g.lessons.flatMap((l) => [l.title, l.idea, l.world?.say ?? ""]),
     ...Object.values(g.hints).flat(),
     ...g.challenges.map((c) => c.title),
     ...core.reactions.filter((r) => r.band === "sprout").map((r) => guide.where_you_see_it[r.id] ?? ""),
@@ -336,6 +339,26 @@ test("sprout text has no formulas (it is read aloud to pre-readers)", () => {
   }
 });
 
+test("lessons point at the live chemistry quest that uses them (I-057)", () => {
+  const live = new Map(quests.quests.filter((q) => q.live).map((q) => [q.id, q]));
+  const linked = new Set<string>();
+  for (const band of BANDS) {
+    for (const l of guide.bands[band]!.lessons) {
+      if (!l.world) continue;
+      const where = `${band} lesson ${l.id}`;
+      const q = live.get(l.world.quest);
+      assert.ok(q, `${where}: no live quest ${l.world.quest}`);
+      assert.match(l.world.say, /^Try it in the world: [a-z].*[.!]$/, `${where}: ${l.world.say}`);
+      assert.ok(l.world.say.length <= 160, `${where}: too long`);
+      linked.add(l.world.quest);
+    }
+  }
+  // Every live quest is linked from at least one lesson, and Sprout links all of them.
+  assert.deepEqual([...linked].sort(), [...live.keys()].sort());
+  const sprout = new Set(guide.bands.sprout!.lessons.flatMap((l) => (l.world ? [l.world.quest] : [])));
+  assert.deepEqual([...sprout].sort(), [...live.keys()].sort());
+});
+
 test("sprout and seedling text names conditions by their young labels", () => {
   // The standard labels the young bands replace (Catalyst, Spark), not the ones they keep.
   const young = Object.values(names.conditions_young);
@@ -345,7 +368,7 @@ test("sprout and seedling text names conditions by their young labels", () => {
   assert.ok(swapped.includes("Catalyst") && swapped.includes("Spark"), swapped.join(", "));
   for (const band of ["sprout", "seedling"]) {
     const g = guide.bands[band]!;
-    const texts = [...g.walkthrough.map((s) => s.say), ...g.lessons.flatMap((l) => [l.title, l.idea]), ...Object.values(g.hints).flat(), ...g.challenges.map((c) => c.title)];
+    const texts = [...g.walkthrough.map((s) => s.say), ...g.lessons.flatMap((l) => [l.title, l.idea, l.world?.say ?? ""]), ...Object.values(g.hints).flat(), ...g.challenges.map((c) => c.title)];
     for (const t of texts) for (const label of swapped) assert.ok(!new RegExp(`\\b${label}\\b`).test(t), `${band} names ${label}, not its young label: ${t}`);
   }
 });

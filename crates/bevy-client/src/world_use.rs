@@ -19,7 +19,7 @@
 //! existing beacon.
 
 use bevy::prelude::*;
-use realgame_chem::discover::{lerp, LiftSpec, PushSpec, RevealSpec, Runs, WallSpec};
+use realgame_chem::discover::{self as d, lerp, LiftSpec, PushSpec, RevealSpec, Runs, WallSpec};
 use realgame_voxel::{mat, materials, Cell, World};
 
 use crate::player::Player;
@@ -48,6 +48,9 @@ pub struct Uses {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Wall {
     pub cells: Vec<[i32; 3]>,
+    /// What each cell held before (air, or water it plugged), put back when
+    /// it crumbles.
+    pub was: Vec<Cell>,
     pub mat: u8,
     pub until: f32,
 }
@@ -74,14 +77,25 @@ pub fn wall_size(spec: &WallSpec, strength: f32) -> (i32, i32) {
 }
 
 fn open(w: &World, p: [i32; 3]) -> bool {
-    w.can_place(p) && matches!(w.get(p).mat, mat::AIR | mat::WATER)
+    let m = w.get(p).mat;
+    (w.can_place(p) && matches!(m, mat::AIR | mat::WATER)) || (m == mat::WATER && in_ford(p))
+}
+
+/// The ford's water (`stamp::FORD`, P2a) is a protected puzzle stamp, but
+/// a wall may stand in its water for a while (I-057: the wall quest),
+/// like the Frost path; it gives the water back when it crumbles. Its
+/// banks and bed stay protected.
+pub fn in_ford(p: [i32; 3]) -> bool {
+    realgame_voxel::stamp::FORD.contains(p)
 }
 
 /// Builds a wall `width` x `height` of `m` where a spell landed at `pos` on
 /// a face with normal `n`, across the line from `from` (the player): the
 /// cell in front of the face, dropped to stand on the ground, then
 /// `width` cells sideways and `height` up. Only air or water cells outside
-/// protected stamps are filled. Returns the cells it set.
+/// protected stamps (or water in the ford) are filled. Returns the wall
+/// (its `until` is for the caller to set); `Wall::wet` counts the water it
+/// plugged (I-057: a wall in the river).
 pub fn build_wall(
     w: &mut World,
     pos: Vec3,
@@ -90,12 +104,23 @@ pub fn build_wall(
     width: i32,
     height: i32,
     m: u8,
-) -> Vec<[i32; 3]> {
+) -> Wall {
     let inside = pos - n.as_vec3() * 0.01;
     let hit = inside.floor().as_ivec3();
     let mut base = hit + n;
+    // A cast stops on water (`voxel_cast`): landing on the surface, the
+    // wall stands in the water itself.
+    if !open(w, base.into()) && w.get(hit.into()).mat == mat::WATER && open(w, hit.into()) {
+        base = hit;
+    }
+    let mut wall = Wall {
+        cells: Vec::new(),
+        was: Vec::new(),
+        mat: m,
+        until: 0.0,
+    };
     if !open(w, base.into()) {
-        return Vec::new();
+        return wall;
     }
     for _ in 0..WALL_DROP {
         let below = base - IVec3::Y;
@@ -112,31 +137,76 @@ pub fn build_wall(
     } else {
         IVec3::X
     };
-    let mut out = Vec::new();
     let lo = -(width - 1) / 2;
     for k in lo..lo + width {
         for y in 0..height {
             let p: [i32; 3] = (base + side * k + IVec3::Y * y).into();
             if open(w, p) {
+                wall.was.push(w.get(p));
                 w.set(p, Cell::new(m));
-                out.push(p);
+                wall.cells.push(p);
             }
         }
     }
-    out
+    wall
 }
 
-/// Crumbles a wall: its cells that still hold its material go back to air
-/// (a block the player broke or something else replaced is left alone).
+/// The middle of a wall's cells.
+pub fn middle(cells: &[[i32; 3]]) -> Vec3 {
+    let sum: Vec3 = cells.iter().map(|c| crate::discover::centre(*c)).sum();
+    sum / cells.len().max(1) as f32
+}
+
+/// What a Reveal landing at `at` shows, nearest first: the unfound caches
+/// (indices into `SITES`) and the hidden stashes (I-057: the hidden mark)
+/// within its radius, and where the beacon stands (the nearest of all).
+pub fn reveal_targets(
+    built: &[Built],
+    found: &[bool],
+    stashes: &crate::stash::Stashes,
+    at: Vec3,
+    spec: &RevealSpec,
+    strength: f32,
+) -> (Vec<usize>, Vec<usize>, Option<Vec3>) {
+    let caches = hidden_near(built, found, at, spec, strength);
+    let marks = stashes.hidden_near(at, lerp(spec.radius_m, strength));
+    let flat = |p: Vec3| Vec2::new(p.x - at.x, p.z - at.z).length();
+    let cache = caches.first().and_then(|i| {
+        built
+            .iter()
+            .find(|b| b.site.id == SITES[*i].id)
+            .map(|b| b.orb)
+    });
+    let mark = marks
+        .first()
+        .and_then(|m| crate::stash::list().get(m.0))
+        .map(|s| crate::discover::centre(s.at));
+    let beacon = match (cache, mark) {
+        (Some(c), Some(m)) => Some(if flat(m) < flat(c) { m } else { c }),
+        (c, m) => c.or(m),
+    };
+    (caches, marks.into_iter().map(|m| m.0).collect(), beacon)
+}
+
+/// Crumbles a wall: its cells that still hold its material go back to what
+/// they held, air or the water it plugged (a block the player broke or
+/// something else replaced is left alone).
 pub fn crumble(w: &mut World, wall: &Wall) -> usize {
     let mut n = 0;
-    for &p in &wall.cells {
+    for (i, &p) in wall.cells.iter().enumerate() {
         if w.get(p).mat == wall.mat {
-            w.set(p, Cell::AIR);
+            w.set(p, wall.was.get(i).copied().unwrap_or(Cell::AIR));
             n += 1;
         }
     }
     n
+}
+
+impl Wall {
+    /// How many of its cells held water (it plugged them).
+    pub fn wet(&self) -> usize {
+        self.was.iter().filter(|c| c.mat == mat::WATER).count()
+    }
 }
 
 /// The caches not yet found within the reveal radius of `at` (flat
@@ -195,6 +265,8 @@ pub fn push(
 pub const WALL_LINE: &str = "A wall of solid forms where it landed. It will crumble soon.";
 pub const WALL_NONE: &str = "No room for a wall there. Aim at open ground.";
 pub const REVEAL_LINE: &str = "The colour shows a hidden cache: follow the gold light.";
+/// Said when a wall stands in the river's water (I-057).
+pub const WALL_WATER_LINE: &str = "A wall of solid forms in the water and holds it back.";
 pub const REVEAL_NONE: &str = "The colour shows nothing hidden near here.";
 pub const LIFT_LINE: &str = "The hydrogen lifts you up!";
 pub const LIFT_MISS: &str = "The hydrogen floats away. Cast it at your feet to ride it up.";
@@ -216,6 +288,8 @@ fn run(
     mut game: ResMut<crate::Game>,
     mut player: ResMut<Player>,
     mut pw: ResMut<Powers>,
+    mut disc: ResMut<crate::discover::Disc>,
+    mut stashes: ResMut<crate::stash::Stashes>,
     vox: Option<ResMut<VoxWorld>>,
 ) {
     let Some(mut vox) = vox else {
@@ -237,32 +311,40 @@ fn run(
                 let (wd, ht) = wall_size(&spec.wall, s);
                 let m = wall_mat(&spec.wall);
                 let n = IVec3::new(l.normal[0].into(), l.normal[1].into(), l.normal[2].into());
-                let cells = build_wall(&mut vox.0, l.pos, n, player.pos, wd, ht, m);
-                if cells.is_empty() {
+                let mut wall = build_wall(&mut vox.0, l.pos, n, player.pos, wd, ht, m);
+                if wall.cells.is_empty() {
                     WALL_NONE
                 } else {
-                    uses.walls.push(Wall {
-                        cells,
-                        mat: m,
-                        until: now + spec.wall.seconds,
-                    });
-                    WALL_LINE
+                    let wet = wall.wet();
+                    if wet > 0 {
+                        disc.report(d::EVENT_WALLED_WATER, middle(&wall.cells));
+                    }
+                    wall.until = now + spec.wall.seconds;
+                    uses.walls.push(wall);
+                    if wet > 0 {
+                        WALL_WATER_LINE
+                    } else {
+                        WALL_LINE
+                    }
                 }
             }
             Runs::Wall => WALL_NONE,
             Runs::Reveal => {
-                let v = hidden_near(&pw.built, &pw.found, l.pos, &spec.reveal, s);
-                let at = v.first().and_then(|i| {
-                    pw.built
-                        .iter()
-                        .find(|b| b.site.id == SITES[*i].id)
-                        .map(|b| b.orb)
-                });
+                let (caches, marks, at) =
+                    reveal_targets(&pw.built, &pw.found, &stashes, l.pos, &spec.reveal, s);
+                for &i in &marks {
+                    stashes.show(i, &mut vox.0);
+                }
                 if at.is_some() {
-                    uses.reveal = v;
+                    uses.reveal = caches;
                     uses.reveal_at = at;
                     uses.reveal_until = now + spec.reveal.seconds;
-                    REVEAL_LINE
+                    disc.report(d::EVENT_REVEALED, l.pos);
+                    if marks.is_empty() {
+                        REVEAL_LINE
+                    } else {
+                        crate::stash::MARK_LINE
+                    }
                 } else {
                     REVEAL_NONE
                 }
@@ -325,8 +407,10 @@ mod tests {
         let (wd, ht) = wall_size(spec, 1.0);
         assert_eq!((wd, ht), (5, 3), "full strength: the data's largest");
         assert_eq!(wall_size(spec, 0.0), (1, 1));
-        let cells = build_wall(&mut w, at, IVec3::Y, Vec3::new(16.5, 11.0, 26.0), wd, ht, m);
+        let built = build_wall(&mut w, at, IVec3::Y, Vec3::new(16.5, 11.0, 26.0), wd, ht, m);
+        let cells = built.cells.clone();
         assert_eq!(cells.len(), 15);
+        assert_eq!(built.wet(), 0, "on dry ground");
         // Across the throw (x), standing on the ground (y 11 to 13).
         for p in &cells {
             assert_eq!(p[2], 16);
@@ -346,19 +430,15 @@ mod tests {
             3,
             1,
             m,
-        );
+        )
+        .cells;
         assert!(
             side.iter().all(|p| p[0] == 8) && side.len() == 3,
             "{side:?}"
         );
         // It crumbles back to air, leaving a block the player changed.
         w.set(cells[0], Cell::new(mat::DIRT));
-        let wall = Wall {
-            cells: cells.clone(),
-            mat: m,
-            until: 0.0,
-        };
-        assert_eq!(crumble(&mut w, &wall), 14);
+        assert_eq!(crumble(&mut w, &built), 14);
         assert_eq!(w.get(cells[0]).mat, mat::DIRT);
         assert!(cells[1..].iter().all(|p| w.get(*p).mat == mat::AIR));
     }
@@ -379,11 +459,12 @@ mod tests {
             1,
             1,
             mat::ASH,
-        );
+        )
+        .cells;
         assert_eq!(cells, vec![[11, 6, 10]], "dropped onto the ground");
         // Water is plugged.
         w.set([20, 6, 20], Cell::new(mat::WATER));
-        let cells = build_wall(
+        let plug = build_wall(
             &mut w,
             Vec3::new(20.5, 6.0, 20.5),
             IVec3::Y,
@@ -392,7 +473,11 @@ mod tests {
             1,
             mat::ASH,
         );
-        assert_eq!(cells, vec![[20, 6, 20]]);
+        assert_eq!(plug.cells, vec![[20, 6, 20]]);
+        assert_eq!(plug.wet(), 1, "it counts the water it plugged");
+        // It gives the water back when it crumbles.
+        assert_eq!(crumble(&mut w, &plug), 1);
+        assert_eq!(w.get([20, 6, 20]).mat, mat::WATER);
         // A protected stamp is never built into.
         w.protect(Aabb {
             min: [0, 0, 0],
@@ -406,7 +491,8 @@ mod tests {
             3,
             2,
             mat::ASH,
-        );
+        )
+        .cells;
         assert!(cells.is_empty(), "{cells:?}");
     }
 
@@ -512,5 +598,94 @@ mod tests {
                 "{id}"
             );
         }
+    }
+
+    /// I-057: a Reveal also shows the hidden mark, and the beacon stands
+    /// on the nearest hidden thing.
+    #[test]
+    fn a_reveal_shows_the_hidden_mark_too() {
+        let spec = &data().world.reveal;
+        let mut w = World::new();
+        let built: Vec<Built> = SITES
+            .iter()
+            .map(|s| crate::powers::stamp(&mut w, *s))
+            .collect();
+        let mut found = [true; crate::powers::N_SITES];
+        let st = crate::stash::Stashes::default();
+        let i = crate::stash::list().iter().position(|s| s.hidden).unwrap();
+        let mark = crate::discover::centre(crate::stash::list()[i].at);
+        // Every cache found: only the mark shows, and the beacon is on it.
+        let at = mark + Vec3::new(5.0, 0.0, 0.0);
+        let (caches, marks, beacon) = reveal_targets(&built, &found, &st, at, spec, 0.5);
+        assert!(caches.is_empty());
+        assert_eq!(marks, vec![i]);
+        assert_eq!(beacon, Some(mark));
+        // Too far for the weakest reveal: nothing.
+        let far = mark + Vec3::new(spec.radius_m[0] + 3.0, 0.0, 0.0);
+        let (_, marks, beacon) = reveal_targets(&built, &found, &st, far, spec, 0.0);
+        assert!(marks.is_empty() && beacon.is_none());
+        // With the Ember Vault unfound, the nearer of the two gets the beacon.
+        let vault = SITES.iter().position(|s| s.id == "vault").unwrap();
+        found[vault] = false;
+        let near_vault = built[vault].orb + Vec3::new(1.0, 0.0, 0.0);
+        let (caches, _, beacon) = reveal_targets(&built, &found, &st, near_vault, spec, 1.0);
+        assert_eq!(caches.first(), Some(&vault));
+        assert_eq!(beacon, Some(built[vault].orb));
+    }
+
+    /// I-057: a wall spell cast at the river at the ford stands in the
+    /// water, in the wall quest's place.
+    #[test]
+    fn a_wall_in_the_river_at_the_ford_plugs_its_water() {
+        let mut w = realgame_voxel::gen::generate(realgame_voxel::DEFAULT_SEED);
+        let q = data()
+            .quests
+            .quests
+            .iter()
+            .find(|q| q.event == d::EVENT_WALLED_WATER)
+            .unwrap();
+        let spec = &data().world.wall;
+        let (wd, ht) = wall_size(spec, 0.63);
+        // Landing on the water's surface (or the bed under it) from the
+        // village bank.
+        for (pos, n) in [
+            (Vec3::new(128.5, 31.0, 154.5), IVec3::Y),
+            (Vec3::new(126.5, 28.0, 153.5), IVec3::Y),
+        ] {
+            let mut w2 = w.clone();
+            let wall = build_wall(
+                &mut w2,
+                pos,
+                n,
+                Vec3::new(128.5, 35.0, 163.0),
+                wd,
+                ht,
+                wall_mat(spec),
+            );
+            assert!(wall.wet() > 0, "{pos}: {:?}", wall.cells);
+            assert!(q.in_place(middle(&wall.cells).into()), "{pos}");
+            // Only the ford's water: never its bed or banks.
+            assert!(wall.cells.iter().all(|p| in_ford(*p)), "{:?}", wall.cells);
+            assert!(wall
+                .was
+                .iter()
+                .all(|c| c.mat == mat::WATER || c.mat == mat::AIR));
+            // It gives the river its water back.
+            crumble(&mut w2, &wall);
+            for (p, c) in wall.cells.iter().zip(&wall.was) {
+                assert_eq!(w2.get(*p), *c);
+            }
+        }
+        // On the dry bank it is no river wall.
+        let bank = build_wall(
+            &mut w,
+            Vec3::new(128.5, 35.0, 165.5),
+            IVec3::Y,
+            Vec3::new(128.5, 35.0, 172.0),
+            wd,
+            ht,
+            wall_mat(spec),
+        );
+        assert_eq!(bank.wet(), 0);
     }
 }

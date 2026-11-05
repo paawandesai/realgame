@@ -1,5 +1,5 @@
 {
-  "about": "Teaching content for the Chemistry Bench free play page (bench-free.html): a first-visit walkthrough, lessons, hints and challenges for each age band, and an everyday line per reaction. Data only; the page renders it. Every reaction id is a content/chem/core.json id. A step's `do` is the action the page waits for. A lesson's `try.reactants` lists one entry per bottle tap, so a formula written twice means tap it twice (the counts are the equation's own coefficients, because the engine matches reactants by ratio). `try.conditions` are condition ids from names.json. `ngss` is a Next Generation Science Standards performance expectation. Hints are [nudge, idea, answer-pointer], keyed by every family visible at that band. Sources: `references` defines each source; `core` means the cited reaction's own `source` in core.json. test/bench-guide.test.ts checks every reference.",
+  "about": "Teaching content for the Chemistry Bench free play page (bench-free.html): a first-visit walkthrough, lessons, hints and challenges for each age band, and an everyday line per reaction. Data only; the page renders it. Every reaction id is a content/chem/core.json id. A step's `do` is the action the page waits for. A lesson's `try.reactants` lists one entry per bottle tap, so a formula written twice means tap it twice (the counts are the equation's own coefficients, because the engine matches reactants by ratio). `try.conditions` are condition ids from names.json. `ngss` is a Next Generation Science Standards performance expectation. Hints are [nudge, idea, answer-pointer], keyed by every family visible at that band. Sources: `references` defines each source; `core` means the cited reaction's own `source` in core.json. test/bench-guide.test.ts checks every reference. A lesson's optional `world` points at the chemistry quest (content/chem/quests.json) that uses it in the block world: `quest` is its id and `say` the line the page shows (I-057).",
   "references": {
     "core": "The `source` field of each core.json reaction the text names (reviewed 2026-11-04).",
     "R1": "OpenStax, Chemistry 2e (Flowers, Theopold, Langley, Robinson, 2019), https://openstax.org/details/books/chemistry-2e",
@@ -29,7 +29,8 @@
           "try": { "reactants": ["C", "O2"], "conditions": ["heat"], "expect": "carbon_burns" },
           "ngss": "2-PS1-4",
           "reactions": ["carbon_burns", "magnesium_burns", "sulfur_burns", "candle_burns"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "melt_with_reaction", "say": "Try it in the world: a hot reaction can melt the ice gate in the Frozen Fields." }
         },
         {
           "id": "sp_spark",
@@ -56,7 +57,8 @@
           "try": { "reactants": ["NaHCO3", "CH3COOH"], "conditions": [], "expect": "baking_soda_vinegar" },
           "ngss": "2-PS1-1",
           "reactions": ["baking_soda_vinegar", "chalk_acid"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "cool_the_vent", "say": "Try it in the world: this fizz gets cold. It can cool the hot vent on the charcoal mound." }
         },
         {
           "id": "sp_rust",
@@ -74,7 +76,8 @@
           "try": { "reactants": ["AgNO3", "NaCl"], "conditions": [], "expect": "silver_chloride" },
           "ngss": "2-PS1-1",
           "reactions": ["silver_chloride"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: the cloudy bits are a solid. They can build a wall in the river." }
         },
         {
           "id": "sp_copper",
@@ -83,7 +86,8 @@
           "try": { "reactants": ["Fe", "CuSO4"], "conditions": [], "expect": "iron_copper_sulfate" },
           "ngss": "2-PS1-3",
           "reactions": ["iron_copper_sulfate"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: a colour change can show the hidden mark near the village." }
         },
         {
           "id": "sp_hot_rock",
@@ -92,7 +96,8 @@
           "try": { "reactants": ["CaCO3"], "conditions": ["heat"], "expect": "limestone_roast" },
           "ngss": "2-PS1-4",
           "reactions": ["limestone_roast", "slaking_lime"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "smother_with_co2", "say": "Try it in the world: cooking a rock makes a gas that stops fires, like the marsh gas fire." }
         },
         {
           "id": "sp_body",
@@ -142,7 +147,8 @@
           "try": { "reactants": ["Na2CO3", "HCl", "HCl"], "conditions": [], "expect": "washing_soda_acid" },
           "ngss": "5-PS1-1",
           "reactions": ["washing_soda_acid", "chalk_acid", "baking_soda_vinegar"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "cool_the_vent", "say": "Try it in the world: baking soda and vinegar take in heat as they fizz. That can cool the hot vent on the charcoal mound in the Frozen Fields." }
         },
         {
           "id": "se_mass",
@@ -151,7 +157,8 @@
           "try": { "reactants": ["Mg", "Mg", "O2"], "conditions": ["heat"], "expect": "magnesium_burns" },
           "ngss": "5-PS1-2",
           "reactions": ["magnesium_burns", "iron_sulfur", "copper_oxide"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "melt_with_reaction", "say": "Try it in the world: a reaction that gives off heat can melt the ice gate in the Frozen Fields." }
         },
         {
           "id": "se_new",
@@ -169,7 +176,8 @@
           "try": { "reactants": ["Ca(OH)2", "CO2"], "conditions": [], "expect": "limewater_test" },
           "ngss": "5-PS1-3",
           "reactions": ["limewater_test"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: the milky solid that forms can build a wall in the river at the ford." }
         },
         {
           "id": "se_acid_base",
@@ -196,7 +204,8 @@
           "try": { "reactants": ["Cu", "AgNO3", "AgNO3"], "conditions": [], "expect": "copper_silver_nitrate" },
           "ngss": "5-PS1-4",
           "reactions": ["copper_silver_nitrate", "zinc_copper_sulfate", "iron_copper_sulfate"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: the colour change of a metal swap can show the hidden mark near the village." }
         },
         {
           "id": "se_mixture",
@@ -277,7 +286,8 @@
           "try": { "reactants": ["Pb(NO3)2", "KI", "KI"], "conditions": [], "expect": "golden_rain" },
           "ngss": "MS-PS1-2",
           "reactions": ["golden_rain", "copper_hydroxide", "barium_sulfate", "chalk_acid"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: a precipitate builds a short-lived wall. Build one in the river at the ford." }
         },
         {
           "id": "ap_balance",
@@ -286,7 +296,8 @@
           "try": { "reactants": ["CH4", "O2", "O2"], "conditions": ["spark"], "expect": "methane_burns" },
           "ngss": "MS-PS1-5",
           "reactions": ["methane_burns", "propane_burns", "ethane_burns"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "melt_with_reaction", "say": "Try it in the world: any of these burnings gives off enough heat to melt the ice gate in the Frozen Fields." }
         },
         {
           "id": "ap_energy",
@@ -295,7 +306,8 @@
           "try": { "reactants": ["NaHCO3", "HCl"], "conditions": [], "expect": "baking_soda_hcl" },
           "ngss": "MS-PS1-6",
           "reactions": ["baking_soda_hcl", "iron_rusts", "slaking_lime"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "cool_the_vent", "say": "Try it in the world: the vent on the charcoal mound in the Frozen Fields needs a reaction that takes in heat by itself." }
         },
         {
           "id": "ap_resources",
@@ -322,7 +334,8 @@
           "try": { "reactants": ["Mg", "CuSO4"], "conditions": [], "expect": "magnesium_copper_sulfate" },
           "ngss": "MS-PS1-2",
           "reactions": ["magnesium_copper_sulfate", "magnesium_zinc_sulfate", "zinc_silver_nitrate", "iron_copper_sulfate"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: a displacement that coats a metal and changes colour can reveal the hidden mark near the village." }
         },
         {
           "id": "ap_halogens",
@@ -349,7 +362,8 @@
           "try": { "reactants": ["CuCO3"], "conditions": ["heat"], "expect": "copper_carbonate_heat" },
           "ngss": "MS-PS1-2",
           "reactions": ["copper_carbonate_heat", "magnesium_carbonate_heat", "limestone_roast"],
-          "sources": ["core", "R3", "R7"]
+          "sources": ["core", "R3", "R7"],
+          "world": { "quest": "smother_with_co2", "say": "Try it in the world: breaking down a carbonate gives carbon dioxide, which can smother the gas fire in the marsh hollow." }
         }
       ],
       "hints": {
@@ -409,7 +423,8 @@
           "try": { "reactants": ["Br2", "KI", "KI"], "conditions": [], "expect": "bromine_iodide" },
           "ngss": "HS-PS1-2",
           "reactions": ["chlorine_bromide", "chlorine_iodide", "bromine_iodide"],
-          "sources": ["core", "R1", "R3", "R4"]
+          "sources": ["core", "R1", "R3", "R4"],
+          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: the colour change of a halogen displacement can reveal the hidden mark near the village." }
         },
         {
           "id": "ad_bonds",
@@ -445,7 +460,8 @@
           "try": { "reactants": ["Fe2O3", "Al", "Al"], "conditions": ["heat"], "expect": "thermite" },
           "ngss": "HS-PS1-7",
           "reactions": ["thermite", "blast_furnace"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "melt_with_reaction", "say": "Try it in the world: a strongly exothermic reaction melts the ice gate in the Frozen Fields." }
         },
         {
           "id": "ad_redox",
@@ -454,7 +470,8 @@
           "try": { "reactants": ["CuO", "H2"], "conditions": ["heat"], "expect": "copper_oxide_hydrogen" },
           "ngss": "HS-PS1-2",
           "reactions": ["copper_oxide_hydrogen", "copper_oxide_carbon", "magnesium_co2", "blast_furnace"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "smother_with_co2", "say": "Try it in the world: a reduction whose only gas is CO2 can smother the gas fire in the marsh hollow." }
         },
         {
           "id": "ad_alkenes",
@@ -472,7 +489,8 @@
           "try": { "reactants": ["FeCl3", "NaOH", "NaOH", "NaOH"], "conditions": [], "expect": "iron3_hydroxide" },
           "ngss": "HS-PS1-2",
           "reactions": ["iron3_hydroxide", "iron2_hydroxide", "copper_hydroxide", "zinc_hydroxide"],
-          "sources": ["core", "R1", "R3", "R4"]
+          "sources": ["core", "R1", "R3", "R4"],
+          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: a hydroxide precipitate builds a wall. Dam the river at the ford with one." }
         }
       ],
       "hints": {

@@ -22,7 +22,22 @@ pub enum Item {
     KilnSpark,
     /// Made at the charcoal clamp (step 4): wood charred with little air.
     Charcoal,
+    /// A bottle of something a discovered spell uses up (I-057): an index
+    /// into [`BOTTLE_ITEMS`]. Found at the bottle stashes
+    /// (`content/chem/bottles.json` `stashes`).
+    Bottle(u8),
 }
+
+/// The bottle items (I-057): pack key and label. Each one's codex species,
+/// and where it is found, are in `content/chem/bottles.json`.
+pub const BOTTLE_ITEMS: [(&str, &str); 6] = [
+    ("chalk", "Chalk"),
+    ("vinegar", "Vinegar"),
+    ("baking_soda", "Baking soda"),
+    ("salt", "Salt"),
+    ("copper_sulfate", "Copper sulfate"),
+    ("silver_nitrate", "Silver nitrate"),
+];
 
 /// Up to 64 of a block, 1 of a tool or key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -48,7 +63,7 @@ impl Item {
     /// How many fit in one slot: 64 of a block, 1 of a tool or key.
     pub fn stack_max(self) -> u16 {
         match self {
-            Item::Block(_) | Item::Charcoal => STACK_MAX,
+            Item::Block(_) | Item::Charcoal | Item::Bottle(_) => STACK_MAX,
             _ => 1,
         }
     }
@@ -63,6 +78,7 @@ impl Item {
             Item::H2Balloon => "h2_balloon",
             Item::KilnSpark => "kiln_spark",
             Item::Charcoal => "charcoal",
+            Item::Bottle(i) => BOTTLE_ITEMS.get(usize::from(i)).map_or("bottle", |b| b.0),
         }
     }
 
@@ -75,6 +91,10 @@ impl Item {
             Item::H2Balloon => "H₂ balloon".into(),
             Item::KilnSpark => "Kiln Spark".into(),
             Item::Charcoal => "Charcoal".into(),
+            Item::Bottle(i) => BOTTLE_ITEMS
+                .get(usize::from(i))
+                .map_or("Bottle", |b| b.1)
+                .into(),
             Item::Block(id) if id == mat::COAL_ORE => "Coal".into(),
             Item::Block(_) => {
                 let k = self.key().replace('_', " ");
@@ -96,6 +116,10 @@ impl Item {
             "kiln_spark" => Some(Item::KilnSpark),
             "charcoal" => Some(Item::Charcoal),
             "coal" => Some(Item::Block(mat::COAL_ORE)),
+            _ if BOTTLE_ITEMS.iter().any(|b| b.0 == key) => BOTTLE_ITEMS
+                .iter()
+                .position(|b| b.0 == key)
+                .map(|i| Item::Bottle(i as u8)),
             _ => mat::NAMES
                 .iter()
                 .position(|n| *n == key)
@@ -821,6 +845,25 @@ mod tests {
     // -----------------------------------------------------------------------
     // Contract step (section 10, item 5): green from the first merge.
     // -----------------------------------------------------------------------
+
+    #[test]
+    fn bottle_items_round_trip_their_keys_and_stack() {
+        for (i, (key, label)) in BOTTLE_ITEMS.iter().enumerate() {
+            let it = Item::Bottle(i as u8);
+            assert_eq!(it.key(), *key);
+            assert_eq!(it.label(), *label);
+            assert_eq!(Item::from_key(key), Some(it));
+            assert!(
+                !mat::NAMES.contains(key),
+                "{key} would shadow a block's key"
+            );
+            assert_eq!(it.stack_max(), STACK_MAX);
+        }
+        let mut p = Pack::default();
+        p.add(Item::Bottle(1), 3);
+        assert_eq!(p.count(Item::Bottle(1)), 3);
+        assert_eq!(Item::from_key("vinegar"), Some(Item::Bottle(1)));
+    }
 
     #[test]
     fn valley_contract_types_exist() {

@@ -214,6 +214,13 @@ impl Late {
         )
     }
 
+    /// The clamp's vent is hot: the logs are charring, or have charred and
+    /// the charcoal is still inside (a clamp stays hot long after the smoke
+    /// clears). The vent-cooling quest needs it hot (I-057).
+    pub fn vent_hot(&self) -> bool {
+        matches!(self.clamp, Clamp::Charring(_) | Clamp::Ready)
+    }
+
     /// E pressed while `near` something.
     pub fn use_it(&mut self, pack: &mut Pack) -> Use {
         match self.near {
@@ -252,11 +259,7 @@ impl Late {
     /// A Fire cast landed at `pos`: if it is in the clamp's vent, the logs
     /// start to char. Returns true when it lit the clamp.
     pub fn fire_at(&mut self, pos: Vec3) -> bool {
-        let d = Vec2::new(pos.x - CLAMP[0], pos.z - CLAMP[2]).length();
-        let lit = self.clamp == Clamp::Cold
-            && d <= CLAMP_HIT
-            && pos.y >= CLAMP[1] - 1.0
-            && pos.y <= CLAMP[1] + 4.0;
+        let lit = self.clamp == Clamp::Cold && in_vent(pos);
         if lit {
             self.clamp = Clamp::Charring(0.0);
             self.say(CLAMP_LIT_LINE);
@@ -585,6 +588,12 @@ fn esc(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
+}
+
+/// Whether a cast landing at `pos` is in the charcoal clamp's vent.
+pub fn in_vent(pos: Vec3) -> bool {
+    let d = Vec2::new(pos.x - CLAMP[0], pos.z - CLAMP[2]).length();
+    d <= CLAMP_HIT && pos.y >= CLAMP[1] - 1.0 && pos.y <= CLAMP[1] + 4.0
 }
 
 /// What the player is close enough to use (feet at `feet`).
@@ -1875,6 +1884,25 @@ mod tests {
         assert_eq!(pack.count(Item::Charcoal), u32::from(CLAMP_GIVES));
         assert_eq!(late.clamp, Clamp::Cold, "fresh logs: fire it again");
         assert!(late.json(&pack).contains("\"clamp\":{\"state\":\"cold\""));
+    }
+
+    /// I-057: the vent is hot from the moment Fire lights the clamp until
+    /// the charcoal is taken, and only a landing in the vent cools it.
+    #[test]
+    fn the_clamp_vent_is_hot_while_it_chars_and_until_emptied() {
+        let mut late = Late::default();
+        let mut pack = Pack::default();
+        at(&mut late, "clamp");
+        let vent = Vec3::new(CLAMP[0] + 0.3, CLAMP[1] + 2.2, CLAMP[2]);
+        assert!(in_vent(vent) && !in_vent(vent + Vec3::new(8.0, 0.0, 0.0)));
+        assert!(!in_vent(vent + Vec3::new(0.0, 9.0, 0.0)), "high above it");
+        assert!(!late.vent_hot(), "cold logs");
+        assert!(late.fire_at(vent));
+        assert!(late.vent_hot(), "charring");
+        run(&mut late, &mut pack, CHAR_S + 0.2);
+        assert!(late.vent_hot(), "charred, the charcoal still inside");
+        assert_eq!(late.use_it(&mut pack), Use::TookCharcoal);
+        assert!(!late.vent_hot(), "fresh logs");
     }
 
     /// The clamp is in reach from its edge, not from across the seam.

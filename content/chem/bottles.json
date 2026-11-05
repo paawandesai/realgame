@@ -1,15 +1,29 @@
 {
   "version": 1,
-  "about": "Story mode's bottles (docs/loop/items/I-053/spec.md section 5): the codex substance each pack item supplies to a discovered spell. Air supplies its gases free. In the block world a cast of a discovered spell needs a bottle of every reactant and uses up one of each item marked consumed; free play (the Chemistry Bench page) has unlimited bottles. `find` says in plain words where the player gets the item: the missing-bottle caption and the pack show it. Charcoal comes before coal: it is the carbon the story gives (the charcoal clamp), and coal is the alternative.",
+  "about": "Story mode's bottles (docs/loop/items/I-053/spec.md section 5): the codex substance each pack item supplies to a discovered spell. Air supplies its gases free. In the block world a cast of a discovered spell needs a bottle of every reactant and uses up one of each item marked consumed; free play (the Chemistry Bench page) has unlimited bottles. `find` says in plain words where the player gets the item: the missing-bottle caption and the pack show it. Charcoal comes before coal: it is the carbon the story gives (the charcoal clamp), and coal is the alternative. I-057: `from` says how the world gives each item (a stash, the clamp, the rig or the Pick; never by digging), `stashes` are the places bottle items are picked up (walk up to one; it fills again after `refill_s` seconds; a hidden one shows only after a Reveal spell lands near it), and every chemistry quest has a solving reaction whose bottles are all findable (docs/loop/items/I-057/spec.md).",
   "air": ["O2", "N2"],
   "items": [
-    { "item": "charcoal", "species": "C", "consumed": true, "why": "charcoal is mostly carbon", "find": "Heat wood with very little air: cast Fire into the vent on the charcoal mound (Frozen Fields). When the smoke clears, press E there." },
-    { "item": "coal_ore", "species": "C", "consumed": true, "why": "coal is mostly carbon", "find": "Coal works just like charcoal, if you already have some." },
-    { "item": "snow", "species": "H2O", "consumed": true, "why": "snow is frozen water", "find": "Snow covers the Frozen Fields. Point the Pick (key 5) at snowy ground and hold the mouse to scoop some up." },
-    { "item": "iron", "species": "Fe", "consumed": true, "why": "an iron block", "find": "Iron is hard to find in this valley. Try a spell that uses charcoal instead." },
-    { "item": "iron_ore", "species": "Fe2O3", "consumed": true, "why": "the valley's iron ore is haematite, Fe2O3", "find": "A few rusty brown blocks hide in the rock under the charcoal mound. The Pick (key 5) can pick one up." },
-    { "item": "sand", "species": "SiO2", "consumed": true, "why": "sand is mostly silica, SiO2", "find": "Sand lines the river bed at the ford. Point the Pick (key 5) at it and hold the mouse to scoop some up." },
-    { "item": "o2_flask", "species": "O2", "consumed": false, "why": "a flask of oxygen; a cast takes a little", "find": "Run the water-splitting rig in the cave (press E there). Each run fills an O2 flask and an H2 balloon." },
-    { "item": "h2_balloon", "species": "H2", "consumed": false, "why": "a balloon of hydrogen; a cast takes a little", "find": "Run the water-splitting rig in the cave (press E there). Each run fills an H2 balloon and an O2 flask." }
+    { "item": "charcoal", "species": "C", "consumed": true, "why": "charcoal is mostly carbon", "find": "Heat wood with very little air: cast Fire into the vent on the charcoal mound (Frozen Fields). When the smoke clears, press E there.", "from": "clamp" },
+    { "item": "coal_ore", "species": "C", "consumed": true, "why": "coal is mostly carbon", "find": "Coal works just like charcoal, if you already have some.", "from": "nowhere" },
+    { "item": "snow", "species": "H2O", "consumed": true, "why": "snow is frozen water", "find": "Snow covers the Frozen Fields. Point the Pick (key 5) at snowy ground and hold the mouse to scoop some up.", "from": "pick" },
+    { "item": "iron", "species": "Fe", "consumed": true, "why": "iron nails are mostly iron", "find": "A box of iron nails sits by the workshop in the village. Walk up to it to take some.", "from": "stash" },
+    { "item": "iron_ore", "species": "Fe2O3", "consumed": true, "why": "the valley's iron ore is haematite, Fe2O3", "find": "A few rusty brown blocks hide in the rock under the charcoal mound. The Pick (key 5) can pick one up.", "from": "pick" },
+    { "item": "sand", "species": "SiO2", "consumed": true, "why": "sand is mostly silica, SiO2", "find": "Sand lines the river bed at the ford. Point the Pick (key 5) at it and hold the mouse to scoop some up.", "from": "pick" },
+    { "item": "o2_flask", "species": "O2", "consumed": false, "why": "a flask of oxygen; a cast takes a little", "find": "Run the water-splitting rig in the cave (press E there). Each run fills an O2 flask and an H2 balloon.", "from": "rig" },
+    { "item": "h2_balloon", "species": "H2", "consumed": false, "why": "a balloon of hydrogen; a cast takes a little", "find": "Run the water-splitting rig in the cave (press E there). Each run fills an H2 balloon and an O2 flask.", "from": "rig" },
+    { "item": "chalk", "species": "CaCO3", "consumed": true, "why": "chalk is calcium carbonate, CaCO3", "find": "White chalk lumps lie at the edge of the marsh hollow, near the gas fire. Walk up to them to take some.", "from": "stash" },
+    { "item": "vinegar", "species": "CH3COOH", "consumed": true, "why": "vinegar is ethanoic (acetic) acid in water", "find": "Vinegar, baking soda and salt sit on a shelf by the house next to the well. Walk up to it to take some.", "from": "stash" },
+    { "item": "baking_soda", "species": "NaHCO3", "consumed": true, "why": "baking soda is sodium hydrogencarbonate, NaHCO3", "find": "Baking soda sits on the shelf by the house next to the well, with the vinegar. Walk up to it to take some.", "from": "stash" },
+    { "item": "salt", "species": "NaCl", "consumed": true, "why": "table salt is sodium chloride, NaCl", "find": "Salt sits on the shelf by the house next to the well, with the vinegar. Walk up to it to take some.", "from": "stash" },
+    { "item": "copper_sulfate", "species": "CuSO4", "consumed": true, "why": "the blue crystals are copper sulfate (with water locked in them)", "find": "A jar of blue copper sulfate sits by the workshop in the village, next to the iron nails.", "from": "stash" },
+    { "item": "silver_nitrate", "species": "AgNO3", "consumed": true, "why": "a weak solution of silver nitrate, as in a school lab", "find": "A small dark bottle of silver nitrate stands beside the Formula Bench. It stains skin: only grown-ups use the real one.", "from": "stash" }
+  ],
+  "refill_s": 60.0,
+  "stashes": [
+    {"id": "kitchen", "place": "the shelf by the house next to the well", "at": [108, 35, 209], "block": "glass", "items": [["vinegar", 4], ["baking_soda", 4], ["salt", 4]]},
+    {"id": "workshop", "place": "by the workshop in the village", "at": [136, 35, 190], "block": "glass", "items": [["copper_sulfate", 4], ["iron", 4]]},
+    {"id": "bench_shelf", "place": "beside the Formula Bench", "at": [122, 35, 203], "block": "glass", "items": [["silver_nitrate", 4]]},
+    {"id": "marsh_chalk", "place": "the edge of the marsh hollow", "at": [186, 33, 109], "block": "glass", "items": [["chalk", 6]]},
+    {"id": "hidden_mark", "place": "the hidden mark west of the village", "at": [100, 35, 200], "block": "runestone", "hidden": true, "items": [["copper_sulfate", 3], ["iron", 3], ["silver_nitrate", 3], ["chalk", 3]]}
   ]
 }

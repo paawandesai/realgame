@@ -44,6 +44,7 @@ mod progress;
 mod sky;
 mod spell_fx;
 mod spells;
+mod stash;
 mod steps;
 mod story;
 mod tuning;
@@ -910,6 +911,7 @@ fn main() {
             firebreak::plugin,
             discover::plugin,
             world_use::plugin,
+            stash::plugin,
         ));
     }
     app.run();

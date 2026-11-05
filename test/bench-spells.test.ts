@@ -138,9 +138,21 @@ test("content: bottles, effects and quests are well formed", () => {
   const fx = JSON.parse(readFileSync("content/chem/effects.json", "utf8")) as { kinds: string[]; overrides: Record<string, unknown> };
   assert.deepEqual(fx.kinds, ["fire", "water", "frost", "foam", "cloud", "glow", "wall", "reveal"]);
   for (const id of Object.keys(fx.overrides)) assert.ok(ids.has(id), id);
-  const q = JSON.parse(readFileSync("content/chem/quests.json", "utf8")) as { quests: { id: string; live: boolean }[] };
-  assert.ok(q.quests.filter((x) => x.live).length >= 1);
-  assert.ok(q.quests.filter((x) => !x.live).length >= 3);
+  const q = JSON.parse(readFileSync("content/chem/quests.json", "utf8")) as {
+    quests: { id: string; live: boolean; needs: { runs?: string }; line?: string; line_sprout?: string; hint?: string; hint_sprout?: string; done?: string }[];
+  };
+  // I-057: five live quests, one per world use, each with its lines; one still specified only.
+  const live = q.quests.filter((x) => x.live);
+  assert.deepEqual(live.map((x) => x.needs.runs).sort(), ["fire", "foam", "frost", "reveal", "wall"]);
+  for (const x of live) for (const k of ["line", "line_sprout", "hint", "hint_sprout", "done"] as const) assert.ok(x[k]?.trim(), `${x.id}: ${k}`);
+  assert.ok(q.quests.filter((x) => !x.live).length >= 1);
+  // Every bottle says where to find it and how the world gives it (never by digging).
+  const b = JSON.parse(readFileSync("content/chem/bottles.json", "utf8")) as { items: { item: string; find: string; from: string }[]; stashes: { items: [string, number][] }[] };
+  for (const i of b.items) {
+    assert.ok(["stash", "clamp", "rig", "pick", "nowhere"].includes(i.from), i.item);
+    assert.ok(i.find.trim() && !/\bdig/i.test(i.find), i.item);
+  }
+  for (const s of b.stashes) for (const [k] of s.items) assert.ok(b.items.some((i) => i.item === k), k);
   const build = readFileSync("crates/bevy-client/build-web.sh", "utf8");
   assert.match(build, /web\/formula-save\.js/);
   assert.match(build, /web\/discover\.js/);
