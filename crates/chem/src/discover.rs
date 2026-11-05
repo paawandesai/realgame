@@ -264,6 +264,21 @@ struct Override {
 
 /// A fizz whose gas does not smother a fire: what it does instead, by the
 /// first rule that matches (I-056).
+/// Products that keep a reaction on the Bench whatever its kind (I-056
+/// review M1): poisonous gases and vapours.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Poisons {
+    species: Vec<String>,
+    /// The name of each as a gas or vapour (HCl is hydrogen chloride, not
+    /// the acid a bottle holds); others use names.json.
+    names: BTreeMap<String, String>,
+    /// The reason; `{gas}` is the product's name.
+    bench_only: String,
+    #[allow(dead_code)]
+    why: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GasUse {
@@ -338,6 +353,7 @@ struct EffectsFile {
     kinds: Vec<EffectKind>,
     runs: BTreeMap<EffectKind, Runs>,
     smothers: Vec<String>,
+    poisons: Poisons,
     gas_uses: Vec<GasUse>,
     world: WorldSpec,
     aqueous_families: Vec<String>,
@@ -466,7 +482,7 @@ impl Effects {
         // heat-class rules.
         let strength =
             over.and_then(|o| o.strength)
-                .unwrap_or_else(|| match show.and_then(|r| r.dh.kj) {
+                .unwrap_or_else(|| match show.and_then(|r| r.dh.kj_per) {
                     Some(kj) => {
                         let driven_cold = e.heat == Some(Heat::Absorbs) && !e.needs.is_empty();
                         crate::show::strength_of(kj, driven_cold)
@@ -511,6 +527,25 @@ impl Effects {
         // water rather than burning.
         if kind == EffectKind::Glow && self.file.aqueous_families.contains(&e.family) {
             runs = Runs::Water;
+        }
+        // A reaction that makes a poisonous gas or vapour stays on the Bench,
+        // whatever it looks like (I-056 review M1).
+        if let Some(f) = eq
+            .products
+            .iter()
+            .map(|t| t.formula.as_str())
+            .find(|f| self.file.poisons.species.iter().any(|x| x == f))
+        {
+            let name = self
+                .file
+                .poisons
+                .names
+                .get(f)
+                .or_else(|| self.names.get(f))
+                .cloned()
+                .unwrap_or_else(|| f.to_string());
+            runs = Runs::None;
+            bench_only = Some(self.file.poisons.bench_only.replace("{gas}", &name));
         }
         let heat = match e.heat {
             Some(Heat::Releases) => 1,
@@ -866,7 +901,7 @@ mod tests {
         assert_eq!(no2.runs, Runs::None);
         assert_eq!(
             no2.bench_only.as_deref(),
-            Some("It makes nitrogen dioxide, a poisonous gas, so it stays on the Bench.")
+            Some("It makes nitrogen dioxide, which is poisonous to breathe, so it stays on the Bench.")
         );
         // Potassium on water lights its hydrogen: it burns.
         assert_eq!(fx("potassium_water").runs, Runs::Fire);
@@ -876,6 +911,79 @@ mod tests {
 
     /// I-056: every reaction either has a world use (and can be saved as a
     /// spell) or is Bench only with a reason; no spell is a dud puff.
+    /// M1: a reaction that makes a poisonous gas or vapour stays on the
+    /// Bench whatever its kind (ice, fire or reveal), mercury and ozone too.
+    #[test]
+    fn every_poisonous_product_keeps_a_reaction_on_the_bench() {
+        let c = Codex::load();
+        let f = Effects::load();
+        for e in &c.entries {
+            let eq = eq_of(e);
+            let x = f.of(e);
+            let poison = eq
+                .products
+                .iter()
+                .any(|t| f.file.poisons.species.contains(&t.formula));
+            assert_eq!(!x.saveable(), poison, "{}: {:?}", e.id, x.runs);
+        }
+        for id in [
+            "ammonium_chloride_heat",
+            "salt_electrolysis",
+            "water_gas",
+            "sulfur_burns",
+            "carbon_little_air",
+            "chlorine_bromide",
+            "mercury_oxide_heat",
+            "ozone_forms",
+            "copper_nitrate_heat",
+        ] {
+            let x = f.of(c.get(id).unwrap());
+            assert_eq!(x.runs, Runs::None, "{id}");
+            assert!(x.bench_only.is_some(), "{id}");
+        }
+        assert!(f
+            .of(c.get("mercury_oxide_heat").unwrap())
+            .bench_only
+            .unwrap()
+            .contains("mercury vapour"));
+    }
+
+    /// M2: a Bench-only reason names the gas, not the acid a bottle holds.
+    #[test]
+    fn bench_only_reasons_name_the_gas_not_the_acid() {
+        let c = Codex::load();
+        let f = Effects::load();
+        for e in &c.entries {
+            if let Some(why) = f.of(e).bench_only {
+                assert!(!why.contains("acid"), "{}: {why}", e.id);
+            }
+        }
+        let hcl = f.of(c.get("hcl_synthesis").unwrap()).bench_only.unwrap();
+        assert!(hcl.contains("hydrogen chloride"), "{hcl}");
+        let hbr = f.of(c.get("hbr_synthesis").unwrap()).bench_only.unwrap();
+        assert!(hbr.contains("hydrogen bromide"), "{hbr}");
+    }
+
+    /// M5: an ice spell only from a reaction that takes in heat by itself;
+    /// one driven by heat, light or electricity never chills.
+    #[test]
+    fn frost_only_from_reactions_that_feel_cold_by_themselves() {
+        let c = Codex::load();
+        let f = Effects::load();
+        for e in &c.entries {
+            if f.of(e).kind == EffectKind::Frost {
+                assert!(e.needs.is_empty(), "{}: driven by {:?}", e.id, e.needs);
+            }
+        }
+        for id in ["limestone_roast", "glass_making", "cement_clinker"] {
+            assert_ne!(f.of(c.get(id).unwrap()).kind, EffectKind::Frost, "{id}");
+        }
+        assert_eq!(
+            f.of(c.get("baking_soda_vinegar").unwrap()).kind,
+            EffectKind::Frost
+        );
+    }
+
     #[test]
     fn every_saveable_spell_has_a_world_use_and_bench_only_ones_say_why() {
         let c = Codex::load();

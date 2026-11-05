@@ -46,6 +46,42 @@ pub struct Acid {
     pub protons: u32,
     pub oxidising: bool,
     pub strong: bool,
+    /// The pKa of the last proton taken to reach the anion.
+    pub anion_pka: f64,
+}
+
+/// The lab-badge policy, shared by core and the rule tier (I-056 review
+/// S8): judged at the concentration a Bench bottle holds.
+#[derive(Clone, Debug, Deserialize)]
+pub struct LabPolicy {
+    /// Element symbol -> why any compound of it gets the badge.
+    pub elements: BTreeMap<String, String>,
+    /// Compounds of those elements that do not (insoluble barium sulfate).
+    pub except: Vec<String>,
+    pub species: BTreeMap<String, String>,
+}
+
+impl LabPolicy {
+    /// Why `formula` gets the lab badge, if it does.
+    pub fn reason(&self, formula: &str) -> Option<&str> {
+        if let Some(w) = self.species.get(formula) {
+            return Some(w);
+        }
+        if self.except.iter().any(|x| x == formula) {
+            return None;
+        }
+        let atoms = parse_formula(formula).ok()?;
+        self.elements
+            .iter()
+            .find(|(el, _)| atoms.contains_key(el.as_str()))
+            .map(|(_, w)| w.as_str())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Fuel {
+    pub flash_c: Option<f64>,
+    pub needs: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -58,7 +94,17 @@ pub struct Tables {
     pub margin_v: f64,
     pub water_first: Vec<String>,
     pub acids: BTreeMap<String, Acid>,
-    pub hazards: BTreeMap<String, String>,
+    pub lab_policy: LabPolicy,
+    /// The pKa of each weak base's conjugate acid (CO3-2, HCO3-, NH3).
+    pub base_pka: BTreeMap<String, f64>,
+    /// Metal -> the anions whose solutions break its oxide film.
+    pub passivated: BTreeMap<String, Vec<String>>,
+    /// Cations that give a basic carbonate and CO2 with carbonate.
+    pub basic_carbonate: Vec<String>,
+    /// Cations that ammonium carbonate's free ammonia dissolves.
+    pub ammine: Vec<String>,
+    pub spark_max_flash_c: f64,
+    pub fuels: BTreeMap<String, Fuel>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -137,6 +183,15 @@ impl RuleData {
     fn e0(&self, metal: &str) -> Option<f64> {
         self.tables.reduction_potentials_v.get(metal).copied()
     }
+
+    /// Whether `metal`'s oxide film lets it react with a solution of
+    /// `anion` (aluminium only with chloride or bromide).
+    fn film_breaks(&self, metal: &str, anion: &str) -> bool {
+        self.tables
+            .passivated
+            .get(metal)
+            .is_none_or(|ok| ok.iter().any(|a| a == anion))
+    }
 }
 
 fn set(terms: &[realgame_sim::formula::Term]) -> BTreeSet<String> {
@@ -190,6 +245,10 @@ pub fn check(d: &RuleData, e: &Entry) -> Result<(), String> {
             let base = l.iter().find(|f| f.as_str() != a).unwrap();
             let anion = &d.tables.acids[a].anion;
             let (cation, water) = if base == "NH3" {
+                need(
+                    d.tables.acids[a].anion_pka < d.tables.base_pka["NH3"],
+                    "ammonia is too weak a base to take the acid's last proton",
+                )?;
                 ("NH4+", false)
             } else {
                 let s = d.salt(base).ok_or("the base is not a salt")?;
@@ -227,6 +286,10 @@ pub fn check(d: &RuleData, e: &Entry) -> Result<(), String> {
                 !d.tables.water_first.contains(metal),
                 "the metal reacts with the water first",
             )?;
+            need(
+                d.film_breaks(metal, &d.tables.acids[a].anion),
+                "the metal's oxide skin stops it in this acid",
+            )?;
             let ion = &d.tables.metal_ions[metal];
             let salt = d.salt_of(ion, &d.tables.acids[a].anion).ok_or("no salt")?;
             need(soluble(salt), "the salt must dissolve")?;
@@ -243,6 +306,10 @@ pub fn check(d: &RuleData, e: &Entry) -> Result<(), String> {
             need(
                 s.anion == "CO3-2" || s.anion == "HCO3-",
                 "not a carbonate or hydrogencarbonate",
+            )?;
+            need(
+                d.tables.acids[a].anion_pka < d.tables.base_pka[&s.anion],
+                "carbonate cannot take the acid's last proton (H3PO4 stops at HPO4)",
             )?;
             let salt = d
                 .salt_of(&s.cation, &d.tables.acids[a].anion)
@@ -269,6 +336,16 @@ pub fn check(d: &RuleData, e: &Entry) -> Result<(), String> {
             need(
                 r == BTreeSet::from(["CO2".to_string(), "H2O".to_string()]),
                 "complete burning gives carbon dioxide and water",
+            )?;
+            let f = d.tables.fuels.get(fuel).ok_or("not a fuel of the table")?;
+            let spark = f.flash_c.is_none_or(|c| c <= d.tables.spark_max_flash_c);
+            need(
+                (f.needs == "spark") == spark,
+                "a spark lights it only at or below its flash point",
+            )?;
+            need(
+                e.needs.iter().map(|n| n.id()).eq([f.needs.as_str()]),
+                "its needs are not the fuel's",
             )
         }
         "precipitate" => {
@@ -297,7 +374,20 @@ pub fn check(d: &RuleData, e: &Entry) -> Result<(), String> {
             need(
                 insol == 1 && sol == 1,
                 "exactly one new pair must be insoluble by the table",
-            )
+            )?;
+            for (x, y) in [(a, b), (b, a)] {
+                need(
+                    !(x.anion == "CO3-2" && d.tables.basic_carbonate.contains(&y.cation)),
+                    "this cation gives a basic carbonate and CO2",
+                )?;
+                need(
+                    !(x.cation == "NH4+"
+                        && x.anion == "CO3-2"
+                        && d.tables.ammine.contains(&y.cation)),
+                    "ammonium carbonate's ammonia dissolves it as a complex",
+                )?;
+            }
+            Ok(())
         }
         "displacement" => {
             need(l.len() == 2 && r.len() == 2, "a metal and a salt each side")?;
@@ -321,6 +411,10 @@ pub fn check(d: &RuleData, e: &Entry) -> Result<(), String> {
             need(
                 !d.tables.water_first.iter().any(|w| w == m1),
                 "the metal reacts with the water first",
+            )?;
+            need(
+                d.film_breaks(m1, &s.anion),
+                "the metal's oxide skin stops it in this solution",
             )?;
             let salt = d
                 .salt_of(&d.tables.metal_ions[m1], &s.anion)
@@ -465,6 +559,47 @@ mod tests {
                 "carbonate_acid",
                 "CaCO3 + H2SO4 -> CaSO4 + H2O + CO2",
             ),
+            // M3: aluminium's oxide skin stops it in sulfate and nitrate
+            // solutions and in cold dilute sulfuric acid.
+            (
+                "displacement",
+                "displacement",
+                "2Al + 3CuSO4 -> Al2(SO4)3 + 3Cu",
+            ),
+            (
+                "displacement",
+                "displacement",
+                "2Al + 3Zn(NO3)2 -> 2Al(NO3)3 + 3Zn",
+            ),
+            (
+                "metal_acid",
+                "metal_acid",
+                "2Al + 3H2SO4 -> Al2(SO4)3 + 3H2",
+            ),
+            // M4: carbonate cannot take phosphoric acid's last proton, and
+            // ammonia stops at the hydrogenphosphate too.
+            (
+                "carbonate_acid",
+                "carbonate_acid",
+                "3Na2CO3 + 2H3PO4 -> 2Na3PO4 + 3H2O + 3CO2",
+            ),
+            (
+                "carbonate_acid",
+                "carbonate_acid",
+                "3NaHCO3 + H3PO4 -> Na3PO4 + 3H2O + 3CO2",
+            ),
+            ("acid_base", "neutralisation", "3NH3 + H3PO4 -> (NH4)3PO4"),
+            // S2 and S3: basic carbonates; ammine complexes.
+            (
+                "precipitate",
+                "precipitation",
+                "CuSO4 + Na2CO3 -> CuCO3 + Na2SO4",
+            ),
+            (
+                "precipitate",
+                "precipitation",
+                "2AgNO3 + (NH4)2CO3 -> Ag2CO3 + 2NH4NO3",
+            ),
         ];
         for (rule, fam, eq) in bad {
             assert!(
@@ -474,6 +609,23 @@ mod tests {
         }
         let good = entry("precipitate", "precipitation", "AgNO3 + KCl -> AgCl + KNO3");
         assert_eq!(check(&d, &good), Ok(()));
+        // Chloride breaks aluminium's skin.
+        let al = entry(
+            "displacement",
+            "displacement",
+            "2Al + 3CuCl2 -> 2AlCl3 + 3Cu",
+        );
+        assert_eq!(check(&d, &al), Ok(()));
+        // S6: a spark lights heptane (flash point -4 C) but not dodecane (71 C).
+        let mut fuel = entry(
+            "fuel_burns",
+            "combustion",
+            "2C12H26 + 37O2 -> 24CO2 + 26H2O",
+        );
+        fuel.needs = vec![crate::Need::Spark];
+        assert!(check(&d, &fuel).is_err());
+        fuel.needs = vec![crate::Need::Heat];
+        assert_eq!(check(&d, &fuel), Ok(()));
         assert!(d.e0("Mg").unwrap() < d.e0("Cu").unwrap());
         assert_eq!(d.sol("BaSO4"), Some(Solubility::Insoluble));
         assert_eq!(d.sol("NaNO3"), Some(Solubility::Soluble));
@@ -552,29 +704,40 @@ mod tests {
         }
     }
 
+    /// One lab-badge policy for both tiers (I-056 review S8): a reaction with
+    /// lead, soluble barium, mercury, silver nitrate or quicklime, or one
+    /// that makes a poisonous gas, carries the lab badge, in core and in the
+    /// rule tier; a rule reaction with none of them has no badge (dilute
+    /// acids and alkalis are low hazard), and a burning has the fire badge.
     #[test]
-    fn corrosive_and_toxic_rule_reactions_carry_the_lab_badge() {
+    fn the_lab_badge_follows_one_policy_in_both_tiers() {
         let c = Codex::load();
         let d = RuleData::load();
-        for (f, why) in &d.tables.hazards {
-            assert!(
-                why.contains("corrosive") || why.contains("toxic"),
-                "{f}: {why}"
-            );
-        }
-        for e in rule_entries(&c) {
+        let fx = crate::discover::Effects::load();
+        let mut bad = Vec::new();
+        for e in &c.entries {
             let eq = parse_equation(&e.equation).unwrap();
-            let risky = eq
+            let policy = eq
                 .reactants
                 .iter()
                 .chain(&eq.products)
-                .any(|t| d.tables.hazards.contains_key(&t.formula));
-            if e.family == "combustion" {
-                assert_eq!(e.hazard, Some(Hazard::Fire), "{}", e.id);
-            } else if risky {
-                assert_eq!(e.hazard, Some(Hazard::Lab), "{}", e.id);
+                .any(|t| d.tables.lab_policy.reason(&t.formula).is_some());
+            let poison = fx.of(e).bench_only.is_some() && !fx.of(e).saveable();
+            if (policy || poison) && e.hazard != Some(Hazard::Lab) {
+                bad.push(format!("{} ({:?}): should be lab", e.id, e.hazard));
+            }
+            if e.tier != CodexTier::Rule {
+                continue;
+            }
+            let want = if e.family == "combustion" {
+                Some(Hazard::Fire)
+            } else if policy {
+                Some(Hazard::Lab)
             } else {
-                assert_eq!(e.hazard, None, "{}", e.id);
+                None
+            };
+            if e.hazard != want {
+                bad.push(format!("{}: {:?}, policy says {want:?}", e.id, e.hazard));
             }
             // Nothing from the excluded list.
             for t in eq.reactants.iter().chain(&eq.products) {
@@ -588,10 +751,67 @@ mod tests {
                 assert!(!t.formula.contains("CN") && !t.formula.contains("ClO4"));
             }
         }
-        // Strong acids and alkalis are on the list.
-        for f in ["HCl", "HNO3", "H2SO4", "NaOH", "KOH"] {
-            assert!(d.tables.hazards.contains_key(f), "{f}");
+        assert!(bad.is_empty(), "{bad:#?}");
+        // Dilute acids and alkalis are not on it; lead, barium and silver
+        // nitrate are.
+        let p = &d.tables.lab_policy;
+        for f in ["HCl", "NaOH", "CuSO4", "ZnCl2", "BaSO4"] {
+            assert!(p.reason(f).is_none(), "{f}");
         }
+        for f in ["Pb(NO3)2", "BaCl2", "AgNO3", "CaO", "HgO"] {
+            assert!(p.reason(f).is_some(), "{f}");
+        }
+    }
+
+    /// M3: aluminium reacts by rule only where chloride or bromide breaks its
+    /// oxide skin, and the core sulfate reaction says the skin must break.
+    #[test]
+    fn aluminium_needs_its_oxide_skin_broken() {
+        use crate::show::{Shows, Speed};
+        let c = Codex::load();
+        let d = RuleData::load();
+        for e in rule_entries(&c) {
+            let eq = parse_equation(&e.equation).unwrap();
+            if eq.reactants.iter().any(|t| t.formula == "Al") {
+                let other = eq.reactants.iter().find(|t| t.formula != "Al").unwrap();
+                let anion = d
+                    .salt(&other.formula)
+                    .map(|s| s.anion.clone())
+                    .or_else(|| d.tables.acids.get(&other.formula).map(|a| a.anion.clone()))
+                    .unwrap();
+                assert!(["Cl-", "Br-"].contains(&anion.as_str()), "{}", e.id);
+            }
+        }
+        let core = c.get("aluminium_copper_sulfate").unwrap();
+        assert!(core.say.contains("oxide skin"), "{}", core.say);
+        let s = Shows::build(&c);
+        let r = s.get("aluminium_copper_sulfate").unwrap();
+        assert_eq!(r.speed, Speed::Slow);
+        assert!(r.note.as_deref().is_some_and(|n| n.contains("oxide skin")));
+    }
+
+    /// S1: the heat class is per mole of the rule's key event, with powder
+    /// bottles as solids, so every hydrogencarbonate in acid feels cold, as
+    /// core's baking soda does.
+    #[test]
+    fn the_heat_class_does_not_depend_on_how_the_equation_is_scaled() {
+        use crate::show::Shows;
+        let c = Codex::load();
+        let s = Shows::build(&c);
+        let mut n = 0;
+        for e in rule_entries(&c) {
+            let r = s.get(&e.id).unwrap();
+            assert!(r.dh.per.is_some(), "{}: no key species", e.id);
+            if e.rule.as_deref() == Some("carbonate_acid") && e.equation.contains("HCO3") {
+                assert_eq!(e.heat, Some(crate::Heat::Absorbs), "{}", e.id);
+                n += 1;
+            }
+        }
+        assert!(n >= 6, "{n}");
+        assert_eq!(
+            c.get("baking_soda_hcl").unwrap().heat,
+            Some(crate::Heat::Absorbs)
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Which spell effect each codex reaction (content/chem/core.json) casts as once a Bench discovery is saved as a spell (docs/loop/items/I-053/spec.md). The effect is derived from the reaction's own data by the ordered rules below (the first match wins), never written per reaction, except the listed overrides. kind is the look the renderer styles (fire, water, frost, foam, cloud, glow, wall, reveal); runs is the world use: a shipped spell's matter rule (fire, water, frost, foam) or a use I-056 adds (wall: a short-lived wall of blocks; reveal: hidden caches nearby show for a while; lift: hydrogen lifts a player near the landing; push: a burst of gas pushes a player near the landing), or none: Bench only, never saved as a spell, with bench_only saying why (docs/loop/items/I-056/spec.md). A fizz that does not smother takes the first gas_uses rule that matches. world holds the new uses' data values, each scaled by strength between its two numbers; strength (0 to 1) scales that rule's emit, 1 being the shipped spell; heat is -1 (absorbs), 0 or +1 (releases). tint is an optional sRGB colour of the visible change (flame colour, coloured gas or precipitate) from the reaction's show record (tint_rule); absent means the renderer's default. strength comes from the show record's ΔH where there is one (strength_scale). Show data is draft until the science review.",
+  "about": "Which spell effect each codex reaction (content/chem/core.json) casts as once a Bench discovery is saved as a spell (docs/loop/items/I-053/spec.md). The effect is derived from the reaction's own data by the ordered rules below (the first match wins), never written per reaction, except the listed overrides. kind is the look the renderer styles (fire, water, frost, foam, cloud, glow, wall, reveal); runs is the world use: a shipped spell's matter rule (fire, water, frost, foam) or a use I-056 adds (wall: a short-lived wall of blocks; reveal: hidden caches nearby show for a while; lift: hydrogen lifts a player near the landing; push: a burst of gas pushes a player near the landing), or none: Bench only, never saved as a spell, with bench_only saying why (docs/loop/items/I-056/spec.md). A fizz that does not smother takes the first gas_uses rule that matches; any reaction with a product in poisons is Bench only, whatever its kind. world holds the new uses' data values, each scaled by strength between its two numbers; strength (0 to 1) scales that rule's emit, 1 being the shipped spell; heat is -1 (absorbs), 0 or +1 (releases). tint is an optional sRGB colour of the visible change (flame colour, coloured gas or precipitate) from the reaction's show record (tint_rule); absent means the renderer's default. strength comes from the show record's ΔH where there is one (strength_scale). Show data is draft until the science review.",
   "kinds": ["fire", "water", "frost", "foam", "cloud", "glow", "wall", "reveal"],
   "runs": {
     "fire": "fire",
@@ -13,9 +13,14 @@
     "reveal": "reveal"
   },
   "smothers": ["CO2", "N2"],
+  "poisons": {
+    "species": ["NO", "NO2", "N2O4", "NH3", "HCl", "HBr", "HF", "Cl2", "Br2", "F2", "H2S", "SO2", "CO", "CH3Cl", "Hg", "O3"],
+    "names": { "HCl": "hydrogen chloride", "HBr": "hydrogen bromide", "HF": "hydrogen fluoride", "Hg": "mercury vapour", "O3": "ozone", "Br2": "bromine", "Cl2": "chlorine", "F2": "fluorine", "NH3": "ammonia", "CO": "carbon monoxide", "SO2": "sulfur dioxide", "H2S": "hydrogen sulfide", "NO": "nitric oxide", "NO2": "nitrogen dioxide", "N2O4": "dinitrogen tetroxide", "CH3Cl": "chloromethane" },
+    "bench_only": "It makes {gas}, which is poisonous to breathe, so it stays on the Bench.",
+    "why": "a reaction with any product that is a poisonous gas or vapour (GHS acute inhalation toxicity) is never thrown around the world, whatever its kind: checked on every product, after the kind and gas rules (I-056 review M1)"
+  },
   "gas_uses": [
     { "when": { "visible_any": ["flame"] }, "runs": "fire", "why": "the gas catches fire as it forms: it burns" },
-    { "when": { "gas_any": ["NO", "NO2", "N2O4", "NH3", "HCl", "HBr", "HF", "Cl2", "Br2", "H2S", "SO2", "CO", "CH3Cl"] }, "bench_only": "It makes {gas}, a poisonous gas, so it stays on the Bench.", "why": "a poisonous gas is never thrown around the world" },
     { "when": { "gas_any": ["H2"] }, "runs": "lift", "why": "hydrogen is far lighter than air: it lifts, like the H2 lift" },
     { "when": {}, "runs": "push", "why": "any other gas made fast pushes, like the CO2 dash" }
   ],
@@ -29,7 +34,7 @@
   "kind_rules": [
     { "when": { "family": ["combustion"] }, "kind": "fire", "why": "a burning: a flame" },
     { "when": { "family": ["precipitation"] }, "kind": "wall", "why": "a solid appears in a solution: it builds a short-lived wall" },
-    { "when": { "heat": ["absorbs"] }, "kind": "frost", "why": "it takes heat in" },
+    { "when": { "heat": ["absorbs"], "needs_any": false }, "kind": "frost", "why": "it takes heat in by itself, with no heat, light or electricity driving it, so it feels cold (a driven reaction only soaks up what drives it: I-056 review M5)" },
     { "when": { "gas_product": true }, "kind": "foam", "why": "it gives off a gas: a fizz" },
     { "when": { "heat": ["releases"], "hazard": ["fire"] }, "kind": "fire", "why": "it gives off heat strongly (flames or strong heat)" },
     { "when": { "family": ["neutralisation", "displacement", "metal_acid", "carbonate_acid", "halogen"], "visible_any": ["coating", "colour_change"] }, "kind": "reveal", "why": "a colour appears or a metal coats a surface in a solution: it marks and reveals" },

@@ -49,6 +49,7 @@
     "unknown": { "described": "not recorded here", "src": "COLOUR-GE" }
   },
   "reactions": {
+    "aluminium_copper_sulfate": { "speed": ["slow", "hours, until its oxide skin is broken (a pinch of salt does it)"], "note": "Nothing seems to happen at first: aluminium's oxide skin keeps the copper sulfate off it. Once the skin is broken, copper coats the aluminium and the blue fades.", "why": "I-056 review M3: Al2O3 passivates aluminium in sulfate solution; chloride breaks the film (Greenwood and Earnshaw, Chemistry of the Elements, section 7.3; RSC Education, aluminium and copper sulfate)" },
     "methane_burns": { "flame": "premixed", "why": "natural gas burns in a burner with air mixed in" },
     "ethane_burns": { "flame": "premixed", "why": "a gas burner flame" },
     "propane_burns": { "flame": "premixed", "why": "a gas burner flame" },

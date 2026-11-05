@@ -214,35 +214,6 @@
     }
    }
   },
-  "(NH4)3PO4": {
-   "cas": "7783-28-0",
-   "name": "ammonium phosphate",
-   "molar_mass": 149.087,
-   "dhf": {
-    "s": {
-     "v": -1566.9,
-     "src": "CRC-T"
-    },
-    "aq": {
-     "v": -1674.9,
-     "src": "CRC-ION",
-     "ions": {
-      "NH4+": 3,
-      "PO4-3": 1
-     }
-    }
-   },
-   "density_kg_m3": 1619.0,
-   "phys_src": "CRC-PHYS",
-   "state": "s",
-   "soluble": true,
-   "colour": {
-    "aq": {
-     "described": "colourless",
-     "src": "COLOUR-GE"
-    }
-   }
-  },
   "Ag": {
    "cas": "7440-22-4",
    "name": "silver",

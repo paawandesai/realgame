@@ -310,6 +310,12 @@ struct Fix {
     /// Why ΔH and the codex heat class disagree, when they do.
     #[serde(default)]
     dh_note: Option<String>,
+    /// The species whose one mole is the reaction's key event (CO2 for a
+    /// carbonate in acid, the solid for a precipitate, the fuel for a
+    /// burning): the heat class and strength use ΔH per mole of it, so
+    /// they do not depend on how the equation is scaled (I-056 review S1).
+    #[serde(default)]
+    per: Option<String>,
     #[allow(dead_code)]
     why: String,
 }
@@ -406,6 +412,12 @@ pub struct Enthalpy {
     pub agrees: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// The key species `kj_per` is per mole of (show.json `per`), if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub per: Option<String>,
+    /// kJ per mole of `per` (equal to `kj` without one): what `heat`,
+    /// `agrees` and the spell strength use.
+    pub kj_per: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -855,14 +867,23 @@ fn enthalpy(
     }
     let _ = eq;
     let kj = (!missing).then(|| (total * 10.0).round() / 10.0);
+    let n = fix.per.as_ref().map_or(1, |p| {
+        species
+            .iter()
+            .find(|s| &s.formula == p)
+            .unwrap_or_else(|| panic!("{}: per {p} is not in the equation", e.id))
+            .coef
+            .max(1)
+    });
+    let kj_per = (!missing).then(|| (total / n as f64 * 10.0).round() / 10.0);
     let class = heat_class(e.heat);
-    let heat = match kj {
+    let heat = match kj_per {
         Some(v) if v.abs() <= LITTLE_KJ => 0,
         Some(v) if v < 0.0 => 1,
         Some(_) => -1,
         None => class,
     };
-    let agrees = match (e.heat, kj) {
+    let agrees = match (e.heat, kj_per) {
         (None, _) | (_, None) => None,
         (Some(Heat::Little), Some(v)) => Some(v.abs() <= LITTLE_KJ),
         (Some(Heat::Releases), Some(v)) => Some(v < -LITTLE_KJ),
@@ -876,6 +897,8 @@ fn enthalpy(
         state_fallbacks: fallbacks,
         agrees,
         note: fix.dh_note.clone(),
+        per: fix.per.clone(),
+        kj_per,
     }
 }
 

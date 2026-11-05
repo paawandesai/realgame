@@ -610,9 +610,9 @@
    "heat": "releases",
    "say": "Sulfur burns with a blue flame and makes choking sulfur dioxide. Only in a lab with fresh air.",
    "short": "Sulfur burns blue.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "phosphorus_burns",
@@ -849,9 +849,9 @@
    ],
    "heat": "releases",
    "say": "Carbon disulfide vapour catches fire very easily.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "silane_burns",
@@ -1024,8 +1024,9 @@
    ],
    "heat": "absorbs",
    "say": "A lightning bolt's heat joins nitrogen and oxygen into nitric oxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "steam_reforming",
@@ -1133,9 +1134,9 @@
    "heat": "absorbs",
    "say": "Heat drives carbon dioxide out of limestone, leaving quicklime.",
    "short": "Hot rock lets out gas.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "slaking_lime",
@@ -1147,9 +1148,9 @@
    "heat": "releases",
    "say": "Quicklime and water get very hot and make slaked lime.",
    "short": "Lime and water get hot.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "lime_dries",
@@ -1162,9 +1163,9 @@
    ],
    "heat": "absorbs",
    "say": "Strong heat drives water out of calcium hydroxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "copper_carbonate_heat",
@@ -1283,9 +1284,9 @@
    ],
    "heat": "absorbs",
    "say": "Heated ammonium chloride splits into two gases that rejoin higher up.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "lab_ammonia",
@@ -1298,9 +1299,9 @@
    ],
    "heat": "absorbs",
    "say": "Warming slaked lime with ammonium chloride drives off ammonia gas.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "salt_electrolysis",
@@ -1546,8 +1547,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Neutralisation and a white precipitate of barium sulfate at the same time.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "co2_naoh",
@@ -1696,9 +1698,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Copper won't dissolve in most acids, but nitric acid oxidises it and gives nitric oxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "chalk_acid",
@@ -1872,8 +1874,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Zinc pushes silver out of solution.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "thermite",
@@ -2199,8 +2202,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Silver nitrate and potassium bromide give pale cream silver bromide, used in old photographs.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "silver_iodide",
@@ -2211,19 +2215,20 @@
    "needs": [],
    "heat": "releases",
    "say": "Silver nitrate and potassium iodide give yellow silver iodide, used to seed clouds.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "golden_rain",
    "name": "Golden rain",
    "family": "precipitation",
-   "band": "apprentice",
+   "band": "adept",
    "equation": "Pb(NO3)2 + 2KI -> PbI2 + 2KNO3",
    "needs": [],
    "heat": "releases",
    "say": "Two clear liquids make bright yellow lead iodide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\". Hazard from the I-054 science review: lead salts are toxic (CLEAPSS Hazcard 57).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\". Hazard from the I-054 science review: lead salts are toxic (CLEAPSS Hazcard 57). Band from the I-056 science review: lead nitrate is a reproductive toxicant (category 1A), kept to older students.",
    "check": "reviewed",
    "hazard": "lab"
   },
@@ -2521,8 +2526,9 @@
    ],
    "heat": "absorbs",
    "say": "Electric sparks or UV light turn oxygen into ozone, which smells sharp.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-056 science review's policy (bench bottles are dilute): lab for lead, soluble barium, mercury, silver nitrate, quicklime and any poisonous gas or vapour made.",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "ozone_splits",

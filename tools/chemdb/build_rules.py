@@ -48,7 +48,11 @@ SOURCES = {
     "OPENSTAX-ACID": "OpenStax Chemistry 2e (2019), section 4.2 'Acid-Base Reactions' and section 14 'Acid-Base Equilibria': an acid and a base give a salt and water; metal oxides and hydroxides are bases; ammonia is a base that gives the ammonium salt.",
     "OPENSTAX-COMB": "OpenStax Chemistry 2e (2019), section 4.2 'Combustion reactions': a hydrocarbon or other C, H, O fuel burning in plenty of oxygen gives carbon dioxide and water.",
     "OPENSTAX-REDOX": "OpenStax Chemistry 2e (2019), section 4.2 'Single-displacement (replacement) reactions' and section 17.3 'Standard reduction potentials'.",
-    "GHS": "Hazard classes as in each substance's GHS classification (PubChem Laboratory Chemical Safety Summary): corrosive (skin corrosion category 1) or acutely toxic (category 1 to 4 oral).",
+    "GHS": "Hazard classes as in each substance's GHS classification (PubChem Laboratory Chemical Safety Summary), judged at the concentration a Bench bottle holds (dilute acids up to 1 M and alkalis up to 0.4 M are low hazard: CLEAPSS Hazcards); lead compounds (reproductive toxicity 1A), soluble barium compounds (acute toxicity), mercury, silver nitrate (corrosive, stains skin) and quicklime (corrosive solid, reacts hot with water) stay lab.",
+    "CRC-PKA": "CRC Handbook of Chemistry and Physics, 'Dissociation Constants of Inorganic Acids' and 'of Organic Acids and Bases', pKa at 25 C: HSO4- 1.99; H3PO4 2.15, H2PO4- 7.20, HPO4-2 12.35; H2CO3 6.35, HCO3- 10.33; CH3COOH 4.76; NH4+ 9.25. A base takes a proton only from an acid at least as strong as its own conjugate acid, so carbonate cannot make phosphate (PO4-3) and ammonia stops at hydrogenphosphate.",
+    "PASSIVE": "Greenwood and Earnshaw, Chemistry of the Elements (2nd ed.), section 7.3: aluminium's Al2O3 film stops it reacting with sulfate or nitrate solutions and with cold dilute sulfuric acid; chloride (or bromide) breaks the film (RSC Education, 'Aluminium and copper sulfate: the role of chloride').",
+    "BASIC-CARB": "Greenwood and Earnshaw, Chemistry of the Elements (2nd ed.), sections 28.3.4 and 29.3.2: copper(II) and zinc ions with a carbonate solution give basic carbonates (Cu2(OH)2CO3, Zn5(CO3)2(OH)6) and carbon dioxide, not CuCO3 or ZnCO3; with ammonium carbonate (which carries free ammonia) silver, copper and zinc form soluble ammine complexes, and ammoniacal silver can deposit explosive silver nitride.",
+    "FLASH": "PubChem / NIOSH Pocket Guide flash points (closed cup): heptane -4 C, cyclohexane -20 C, nonane 31 C, decane 46 C, undecane 60 C, dodecane 71 C, hexadecane 135 C, 1-butanol 35 C, 1-pentanol 49 C; propene, butene, pentene (-18 C) and propyne are gases or very volatile. A spark lights a liquid only above its flash point; below it the fuel must be heated (or burn on a wick).",
 }
 
 # ---------------------------------------------------------------------------
@@ -99,6 +103,13 @@ def salt(cat, an):
 
 def salt_name(cat, an):
     return f"{CATIONS[cat][2]} {ANIONS[an][2]}"
+
+
+# Everyday names: copper is copper(II) in every salt here, so the player
+# reads "copper bromide" as core reads "copper chloride" (iron keeps its
+# (II) and (III), which both occur).
+def everyday_salt(cat, an):
+    return salt_name(cat, an).replace("copper(II)", "copper")
 
 
 def solubility(cat, an):
@@ -153,47 +164,78 @@ MARGIN_V = 0.25
 # Metals that react with the water of a solution first (water_metal family).
 WATER_FIRST = ["Li", "K", "Ba", "Ca", "Na"]
 
+# anion_pka: the pKa of the last proton taken to reach the anion (CRC-PKA);
+# a base whose conjugate acid has a lower pKa cannot take it.
 ACIDS = {
-    "HCl": {"anion": "Cl-", "protons": 1, "oxidising": False, "strong": True},
-    "HBr": {"anion": "Br-", "protons": 1, "oxidising": False, "strong": True},
-    "HNO3": {"anion": "NO3-", "protons": 1, "oxidising": True, "strong": True},
-    "H2SO4": {"anion": "SO4-2", "protons": 2, "oxidising": False, "strong": True},
-    "CH3COOH": {"anion": "CH3COO-", "protons": 1, "oxidising": False, "strong": False},
-    "H3PO4": {"anion": "PO4-3", "protons": 3, "oxidising": False, "strong": False},
+    "HCl": {"anion": "Cl-", "protons": 1, "oxidising": False, "strong": True, "anion_pka": -6.3},
+    "HBr": {"anion": "Br-", "protons": 1, "oxidising": False, "strong": True, "anion_pka": -9.0},
+    "HNO3": {"anion": "NO3-", "protons": 1, "oxidising": True, "strong": True, "anion_pka": -1.4},
+    "H2SO4": {"anion": "SO4-2", "protons": 2, "oxidising": False, "strong": True, "anion_pka": 1.99},
+    "CH3COOH": {"anion": "CH3COO-", "protons": 1, "oxidising": False, "strong": False, "anion_pka": 4.76},
+    "H3PO4": {"anion": "PO4-3", "protons": 3, "oxidising": False, "strong": False, "anion_pka": 12.35},
 }
+# The pKa of each weak base's conjugate acid (CRC-PKA): carbonate (HCO3-),
+# hydrogencarbonate (H2CO3) and ammonia (NH4+).
+BASE_PKA = {"CO3-2": 10.33, "HCO3-": 6.35, "NH3": 9.25}
+# Metals whose oxide film stops them unless the anion breaks it (PASSIVE).
+PASSIVATED = {"Al": ["Cl-", "Br-"]}
+# Cations that give a basic carbonate and CO2 with carbonate, and that form
+# ammine complexes with ammonium carbonate (BASIC-CARB).
+BASIC_CARBONATE = ["Cu+2", "Zn+2"]
+AMMINE = ["Ag+", "Cu+2", "Zn+2"]
 
 # Fuels: formula -> (chemical name, everyday name, SMILES or None if in
-# build_show_data, flame emitter in show.json, the need that lights it).
+# build_show_data, flame emitter in show.json, flash point C (FLASH) or None
+# for a gas). A spark lights it only at a flash point up to SPARK_MAX_C;
+# otherwise it needs heat. Sugar is left out: heated in air it melts and
+# chars rather than burning to carbon dioxide and water.
 FUELS = {
-    "C10H22": ("decane", None, None, "soot", "spark"),
-    "C7H16": ("heptane", "heptane", "CCCCCCC", "soot", "spark"),
-    "C9H20": ("nonane", "nonane", "CCCCCCCCC", "soot", "spark"),
-    "C12H26": ("dodecane", "dodecane (kerosene)", "CCCCCCCCCCCC", "soot", "spark"),
-    "C16H34": ("hexadecane", "hexadecane (diesel)", "CCCCCCCCCCCCCCCC", "soot", "spark"),
-    "C6H12": ("cyclohexane", "cyclohexane", "C1CCCCC1", "soot", "spark"),
-    "C3H6": ("propene", "propene", "C=CC", "soot", "spark"),
-    "C4H8": ("1-butene", "butene", "C=CCC", "soot", "spark"),
-    "C5H10": ("1-pentene", "pentene", "C=CCCC", "soot", "spark"),
-    "C3H4": ("propyne", "propyne", "C#CC", "soot", "spark"),
-    "C11H24": ("undecane", "undecane", "CCCCCCCCCCC", "soot", "spark"),
-    "C4H9OH": ("1-butanol", "butanol", "CCCCO", "alcohol", "spark"),
-    "C5H11OH": ("1-pentanol", "pentanol", "CCCCCO", "alcohol", "spark"),
-    "C12H22O11": ("sucrose", None, None, "soot", "heat"),
+    "C10H22": ("decane", None, None, "soot", 46),
+    "C7H16": ("heptane", "heptane", "CCCCCCC", "soot", -4),
+    "C9H20": ("nonane", "nonane", "CCCCCCCCC", "soot", 31),
+    "C12H26": ("dodecane", "dodecane (in kerosene)", "CCCCCCCCCCCC", "soot", 71),
+    "C16H34": ("hexadecane", "hexadecane (in diesel)", "CCCCCCCCCCCCCCCC", "soot", 135),
+    "C6H12": ("cyclohexane", "cyclohexane", "C1CCCCC1", "soot", -20),
+    "C3H6": ("propene", "propene", "C=CC", "soot", None),
+    "C4H8": ("1-butene", "butene", "C=CCC", "soot", None),
+    "C5H10": ("1-pentene", "pentene", "C=CCCC", "soot", -18),
+    "C3H4": ("propyne", "propyne", "C#CC", "soot", None),
+    "C11H24": ("undecane", "undecane", "CCCCCCCCCCC", "soot", 60),
+    "C4H9OH": ("1-butanol", "butanol", "CCCCO", "alcohol", 35),
+    "C5H11OH": ("1-pentanol", "pentanol", "CCCCCO", "alcohol", 49),
 }
+SPARK_MAX_C = 25
+
+
+def fuel_need(f):
+    fp = FUELS[f][4]
+    return "spark" if fp is None or fp <= SPARK_MAX_C else "heat"
 FUEL_NEW_GAS = {"C3H6", "C4H8", "C3H4"}
 
-# Corrosive or toxic species (GHS): a reaction with any of them gets the lab
-# badge.
-HAZARDS = {
-    "HCl": "corrosive", "HBr": "corrosive", "HNO3": "corrosive", "H2SO4": "corrosive", "H3PO4": "corrosive",
-    "NaOH": "corrosive", "KOH": "corrosive", "LiOH": "corrosive", "Ba(OH)2": "corrosive and toxic",
-    "CaO": "corrosive", "NH3": "corrosive and toxic", "AgNO3": "corrosive", "ZnCl2": "corrosive",
-    "FeCl3": "corrosive", "ZnBr2": "corrosive", "AlBr3": "corrosive", "ZnI2": "corrosive", "AlI3": "corrosive",
-    "AlCl3": "corrosive", "K3PO4": "corrosive", "Na3PO4": "corrosive",
-    "BaCl2": "toxic", "Ba(NO3)2": "toxic", "BaCO3": "toxic", "Pb(NO3)2": "toxic", "PbI2": "toxic",
-    "PbCl2": "toxic", "Pb": "toxic", "CuSO4": "toxic", "CuCl2": "toxic", "Cu(NO3)2": "toxic", "CuBr2": "toxic",
-    "Cu(CH3COO)2": "toxic", "Li2CO3": "toxic",
+# The lab-badge policy (GHS, judged at Bench concentration), shared with
+# core: crates/chem/src/rules.rs checks both tiers against it. A reaction
+# with any species that contains one of `elements` (bar `except`) or is in
+# `species` gets the lab badge; dilute acids, alkalis and copper, zinc,
+# iron, magnesium and aluminium salts do not.
+LAB_POLICY = {
+    "elements": {"Pb": "lead compounds are toxic (reproductive toxicity 1A)",
+                 "Ba": "soluble barium compounds are toxic", "Hg": "mercury is toxic"},
+    "except": ["BaSO4"],
+    "species": {"AgNO3": "silver nitrate burns and stains skin", "CaO": "quicklime is corrosive and gets hot with water"},
 }
+
+
+def lab_reasons(fs):
+    out = []
+    for f in fs:
+        if f in LAB_POLICY["species"]:
+            out.append(f"{f} ({LAB_POLICY['species'][f]})")
+        elif f not in LAB_POLICY["except"]:
+            for el, why in LAB_POLICY["elements"].items():
+                if el in bsd.atoms(f):
+                    out.append(f"{f} ({why})")
+                    break
+    return sorted(set(out))
 # Never generated: hydrofluoric acid and fluorides, cyanides, perchlorates,
 # chromates, mercury, and any explosive product (silver acetylide, ammonium
 # nitrate made in bulk from a melt). The ion tables above hold none of them.
@@ -206,14 +248,17 @@ APPRENTICE_NEW = {"K2CO3", "KHCO3", "Ca(NO3)2", "Mg(NO3)2", "NaI", "Ca(CH3COO)2"
                   "C4H8", "C4H9OH", "C12H26", "C16H34", "C10H22", "Al(OH)3"}
 # Seedling: simple acid + base and metal + acid with familiar names.
 SEEDLING_OK = {"HCl", "CH3COOH", "NaOH", "Ca(OH)2", "Mg(OH)2", "CaO", "Mg", "Zn", "H2O", "H2",
-               "NaCl", "CaCl2", "MgCl2", "ZnCl2", "CH3COONa", "Ca(CH3COO)2", "Mg(CH3COO)2"}
+               "NaCl", "CaCl2", "MgCl2", "ZnCl2", "CH3COONa", "Ca(CH3COO)2", "Mg(CH3COO)2",
+               "CaCO3", "Na2CO3", "NaHCO3", "CO2"}
+# The spec's Adept-only species (by element): bromides and lead.
+ADEPT_ELEMENTS = {"Br", "Pb"}
 
 RULES = [
     {"id": "acid_base", "family": "neutralisation", "name": "acid + base",
-     "text": "An acid and a base cancel each other out, making a salt and water (ammonia makes the salt alone).",
+     "text": "An acid and a base neutralise (cancel out) each other, making a salt and water (ammonia makes the salt alone).",
      "source": "OPENSTAX-ACID"},
     {"id": "metal_acid", "family": "metal_acid", "name": "metal + acid",
-     "text": "A metal above hydrogen in the reactivity series pushes hydrogen out of an acid, making a salt and hydrogen gas.",
+     "text": "A metal above hydrogen in the reactivity series pushes hydrogen out of an acid, making a salt and hydrogen gas (not nitric acid, which makes brown poisonous gases instead).",
      "source": "CRC-ECS"},
     {"id": "carbonate_acid", "family": "carbonate_acid", "name": "carbonate + acid",
      "text": "A carbonate or hydrogencarbonate fizzes in an acid, making a salt, water and carbon dioxide.",
@@ -222,10 +267,10 @@ RULES = [
      "text": "A fuel made of carbon and hydrogen (and sometimes oxygen) burns in plenty of oxygen to make carbon dioxide and water.",
      "source": "OPENSTAX-COMB"},
     {"id": "precipitate", "family": "precipitation", "name": "two salts swap",
-     "text": "Two dissolved salts swap partners; the new pair that cannot dissolve (the solubility rules) comes out as a solid.",
+     "text": "Two dissolved salts swap partners; the new pair that cannot dissolve in water (the solubility rules) comes out as a solid.",
      "source": "OPENSTAX-SOL"},
     {"id": "displacement", "family": "displacement", "name": "metal swap",
-     "text": "A more reactive metal pushes a less reactive metal out of its salt (the reactivity series).",
+     "text": "A more reactive metal pushes a less reactive metal out of a solution of its salt (the reactivity series).",
      "source": "OPENSTAX-REDOX"},
 ]
 RULE = {r["id"]: r for r in RULES}
@@ -326,9 +371,9 @@ def equation(reactants, products):
 
 def everyday(f):
     """The name a player reads: names.json's everyday name, else ours."""
-    if f in names_json["substances"]:
-        return names_json["substances"][f]
-    return SPECIES[f]["everyday"]
+    if f in SPECIES and SPECIES[f]["everyday"]:
+        return SPECIES[f]["everyday"]
+    return names_json["substances"][f]
 
 
 # The name of a species as the dissolved reagent a Bench bottle holds.
@@ -362,9 +407,9 @@ def add_salt(cat, an):
     f, n, m = salt(cat, an)
     SALTS[f] = {"cation": cat, "n": n, "anion": an, "m": m}
     if f not in CORE_SPECIES and f not in bsd.NAMES:
-        SPECIES[f] = {"name": salt_name(cat, an), "everyday": salt_name(cat, an)}
+        SPECIES[f] = {"name": salt_name(cat, an), "everyday": everyday_salt(cat, an)}
     elif f not in CORE_SPECIES:
-        SPECIES[f] = {"name": bsd.NAMES[f], "everyday": bsd.NAMES[f]}
+        SPECIES[f] = {"name": bsd.NAMES[f], "everyday": everyday_salt(cat, an)}
     return f
 
 
@@ -402,6 +447,8 @@ for acid, a in ACIDS.items():
             continue
         if acid == "HNO3" and base == "NH3":
             continue  # ammonium nitrate (an explosive in bulk); core has it
+        if base == "NH3" and a["anion_pka"] >= BASE_PKA["NH3"]:
+            continue  # ammonia stops at (NH4)2HPO4: it cannot take the last proton
         prod = salt(cat, a["anion"])[0]
         base_soluble = base in ("NaOH", "KOH", "LiOH", "Ba(OH)2", "NH3")
         if SOL[prod] == "slight" or (SOL[prod] == "insoluble" and not base_soluble):
@@ -413,6 +460,8 @@ for metal in ["Mg", "Al", "Zn", "Fe"]:
     for acid in ["HCl", "HBr", "H2SO4", "CH3COOH"]:
         if acid == "CH3COOH" and metal != "Mg":
             continue  # the others are too slow to see fizz
+        if metal in PASSIVATED and ACIDS[acid]["anion"] not in PASSIVATED[metal]:
+            continue  # the oxide skin stops it
         prod = salt(METAL_ION[metal], ACIDS[acid]["anion"])[0]
         if SOL[prod] != "soluble":
             continue
@@ -422,6 +471,8 @@ for metal in ["Mg", "Al", "Zn", "Fe"]:
 for carb in ["Na2CO3", "NaHCO3", "K2CO3", "KHCO3", "CaCO3", "MgCO3", "CuCO3", "ZnCO3", "Li2CO3"]:
     for acid in ["HCl", "HBr", "HNO3", "H2SO4", "CH3COOH", "H3PO4"]:
         cat = SALTS[carb]["cation"]
+        if ACIDS[acid]["anion_pka"] >= BASE_PKA[SALTS[carb]["anion"]]:
+            continue  # carbonate cannot take that proton (H3PO4 stops at HPO4)
         prod = salt(cat, ACIDS[acid]["anion"])[0]
         if SOL[prod] != "soluble":
             continue
@@ -437,7 +488,7 @@ POOL = {
     "Ca+2": ["CaCl2", "Ca(NO3)2"], "Mg+2": ["MgCl2", "MgSO4", "Mg(NO3)2", "MgBr2"],
     "Zn+2": ["ZnCl2", "ZnSO4", "Zn(NO3)2", "ZnBr2", "ZnI2"], "Cu+2": ["CuCl2", "CuSO4", "Cu(NO3)2", "CuBr2"],
     "Fe+2": ["FeCl2", "FeSO4", "FeBr2"], "Fe+3": ["FeCl3", "Fe(NO3)3", "Fe2(SO4)3"],
-    "Al+3": ["AlCl3", "Al2(SO4)3", "Al(NO3)3", "AlBr3", "AlI3"],
+    "Al+3": ["AlCl3", "Al2(SO4)3", "Al(NO3)3"],
 }
 PARTNERS = {
     "Cl-": ["NaCl", "KCl", "LiCl", "NH4Cl"], "Br-": ["NaBr", "KBr", "LiBr", "NH4Br"],
@@ -476,6 +527,10 @@ for s1, s2 in sorted(pairs):
         continue  # silver hydroxide falls apart to Ag2O and water
     if pc in ("Fe+3", "Al+3") and pa == "CO3-2":
         continue  # the hydroxide and CO2 come out instead
+    if pc in BASIC_CARBONATE and pa == "CO3-2":
+        continue  # a basic carbonate and CO2 come out instead
+    if {s1, s2} & {"(NH4)2CO3"} and {c1, c2} & set(AMMINE):
+        continue  # free ammonia dissolves it as an ammine complex
     if pc == "Pb+2" and (ppt not in CORE_SPECIES or not ({c1, c2} - {"Pb+2"}) <= GROUP1):
         continue  # lead: only the core's lead salts, with a group-1 or ammonium partner
     cand("precipitate", [s1, s2], [ppt, spect], precipitate=ppt)
@@ -489,6 +544,8 @@ for m1 in ["Mg", "Al", "Zn", "Fe", "Cu"]:
         if E0[m1] > E0[m2] - MARGIN_V:
             continue
         for s in srcs:
+            if m1 in PASSIVATED and SALTS[s]["anion"] not in PASSIVATED[m1]:
+                continue  # the oxide skin stops it
             prod = salt(METAL_ION[m1], SALTS[s]["anion"])[0]
             if SOL[prod] != "soluble":
                 continue
@@ -525,8 +582,11 @@ subs, _ = bsd.substance_records(used, T)
 AQUEOUS = set(show_json["aqueous_families"])
 
 
-def state_of(f, side, medium, hot):
-    """content/chem crates/chem/src/show.rs `state_of`, for the heat class."""
+def state_of(f, side, medium, hot, states):
+    """content/chem crates/chem/src/show.rs `state_of`, for the heat class
+    (a show fix's `states` first)."""
+    if f in states:
+        return states[f]
     sub = subs[f]
     s = sub["state"]
     if medium == "water" and f != "H2O":
@@ -540,19 +600,53 @@ def state_of(f, side, medium, hot):
     return s
 
 
-def heat_of(rule, eq):
+def heat_of(rule, eq, states, per, hot=False):
+    """ΔH per equation as written, and per mole of `per` (I-056 review S1:
+    the heat class and strength use the latter)."""
     family = RULE[rule]["family"]
     medium = "water" if family in AQUEOUS else "air"
-    hot = family == "combustion"
+    hot = hot or family == "combustion"
     total = 0.0
+    n = 1
     for side, sign in ((eq.split(" -> ")[0], -1), (eq.split(" -> ")[1], 1)):
         for k, f in terms(side):
-            st = state_of(f, "p" if sign > 0 else "r", medium, hot)
+            if f == per:
+                n = k
+            st = state_of(f, "p" if sign > 0 else "r", medium, hot, states)
             d = subs[f]["dhf"].get(st)
             if d is None:
-                return None, f"{f}({st}) has no enthalpy of formation"
+                return None, None, f"{f}({st}) has no enthalpy of formation"
             total += sign * k * d["v"]
-    return round(total, 1), None
+    return round(total, 1), round(total / n, 1), None
+
+
+def key_species(rule, rs, ps, extra):
+    """The species one mole of which is the rule's event."""
+    return {"acid_base": "NH3" if "NH3" in rs else "H2O", "metal_acid": "H2", "carbonate_acid": "CO2",
+            "fuel_burns": rs[0], "precipitate": extra.get("precipitate"),
+            "displacement": ps[1] if len(ps) > 1 else None}[rule]
+
+
+# A solid base dissolves in acid only when warm (S7): copper oxide and
+# haematite need the acid heated (the copper sulfate preparation).
+BASE_NEEDS = {"CuO": "heat", "Fe2O3": "heat"}
+BASE_SPEED = {"CuO": ["slow", "minutes, in warm acid"], "Fe2O3": ["slow", "an hour or more, in hot acid"],
+              "Fe(OH)3": ["slow", "a few minutes"]}
+# Precipitates: the chemical name first, then the familiar one (S11).
+PPT_HINT = {"Mg(OH)2": "as in milk of magnesia", "CaCO3": "chalk"}
+# Hydroxides that dissolve again in more alkali (amphoteric, S12).
+AMPHOTERIC = {"Al(OH)3", "Zn(OH)2"}
+
+
+def chem_name(f):
+    """A salt's chemical name (copper without (II)), with the familiar name
+    as a hint."""
+    if f in SALTS:
+        s = SALTS[f]
+        n = everyday_salt(s["cation"], s["anion"])
+    else:
+        n = plain(f)
+    return f"{n} ({PPT_HINT[f]})" if f in PPT_HINT else n
 
 
 dropped = []
@@ -582,16 +676,27 @@ for r in core["reactions"]:
     core_left.add(left)
 
 
-def band_of(f):
+def band_of(f, product=False):
+    """The band a species is familiar at. A bottle (reactant) not on the
+    core shelf is Adept unless listed in APPRENTICE_NEW (S9: a core product
+    is not a familiar bottle); a product a core reaction makes is
+    Apprentice. Bromides and lead are Adept (the spec)."""
+    if any(el in bsd.atoms(f) for el in ADEPT_ELEMENTS):
+        return BANDS.index("adept")
     if f in SHELF:
         return SHELF[f]
-    if f in CORE_SPECIES:
+    if f in APPRENTICE_NEW or (product and f in CORE_SPECIES):
         return BANDS.index("apprentice")
-    return BANDS.index("apprentice") if f in APPRENTICE_NEW else BANDS.index("adept")
+    return BANDS.index("adept")
+
+
+def cap(t):
+    return t[0].upper() + t[1:]
 
 
 reactions = []
 added = {}
+show = {}
 for rule, rs, ps, extra in cands:
     eq = equation(rs, ps)
     full, left = key(eq)
@@ -600,65 +705,89 @@ for rule, rs, ps, extra in cands:
         continue
     if full in seen:
         continue
-    kj, why = heat_of(rule, eq)
+    family = RULE[rule]["family"]
+    # A powder bottle is a solid in the acid, not a solution (S1).
+    states = {rs[0]: "s"} if rule == "carbonate_acid" else {}
+    per = key_species(rule, rs, ps, extra)
+    if rule == "fuel_burns":
+        needs = [fuel_need(rs[0])]
+    elif rule == "acid_base" and rs[1] in BASE_NEEDS:
+        needs = [BASE_NEEDS[rs[1]]]
+    else:
+        needs = []
+    kj, kj_per, why = heat_of(rule, eq, states, per, hot="heat" in needs)
     if kj is None:
         dropped.append((eq, why))
         continue
     seen[full] = True
-    family = RULE[rule]["family"]
     species_all = rs + ps
-    seedling = rule in ("acid_base", "metal_acid") and all(f in SEEDLING_OK for f in species_all)
+    seedling = rule in ("acid_base", "metal_acid", "carbonate_acid") and all(f in SEEDLING_OK for f in species_all)
     if seedling:
         b = max([BANDS.index("seedling")] + [band_of(f) for f in rs])
     else:
-        b = max([BANDS.index("apprentice")] + [band_of(f) for f in species_all])
+        b = max([BANDS.index("apprentice")] + [band_of(f) for f in rs] + [band_of(f, True) for f in ps])
     band = BANDS[b]
-    heat = "little" if abs(kj) <= 25 else ("releases" if kj < 0 else "absorbs")
-    hz = sorted({f for f in species_all if f in HAZARDS})
-    hazard = "fire" if family == "combustion" else ("lab" if hz else None)
+    heat = "little" if abs(kj_per) <= 25 else ("releases" if kj_per < 0 else "absorbs")
+    lab = lab_reasons(species_all)
+    hazard = "fire" if family == "combustion" else ("lab" if lab else None)
+    fix = {}
+    if states:
+        fix["states"] = states
+    fix["per"] = per
     # Names and words.
     if rule == "acid_base":
         acid, base = rs
         prod = ps[0]
-        name = f"{plain(base)[0].upper() + plain(base)[1:]} and {plain(acid)}"
-        say = f"{plain(acid)[0].upper() + plain(acid)[1:]} and {plain(base)} cancel out, giving {plain(prod)}" + ("." if base == "NH3" else " and water.")
+        name = f"{cap(plain(base))} and {plain(acid)}"
+        say = f"{cap(plain(acid))} neutralises {plain(base)}, giving {plain(prod)}" + ("." if base == "NH3" else " and water.")
         short = "Acid and base cancel out: salt and water." if base != "NH3" else "Acid and ammonia make a salt."
     elif rule == "metal_acid":
         metal, acid = rs
-        name = f"{plain(metal).capitalize()} in {plain(acid)}"
-        say = f"{plain(metal).capitalize()} fizzes in {plain(acid)}, giving {plain(ps[0])} and hydrogen gas."
+        name = f"{cap(plain(metal))} in {plain(acid)}"
+        say = f"{cap(plain(metal))} fizzes in {plain(acid)}, giving {plain(ps[0])} and hydrogen gas."
         short = "Metal fizzes in acid, giving hydrogen gas."
     elif rule == "carbonate_acid":
         carb, acid = rs
-        name = f"{plain(carb)[0].upper() + plain(carb)[1:]} in {plain(acid)}"
-        say = f"{plain(carb)[0].upper() + plain(carb)[1:]} fizzes in {plain(acid)}, giving {plain(ps[0])}, water and carbon dioxide."
+        name = f"{cap(plain(carb))} in {plain(acid)}"
+        say = f"{cap(plain(carb))} fizzes in {plain(acid)}, giving {plain(ps[0])}, water and carbon dioxide."
         short = "It fizzes, giving off carbon dioxide."
     elif rule == "fuel_burns":
         fuel = rs[0]
-        name = f"{plain(fuel)[0].upper() + plain(fuel)[1:]} burns"
-        say = f"{plain(fuel)[0].upper() + plain(fuel)[1:]} burns in oxygen, giving carbon dioxide, water and heat."
+        fname = everyday(fuel)
+        name = f"{cap(fname)} burns"
+        lit = "lit by a spark" if needs == ["spark"] else "once heated (or on a wick)"
+        say = f"{cap(fname)} burns in oxygen, {lit}, giving carbon dioxide, water and heat."
         short = "Fuel burns, giving carbon dioxide and water."
     elif rule == "precipitate":
         ppt = extra["precipitate"]
         col = subs[ppt]["colour"]["s"]["described"]
-        name = f"{plain(ppt)[0].upper() + plain(ppt)[1:]} from {plain(rs[0])} and {plain(rs[1])}"
+        name = f"{cap(chem_name(ppt))} from {plain(rs[0])} and {plain(rs[1])}"
         # A colour with a clause ("white, turning green-brown in air")
         # follows the noun: "a solid (white, turning ...)".
         a_solid = f"a solid ({col})" if "," in col else f"a {col} solid"
-        say = f"Mixing {plain(rs[0])} and {plain(rs[1])} solutions makes {plain(ppt)}, {a_solid} that does not dissolve."
+        if ppt in AMPHOTERIC:
+            say = f"Mixing {plain(rs[0])} and {plain(rs[1])} solutions makes {chem_name(ppt)}, {a_solid}."
+            fix["note"] = f"{cap(a_solid)} forms as the two solutions mix; it dissolves again if more alkali is added."
+        else:
+            say = f"Mixing {plain(rs[0])} and {plain(rs[1])} solutions makes {chem_name(ppt)}, {a_solid} that does not dissolve."
         if len(say) > 140:
-            say = f"The two solutions swap partners and {plain(ppt)}, {a_solid}, comes out."
+            say = f"The two solutions swap partners and {chem_name(ppt)}, {a_solid}, comes out."
+        if ppt.startswith("Ag") and any(f.startswith("Fe") and "Fe+2" == SALTS.get(f, {}).get("cation") for f in rs):
+            fix["note"] = "Some grey silver also forms and the solution turns yellow, as silver ions oxidise iron(II)."
         short = "Two clear liquids make a solid."
     else:
-        m1, s = rs
+        m1, sl = rs
         m2 = ps[1]
-        name = f"{plain(m1).capitalize()} and {plain(s)}"
-        say = f"{plain(m1).capitalize()} is more reactive than {plain(m2)}, so it pushes {plain(m2)} out of {plain(s)}."
+        name = f"{cap(plain(m1))} and {plain(sl)}"
+        say = f"{cap(plain(m1))} is more reactive than {plain(m2)}, so it pushes {plain(m2)} out of {plain(sl)} solution."
         short = "A stronger metal pushes out a weaker one."
+        if m1 == "Fe" and sl == "AgNO3":
+            fix["note"] = "Silver crystals grow on the iron, and some iron(II) is oxidised on to iron(III), so the solution yellows."
+        elif m1 == "Mg" and SALTS[sl]["cation"] in ("Cu+2", "Zn+2"):
+            fix["note"] = "The metal coats the magnesium, and a few bubbles of hydrogen also come off (the solution is slightly acidic)."
     if len(name) > 64:
         name = name.split(" from ")[0] if " from " in name else name[:64]
     assert len(say) <= 140, say
-    needs = [FUELS[rs[0]][4]] if rule == "fuel_burns" else []
     e = {
         "id": f"rule_{rule}_{'_'.join(slug(f) for f in rs)}",
         "name": name,
@@ -668,51 +797,55 @@ for rule, rs, ps, extra in cands:
         "needs": needs,
         "heat": heat,
         "say": say,
-        "source": f"By rule ({RULE[rule]['name']}): {SOURCES[RULE[rule]['source']].split(' (')[0]}. Heat direction from CRC/NBS standard enthalpies of formation (substances.json).",
+        "source": f"By rule ({RULE[rule]['name']}): {SOURCES[RULE[rule]['source']].split(' (')[0]}. Heat direction from CRC/NBS standard enthalpies of formation (substances.json), per mole of {per}.",
         "check": "draft",
         "tier": "rule",
         "rule": rule,
         "dh_kj": kj,
+        "per": per,
+        "dh_per_kj": kj_per,
     }
     if band in ("sprout", "seedling"):
         e["short"] = short
     if hazard:
         e["hazard"] = hazard
-    if hz:
-        e["hazard_why"] = ", ".join(f"{f} ({HAZARDS[f]})" for f in hz)
+    if lab:
+        e["hazard_why"] = ", ".join(lab)
     reactions.append(e)
-    for f in rs:
-        if f not in SHELF:
-            added[f] = min(added.get(f, 9), b)
-
-reactions.sort(key=lambda e: ([r["id"] for r in RULES].index(e["rule"]), BANDS.index(e["band"]), e["id"]))
-
-# show.json fixes for the rule tier: each burning's flame emitter.
-show = {}
-for e in reactions:
-    if e["rule"] == "fuel_burns":
-        fuel = terms(e["equation"].split(" -> ")[0])[0][1]
-        show[e["id"]] = {"flame": FUELS[fuel][3], "why": "by rule: the flame of a fuel of its kind (COLOUR-HC)"}
-    elif e["rule"] == "acid_base":
-        # A neutralisation shows little: say what there is to see, as
-        # show.json does for the core ones.
-        (_, acid), (_, base) = terms(e["equation"].split(" -> ")[0])
-        prod = terms(e["equation"].split(" -> ")[1])[0][1]
-        warm = {"releases": "the mixture warms a little", "little": "the temperature hardly changes",
-                "absorbs": "the mixture cools a little"}[e["heat"]]
+    # show.json fixes: each burning's flame, a neutralisation's note.
+    if rule == "fuel_burns":
+        fix["flame"] = FUELS[rs[0]][3]
+        fix["why"] = "by rule: the flame of a fuel of its kind (COLOUR-HC)"
+    elif rule == "acid_base":
+        acid, base = rs
+        prod = ps[0]
+        nwater = max(1, sum(k for k, f in terms(eq.split(" -> ")[1]) if f == "H2O"))
+        hot_now = heat == "releases" and abs(kj) / nwater > 80
+        warm = {"releases": "the mixture gets hot" if hot_now else "the mixture warms",
+                "little": "the temperature hardly changes", "absorbs": "the mixture cools a little"}[heat]
         pcol = subs[prod].get("colour", {})
         if base in ("NaOH", "KOH", "LiOH", "Ba(OH)2", "NH3", "Ca(OH)2"):
             if SOL.get(prod) == "insoluble":
                 note = f"A {pcol['s']['described']} solid forms as the two solutions mix; {warm}."
             else:
                 note = f"Two colourless solutions mix and stay colourless; {warm}."
-            show[e["id"]] = {"note": note, "why": "by rule: two solutions"}
+            fix.update({"note": note, "why": "by rule: two solutions"})
         else:
             bcol = subs[base]["colour"]["s"]["described"]
             aq = pcol.get("aq", {}).get("described", "colourless")
             turns = "" if aq.startswith("colourless") else f" and the solution turns {aq}"
-            note = f"The {bcol} powder dissolves{turns}; {warm}."
-            show[e["id"]] = {"note": note, "speed": ["fast", "a minute or so"], "why": "by rule: a solid base dissolves"}
+            warm_acid = " in the warm acid" if base in BASE_NEEDS else ""
+            note = f"The {bcol} powder dissolves{warm_acid}{turns}; {warm}."
+            fix.update({"note": note, "speed": BASE_SPEED.get(base, ["fast", "a minute or so"]),
+                        "why": "by rule: a solid base dissolves"})
+    else:
+        fix.setdefault("why", f"by rule: {RULE[rule]['name']}")
+    show[e["id"]] = fix
+    for f in rs:
+        if f not in SHELF:
+            added[f] = min(added.get(f, 9), b)
+
+reactions.sort(key=lambda e: ([r["id"] for r in RULES].index(e["rule"]), BANDS.index(e["band"]), e["id"]))
 
 used_final = sorted({f for e in reactions for side in e["equation"].split(" -> ") for _, f in terms(side)})
 out = {
@@ -737,7 +870,13 @@ out = {
         "margin_v": MARGIN_V,
         "water_first": WATER_FIRST,
         "acids": ACIDS,
-        "hazards": HAZARDS,
+        "lab_policy": LAB_POLICY,
+        "base_pka": BASE_PKA,
+        "passivated": PASSIVATED,
+        "basic_carbonate": BASIC_CARBONATE,
+        "ammine": AMMINE,
+        "spark_max_flash_c": SPARK_MAX_C,
+        "fuels": {f: {"flash_c": v[4], "needs": fuel_need(f)} for f, v in FUELS.items()},
     },
     "bottles": [{"species": f, "band": BANDS[b]} for f, b in sorted(added.items())],
     "species": {f: {"name": SPECIES[f]["name"], "everyday": SPECIES[f]["everyday"],
@@ -753,7 +892,7 @@ with open(os.path.join(OUT, "rules.json"), "w") as fh:
 # names.json: everyday names for the new species, and the new gases.
 ns = names_json
 for f in used_final:
-    if f not in ns["substances"]:
+    if f in SPECIES and SPECIES[f]["everyday"]:
         ns["substances"][f] = SPECIES[f]["everyday"]
 for f in sorted(FUEL_NEW_GAS):
     if f in used_final and f not in ns["gases"]:
