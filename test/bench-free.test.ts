@@ -55,3 +55,24 @@ test("lab records ship with their licence, use only Bench elements, and match th
   assert.match(build, /content\/chem\/literature\.json "\$OUT\/chem-literature\.json"/);
   assert.match(readFileSync("crates/bevy-client/web/bench-free.js", "utf8"), /CC BY-SA 4\.0/);
 });
+
+test("the page fits the window: Run sits outside the scrolling table and the coach outside the 3D view", () => {
+  const html = readFileSync("crates/bevy-client/web/bench-free.html", "utf8");
+  const css = readFileSync("crates/bevy-client/web/bench-free.css", "utf8");
+  const js = readFileSync("crates/bevy-client/web/bench-free.js", "utf8");
+  // Run is in the bench pane's footer, after its scrolling part ends.
+  const scrollStart = html.indexOf('class="pane-scroll" id="benchScroll"');
+  const actions = html.indexOf('<div class="actions">');
+  assert.ok(scrollStart > 0 && actions > scrollStart, "bench pane has a scrolling part, then the actions footer");
+  assert.ok(html.indexOf('id="test"') > actions, "Run is in the actions footer");
+  assert.ok(html.indexOf('id="result"') < actions, "the result scrolls with the table");
+  // The coach takes its own strip above the view; the canvas is inside the view.
+  const coach = html.indexOf('class="coach"'), view = html.indexOf('class="view"'), canvas = html.indexOf('id="scene"');
+  assert.ok(coach > 0 && coach < view && view < canvas, "coach before the view, canvas inside it");
+  assert.match(css, /\.coach \{ position: static;/);
+  assert.match(css, /html, body \{ height: 100dvh; overflow: hidden; \}/);
+  assert.match(css, /body \{ margin: 0; \}/);
+  // What is on "in" is drawn in the chamber, and tests can count it.
+  assert.match(js, /previewIn\(\);\n {2}\};/, "drawTable previews the in side");
+  assert.match(js, /sceneCount: \(\) => chamberMols \+ atoms\.length/);
+});
