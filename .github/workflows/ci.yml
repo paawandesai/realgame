@@ -193,7 +193,7 @@ jobs:
           toolchain: stable
           targets: wasm32-unknown-unknown
       # Prebuilt binary in a few seconds, instead of `cargo install` (74 s).
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+      - uses: taiki-e/install-action@682ce6c3c696a4cd5168a05f98e51aa02b877941 # v2.89.1
         with:
           tool: wasm-pack@0.15.0
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -286,7 +286,7 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       # Must match wasm-bindgen in crates/bevy-client/Cargo.lock.
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+      - uses: taiki-e/install-action@682ce6c3c696a4cd5168a05f98e51aa02b877941 # v2.89.1
         with:
           tool: wasm-bindgen@0.2.129
       - name: Format
@@ -364,7 +364,7 @@ jobs:
           persist-credentials: false
       # Prebuilt binary: the same checks cargo-deny-action ran, without its
       # 12 s Docker image build.
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+      - uses: taiki-e/install-action@682ce6c3c696a4cd5168a05f98e51aa02b877941 # v2.89.1
         with:
           tool: cargo-deny@0.20.2
       - name: cargo-deny (advisories, bans, licenses, sources)
