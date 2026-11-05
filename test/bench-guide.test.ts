@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { hill, parseFormula, sideOf } from "../crates/bevy-client/web/bench-free-lib.js";
 
-type Reaction = { id: string; family: string; band: string; equation: string; needs: string[] };
+type Reaction = { id: string; family: string; band: string; equation: string; needs: string[]; evidence?: { kind: string } };
 type Step = { id: string; say: string; do: Record<string, unknown> };
 type Lesson = {
   id: string;
@@ -37,7 +37,10 @@ type Guide = {
   where_you_see_it_sources: Record<string, string[]>;
 };
 
-const core = JSON.parse(readFileSync("content/chem/core.json", "utf8")) as { families: string[]; reactions: Reaction[] };
+const coreFile = JSON.parse(readFileSync("content/chem/core.json", "utf8")) as { families: string[]; reactions: Reaction[] };
+/** I-058: the engine plays only reactions with textbook or data evidence (Codex::load hides the rest), so the guide may name only those. */
+const playable = (r: Reaction) => r.evidence?.kind === "textbook" || r.evidence?.kind === "data";
+const core = { ...coreFile, reactions: coreFile.reactions.filter(playable) };
 const names = JSON.parse(readFileSync("content/chem/names.json", "utf8")) as {
   elements: Record<string, unknown>;
   substances: Record<string, string>;
