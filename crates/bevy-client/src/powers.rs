@@ -524,6 +524,20 @@ impl Motion {
         true
     }
 
+    /// A burst of gas from `from` pushes the player away from it at `speed`
+    /// (a discovered spell's Push, I-056): the dash's launch, on or off the
+    /// ground, along the line from the burst (the view when on top of it).
+    pub fn push(&mut self, player: &mut Player, from: Vec3, speed: f32) {
+        let away = Vec2::new(player.pos.x - from.x, player.pos.z - from.z);
+        let dir = if away.length() > 0.2 {
+            away.normalize()
+        } else {
+            Vec2::new(-player.yaw.sin(), -player.yaw.cos())
+        };
+        player.vel = Vec3::new(dir.x * speed, DASH_UP, dir.y * speed);
+        player.grounded = false;
+    }
+
     /// Runs after the frame's movement: holds the lift's rise until it has
     /// gained its height (or hit a ceiling) and limits drift until landing.
     pub fn after_move(&mut self, player: &mut Player, dt: f32) {

@@ -1310,7 +1310,7 @@ fn spawn_clamp(
 /// A Fire cast that lands in the clamp's vent lights it.
 fn clamp_fire(mut landed: MessageReader<crate::SpellLanded>, mut late: ResMut<Late>) {
     for l in landed.read() {
-        if l.spell == crate::chem::Spell::Fire {
+        if l.spell == crate::chem::Spell::Fire && crate::discover::lands_as_matter(l.disc) {
             late.fire_at(l.pos);
         }
     }

@@ -50,13 +50,17 @@ pub struct Data {
     by_id: BTreeMap<String, usize>,
     pub bottles: Bottles,
     pub quests: Quests,
+    /// The world uses' data values (`effects.json` `world`, I-056).
+    pub world: d::WorldSpec,
 }
 
 pub fn data() -> &'static Data {
     static D: OnceLock<Data> = OnceLock::new();
     D.get_or_init(|| {
         let codex = &spells::book().codex;
-        let effects = Effects::load().all(codex);
+        let fx = Effects::load();
+        let world = fx.world().clone();
+        let effects = fx.all(codex);
         let by_id = codex
             .entries
             .iter()
@@ -68,6 +72,7 @@ pub fn data() -> &'static Data {
             by_id,
             bottles: Bottles::load(),
             quests: Quests::load(),
+            world,
         }
     })
 }
@@ -75,6 +80,21 @@ pub fn data() -> &'static Data {
 /// A codex reaction by index, with its effect.
 pub fn entry(i: usize) -> Option<(&'static Entry, &'static Effect)> {
     Some((spells::book().codex.entries.get(i)?, data().effects.get(i)?))
+}
+
+/// What a landed cast does in the world: its discovery's run, or `None`
+/// for a shipped spell.
+pub fn runs_of(disc: Option<u16>) -> Option<d::Runs> {
+    disc.and_then(|i| entry(usize::from(i)))
+        .map(|(_, fx)| fx.runs)
+}
+
+/// Whether a landed cast is a matter emit (a shipped spell, or a discovery
+/// whose run is one of the four shipped rules). Wall, Reveal, Lift and Push
+/// are carried out by `world_use` instead, so their flight's spell does not
+/// also burn, douse or freeze where they land.
+pub fn lands_as_matter(disc: Option<u16>) -> bool {
+    runs_of(disc).is_none_or(d::Runs::matter)
 }
 
 /// The codex index of reaction `id`.
@@ -180,7 +200,8 @@ impl Disc {
     /// Puts saved spell `idx` on key `k` (0-3), taking it off any other key
     /// (one key per spell) and replacing what `k` held. It is switched on.
     pub fn put(&mut self, idx: usize, k: usize) -> bool {
-        if k >= 4 || !self.saved.iter().any(|s| s.0 == idx) {
+        let saveable = entry(idx).is_some_and(|(_, fx)| fx.saveable());
+        if k >= 4 || !saveable || !self.saved.iter().any(|s| s.0 == idx) {
             return false;
         }
         for j in 0..4 {
@@ -244,7 +265,10 @@ impl Disc {
                 for kv in list(arg) {
                     let (id, n) = kv.split_once(':').unwrap_or((kv.as_str(), "0"));
                     let n = n.parse::<u8>().unwrap_or(0);
-                    if let Some(i) = index_of(id) {
+                    // A Bench-only reaction is never a spell (an older save
+                    // may list one): it is dropped.
+                    let i = index_of(id).filter(|&i| entry(i).is_some_and(|(_, fx)| fx.saveable()));
+                    if let Some(i) = i {
                         match self.saved.iter_mut().find(|s| s.0 == i) {
                             Some(s) => s.1 = s.1.max(n),
                             None => self.saved.push((i, n)),
@@ -746,6 +770,24 @@ mod tests {
     }
 
     #[test]
+    fn a_bench_only_reaction_is_never_saved_or_equipped() {
+        let haber = index_of("haber").unwrap();
+        let fx = entry(haber).unwrap().1;
+        assert!(!fx.saveable());
+        assert!(fx
+            .bench_only
+            .as_deref()
+            .is_some_and(|w| w.contains("ammonia")));
+        let mut d = loaded();
+        d.command("saved haber:2");
+        assert!(d.saved.iter().all(|s| s.0 != haber), "dropped on load");
+        d.saved.push((haber, 2));
+        assert!(!d.put(haber, 0), "never on a key");
+        d.command("equip haber 1");
+        assert_eq!(d.active(0), None);
+    }
+
+    #[test]
     fn two_builds_master_a_discovered_spell() {
         let mut d = loaded();
         let c = index_of("carbon_burns").unwrap();
@@ -754,12 +796,15 @@ mod tests {
         assert_eq!(d.stage(c), 3);
         let fx = entry(c).unwrap().1;
         assert_eq!(Disc::tag(c).amount, fx.strength);
+        // A hydrogen fizz lifts (I-056): it carries its strength, and its
+        // landing is the world's, not a matter emit.
         let zinc = index_of("zinc_acid").unwrap();
-        assert_eq!(
-            Disc::tag(zinc).amount,
-            0.0,
-            "a hydrogen fizz changes nothing"
-        );
+        let zfx = entry(zinc).unwrap().1;
+        assert_eq!(zfx.runs, d::Runs::Lift);
+        assert_eq!(Disc::tag(zinc).amount, zfx.strength);
+        assert!(!lands_as_matter(Disc::tag(zinc).disc));
+        assert!(lands_as_matter(Disc::tag(c).disc));
+        assert!(lands_as_matter(None), "a shipped spell");
         assert_eq!(Disc::def(c).unwrap().slot, 1);
     }
 

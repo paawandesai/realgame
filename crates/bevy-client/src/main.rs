@@ -52,6 +52,7 @@ mod voxel_tex;
 mod voxel_view;
 mod worked;
 mod world;
+mod world_use;
 
 use bevy::anti_alias::fxaa::Fxaa;
 use bevy::asset::AssetMetaCheck;
@@ -908,6 +909,7 @@ fn main() {
             powers::plugin,
             firebreak::plugin,
             discover::plugin,
+            world_use::plugin,
         ));
     }
     app.run();

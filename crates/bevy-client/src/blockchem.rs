@@ -351,6 +351,11 @@ pub(crate) fn drive(
         if l.amount <= 0.0 {
             continue;
         }
+        // I-056: a Wall, Reveal, Lift or Push is carried out by `world_use`;
+        // the shipped spell it flies as does not also land as matter.
+        if !crate::discover::lands_as_matter(l.disc) {
+            continue;
+        }
         let mut emit = on_impact(l.spell, l.pos, n);
         emit.amount = l.amount;
         matter.world.emit(emit);
