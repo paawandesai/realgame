@@ -3114,8 +3114,9 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       });
     } catch { /* keep the real one */ }
   });
-  const said = () => page.evaluate(() => (window.__said || []).slice());
-  const clearSaid = () => page.evaluate(() => { if (window.__said) window.__said.length = 0; });
+  // The Bench page speaks from its own frame (the stub is in every frame).
+  const said = async () => [...(await page.evaluate(() => (window.__said || []).slice())), ...((await fev(() => (window.__said || []).slice())) || [])];
+  const clearSaid = async () => { await page.evaluate(() => { if (window.__said) window.__said.length = 0; }); await fev(() => { if (window.__said) window.__said.length = 0; }); };
   const run = async (name, fn) => {
     try { await fn(); } catch (e) { check(name, false, `error: ${e && e.message}`); }
   };
@@ -3257,7 +3258,9 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
 
   // 17, 21, 22, 23. A 6-year-old learns Water with the mouse only; no farming; the game stays frozen; it survives a reload.
   await run('bench: Sprout learns Water with the mouse', async () => {
-    await load(['band=sprout'], { settings: null });
+    // Spoken lines are opt-in since db6ddf1 ("Read lines aloud", settings
+    // voice: true), so this run turns them on to check what is spoken.
+    await load(['band=sprout'], { settings: JSON.stringify({ voice: true }) });
     await clearSaid();
     await clickAt('#benchbtn'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 3, 10);
@@ -3540,7 +3543,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       const fits = panel.scrollHeight <= panel.clientHeight + 1 || getComputedStyle(panel).overflowY === 'auto';
       const pageScroll = document.documentElement.scrollHeight > innerHeight + 1 || document.documentElement.scrollWidth > innerWidth + 1;
       if (!fits || pageScroll) bad.push(`fit panel=${fits} pageScroll=${pageScroll}`);
-      return { bad, texts, contrast, title: parseFloat(getComputedStyle(root.querySelector('.sb-name')).fontSize) };
+      return { bad, texts, contrast, title: parseFloat(getComputedStyle(root.querySelector('.sb-name, .bench-build-name') || root).fontSize) };
     }).then((x) => x || { bad: ['no Bench page'], texts: 0, contrast: [], title: 0 });
     const sizeBad = [];
     const contrastBad = [];

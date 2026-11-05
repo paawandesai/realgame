@@ -325,7 +325,7 @@ h1 small.mode-chip[data-mode="story"] { border-color: var(--good); color: var(--
 /* Spells-tab sizes (the old Bench's rules): controls at least 48px, text at
    least 18px, Sprout bigger again; all scale with the world's text size. */
 #spellbook { --ui: 1; font-size: calc(18px * var(--ui)); }
-#spellbook .btn, #spellbook button, #spellbook .sb-mount button { min-height: calc(48px * var(--ui)); min-width: calc(48px * var(--ui)); font-size: calc(16px * var(--ui)); }
+#spellbook .btn, #spellbook button, #spellbook .sb-mount button { min-height: calc(48px * var(--ui)); min-width: calc(48px * var(--ui)); font-size: calc(18px * var(--ui)); }
 #spellbook .sb-spell, #spellbook .sb-quest, #spellbook .sb-facts, #spellbook .sb-reason { font-size: calc(18px * var(--ui)); }
 #spellbook .sb-name { font-size: calc(20px * var(--ui)); }
 #spellbook .sb-stage, #spellbook .sb-key, #spellbook .sb-keylabel { font-size: calc(15px * var(--ui)); }
@@ -352,7 +352,13 @@ h1 small.mode-chip[data-mode="story"] { border-color: var(--good); color: var(--
 @keyframes sb-pop { 0% { transform: scale(0.4); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
 .sb-done-icon.water { animation-name: sb-pop-w; }
 @keyframes sb-pop-w { 0% { transform: rotate(-45deg) scale(0.4); } 70% { transform: rotate(-45deg) scale(1.15); } 100% { transform: rotate(-45deg) scale(1); } }
-@media (prefers-reduced-motion: reduce) { .sb-done-icon { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sb-done-icon, .sb-done-icon.water { animation: none; } }
 .band-ask-card .btn { min-height: 160px; }
 #changeBand { margin-left: 6px; min-height: 40px; }
 #changeBand[hidden] { display: none; }
+/* Every text on the Spells tab is at least 18px (the old Bench's rule). */
+#spellbook h2, #spellbook .note, #spellbook .sb-stage, #spellbook .sb-key, #spellbook .sb-keylabel, #spellbook p, #spellbook .sb-done-count, #spellbook .sb-done-extra { font-size: calc(18px * var(--ui)); }
+#spellbook h2 { text-transform: none; letter-spacing: 0; }
+#spellbook .sb-done-line { font-size: calc(22px * var(--ui)); }
+#spellbook .sb-mount .bench-ball { font-size: calc(18px * var(--ui)); width: calc(34px * var(--ui)); height: calc(34px * var(--ui)); }
+#spellbook .sb-mount .bench-input { min-height: calc(48px * var(--ui)); font-size: calc(18px * var(--ui)); }

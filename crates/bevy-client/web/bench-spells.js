@@ -328,6 +328,15 @@ export function mountSpells(o) {
       o.box.append(sec5);
     }
     lastKey = stateKey();
+    focusStart();
+  };
+  // The keyboard starts here when nothing else has focus (the Bench just
+  // opened over the world): the first control of the tab.
+  const focusStart = () => {
+    const ae = o.box.ownerDocument.activeElement;
+    if ((!ae || ae === o.box.ownerDocument.body || !ae.isConnected) && o.box.getClientRects().length) {
+      /** @type {HTMLElement | null} */ (o.box.querySelector('button'))?.focus();
+    }
   };
 
   const putKey = (/** @type {string} */ id, /** @type {number} */ k, /** @type {number} */ was) => {
@@ -504,7 +513,7 @@ export function mountSpells(o) {
     if (rank() >= 2) {
       if (r.simplest) wrap.append(el('p', 'sb-done-extra', `Simplest form: ${pretty(r.simplest)}`));
       const coef = r.coef || 0;
-      const formula = pretty(names[r.slot].formula);
+      const formula = pretty(names[r.slot]?.formula || '');
       if (coef > 1) wrap.append(el('p', 'sb-done-extra', `A ${coef} in front would mean ${coef} molecules. One molecule is ${formula}.`));
     }
     const count = el('p', 'sb-done-count', '');
@@ -538,6 +547,7 @@ export function mountSpells(o) {
   const tick = () => {
     if (view === 'list') {
       if (stateKey() !== lastKey) drawList();
+      else focusStart();
       return;
     }
     if (!story || !job) return;
