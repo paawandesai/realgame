@@ -1,0 +1,186 @@
+name: Deploy
+
+# Deploys the game to Cloudflare Pages on demand: Actions -> Deploy -> Run
+# workflow. See docs/DEPLOY.md, option C.
+#
+#   production  the live site (realgame.pages.dev). Only commits already on
+#               main, which Paawan has played and approved, can go live.
+#   preview     any branch or commit, at its own URL
+#               (<name>.realgame.pages.dev), with analytics off so test
+#               plays never reach the real counts, and no database migrations.
+#
+# A pull request that changes the deploy path only builds the site (no
+# secrets, no upload), so the build is checked before it is relied on.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "production (the live site) or preview (its own URL)"
+        type: choice
+        options: [production, preview]
+        default: production
+      ref:
+        description: "Branch, tag or commit to deploy (production: must be on main)"
+        type: string
+        default: main
+  pull_request:
+    paths:
+      - ".github/workflows/deploy.yml"
+      - "scripts/build-site.sh"
+      - "scripts/deploy.sh"
+      - "crates/bevy-client/build-web.sh"
+      - "wrangler.toml"
+
+permissions:
+  contents: read
+
+# Deploys run one at a time and are never cancelled half way. Pull request
+# build checks cancel their own stale runs.
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && 'cloudflare-deploy' || format('deploy-check-{0}', github.event.pull_request.number) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+env:
+  HUSKY: 0
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      sha: ${{ steps.ref.outputs.sha }}
+      alias: ${{ steps.ref.outputs.alias }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || '' }}
+          fetch-depth: 0 # the production guard checks the commit is on main
+          persist-credentials: false
+      - name: Check what is being deployed
+        id: ref
+        env:
+          TARGET: ${{ inputs.target }}
+          REF: ${{ inputs.ref }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = workflow_dispatch ] && [ "$TARGET" = production ]; then
+            git fetch --no-tags origin main
+            if ! git merge-base --is-ancestor "$sha" FETCH_HEAD; then
+              echo "::error::$REF ($sha) is not on main. Only merged, approved work goes live; deploy it as a preview instead."
+              exit 1
+            fi
+          fi
+          # Preview URL name: the branch name, lower case, letters, digits and
+          # dashes, at most 28 characters (Cloudflare's alias limit).
+          alias="$(printf '%s' "${REF:-preview}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-28 | sed -E 's/-+$//')"
+          if [ -z "$alias" ] || [ "$alias" = main ]; then alias=preview; fi
+          echo "alias=$alias" >> "$GITHUB_OUTPUT"
+          echo "Deploying $sha ($REF) as ${TARGET:-a build check}"
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch as of 2026-10-29
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      # wasm-bindgen must match crates/bevy-client/Cargo.lock; wasm-pack
+      # builds the classic game at /classic/.
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: wasm-bindgen@0.2.129,wasm-pack@0.15.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            . -> target
+            crates/bevy-client -> target
+          cache-directories: ~/.cache/.wasm-pack
+          shared-key: deploy
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - name: Build the game, the Bench page, the classic game and the dashboard
+        env:
+          RG_ANALYTICS: ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'production') && 'on' || 'off' }}
+        run: bash scripts/build-site.sh
+      - name: Check the site fits Cloudflare Pages
+        run: |
+          cd web/dist
+          test -f index.html && test -f bench-free.html
+          files=$(find . -type f | wc -l)
+          echo "files: $files (Pages allows 20,000)"
+          test "$files" -lt 20000
+          # Pages refuses any single file over 25 MiB.
+          big=$(find . -type f -size +25M)
+          if [ -n "$big" ]; then echo "::error::Over the 25 MiB Pages file limit: $big"; exit 1; fi
+          {
+            echo "### Site size"
+            echo
+            echo "| File | Size | gzip |"
+            echo "| --- | --- | --- |"
+            find . -type f -size +200k | sort | while read -r f; do
+              echo "| \`${f#./}\` | $(du -h "$f" | cut -f1) | $(gzip -9c "$f" | wc -c | numfmt --to=iec) |"
+            done
+            echo
+            echo "Total: $(du -sh . | cut -f1) in $files files"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 3
+
+  deploy:
+    name: Deploy to Cloudflare Pages (${{ inputs.target }})
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.target }}
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install wrangler from the lockfile
+        run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: site
+          path: web/dist
+      - name: Deploy
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DASHBOARD_TOKEN: ${{ secrets.DASHBOARD_TOKEN }}
+          DEPLOY_BRANCH: ${{ inputs.target == 'production' && 'main' || needs.build.outputs.alias }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Add the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets first (docs/DEPLOY.md, option C)."
+            exit 1
+          fi
+          bash scripts/deploy.sh --prebuilt 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          # wrangler prints https://<deployment>.<project>.pages.dev; the
+          # site itself is https://<project>.pages.dev, a preview is
+          # https://<alias>.<project>.pages.dev.
+          url="$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.pages\.dev' "$RUNNER_TEMP/deploy.log" | tail -1)"
+          site="$(printf '%s' "$url" | sed -E 's|https://[a-z0-9-]+\.|https://|')"
+          if [ "$DEPLOY_BRANCH" = main ]; then url="$site"; else url="${site/https:\/\//https://$DEPLOY_BRANCH.}"; fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Deployed: $url" >> "$GITHUB_STEP_SUMMARY"
