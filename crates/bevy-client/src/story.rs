@@ -376,7 +376,15 @@ pub fn crossing_progress(story: &mut Story, pos: Vec3, gate_ice: u32) {
     if across {
         story.quest.on(QuestEvent::CrossedFord);
     }
-    if gate_ice == 0 {
+    // Melting a way through is enough (Paawan, 2026-11-05): the gate counts
+    // as open once the player stands just north of it, in its opening, which
+    // only a melted path reaches. All the ice gone still counts too.
+    let g = realgame_voxel::stamp::ICE_GATE;
+    let through = pos.z < g.min[2] as f32
+        && pos.z > (g.min[2] - 8) as f32
+        && pos.x >= (g.min[0] - 2) as f32
+        && pos.x < (g.max[0] + 2) as f32;
+    if gate_ice == 0 || through {
         story.quest.on(QuestEvent::GateMelted);
     }
 }
@@ -750,6 +758,16 @@ mod tests {
         assert_eq!(s.quest.step(), 3, "ice left in the gate");
         crossing_progress(&mut s, Vec3::new(60.5, 36.0, 96.0), 0);
         assert_eq!(s.quest.step(), 4, "the gate melted");
+
+        // Walking through a melted gap is enough, with ice left either side.
+        let mut s = Story {
+            quest: Quest::at(3),
+            ..Story::default()
+        };
+        crossing_progress(&mut s, Vec3::new(30.5, 40.0, 83.0), 9);
+        assert_eq!(s.quest.step(), 3, "north of the ridge but not at the gate");
+        crossing_progress(&mut s, Vec3::new(60.5, 36.0, 84.5), 9);
+        assert_eq!(s.quest.step(), 4, "through the gate");
     }
 
     /// Round 2 (P3): step 5 completes when no vent in the hollow burns and
