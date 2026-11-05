@@ -1,23 +1,25 @@
-// The Formula Bench (I-028): build a spell's formula at your age band's
-// level. See docs/loop/items/I-028/spec.md (sections 1-3 and Contract).
+// The Formula Bench's builder (I-028) and the host of the one Bench (I-060).
+// See docs/loop/items/I-028/spec.md (sections 1-3 and Contract) and
+// docs/loop/items/I-060/spec.md.
 //
 // Loaded by boot.js with a guarded dynamic import, so a missing or broken
 // bench.js costs only the bench, never the boot. The game drains
 // window.__gameIn.bench (one command string each: `band <tier>`, `open`,
-// `pick <slot>`, `try <slot> <text…>`, `close`) and writes
-// window.__benchState (a JSON string) only when it changes. crates/sim's
-// bench::judge is the only judge: nothing here decides right or wrong. The
-// balance scale is display arithmetic (atom counts per side), never a verdict.
+// `pick <slot>`, `learn <codex id>`, `try <slot> <text…>`, `close`) and
+// writes window.__benchState (a JSON string) only when it changes.
+// crates/sim's bench::judge is the only judge: nothing here decides right or
+// wrong. The balance scale is display arithmetic (atom counts per side),
+// never a verdict.
 //
-// The bench never opens by itself: only the B key and the #benchbtn button
-// open it, and only while no other aria-modal dialog is showing (the one
-// modal gate). While it is open the game is paused, the mouse is free, the
-// page behind it is inert, and every keydown/keypress is swallowed in the
-// window capture phase before winit or hud.js can see it (keyup always
-// passes, so a key held when the bench opened is released in the game).
-//
-// Test hook: window.__bench = { state(), ui(), open(), close(), cmd(s) },
-// plus fake(view) under ?debug only.
+// The pure helpers and mountBuilder below build a formula at a band's level;
+// the one Bench's Spells tab (bench-spells.js) and the worked casts
+// (worked.js) mount them. startBench (at the end) opens the Chemistry Bench
+// over the world: the B key, E at a Bench and the #benchbtn button, only
+// while no other aria-modal dialog is showing (the one modal gate). While it
+// is open the game is paused, the mouse is free, the page behind it is inert,
+// and every keydown/keypress on this page is swallowed in the window capture
+// phase before winit or hud.js can see it (keyup always passes, so a key held
+// when the bench opened is released in the game).
 
 /** @typedef {{ side: number, coef: number, formula: string, atoms: Array<[string, number]>, state?: string | null }} RecipeTerm */
 /** @typedef {{ slot: number, id: string, name: string, formula: string, stage: string, prompt: string }} SpellCard */
@@ -30,8 +32,8 @@ const BANDS = ['sprout', 'seedling', 'apprentice'];
 // The four atom cards and tiles, with the CPK-style colours a drawing uses
 // (a convention, not a claim); the letter is always drawn too (GS-19).
 const ELEMENTS = ['H', 'O', 'C', 'N'];
-const ICONS = /** @type {Record<string, string>} */ ({ fire: 'fire', water: 'water', frost: 'frost', co2: 'foam' });
-const STAGE_WORD = /** @type {Record<string, string>} */ ({ unknown: 'New', learning: 'Learning', practised: 'Practised', mastered: 'Mastered' });
+export const ICONS = /** @type {Record<string, string>} */ ({ fire: 'fire', water: 'water', frost: 'frost', co2: 'foam' });
+export const STAGE_WORD = /** @type {Record<string, string>} */ ({ unknown: 'New', learning: 'Learning', practised: 'Practised', mastered: 'Mastered' });
 const STATE_WORD = /** @type {Record<string, string>} */ ({ l: 'a liquid', g: 'a gas', s: 'a solid', aq: 'a solution in water' });
 const SETTINGS_KEY = 'alchemist.settings.v1';
 // Loudest any tone gets, as hud.js.
@@ -269,7 +271,7 @@ function soundOn() {
  * also works from its pictures and on-screen text.
  * @param {string} text
  */
-function speak(text) {
+export function speak(text) {
   try {
     if (typeof window === 'undefined' || !text) return;
     const syn = /** @type {any} */ (window).speechSynthesis;
@@ -285,7 +287,7 @@ function speak(text) {
 /** @type {AudioContext | null} */
 let audio = null;
 /** Starts (or resumes) the audio context; call from a click or key handler. */
-function wakeAudio() {
+export function wakeAudio() {
   try {
     if (audio) { if (audio.state === 'suspended') audio.resume().catch(() => {}); return; }
     const AC = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
@@ -295,7 +297,7 @@ function wakeAudio() {
   }
 }
 /** A short rising tone for a correct build (peak gain at most PEAK, sound on only). */
-function rise() {
+export function rise() {
   if (!audio || !soundOn()) return;
   try {
     const t0 = audio.currentTime + 0.01;
@@ -586,8 +588,29 @@ export function mountBuilder(root, opts) {
 }
 
 // ---------------------------------------------------------------------------
-// The bench: modal, chooser, list, build, done and fizzle
+// The one Bench (I-060): B opens the Chemistry Bench over the world
 // ---------------------------------------------------------------------------
+//
+// The world's B key (and E at a Bench, and the #benchbtn button) shows the
+// Chemistry Bench page (bench-free.html?mode=story) in a same-origin iframe
+// over the world. Its Spells tab (bench-spells.js) learns and practises the
+// spells through this page's `window.__gameIn.bench` queue, which bench.rs
+// drains and judges (judge_with and the shared codex) as before; only the
+// UI moved. This module keeps the rest of the old Bench's contract: the one
+// modal gate, the paused world, the freed pointer lock (re-locked on close,
+// or on the next click after Escape), the page behind made inert, every key
+// swallowed while open, the band sent to the game, the bench chip and the
+// button's rings. The iframe is made on the first open and kept (hidden), so
+// the Bench reopens where it was.
+//
+// Test hook: window.__bench = { state(), ui(), open(), close(), cmd(s),
+// frame(), band(), setBand(b), fixed(), ready() }.
+
+/** The four bands (Tier ids); `bandOf` above keeps the builder's three. */
+const BANDS4 = ['sprout', 'seedling', 'apprentice', 'adept'];
+/** @param {unknown} b */
+const band4 = (b) => (typeof b === 'string' && BANDS4.includes(b) ? b : null);
+const FRAME_SRC = 'bench-free.html?mode=story';
 
 let started = false;
 
@@ -597,7 +620,6 @@ export function startBench() {
   const w = /** @type {any} */ (window);
   if (!w.__gameIn) w.__gameIn = {};
   if (!Array.isArray(w.__gameIn.bench)) w.__gameIn.bench = [];
-  const debug = new URLSearchParams(location.search).has('debug');
   const push = (/** @type {string} */ c) => {
     const gi = w.__gameIn;
     if (!gi) return;
@@ -605,52 +627,18 @@ export function startBench() {
     gi.bench.push(c);
   };
 
-  // ---- state ----
-  /** @type {View} */
-  let rust = { v: 1, atBench: false, open: false };
-  let rustJson = '';
-  /** @type {View | null} */
-  let fakeView = null;
+  // ---- the band: the URL, else the age picker, else a pick in the Bench ----
   /** @type {string | null} */
   let picked = null;
   /** @type {string | null} */
   let chosen = null;
-  let explicit = false;
   /** @type {string | null} */
   let sentBand = null;
-  const ui = {
-    open: false,
-    /** @type {string | null} */
-    band: null,
-    /** @type {'chooser' | 'list' | 'build' | 'done' | 'fizzle'} */
-    view: /** @type {'chooser' | 'list' | 'build' | 'done' | 'fizzle'} */ ('chooser'),
-    pick: 0,
+  const urlBand = () => {
+    try { return band4(new URLSearchParams(location.search).get('band')); } catch { return null; }
   };
-  let wasLocked = false;
-  let wasPaused = false;
-  /** @type {Array<[HTMLElement, boolean]>} */
-  let behind = [];
-  let shownN = 0;
-  let awaiting = false;
-  let sentAt = 0;
-  /** @type {Record<number, number>} */
-  let misses = {};
-  /** @type {Names} */
-  const names = {};
-  for (const b of document.querySelectorAll('#hotbar .slot[data-spell]')) {
-    const slot = +(/** @type {HTMLElement} */ (b).dataset.spell || 0);
-    const n = b.querySelector('.name');
-    if (slot && n) names[slot] = { name: n.textContent || '', formula: '' };
-  }
-
-  const view = () => fakeView || rust;
-  // A class link's ?band= fixes the band (spec section 2: the URL comes
-  // first, and the teacher note says a link "can fix the band"), so it beats
-  // even a choice made inside the bench, and "Change age" is hidden for it.
-  const urlBand = () => bandFrom(location.search, null, null);
   const resolveBand = () => {
-    const b = urlBand() || (explicit ? bandOf(chosen) : bandFrom(location.search, picked, chosen));
-    ui.band = b;
+    const b = urlBand() || chosen || picked;
     if (b && b !== sentBand) {
       push(`band ${b}`);
       sentBand = b;
@@ -663,28 +651,36 @@ export function startBench() {
   root.id = 'bench';
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
-  root.setAttribute('aria-labelledby', 'bench-title');
+  root.setAttribute('aria-label', 'Chemistry Bench');
   root.hidden = true;
-  const panel = mk(document, 'div', 'bench-panel');
-  const header = mk(document, 'div', 'bench-head');
-  const title = mk(document, 'h1', 'bench-title', 'Formula Bench');
-  title.id = 'bench-title';
-  const change = mk(document, 'button', 'bench-change', 'Change age');
-  change.setAttribute('type', 'button');
-  const closeBtn = mk(document, 'button', 'bench-close', 'Close');
-  closeBtn.setAttribute('type', 'button');
-  header.append(title, change, closeBtn);
-  change.hidden = !!urlBand();
-  const body = mk(document, 'div', 'bench-body');
-  panel.append(header, body);
-  root.append(panel);
+  // Shown until the Bench page says it is ready (or if it never does).
+  const wait = mk(document, 'div', 'bench-wait');
+  wait.append(mk(document, 'p', 'bench-wait-line', 'Setting up the Bench…'));
+  const waitBack = mk(document, 'button', 'bench-close', 'Back to the world');
+  waitBack.setAttribute('type', 'button');
+  wait.append(waitBack);
+  root.append(wait);
   document.body.append(root);
+  /** @type {HTMLIFrameElement | null} */
+  let frame = null;
+  let ready = false;
+  const ensureFrame = () => {
+    if (frame) return frame;
+    frame = /** @type {HTMLIFrameElement} */ (document.createElement('iframe'));
+    frame.id = 'bench-frame';
+    frame.title = 'Chemistry Bench';
+    frame.src = FRAME_SRC;
+    root.append(frame);
+    return frame;
+  };
+  /** The Bench page's story API, once it has started. */
+  const story = () => { try { return /** @type {any} */ (frame?.contentWindow)?.__benchStory || null; } catch { return null; } };
 
   // The HUD button: a flask and the key cap, top right.
   const btn = mk(document, 'button');
   btn.id = 'benchbtn';
   btn.setAttribute('type', 'button');
-  btn.setAttribute('aria-label', 'Formula Bench (B)');
+  btn.setAttribute('aria-label', 'Chemistry Bench (B)');
   const flask = mk(document, 'span', 'bench-flask');
   flask.setAttribute('aria-hidden', 'true');
   const key = mk(document, 'span', 'bench-key', 'B');
@@ -697,7 +693,7 @@ export function startBench() {
     const table = document.querySelector('#pause .card table');
     if (table) {
       const tr = mk(document, 'tr');
-      tr.append(mk(document, 'td', '', 'Formula Bench'), mk(document, 'td', '', 'B'));
+      tr.append(mk(document, 'td', '', 'Chemistry Bench'), mk(document, 'td', '', 'B'));
       const rows = [...table.querySelectorAll('tr')];
       const after = rows.find((r) => (r.querySelector('td')?.textContent || '').trim() === 'Read the last message again');
       if (after) after.after(tr);
@@ -719,379 +715,17 @@ export function startBench() {
     return false;
   };
 
-  // ---- focus ----
-  const focusables = () => /** @type {HTMLElement[]} */ ([...root.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')])
-    .filter((el) => !(/** @type {HTMLButtonElement} */ (el).disabled) && el.getClientRects().length > 0);
-  const focusFirst = () => {
-    const input = /** @type {HTMLElement | null} */ (root.querySelector('#bench-input'));
-    const first = input || body.querySelector('button') || focusables()[0];
-    /** @type {HTMLElement | null} */ (first)?.focus();
-  };
-  const moveFocus = (/** @type {number} */ d) => {
-    const list = focusables();
-    if (!list.length) return;
-    const i = list.indexOf(/** @type {HTMLElement} */ (document.activeElement));
-    const next = list[i < 0 ? 0 : (i + d + list.length) % list.length];
-    next?.focus();
-  };
-
-  // ---- rendering ----
-  /** @type {{ destroy: () => void } | null} */
-  let builder = null;
-  let builderKey = '';
-  let listKey = '';
-  /** @type {HTMLElement | null} */
-  let feedback = null;
-
-  const clearBody = () => {
-    if (builder) builder.destroy();
-    builder = null;
-    builderKey = '';
-    listKey = '';
-    feedback = null;
-    body.replaceChildren();
-  };
-
-  const noteNames = (/** @type {SpellCard[] | undefined} */ spells) => {
-    for (const s of spells || []) names[s.slot] = { name: pretty(s.name), formula: s.formula };
-  };
-
-  /** @param {string} stage */
-  const badge = (stage) => {
-    const b = mk(document, 'span', 'bench-stage');
-    b.setAttribute('data-stage', stage);
-    const shape = mk(document, 'span', 'bench-stage-shape');
-    shape.setAttribute('aria-hidden', 'true');
-    b.append(shape, mk(document, 'span', 'bench-stage-word', STAGE_WORD[stage] || 'New'));
-    return b;
-  };
-
-  const showChooser = () => {
-    clearBody();
-    ui.view = 'chooser';
-    const q = 'How old are you?';
-    const wrap = mk(document, 'div', 'bench-chooser');
-    const head = mk(document, 'h2', 'bench-question', q);
-    // P10 follow-up: no band looks picked when the chooser opens; focus sits
-    // on the question (Tab or an arrow reaches the first band).
-    head.tabIndex = -1;
-    head.style.outline = 'none';
-    wrap.append(head);
-    const row = mk(document, 'div', 'bench-bands');
-    const labels = /** @type {Record<string, [string, string]>} */ ({
-      sprout: ['4 to 7', '4 to 7 years old'],
-      seedling: ['8 to 10', '8 to 10 years old'],
-      apprentice: ['11 and up', '11 years old and up'],
-    });
-    for (const b of BANDS) {
-      const [label, aria] = labels[b] || ['', ''];
-      const btnB = mk(document, 'button', 'bench-band');
-      btnB.setAttribute('type', 'button');
-      btnB.setAttribute('data-band', b);
-      btnB.setAttribute('aria-label', aria);
-      const svg = document.querySelector(`#age button[data-band="${b}"] svg`);
-      if (svg) btnB.append(svg.cloneNode(true));
-      btnB.append(mk(document, 'span', 'bench-band-label', label));
-      btnB.addEventListener('focus', () => speak(label));
-      btnB.addEventListener('pointerenter', () => speak(label));
-      btnB.addEventListener('click', () => {
-        chosen = b;
-        explicit = true;
-        resolveBand();
-        showList();
-      });
-      row.append(btnB);
-    }
-    wrap.append(row);
-    body.append(wrap);
-    if (ui.open) { try { head.focus({ preventScroll: true }); } catch { focusFirst(); } }
-    speak(q);
-  };
-
-  const showList = () => {
-    const v = view();
-    const spells = (v.band === ui.band || fakeView) ? v.spells || [] : [];
-    noteNames(spells);
-    const make = makeView();
-    const keyNow = `list|${ui.band}|${JSON.stringify(spells)}|${JSON.stringify(make)}`;
-    if (ui.view === 'list' && listKey === keyNow) return;
-    const had = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.('.bench-spell');
-    const hadSlot = had ? had.getAttribute('data-slot') : null;
-    clearBody();
-    ui.view = 'list';
-    ui.pick = 0;
-    listKey = keyNow;
-    const wrap = mk(document, 'div', `bench-list band-${ui.band}`);
-    wrap.append(mk(document, 'h2', 'bench-list-title', 'Pick a spell'));
-    const grid = mk(document, 'div', 'bench-cards');
-    for (const s of spells) {
-      const card = mk(document, 'button', 'bench-spell');
-      card.setAttribute('type', 'button');
-      card.setAttribute('data-slot', String(s.slot));
-      card.setAttribute('aria-label', `${pretty(s.name)}: ${STAGE_WORD[s.stage] || 'New'}`);
-      const icon = mk(document, 'span', `icon ${ICONS[s.id] || 'water'} bench-spell-icon`);
-      icon.setAttribute('aria-hidden', 'true');
-      card.append(icon, mk(document, 'span', 'bench-spell-name', pretty(s.name)), badge(s.stage));
-      card.addEventListener('click', () => pickSpell(s.slot));
-      grid.append(card);
-    }
-    wrap.append(grid);
-    // Paawan's playtest asked why Fire is missing: at the youngest band it is
-    // a starting spell (methane is a Seedling-band equation), so say so.
-    if (spells.length && !spells.some((s) => s.id === 'fire')) {
-      wrap.append(mk(document, 'p', 'bench-list-note', 'Fire is a starting spell at your age band: you can cast it already. You build its equation from the Seedling band up.'));
-    }
-    // I-052: the block world's "Make things" section (recipes from the pack).
-    if (make) wrap.append(makeSection(make));
-    body.append(wrap);
-    if (ui.open) {
-      const again = hadSlot ? /** @type {HTMLElement | null} */ (body.querySelector(`.bench-spell[data-slot="${hadSlot}"]`)) : null;
-      if (again) again.focus(); else focusFirst();
-    }
-  };
-
-  /**
-   * I-052: the recipes `story.rs` publishes in `__storyState`, in the block
-   * world only (null in the classic courtyard, so nothing there changes).
-   * @returns {Array<{ id: string, can: boolean, needs: Array<{ item: string, n: number, have: number }>, gives: { item: string, n: number } }> | null}
-   */
-  const makeView = () => {
-    try {
-      const g = JSON.parse(w.__gameState || 'null');
-      if (!g || g.mode !== 'voxel') return null;
-      const st = JSON.parse(w.__storyState || 'null');
-      return st && Array.isArray(st.recipes) ? st.recipes : null;
-    } catch {
-      return null;
-    }
-  };
-
-  /** @param {string} key */
-  const itemName = (key) => ({ coal_ore: 'coal', torch: 'torches', furnace: 'furnace' })[key] || key.replace(/_/g, ' ');
-
-  /**
-   * "Make things": a card per recipe with what it needs and what you have;
-   * greyed out when you are short. A click asks `story.rs` to craft it.
-   * @param {Array<{ id: string, can: boolean, needs: Array<{ item: string, n: number, have: number }>, gives: { item: string, n: number } }>} recipes
-   */
-  const makeSection = (recipes) => {
-    const sec = mk(document, 'section', 'bench-crafts');
-    sec.append(mk(document, 'h2', 'bench-list-title', 'Make things'));
-    const row = mk(document, 'div', 'bench-cards');
-    for (const r of recipes) {
-      const card = mk(document, 'button', 'bench-craft');
-      card.setAttribute('type', 'button');
-      card.setAttribute('data-recipe', r.id);
-      card.classList.toggle('short', !r.can);
-      card.setAttribute('aria-disabled', r.can ? 'false' : 'true');
-      const needs = r.needs.map((n) => `${n.n} ${itemName(n.item)} (${n.have})`).join(' + ');
-      card.setAttribute('aria-label', `${r.id}: ${needs}`);
-      card.append(
-        mk(document, 'span', 'bench-craft-name', `${r.gives.n} ${itemName(r.gives.item)}`),
-        mk(document, 'span', 'bench-craft-needs', needs),
-      );
-      card.addEventListener('click', () => {
-        if (!r.can) return;
-        w.__gameIn = w.__gameIn || {};
-        (w.__gameIn.story = w.__gameIn.story || []).push(`craft ${r.id}`);
-      });
-      row.append(card);
-    }
-    sec.append(row);
-    return sec;
-  };
-
-  const pickSpell = (/** @type {number} */ slot) => {
-    ui.pick = slot;
-    ui.view = 'build';
-    awaiting = false;
-    push(`pick ${slot}`);
-    const card = (view().spells || []).find((s) => s.slot === slot);
-    if (card) speak(card.prompt);
-    showBuild();
-  };
-
-  const showBuild = () => {
-    const v = view();
-    const card = (v.spells || []).find((s) => s.slot === ui.pick);
-    if (!card) return;
-    const band = ui.band || 'apprentice';
-    const needRecipe = band !== 'apprentice';
-    const recipe = v.pick === ui.pick && v.recipe ? v.recipe : null;
-    // Sprout and Seedling wait one frame for the recipe the game publishes.
-    if (needRecipe && !recipe && !fakeView) {
-      if (!builderKey) {
-        clearBody();
-        // The picked card is gone with the list: hold focus here (not
-        // tabbable) so it never falls back to <body> while the recipe comes.
-        const wait = mk(document, 'p', 'bench-wait', 'Getting the bench ready');
-        wait.tabIndex = -1;
-        body.append(wait);
-        if (ui.open) wait.focus();
-        builderKey = 'wait';
-      }
-      return;
-    }
-    const keyNow = `build|${band}|${ui.pick}|${JSON.stringify(recipe)}`;
-    if (builderKey === keyNow) return;
-    clearBody();
-    builderKey = keyNow;
-    const wrap = mk(document, 'div', 'bench-buildwrap');
-    const back = mk(document, 'button', 'bench-back', 'All spells');
-    back.setAttribute('type', 'button');
-    back.addEventListener('click', () => { push('open'); showList(); });
-    const mount = mk(document, 'div', 'bench-mount');
-    feedback = mk(document, 'div', 'bench-feedback');
-    feedback.setAttribute('aria-live', 'polite');
-    wrap.append(back, mount, feedback);
-    body.append(wrap);
-    builder = mountBuilder(mount, {
-      band,
-      spell: card,
-      recipe,
-      prompt: card.prompt,
-      onMake: (text) => {
-        wakeAudio();
-        // A double-clicked Make sends one try: while a try is in flight
-        // (its result not shown yet) a second Make is ignored. The guard
-        // lapses after 2 s so a lost result can never lock the button.
-        if (awaiting && performance.now() - sentAt < 2000) return;
-        awaiting = true;
-        sentAt = performance.now();
-        push(`try ${ui.pick} ${text}`.trimEnd());
-      },
-    });
-    if (ui.open) focusFirst();
-  };
-
-  /** @param {Result} r */
-  const showFizzle = (r) => {
-    // Only misses of the atoms count toward the Apprentice help from the
-    // third try (the 2D rule: help after three misses of the atoms); a
-    // missing or wrong state, or a typing slip, does not (break S4).
-    if (r.code === 'atoms_off' || r.code === 'unbalanced') misses[r.slot] = (misses[r.slot] || 0) + 1;
-    ui.view = 'fizzle';
-    if (!feedback) return;
-    const band = ui.band || 'apprentice';
-    const line = reasonFor(band, r, names, misses[r.slot] || 0);
-    const box = mk(document, 'div', 'bench-fizzle');
-    const mark = mk(document, 'span', 'bench-mark cross');
-    mark.setAttribute('aria-hidden', 'true');
-    box.append(mark, mk(document, 'p', 'bench-reason', line));
-    const diffs = r.diffs || [];
-    if (band === 'sprout' && r.code === 'atoms_off') {
-      // A picture diff: per element, the balls built against the balls wanted.
-      const recipe = view().recipe || [];
-      /** @type {Record<string, [number, number]>} */
-      const rows = {};
-      for (const t of recipe) for (const [el, n] of t.atoms) rows[el] = [n, n];
-      for (const [el, have, want] of diffs) rows[el] = [have, want];
-      const order = [...recipeOrder(recipe), ...Object.keys(rows).filter((el) => !recipeOrder(recipe).includes(el)).sort()];
-      const list = mk(document, 'div', 'bench-diffs');
-      for (const el of order) {
-        const [have, want] = rows[el] || [0, 0];
-        const okEl = have === want;
-        const row = mk(document, 'div', 'bench-diff');
-        row.setAttribute('data-el', el);
-        row.setAttribute('data-ok', String(okEl));
-        const haveBox = mk(document, 'span', 'bench-diff-have');
-        for (let k = 0; k < have; k++) haveBox.append(ball(document, el));
-        const wantBox = mk(document, 'span', 'bench-diff-want');
-        for (let k = 0; k < want; k++) wantBox.append(ball(document, el));
-        const m = mk(document, 'span', `bench-mark ${okEl ? 'tick' : 'cross'}`);
-        m.setAttribute('aria-hidden', 'true');
-        row.append(haveBox, wantBox, m);
-        list.append(row);
-      }
-      box.append(list);
-    } else if (band === 'seedling' && r.code === 'unbalanced') {
-      const list = mk(document, 'div', 'bench-diffs');
-      for (const [el, left, right] of diffs) {
-        const row = mk(document, 'div', 'bench-diff', `${el}: ${left} before, ${right} after`);
-        row.setAttribute('data-el', el);
-        row.setAttribute('data-ok', 'false');
-        list.append(row);
-      }
-      box.append(list);
-    }
-    feedback.replaceChildren(box);
-    speak(line);
-  };
-
-  /** @param {Result} r */
-  const showDone = (r) => {
-    const v = view();
-    const card = (v.spells || []).find((s) => s.slot === r.slot);
-    const band = ui.band || 'apprentice';
-    clearBody();
-    ui.view = 'done';
-    const line = reasonFor(band, { ...r, code: 'ok' }, names, 0);
-    const wrap = mk(document, 'div', 'bench-done');
-    const icon = mk(document, 'span', `icon ${ICONS[card ? card.id : ''] || 'water'} bench-done-icon`);
-    icon.setAttribute('aria-hidden', 'true');
-    const tick = mk(document, 'span', 'bench-mark tick big');
-    tick.setAttribute('aria-hidden', 'true');
-    wrap.append(icon, tick, mk(document, 'p', 'bench-done-line', line));
-    if (band === 'apprentice') {
-      if (r.simplest) wrap.append(mk(document, 'p', 'bench-done-extra', `Simplest form: ${pretty(r.simplest)}`));
-      const coef = r.coef || 0;
-      const formula = pretty((names[r.slot] || { formula: '' }).formula);
-      if (coef > 1) wrap.append(mk(document, 'p', 'bench-done-extra', `A ${coef} in front would mean ${coef} molecules. One molecule is ${formula}.`));
-    }
-    if (r.learned) wrap.append(badge(r.stage || 'learning'));
-    // Paawan's playtest (2026-11-04): each build here counts toward
-    // Practised; say how far along it is (filled once the game has counted it).
-    const count = mk(document, 'p', 'bench-done-count', '');
-    wrap.append(count);
-    const fillCount = () => {
-      try {
-        const ws = JSON.parse(/** @type {any} */ (window).__workState || 'null');
-        const i = r.slot - 1;
-        const need = Number(ws && ws.need) || 0;
-        const n = Math.min(Number(ws && ws.casts && ws.casts[i]) || 0, need);
-        if (!need || !ws || !Array.isArray(ws.casts)) return;
-        const name = pretty((names[r.slot] || { name: '' }).name || '');
-        count.textContent = n >= need
-          ? `${name}: Practised! It casts instantly now.`
-          : `${name}: ${n} of ${need} builds to Practised. ${need - n} more and it casts instantly.`;
-      } catch { /* no count */ }
-    };
-    fillCount();
-    for (const ms of [150, 400, 900]) setTimeout(fillCount, ms);
-    const row = mk(document, 'div', 'bench-actions');
-    const again = mk(document, 'button', 'bench-again', 'Build another');
-    again.setAttribute('type', 'button');
-    again.addEventListener('click', () => { push('open'); showList(); });
-    const leave = mk(document, 'button', 'bench-leave', 'Back to the game');
-    leave.setAttribute('type', 'button');
-    leave.addEventListener('click', () => closeBench('click'));
-    row.append(again, leave);
-    wrap.append(row);
-    body.append(wrap);
-    if (ui.open) again.focus();
-    rise();
-    speak(line);
-  };
-
-  // Called on every change of the published view (and of a fake view).
-  const sync = () => {
-    if (!ui.open) return;
-    const v = view();
-    noteNames(v.spells);
-    if (!ui.band || ui.view === 'chooser') return;
-    const r = v.result;
-    if (r && typeof r.n === 'number' && r.n > shownN && (ui.view === 'build' || ui.view === 'fizzle') && r.slot === ui.pick && (awaiting || fakeView)) {
-      shownN = r.n;
-      awaiting = false;
-      if (r.ok) showDone(r);
-      else showFizzle(r);
-      return;
-    }
-    if (ui.view === 'list') showList();
-    else if (ui.view === 'build') showBuild();
-  };
-
   // ---- open and close ----
+  const ui = { open: false };
+  let wasLocked = false;
+  let wasPaused = false;
+  /** @type {Array<[HTMLElement, boolean]>} */
+  let behind = [];
+  const focusIn = () => {
+    if (ready && frame) {
+      try { frame.focus(); frame.contentWindow?.focus(); } catch { /* the frame takes it on click */ }
+    } else waitBack.focus();
+  };
   /** @param {string} via */
   const openBench = (via) => {
     if (ui.open || gateBlocked()) return false;
@@ -1108,32 +742,43 @@ export function startBench() {
     for (const [el] of behind) el.inert = true;
     btn.inert = true;
     // The pause card is shown by the pause above; while the bench is open
-    // it stays out of sight (it showed behind the bench's backdrop), and
-    // comes back on close if the game is still paused (hud.js is not edited).
+    // it stays out of sight, and comes back on close if the game is still
+    // paused (hud.js is not edited).
     document.getElementById('pause')?.classList.add('bench-under');
     ui.open = true;
-    misses = {};
-    awaiting = false;
     root.hidden = false;
+    ensureFrame();
+    wait.hidden = ready;
     resolveBand();
     push('open');
-    if (ui.band) { ui.view = 'list'; listKey = ''; showList(); } else showChooser();
-    focusFirst();
+    try { story()?.opened(); } catch { /* the page catches up when it starts */ }
+    focusIn();
     return true;
   };
+
+  // A lock the click before B asked for can land after the Bench opened (the
+  // HUD then unpauses): while the Bench is open the mouse stays free and the
+  // world stays paused. Checked on the event and on a timer, since headless
+  // Chromium does not always send the event.
+  const keepFree = () => {
+    if (!ui.open || !document.pointerLockElement) return;
+    try { document.exitPointerLock(); } catch { /* nothing to free */ }
+    try { w.__game && w.__game.pause(true); } catch { /* no HUD */ }
+  };
+  document.addEventListener('pointerlockchange', keepFree);
+  setInterval(keepFree, 200);
 
   /** @param {string} via */
   const closeBench = (via) => {
     if (!ui.open) return false;
     ui.open = false;
     push('close');
-    clearBody();
+    try { story()?.closed(); } catch { /* nothing to stop */ }
     root.hidden = true;
     for (const [el, was] of behind) el.inert = was;
     behind = [];
     document.getElementById('pause')?.classList.remove('bench-under');
     btn.inert = false;
-    fakeView = null;
     try { w.__game && w.__game.pause(wasPaused); } catch { /* no HUD */ }
     if (wasLocked && via !== 'escape') {
       try { w.__game && w.__game.lock(); } catch { /* hud's note covers a refusal */ }
@@ -1142,11 +787,12 @@ export function startBench() {
     return true;
   };
 
-  closeBtn.addEventListener('click', () => closeBench('click'));
-  change.addEventListener('click', () => { if (ui.open) showChooser(); });
+  waitBack.addEventListener('click', () => closeBench('click'));
   btn.addEventListener('click', () => { wakeAudio(); openBench('button'); });
 
   // ---- keys: window capture, keydown and keypress only (never keyup) ----
+  // Keys typed inside the Bench page go to its own document and never reach
+  // the game; these catch the ones that land on this page.
   const editable = (/** @type {EventTarget | null} */ t) => {
     const el = /** @type {HTMLElement | null} */ (t);
     return !!el && !!el.tagName && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
@@ -1154,7 +800,7 @@ export function startBench() {
   const onKey = (/** @type {KeyboardEvent} */ e) => {
     if (!ui.open) {
       // P10: E (the game's use key) opens it too while standing at a Bench.
-      if (e.type === 'keydown' && (e.code === 'KeyB' || (e.code === 'KeyE' && !!rust.atBench)) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !editable(e.target) && !gateBlocked()) {
+      if (e.type === 'keydown' && (e.code === 'KeyB' || (e.code === 'KeyE' && atBench())) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !editable(e.target) && !gateBlocked()) {
         e.stopImmediatePropagation();
         e.preventDefault();
         wakeAudio();
@@ -1164,24 +810,9 @@ export function startBench() {
     }
     e.stopImmediatePropagation();
     if (e.type !== 'keydown') return;
-    const t = /** @type {any} */ (e.target);
-    if (!t || typeof t.closest !== 'function' || !t.closest('#bench')) {
-      if (e.key !== 'Escape') { e.preventDefault(); focusFirst(); return; }
-    }
     if (e.key === 'Escape') { e.preventDefault(); closeBench('escape'); return; }
-    if (e.key === 'Tab') { e.preventDefault(); moveFocus(e.shiftKey ? -1 : 1); return; }
-    const inInput = !!t && t.tagName === 'INPUT';
-    if (inInput && e.key === 'Enter') { e.preventDefault(); if (typeof t._benchMake === 'function') t._benchMake(); return; }
-    if (String(e.key || '').startsWith('Arrow')) {
-      if (inInput) return;
-      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && typeof t._benchStep === 'function') {
-        e.preventDefault();
-        t._benchStep(e.key === 'ArrowUp' ? 1 : -1);
-        return;
-      }
-      e.preventDefault();
-      moveFocus(e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1);
-    }
+    const t = /** @type {any} */ (e.target);
+    if (!t || typeof t.closest !== 'function' || !t.closest('#bench')) { e.preventDefault(); focusIn(); }
   };
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('keypress', onKey, true);
@@ -1189,18 +820,22 @@ export function startBench() {
   document.addEventListener('focusin', (e) => {
     if (!ui.open) return;
     const t = /** @type {any} */ (e.target);
-    if (!t || typeof t.closest !== 'function' || !t.closest('#bench')) focusFirst();
+    if (!t || typeof t.closest !== 'function' || !t.closest('#bench')) focusIn();
   }, true);
 
   // ---- the age picker's pick (age.js is not edited) ----
   for (const b of document.querySelectorAll('#age button[data-band]')) {
     b.addEventListener('click', () => {
-      picked = /** @type {HTMLElement} */ (b).dataset.band || null;
+      picked = band4(/** @type {HTMLElement} */ (b).dataset.band);
       resolveBand();
     });
   }
 
   // ---- the per-frame poll: the published view and the button's classes ----
+  /** @type {{ atBench?: boolean }} */
+  let rust = {};
+  let rustJson = '';
+  const atBench = () => !!rust.atBench;
   const cls = { near: false, hint: false, locked: false };
   let hintDone = false;
   const setCls = (/** @type {'near' | 'hint' | 'locked'} */ k, /** @type {boolean} */ on) => {
@@ -1208,11 +843,8 @@ export function startBench() {
     cls[k] = on;
     btn.classList.toggle(k, on);
   };
-  /** @type {unknown} */
-  let storyJson = null;
-  // Wednesday polish: next to a Bench, a chip says what B does there (the
-  // first time, what to learn), so the first objective's "learn Water at
-  // the Formula Bench" has an obvious next key.
+  // Next to a Bench, a chip says what B does there (the first time, what to
+  // learn), so the first objective's "learn Water" has an obvious next key.
   const chip = document.createElement('div');
   chip.id = 'bench-chip';
   chip.className = 'late-chip';
@@ -1225,14 +857,8 @@ export function startBench() {
       if (typeof js === 'string' && js !== rustJson) {
         rustJson = js;
         try { rust = JSON.parse(js); } catch { /* keep the last good view */ }
-        sync();
       }
-      // I-052: the Make section follows the pack (a craft, a pickup).
-      if (ui.open && ui.view === 'list' && w.__storyState !== storyJson) {
-        storyJson = w.__storyState;
-        showList();
-      }
-      setCls('near', !!rust.atBench);
+      setCls('near', atBench());
       setCls('locked', !!document.pointerLockElement);
       // The attention ring: after the first cast, until any spell is past Unknown.
       if (!hintDone) {
@@ -1243,8 +869,8 @@ export function startBench() {
           setCls('hint', !hintDone && !!m && +(m[1] || 0) >= 1);
         }
       } else setCls('hint', false);
-      const chipOn = !!rust.atBench && !ui.open && !document.body.classList.contains('title-open');
-      const chipText = hintDone ? 'E or B: open the Formula Bench' : 'Press E to learn Water at the Formula Bench';
+      const chipOn = atBench() && !ui.open && !document.body.classList.contains('title-open');
+      const chipText = hintDone ? 'E or B: open the Chemistry Bench' : 'Press E to learn Water at the Chemistry Bench';
       if (chip.hidden === chipOn) chip.hidden = !chipOn;
       if (chipOn && chip.textContent !== chipText) chip.textContent = chipText;
     } catch {
@@ -1254,30 +880,22 @@ export function startBench() {
   };
   requestAnimationFrame(poll);
 
-  // ---- test hook ----
+  // ---- the API the Bench page (story mode) and tests use ----
   /** @type {any} */
   const hook = {
     state: () => { try { return JSON.parse(w.__benchState); } catch { return null; } },
-    ui: () => ({ open: ui.open, band: ui.band, view: ui.view, pick: ui.pick }),
+    ui: () => ({ open: ui.open, band: urlBand() || chosen || picked, ready, view: ready ? 'bench' : 'wait' }),
     open: () => openBench('api'),
-    close: () => closeBench('api'),
+    close: (/** @type {string | undefined} */ via) => closeBench(via === 'escape' ? 'escape' : 'api'),
     cmd: (/** @type {string} */ s) => push(String(s)),
+    frame: () => frame,
+    /** The band the world knows (null: not asked yet). */
+    band: () => urlBand() || chosen || picked,
+    /** A band picked inside the Bench; a class link's ?band= wins. */
+    setBand: (/** @type {string} */ b) => { if (band4(b) && !urlBand()) { chosen = b; resolveBand(); } },
+    fixed: () => !!urlBand(),
+    ready: () => { ready = true; wait.hidden = true; if (ui.open) { try { story()?.opened(); } catch { /* none */ } focusIn(); } },
   };
-  if (debug) {
-    // Renders a given BenchView as if the game had published it (it does
-    // not write __benchState), so the panels can be built against the stub.
-    hook.fake = (/** @type {View | null} */ v) => {
-      if (!v) { fakeView = null; sync(); return; }
-      if (!ui.open) openBench('fake');
-      fakeView = v;
-      if (v.band && bandOf(v.band)) ui.band = bandOf(v.band);
-      noteNames(v.spells);
-      const same = v.pick === ui.pick && (ui.view === 'build' || ui.view === 'fizzle');
-      if (v.pick && !same) { ui.pick = v.pick; ui.view = 'build'; builderKey = ''; showBuild(); }
-      else if (!v.pick && ui.view !== 'chooser') showList();
-      sync();
-    };
-  }
   w.__bench = hook;
 
   resolveBand();

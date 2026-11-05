@@ -522,7 +522,7 @@ impl Disc {
                 })
             })
             .collect();
-        // The one Bench (I-058) in story mode: every bottle item with how
+        // The one Bench (I-060) in story mode: every bottle item with how
         // many the pack holds (none too), and what the air gives free.
         let shelf: Vec<_> = data()
             .bottles
@@ -943,7 +943,7 @@ mod tests {
         assert_eq!(v["saved"][0]["effect"]["kind"], "fire");
     }
 
-    /// I-058: the one Bench's story shelf: every bottle item with the
+    /// I-060: the one Bench's story shelf: every bottle item with the
     /// pack's count (none too) and its find line, and the air's gases.
     #[test]
     fn the_state_carries_the_benchs_story_shelf_and_the_air() {

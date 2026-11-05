@@ -12,7 +12,8 @@
 // content/chem/guide.json, shipped as chem-guide.json.
 
 import init, { codex_json, effects_json, judge_json, literature_key_json, names_json, show_json } from './chem.js';
-import { readSpells, saveSpell } from './formula-save.js';
+import { readSpells, saveSpell, readFound, loadCommands } from './formula-save.js';
+import { mountSpells } from './bench-spells.js';
 import { parseFormula as parseWith, hill, sideOf, sideText } from './bench-free-lib.js';
 import { createBenchScene } from './bench-scene.js';
 
@@ -45,6 +46,52 @@ const store = {
   set(/** @type {string} */ k, /** @type {any} */ v) { try { localStorage.setItem('formula.bench.' + k, JSON.stringify(v)); } catch { /* no storage */ } },
 };
 
+// ---------- story mode: the one Bench over the world (I-060) ----------
+// bench.js on the world page shows this page as `bench-free.html?mode=story`
+// in a same-origin frame. Then the bottles are the pack's (the world's
+// `__discState.shelf`) and the air's, the band is the world's, and Escape or
+// "Back to the world" close it. Opened any other way it is free play.
+
+/**
+ * The world page, when this Bench is its in-world overlay; else null.
+ * @param {URLSearchParams} q
+ * @returns {any}
+ */
+function storyHost(q) {
+  if (q.get('mode') !== 'story') return null;
+  try {
+    const p = /** @type {any} */ (window.parent);
+    return p && p !== window && p.__bench ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {any} w @param {string} k */
+const hostState = (w, k) => { try { return JSON.parse(w[k] || 'null'); } catch { return null; } };
+
+/**
+ * The story shelf: each substance the pack or the air gives, with how many
+ * the pack holds (air: unlimited), and every bottle item's find line.
+ * @param {any} host
+ */
+function storyShelf(host) {
+  const ds = hostState(host, '__discState') || {};
+  /** @type {Record<string, {n: number, air: boolean, labels: string[]}>} */
+  const have = {};
+  /** @type {Record<string, {label: string, find: string}>} */
+  const find = {};
+  for (const f of Array.isArray(ds.air) ? ds.air : ['O2', 'N2']) have[f] = { n: 0, air: true, labels: [] };
+  for (const b of Array.isArray(ds.shelf) ? ds.shelf : []) {
+    if (!find[b.species]) find[b.species] = { label: b.label, find: b.find };
+    if (!(b.n > 0)) continue;
+    const h = (have[b.species] ??= { n: 0, air: false, labels: [] });
+    h.n += b.n;
+    if (!h.labels.includes(b.label)) h.labels.push(b.label);
+  }
+  return { have, find, list: Object.keys(have), key: JSON.stringify([ds.air, ds.shelf]) };
+}
+
 async function main() {
   const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
   await init();
@@ -66,7 +113,9 @@ async function main() {
   }
 
   const q = new URLSearchParams(location.search);
-  let band = BANDS.includes(q.get('band') || '') ? /** @type {string} */ (q.get('band')) : store.get('band', 'apprentice');
+  const story = storyHost(q);
+  const hostBand = () => { try { const b = story && story.__bench.band(); return BANDS.includes(b) ? b : null; } catch { return null; } };
+  let band = story ? hostBand() || 'apprentice' : BANDS.includes(q.get('band') || '') ? /** @type {string} */ (q.get('band')) : store.get('band', 'apprentice');
   /** @type {string[]} */
   let found = store.get('found', []);
   /** @type {string[]} */
@@ -97,6 +146,88 @@ async function main() {
   const HAZARD_YOUNG = { fire: '🔥 Fire and heat: only try this with a grown-up.', lab: '🧪 Dangerous for real: only trained chemists, in a proper lab.' };
   const HAZARD_OLDER = { fire: '🔥 Lab safety: flames or strong heat. Only with supervision, goggles and a fire-safe bench.', lab: '🧪 Lab only: reactive, poisonous or explosive for real. Trained chemists with proper equipment only.' };
   const hazardText = (/** @type {string} */ h) => (isYoung() ? HAZARD_YOUNG : HAZARD_OLDER)[/** @type {'fire'|'lab'} */ (h)];
+
+  // ---------- story mode helpers (I-060) ----------
+  /** @type {ReturnType<typeof mountSpells> | null} */
+  let spells = null;
+  let shelfKey = '';
+  const storyShelfKey = () => (story ? storyShelf(story).key : '');
+  /** A bottle's count line: how many the pack holds, or that the air gives it. */
+  const storyLabel = (/** @type {HTMLElement} */ b, /** @type {{n: number, air: boolean, labels: string[]} | undefined} */ h) => {
+    if (!h) return;
+    const tag = document.createElement('span'); tag.className = 'have';
+    tag.textContent = h.air ? 'from the air' : `${h.labels.join(' or ')} ×${h.n}`;
+    b.append(tag);
+    shelfKey = storyShelfKey();
+  };
+  const storyNote = (/** @type {ReturnType<typeof storyShelf>} */ sh) => {
+    shelfKey = sh.key;
+    const fromPack = sh.list.filter((f) => !sh.have[f]?.air).length;
+    return fromPack
+      ? 'Your bottles come from your pack and the air. Running a reaction here does not use them up; casting it as a spell does.'
+      : 'Only the air’s gases so far. Find bottles in the world (your pack, Tab, says where) and they show up here.';
+  };
+  /** Story mode: "in" may only hold what the pack or the air gives. */
+  const storyMissing = (/** @type {Record<string, number>} */ inSide) => {
+    if (!story) return '';
+    const sh = storyShelf(story);
+    const gone = Object.keys(inSide).filter((f) => !sh.have[f]);
+    if (!gone.length) return '';
+    const lines = gone.map((f) => {
+      const how = sh.find[f];
+      return `<p><b>${esc(isSprout() ? nameOf(f) : `${nameOf(f)} (${f})`)}</b>: ${how ? `${esc(how.label)}. ${esc(how.find)}` : 'nothing in the valley gives this one yet. Try it in free play.'}</p>`;
+    }).join('');
+    return `<p><b>You don’t have that in your pack yet.</b> In the story, bottles come from the world.</p>${lines}`;
+  };
+  /** Story mode: tell the world the save changed (it also hears the storage event). */
+  const storySync = () => {
+    if (!story) return;
+    try {
+      story.__gameIn = story.__gameIn || {};
+      const cmds = loadCommands(readSpells(localStorage), readFound(localStorage));
+      (story.__gameIn.disc = story.__gameIn.disc || []).push(...cmds);
+    } catch { /* the world reads the save on its next load */ }
+  };
+  let openedOnce = false;
+  const askBand = () => {
+    const box = $('bandAsk'); const row = $('bandAskRow'); row.innerHTML = '';
+    for (const b of BANDS) {
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'btn'; x.dataset.band = b;
+      x.textContent = BAND_NAME[/** @type {keyof typeof BAND_NAME} */ (b)];
+      // The world's age picker draws a picture per band; reuse it here.
+      try { const pic = story?.document.querySelector(`#age button[data-band="${b}"] svg`); if (pic) x.prepend(pic.cloneNode(true)); } catch { /* no picture */ }
+      x.addEventListener('click', () => { box.hidden = true; setBand(b, true); showTab('spells'); });
+      row.append(x);
+    }
+    box.hidden = false;
+    /** @type {HTMLElement | null} */ (row.querySelector('button'))?.focus();
+  };
+  const setupStory = () => {
+    const chip = $('modeChip');
+    if (!story) return;
+    chip.dataset.mode = 'story';
+    chip.textContent = 'Story: your bottles come from your pack';
+    document.body.dataset.mode = 'story';
+    const back = $('toGame');
+    back.addEventListener('click', (e) => { e.preventDefault(); story.__bench.close(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      story.__bench.close('escape');
+    });
+    if (story.__bench.fixed()) document.querySelectorAll('.band button').forEach((x) => { /** @type {HTMLButtonElement} */ (x).disabled = true; });
+    /** @type {any} */ (window).__benchStory = {
+      opened: () => {
+        const hb = hostBand();
+        if (hb && hb !== band) setBand(hb);
+        drawShelves();
+        if (!openedOnce) { openedOnce = true; showTab('spells'); }
+        spells?.reset();
+        if (!hb) askBand();
+      },
+      closed: () => { try { speechSynthesis.cancel(); } catch { /* no speech */ } },
+    };
+  };
 
   // ---------- 3D scene (bench-scene.js) ----------
   const scene3d = createBenchScene(/** @type {HTMLCanvasElement} */ ($('scene')), { elements: EL });
@@ -198,7 +329,8 @@ async function main() {
     /** @type {Set<string>} */
     const species = new Set();
     for (const r of codex.reactions) if (visible(r)) for (const f of Object.keys(sideOf(r.equation.split(' -> ')[0]))) species.add(f);
-    const list = [...species].sort((a, b) => (NAMES[a] || a).localeCompare(NAMES[b] || b));
+    const shelf = story ? storyShelf(story) : null;
+    const list = (shelf ? shelf.list : [...species]).sort((a, b) => (NAMES[a] || a).localeCompare(NAMES[b] || b));
     const box = $('bottles'); box.innerHTML = '';
     for (const f of list) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'bottle';
@@ -207,9 +339,11 @@ async function main() {
       b.setAttribute('aria-label', `${NAMES[f] || f} (${f}): put on the table`);
       b.dataset.formula = f;
       b.addEventListener('click', () => { putOn(left, f); guideDid('tap_bottle', f); });
+      if (shelf) storyLabel(b, shelf.have[f]);
       box.append(b);
     }
-    $('bottleNote').textContent = `${list.length} substances for ${BAND_NAME[/** @type {keyof typeof BAND_NAME} */ (band)]}. Tap one to put it on “in”.`;
+    $('bottleNote').textContent = shelf ? storyNote(shelf) : `${list.length} substances for ${BAND_NAME[/** @type {keyof typeof BAND_NAME} */ (band)]}. Tap one to put it on “in”.`;
+    $('elementBox').hidden = !!story;
     const els = new Set(['H', 'C', 'N', 'O']); for (const f of list) for (const e of atomsOf(f)) els.add(e);
     const jars = $('jars'); jars.innerHTML = '';
     for (const k of Object.keys(EL).filter((e) => els.has(e))) {
@@ -235,12 +369,15 @@ async function main() {
     b.addEventListener('click', () => { if (conds.has(k)) conds.delete(k); else conds.add(k); b.setAttribute('aria-pressed', String(conds.has(k))); if (conds.has(k)) guideDid('condition', k); });
     condBox.append(b);
   }
-  const setBand = (/** @type {string} */ b) => {
-    band = b; store.set('band', b);
+  const setBand = (/** @type {string} */ b, user = false) => {
+    band = b;
+    if (!story) store.set('band', b);
+    else if (user) story.__bench.setBand(b);
     document.querySelectorAll('.band button').forEach((x) => x.setAttribute('aria-pressed', String(/** @type {HTMLElement} */ (x).dataset.band === b)));
     stopWalk(); drawShelves(); drawCodex(); drawTable(); drawNotes(); autoWalk();
+    spells?.reset();
   };
-  document.querySelectorAll('.band button').forEach((x) => x.addEventListener('click', () => setBand(/** @type {string} */ (/** @type {HTMLElement} */ (x).dataset.band))));
+  document.querySelectorAll('.band button').forEach((x) => x.addEventListener('click', () => setBand(/** @type {string} */ (/** @type {HTMLElement} */ (x).dataset.band), true)));
   $('typeForm').addEventListener('submit', (ev) => {
     ev.preventDefault(); const v = /** @type {HTMLInputElement} */ ($('typeIn')).value.trim(); if (!v) return;
     guideDid('type', v);
@@ -254,6 +391,8 @@ async function main() {
   const showTab = (/** @type {string} */ name) => {
     document.querySelectorAll('.tabs button').forEach((x) => x.setAttribute('aria-selected', String(/** @type {HTMLElement} */ (x).dataset.tab === name)));
     document.querySelectorAll('.tabpane').forEach((p) => { /** @type {HTMLElement} */ (p).hidden = /** @type {HTMLElement} */ (p).dataset.pane !== name; });
+    document.body.dataset.tab = name;
+    if (name === 'spells') spells?.draw();
   };
   document.querySelectorAll('.tabs button').forEach((t) => t.addEventListener('click', () => {
     const name = /** @type {HTMLElement} */ (t).dataset.tab || 'bench';
@@ -294,12 +433,12 @@ async function main() {
       return b;
     }
     const kind = fx ? KIND_WORD[/** @type {keyof typeof KIND_WORD} */ (fx.kind)] || '' : '';
-    const done = () => { b.disabled = true; b.textContent = 'Saved! Open your pack in the game (Tab) to use it.'; };
+    const done = () => { b.disabled = true; b.textContent = 'Saved! Practise it in the Spells tab, then put it on a key.'; };
     if (r.id in readSpells(localStorage).saved) done();
     else {
       b.textContent = kind ? `✨ Save as a spell (${kind})` : '✨ Save as a spell';
       if (fx?.use) b.textContent += `: it ${fx.use}`;
-      b.addEventListener('click', () => { if (saveSpell(localStorage, r.id)) done(); });
+      b.addEventListener('click', () => { if (saveSpell(localStorage, r.id)) { done(); storySync(); } });
     }
     return b;
   };
@@ -461,6 +600,8 @@ async function main() {
     const [lt, rt] = input.split('->').map((s) => s.trim());
     const inSide = sideOf(lt); const guess = rt ? sideOf(rt) : null;
     if (raw.kind === 'parse_error') { result('bad', `<p>${esc(raw.message)}</p>`); return; }
+    const missing = storyMissing(inSide);
+    if (missing) { result('bad', missing); note(lt, 'Not in your pack yet.', false); animate(inSide, inSide, 'fizzle'); return; }
     if (raw.kind === 'known' || raw.kind === 'needs_condition' || raw.kind === 'locked') {
       const r = byId[raw.id]; const [el, er] = r.equation.split(' -> ').map(sideOf);
       const f0 = Object.keys(el)[0]; const k = (inSide[f0] || el[f0]) / el[f0];
@@ -635,7 +776,7 @@ async function main() {
   };
   const stopWalk = () => { walk = null; unmark(); $('coach').hidden = true; };
   const doneWalk = () => { store.set('guide.' + band, true); drawGuide(); };
-  const autoWalk = () => { if (guide && !store.get('guide.' + band, false)) startWalk(); };
+  const autoWalk = () => { if (!story && guide && !store.get('guide.' + band, false)) startWalk(); };
   $('coachSkip').addEventListener('click', () => { doneWalk(); stopWalk(); });
   /** The player did something the walkthrough may be waiting for. */
   const guideDid = (/** @type {string} */ kind, /** @type {any} */ value) => {
@@ -728,7 +869,8 @@ async function main() {
     const start = button(store.get('guide.' + band, false) ? 'Do the walkthrough again' : 'Start the walkthrough', startWalk);
     start.classList.add('primary');
     const sec = (/** @type {string} */ title) => { const s = document.createElement('section'); s.innerHTML = `<h2>${title}</h2>`; box.append(s); return s; };
-    sec('Walkthrough').append(start);
+    if (story) sec('Walkthrough').append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'The walkthrough needs every bottle, so it runs in free play: open the Chemistry Bench from the title screen.' }));
+    else sec('Walkthrough').append(start);
     const ch = sec('Challenges');
     for (const c of g.challenges) {
       const [n, of] = progress(c.goal);
@@ -758,10 +900,30 @@ async function main() {
     requestAnimationFrame(frame);
   };
 
+  // ---------- the Spells tab (bench-spells.js, I-060) ----------
+  spells = mountSpells({
+    box: $('spellbook'),
+    host: story,
+    storage: localStorage,
+    band: () => band,
+    byId,
+    effects: EFFECTS,
+    judge: (input, have, b) => JSON.parse(judge_json(input, have, b)),
+    atoms: (f) => { const c = parseFormula(f); return c ? /** @type {Array<[string, number]>} */ (Object.entries(c)) : null; },
+    eq: eqFor,
+    onSaved: storySync,
+  });
+  setInterval(() => {
+    if (story && storyShelfKey() !== shelfKey) drawShelves();
+    spells?.tick();
+  }, 400);
+  setupStory();
+
   setBand(band);
   drawTable(); drawNotes(); restructure();
   $('loading').hidden = true;
-  /** @type {any} */ (window).__benchFree = { codex, run: runChamber, left, right, conds, found: () => found, setBand, walk: () => walk, guide: () => guide, sceneCount: () => chamberMols + atoms.length, chamberCount: () => chamberMols, plateCount: () => atoms.length };
+  /** @type {any} */ (window).__benchFree = { codex, run: runChamber, left, right, conds, found: () => found, setBand, walk: () => walk, guide: () => guide, sceneCount: () => chamberMols + atoms.length, chamberCount: () => chamberMols, plateCount: () => atoms.length, mode: story ? 'story' : 'free', spells: () => spells?.state(), showTab };
+  if (story) story.__bench.ready();
   requestAnimationFrame(frame);
 }
 

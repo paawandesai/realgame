@@ -15,7 +15,7 @@ export const CONTROLS = [
   ['1 2 3 4', 'Pick a spell'],
   ['Space', 'Jump'],
   ['E', 'Use what is in front of you'],
-  ['B', 'Open the Formula Bench'],
+  ['B', 'Open the Chemistry Bench'],
   ['Esc', 'Pause and see all controls'],
 ];
 

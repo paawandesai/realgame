@@ -43,7 +43,7 @@ pub struct BenchState {
     pub n: u32,
     /// The last JSON published, so `__benchState` is written only on change.
     pub last_json: String,
-    /// The one Bench (I-058): a saved discovery picked to practise (its
+    /// The one Bench (I-060): a saved discovery picked to practise (its
     /// codex index). A `try` while it is set is judged against its own
     /// reaction and counts toward its mastery only.
     pub disc: Option<usize>,
@@ -58,7 +58,7 @@ pub enum Cmd {
     /// The slot and the rest of the line, words joined by one space.
     Try(u8, String),
     Close,
-    /// `learn <codex id>`: pick a saved discovery to practise (I-058).
+    /// `learn <codex id>`: pick a saved discovery to practise (I-060).
     Learn(String),
 }
 
@@ -235,7 +235,7 @@ pub fn apply(
     Ok(())
 }
 
-/// The one Bench (I-058): practising a saved discovery. `learn <id>` picks
+/// The one Bench (I-060): practising a saved discovery. `learn <id>` picks
 /// one the band builds (Seedling and up, its codex band or older); a `try`
 /// while it is picked is judged by the same judge as a worked cast of it
 /// (`judge_with` against `Disc::def`) and a correct one counts one build
@@ -355,7 +355,7 @@ pub fn view(st: &BenchState, book: &Book, spells: &[SpellDef], at: bool) -> Benc
     v
 }
 
-/// `__benchState`: the view, and while a discovery is picked (I-058) its
+/// `__benchState`: the view, and while a discovery is picked (I-060) its
 /// card after the shipped spells', its recipe, and `"disc": <codex id>`.
 pub fn view_json(
     st: &BenchState,
@@ -692,7 +692,7 @@ mod tests {
         }
     }
 
-    /// I-058: the one Bench practises a saved discovery: picked with
+    /// I-060: the one Bench practises a saved discovery: picked with
     /// `learn`, judged against its own reaction, a correct build counts
     /// toward its two builds, and the shipped spells are never touched.
     #[test]

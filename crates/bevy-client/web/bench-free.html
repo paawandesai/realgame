@@ -10,7 +10,7 @@
 <body>
 <div class="app">
   <header>
-    <h1>Chemistry Bench <small>free play</small></h1>
+    <h1>Chemistry Bench <small class="mode-chip" id="modeChip" data-mode="free">Free play: every bottle you want</small></h1>
     <a class="btn" href="./" id="toGame">Back to the world</a>
     <div class="band" role="group" aria-label="Age band">
       <button type="button" data-band="sprout" aria-pressed="false">Sprout</button>
@@ -70,6 +70,7 @@
       <button type="button" role="tab" data-tab="codex" aria-selected="false">Codex <span id="codexCount"></span></button>
       <button type="button" role="tab" data-tab="notes" aria-selected="false">Notebook</button>
       <button type="button" role="tab" data-tab="guide" aria-selected="false">Guide</button>
+      <button type="button" role="tab" data-tab="spells" aria-selected="false">Spells</button>
     </div>
     <div class="tabpane bench-pane" data-pane="bench">
       <div class="pane-scroll" id="benchScroll">
@@ -120,11 +121,21 @@
     <div class="tabpane pane-scroll" data-pane="guide" hidden>
       <div id="guide"><p class="note">Loading the guide…</p></div>
     </div>
+    <div class="tabpane pane-scroll" data-pane="spells" hidden>
+      <div id="spellbook"><p class="note">Loading your spells…</p></div>
+    </div>
     <div class="tabpane pane-scroll" data-pane="notes" hidden>
       <p class="note">Every run, newest first, including the ones that fizzled.</p>
       <div id="notes"></div>
     </div>
   </aside>
+</div>
+<div class="band-ask" id="bandAsk" hidden role="dialog" aria-modal="true" aria-labelledby="bandAskTitle">
+  <div class="band-ask-card">
+    <h2 id="bandAskTitle">Which band are you in?</h2>
+    <p class="note">Pick one to start. You can change it later at the top.</p>
+    <div class="row" id="bandAskRow"></div>
+  </div>
 </div>
 
 <script src="vendor/three.min.js"></script>
