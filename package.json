@@ -19,7 +19,7 @@
     "@types/node": "22.20.5",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "wrangler": "4.153.0"
   },
   "engines": {
