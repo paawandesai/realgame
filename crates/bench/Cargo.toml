@@ -1,0 +1,27 @@
+[package]
+name = "realgame-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Formula Bench VR: the reaction rules for a bowl of reagents, as WebAssembly for the WebXR client"
+publish = false
+
+# Its own workspace, so the VR client's build stays out of the main
+# workspace's lockfile and CI lanes.
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+realgame-sim = { path = "../sim" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "=0.2.129"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
