@@ -125,3 +125,4 @@ The science facts are the reviewed ones the lessons already used, rewritten for 
 - `crates/chem/src/discover.rs` `every_band_can_solve_every_quest_with_findable_bottles` (new): at every band some usable reaction solves every live quest with bottles the valley gives, a listed solver is usable, and one listed solver is Sprout.
 - `crates/sim/src/tier.rs` `bands_are_labelled_by_grade` (new).
 - `crates/chem` `the_teacher_table_is_current` passes with the regenerated evidence.csv.
+- `test/bench-layout.test.ts` (real browser): the Sprout part of the chamber test now expects formulas ("2H₂" in the chamber tag and on the bottle), the element shelf shown, and no "out" side; it expected names only before. All four layout tests pass on a release build.
