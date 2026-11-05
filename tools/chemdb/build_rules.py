@@ -242,18 +242,19 @@ def lab_reasons(fs):
 EXCLUDED = "F-, HF, CN-, ClO4-, CrO4-2, Cr2O7-2, Hg2+ and Hg+2 salts, explosive products"
 
 # Familiarity: new species a Bench offers at Apprentice (everything else
-# new is Adept). Core species keep the band their bottle first appears at.
+# new is Adept). Core species keep the band their bottle first appears at,
+# so the grade re-band of core.json (I-059: Sprout grades 6-7, Seedling 8-9,
+# Apprentice 10-11, Adept grade 12+) carries through to the rule tier. No
+# rule reaction is ever Sprout: Sprout keeps to a few everyday core ones.
 APPRENTICE_NEW = {"K2CO3", "KHCO3", "Ca(NO3)2", "Mg(NO3)2", "NaI", "Ca(CH3COO)2", "Mg(CH3COO)2",
                   "Zn(CH3COO)2", "CH3COOK", "KNO3", "ZnCO3", "BaCO3", "Ag2CO3", "C7H16", "C6H12", "C3H6",
                   "C4H8", "C4H9OH", "C12H26", "C16H34", "C10H22", "Al(OH)3"}
-# Seedling: simple acid + base and metal + acid with familiar names.
+# Seedling (grades 8-9): simple acid + base and metal + acid with familiar names.
 SEEDLING_OK = {"HCl", "CH3COOH", "NaOH", "Ca(OH)2", "Mg(OH)2", "CaO", "Mg", "Zn", "H2O", "H2",
                "NaCl", "CaCl2", "MgCl2", "ZnCl2", "CH3COONa", "Ca(CH3COO)2", "Mg(CH3COO)2",
                "CaCO3", "Na2CO3", "NaHCO3", "CO2"}
-# Adept-only species (by element): lead, which is toxic. Bromides were
-# Adept-only too until the grade re-band (I-059): halide tests with silver
-# nitrate and halogen displacement are high-school chemistry (Apprentice).
-ADEPT_ELEMENTS = {"Pb"}
+# The spec's Adept-only species (by element): bromides and lead.
+ADEPT_ELEMENTS = {"Br", "Pb"}
 
 RULES = [
     {"id": "acid_base", "family": "neutralisation", "name": "acid + base",
@@ -682,7 +683,7 @@ def band_of(f, product=False):
     """The band a species is familiar at. A bottle (reactant) not on the
     core shelf is Adept unless listed in APPRENTICE_NEW (S9: a core product
     is not a familiar bottle); a product a core reaction makes is
-    Apprentice. Lead is Adept."""
+    Apprentice. Bromides and lead are Adept (the spec)."""
     if any(el in bsd.atoms(f) for el in ADEPT_ELEMENTS):
         return BANDS.index("adept")
     if f in SHELF:
