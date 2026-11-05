@@ -230,6 +230,10 @@ The single register of every science claim the first-person 3D client shows the 
 
 | text | where | reason |
 |---|---|---|
+| `rx:methane_burns` | crates/bevy-client/src/lens.rs | Hit lens (G4, 2026-11-05): a lookup key naming the show record of `methane_burns` in content/chem/show.json (Fire runs methane combustion, `content/spells.json`); never shown. The lens shows that record's species and atoms, which carry their own sources. |
+| `mol:H2O` | crates/bevy-client/src/lens.rs | Hit lens (G4): a lookup key for the H2O geometry in content/chem/geometry.json (Water's substance, `content/spells.json`); never shown except as the formula. |
+| `mol:N2` | crates/bevy-client/src/lens.rs | Hit lens (G4): a lookup key for the N2 geometry in content/chem/geometry.json (Frost's substance, `content/spells.json`); never shown except as the formula. |
+| `mol:CO2` | crates/bevy-client/src/lens.rs | Hit lens (G4): a lookup key for the CO2 geometry in content/chem/geometry.json (the CO2 spell's substance, `content/spells.json`); never shown except as the formula. |
 | `dissolved` | crates/bevy-client/web/bench-free.js | I-054: the word for the state symbol aq (dissolved in water), shown as "aq = dissolved" in the States line; a definition, not a claim. |
 | `condensation` | crates/bevy-client/web/bench-free.js | I-054: an identifier of a visible change in the show record (data key), compared in code; never shown. |
 | `reactant` | crates/bevy-client/web/bench-free.js | I-054: an identifier (the side of a species in the show record), compared in code; never shown. |
