@@ -22,9 +22,6 @@ use serde::{Deserialize, Serialize};
 use crate::show::{ShowRecord, Shows, Side, Visible};
 use crate::{Codex, CodexTier, Entry, Heat};
 
-/// The teacher table, as committed.
-pub const EVIDENCE_CSV: &str = include_str!("../../../content/chem/evidence.csv");
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EvidenceKind {
@@ -168,7 +165,7 @@ pub fn sees(e: &Entry, rec: &ShowRecord) -> String {
         }
     }
     if let Some(n) = &rec.note {
-        out.push(format!("note: {n}"));
+        out.push(format!("note: {}", n.trim_end_matches('.')));
     }
     out.push(heat_word(e.heat).into());
     if let Some(f) = &rec.feel {
@@ -247,6 +244,9 @@ mod tests {
     use crate::discover::Effects;
     use realgame_sim::formula::parse_equation;
     use realgame_sim::tier::Tier;
+
+    /// The teacher table, as committed.
+    const EVIDENCE_CSV: &str = include_str!("../../../content/chem/evidence.csv");
 
     /// Every reaction the game offers has textbook or data evidence with a
     /// named source, and data evidence names its table entries.
