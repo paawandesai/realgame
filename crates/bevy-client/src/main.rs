@@ -34,6 +34,7 @@ mod gates;
 mod late;
 mod level2;
 mod level3;
+mod look;
 mod models;
 mod mood;
 mod motion;
@@ -902,6 +903,7 @@ fn main() {
             story::plugin,
             voxel_cast::plugin,
             late::plugin,
+            look::plugin,
             mood::plugin,
             powers::plugin,
             firebreak::plugin,
@@ -1145,6 +1147,10 @@ fn setup(
     // default (TonyMcMapface) needs a pre-made KTX2 texture embedded in the
     // wasm, and every asset must be generated (docs/art-bible.md).
     camera.insert(TONEMAPPING);
+    // The new look grades each region (`look`, `?look=new`).
+    if param("look").is_some_and(|v| v == "new") {
+        camera.insert(bevy::render::view::ColorGrading::default());
+    }
     camera.insert(if settings.msaa {
         Msaa::Sample4
     } else {
