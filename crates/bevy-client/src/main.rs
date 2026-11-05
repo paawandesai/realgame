@@ -1152,7 +1152,7 @@ fn setup(
     // wasm, and every asset must be generated (docs/art-bible.md).
     camera.insert(TONEMAPPING);
     // The new look grades each region (`look`, `?look=new`).
-    if param("look").is_some_and(|v| v == "new") {
+    if look::on() {
         camera.insert(bevy::render::view::ColorGrading::default());
     }
     camera.insert(if settings.msaa {
@@ -1168,15 +1168,20 @@ fn setup(
     // forearm, cuff, hand and fingers, with a rune inlay and gem that glow
     // in the selected spell's colour, brighten while a cast is held and
     // flash when it goes (`viewmodel`).
+    let real = look::on();
     let body = materials.add(StandardMaterial {
         base_color: Color::WHITE,
-        metallic: 0.2,
-        perceptual_roughness: 0.45,
+        metallic: if real { 0.55 } else { 0.2 },
+        perceptual_roughness: if real { 0.5 } else { 0.45 },
         ..default()
     });
     let rune = materials.add(StandardMaterial {
         base_color: Color::srgb(0.25, 1.0, 0.85),
-        emissive: LinearRgba::rgb(0.2, 2.0, 1.6),
+        emissive: if real {
+            LinearRgba::rgb(0.1, 1.0, 0.8)
+        } else {
+            LinearRgba::rgb(0.2, 2.0, 1.6)
+        },
         ..default()
     });
     let vm = |t: Transform, m: &Handle<StandardMaterial>, mesh: Handle<Mesh>| {
@@ -1190,7 +1195,7 @@ fn setup(
     };
     let cam_id = camera.id();
     let (vm_rest, vm_tilt) = feel::vm_rest(settings.fov_y());
-    let gauntlet = meshes.add(models::gauntlet());
+    let gauntlet = meshes.add(models::gauntlet(real));
     let inlay = meshes.add(models::gauntlet_runes());
     let gem = meshes.add(models::gem());
     let pick_mesh = meshes.add(models::pick());

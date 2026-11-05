@@ -12,8 +12,7 @@
 //!   the mip chain (`web/terrain-tex.js`); this module turns them into
 //!   textures once they arrive.
 //!
-//! Off by default, so the shipped look stays as it is until Paawan picks
-//! the new one after playing it.
+//! On by default since 2026-11-05; `?look=old` shows the earlier look.
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
@@ -36,8 +35,15 @@ pub struct GroundTex {
     pub ready: bool,
 }
 
+/// Whether the realistic look is on: the default since 2026-11-05 (Paawan
+/// played it and approved polishing it for the demo); `?look=old` keeps
+/// the earlier stylised look.
+pub fn on() -> bool {
+    crate::param("look").is_none_or(|v| v != "old")
+}
+
 pub fn plugin(app: &mut App) {
-    let on = crate::param("look").is_some_and(|v| v == "new");
+    let on = on();
     app.insert_resource(NewLook(on))
         .init_resource::<GroundTex>();
     if on {

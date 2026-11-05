@@ -1,4 +1,4 @@
-// The realistic look's scanned ground textures (?look=new; graphics plan,
+// The realistic look's scanned textures (the default; ?look=old skips them; graphics plan,
 // docs/graphics/world-look-realistic.md). Loads the two stacked JPEGs
 // (tex/terrain-albedo.jpg and tex/terrain-normal.jpg: one 1024 px tile per
 // layer, top to bottom: grass, soil, rock, snow, then the models' bark,
@@ -8,7 +8,7 @@
 // texture arrays and clears the global. ?low uses 512 px tiles.
 (function () {
   const q = new URLSearchParams(location.search);
-  if (q.get('look') !== 'new') return;
+  if (q.get('look') === 'old') return;
   const SIZE = q.has('low') ? 512 : 1024;
   const LEVELS = Math.log2(SIZE) + 1;
 
