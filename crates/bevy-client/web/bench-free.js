@@ -25,7 +25,9 @@ const NAMES = {};
 const parseFormula = (/** @type {string} */ f) => parseWith(f, (el) => !!EL[el]);
 
 const BANDS = ['sprout', 'seedling', 'apprentice', 'adept'];
-const BAND_NAME = { sprout: 'Sprout', seedling: 'Seedling', apprentice: 'Apprentice', adept: 'Adept' };
+// Grade bands (I-059): band names with the school grades they are for. The
+// ids are unchanged, so progress saved by band stays valid.
+const BAND_NAME = { sprout: 'Sprout (grades 6–7)', seedling: 'Seedling (grades 8–9)', apprentice: 'Apprentice (grades 10–11)', adept: 'Adept (grade 12+)' };
 
 /** @type {Set<string>} */
 const GASES = new Set();
@@ -127,18 +129,20 @@ async function main() {
   /** Reactions the player balanced by writing both sides (Guide challenges). @type {string[]} */
   let balanced = store.get('balanced', []);
 
-  // ---------- age bands ----------
-  // Sprout (4 to 7) sees names and pictures, never formulas; Sprout and
-  // Seedling (8 to 10) get read-aloud, colour-coded atom counts, a "show me"
-  // for balancing and safety badges in plain words. See the Bench plan,
-  // section 1 (age-band audit).
+  // ---------- grade bands (I-059) ----------
+  // Sprout (grades 6-7) sees formulas, with a word equation under each
+  // equation, and never balances by hand: its result card offers "Show me
+  // how" instead. Sprout and Seedling (grades 8-9) get tap-to-read (an
+  // accessibility option), colour-coded atom counts, a "show me" for
+  // balancing and safety badges in plain words. See
+  // docs/loop/items/I-059/spec.md.
   const isSprout = () => band === 'sprout';
   const isYoung = () => rank(band) <= rank('seedling');
   const nameOf = (/** @type {string} */ f) => NAMES[f] || f;
-  /** An equation as this band reads it: names for Sprout, formulas otherwise. */
-  const eqFor = (/** @type {string} */ eq) => (isSprout()
-    ? esc(eq.split(' -> ').map((side) => side.split(' + ').map((t) => nameOf(t.replace(/^\d+/, '').trim())).join(' + ')).join(' → '))
-    : showEq(eq));
+  /** A word equation: each formula's everyday name. */
+  const wordEq = (/** @type {string} */ eq) => eq.split(' -> ').map((side) => side.split(' + ').map((t) => nameOf(t.replace(/^\d+/, '').trim())).join(' + ')).join(' → ');
+  /** An equation as this band reads it: formulas, with the word equation under it at Sprout. */
+  const eqFor = (/** @type {string} */ eq) => (isSprout() ? `${showEq(eq)}<br><small>${esc(wordEq(eq))}</small>` : showEq(eq));
   /** Conditions a Sprout never needs: hidden to keep the panel small. */
   const SPROUT_HIDES = new Set(['electricity', 'pressure']);
   /** @type {Record<string, string>} */
@@ -175,7 +179,7 @@ async function main() {
     if (!gone.length) return '';
     const lines = gone.map((f) => {
       const how = sh.find[f];
-      return `<p><b>${esc(isSprout() ? nameOf(f) : `${nameOf(f)} (${f})`)}</b>: ${how ? `${esc(how.label)}. ${esc(how.find)}` : 'nothing in the valley gives this one yet. Try it in free play.'}</p>`;
+      return `<p><b>${esc(`${nameOf(f)} (${f})`)}</b>: ${how ? `${esc(how.label)}. ${esc(how.find)}` : 'nothing in the valley gives this one yet. Try it in free play.'}</p>`;
     }).join('');
     return `<p><b>You don’t have that in your pack yet.</b> In the story, bottles come from the world.</p>${lines}`;
   };
@@ -299,7 +303,7 @@ async function main() {
     if (!keys.length) box.insertAdjacentHTML('beforeend', `<span class="empty">${label === 'In' ? 'Take a bottle, or build a molecule.' : 'Optional: your guess.'}</span>`);
     for (const f of keys) {
       const row = document.createElement('div'); row.className = 'mol';
-      row.innerHTML = `<strong title="${esc(NAMES[f] || f)}">${isSprout() ? `${esc(nameOf(f))}${side[f] > 1 ? ` <span class="coef">×${side[f]}</span>` : ''}` : `<span class="coef">${side[f] > 1 ? side[f] : ''}</span>${show(f)}`}</strong>`;
+      row.innerHTML = `<strong title="${esc(NAMES[f] || f)}"><span class="coef">${side[f] > 1 ? side[f] : ''}</span>${show(f)}</strong>`;
       const minus = document.createElement('button'); minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label', `One less ${f}`);
       const plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', `One more ${f}`);
       minus.addEventListener('click', () => { side[f]--; if (side[f] <= 0) delete side[f]; drawTable(); });
@@ -335,7 +339,7 @@ async function main() {
     for (const f of list) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'bottle';
       const dots = atomsOf(f).slice(0, 8).map((e) => `<i style="background:${hex(EL[e].c)}"></i>`).join('');
-      b.innerHTML = isSprout() ? `<span class="dots">${dots}</span><span><b>${esc(nameOf(f))}</b></span>` : `<span class="dots">${dots}</span><span><b>${show(f)}</b><small>${esc(NAMES[f] || '')}</small></span>`;
+      b.innerHTML = `<span class="dots">${dots}</span><span><b>${show(f)}</b><small>${esc(NAMES[f] || '')}</small></span>`;
       b.setAttribute('aria-label', `${NAMES[f] || f} (${f}): put on the table`);
       b.dataset.formula = f;
       b.addEventListener('click', () => { putOn(left, f); guideDid('tap_bottle', f); });
@@ -471,6 +475,22 @@ async function main() {
     $('notes').innerHTML = notes.length ? notes.map((x) => `<div class="entry${x.ok ? ' found' : ''}"><div class="eq">${eqFor(x.eq)}</div><div>${esc(x.what)}</div></div>`).join('') : '<p class="note">Nothing yet.</p>';
   };
   const note = (/** @type {string} */ eq, /** @type {string} */ what, /** @type {boolean} */ ok) => { notes = [{ t: new Date().toISOString(), eq, what, ok }, ...notes].slice(0, 40); store.set('notes', notes); drawNotes(); };
+
+  // ---------- Sprout's "Show me how" (I-059) ----------
+  // Sprout sees balanced equations but never balances by hand: this counts
+  // each kind of atom on both sides of the equation it just ran.
+  const showHow = (/** @type {string} */ eq) => {
+    if (!isSprout()) return null;
+    const [l = {}, r = {}] = eq.split(' -> ').map((s) => totals(sideOf(s)));
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Show me how';
+    b.addEventListener('click', () => {
+      const rows = Object.keys(l).map((e) => `<li>${esc(EL[e]?.name ?? e)} (${e}): ${l[e]} in, ${r[e] || 0} out</li>`).join('');
+      const box = document.createElement('div'); box.className = 'how';
+      box.innerHTML = `<p><b>How it balances.</b> Count each kind of atom on both sides. The big numbers in front make the counts match:</p><ul>${rows}</ul>`;
+      b.replaceWith(box);
+    });
+    return b;
+  };
 
   // ---------- running the chamber ----------
   /** A "read it to me" button for Sprout and Seedling (plays only when tapped), or null. */
@@ -623,6 +643,7 @@ async function main() {
       const show = showOf(r.id);
       result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${ruleHtml(r)}${seeHtml(show)}${show?.feel ? `<p>${esc(show.feel)}</p>` : r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
       $('result').append(saveSpellButton(r));
+      const how = showHow(eqText); if (how) $('result').append(how);
       note(eqText, r.name, true); animate(inSide, out, fxFor(r, out), show); return;
     }
     if (raw.kind === 'unbalanced') {
@@ -693,7 +714,7 @@ async function main() {
     const tag = $('chamberTag'); const keys = Object.keys(left);
     tag.hidden = ran || !keys.length;
     if (tag.hidden) { tag.textContent = ''; return; }
-    const what = keys.map((f) => (isSprout() ? `${left[f]} × ${esc(nameOf(f))}` : `${(left[f] ?? 0) > 1 ? left[f] : ''}${show(f)}`)).join(' + ');
+    const what = keys.map((f) => `${(left[f] ?? 0) > 1 ? left[f] : ''}${show(f)}`).join(' + ');
     const total = Object.values(left).reduce((n, k) => n + k, 0);
     tag.innerHTML = `In the chamber: <b>${what}</b>${total > chamberMols ? ` <small>(showing ${chamberMols})</small>` : ''}`;
   };
@@ -720,10 +741,9 @@ async function main() {
   let walk = null;
   const TAB_OF = /** @type {Record<string, string>} */ ({ codex: 'codex', notebook: 'notes', guide: 'guide' });
   const squash = (/** @type {string} */ s) => s.replace(/\s+/g, '').replace('→', '->');
-  /** Formulas in guide prose shown with subscripts and arrows (Apprentice and Adept only; Sprout text has none). */
+  /** Formulas in guide prose shown with subscripts and arrows, at every band (I-059). */
   const prose = (/** @type {string} */ s) => {
-    let h = esc(s).replace(/&lt;=&gt;/g, '⇌').replace(/-&gt;/g, '→');
-    if (isYoung()) return h;
+    const h = esc(s).replace(/&lt;=&gt;/g, '⇌').replace(/-&gt;/g, '→');
     return h.split(' ').map((w) => {
       const m = w.match(/^(\d*)([A-Za-z0-9()]+)([.,;:]?)$/);
       return m && /\d/.test(m[2] ?? '') && /[A-Z]/.test(m[2] ?? '') && parseFormula(m[2] ?? '') ? `${m[1]}${subs(m[2] ?? '')}${m[3]}` : w;
@@ -883,7 +903,9 @@ async function main() {
       const d = document.createElement('div'); d.className = 'lesson';
       // I-057: a lesson's `world` points at the chemistry quest that uses it.
       const world = l.world && l.world.say ? `<p class="world">${prose(l.world.say)}</p>` : '';
-      d.innerHTML = `<b>${prose(l.title)}</b><p>${prose(l.idea)}</p>${world}<small class="ngss" title="Next Generation Science Standards">NGSS ${esc(l.ngss)}</small>`;
+      // I-059: an Adept lesson also names its AP Chemistry topic.
+      const ap = l.ap ? ` <small class="ngss" title="AP Chemistry Course and Exam Description topic">AP Chemistry ${esc(l.ap)}</small>` : '';
+      d.innerHTML = `<b>${prose(l.title)}</b><p>${prose(l.idea)}</p>${world}<small class="ngss" title="Next Generation Science Standards">NGSS ${esc(l.ngss)}</small>${ap}`;
       const row = document.createElement('div'); row.className = 'row';
       if (l.try) row.append(button('Try it', () => tryLesson(l)));
       const say = sayButton(`${l.title}. ${l.idea}${l.world && l.world.say ? ` ${l.world.say}` : ''}`); if (say) row.append(say);

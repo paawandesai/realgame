@@ -823,62 +823,112 @@ fn runes(
 // Benches.
 // ---------------------------------------------------------------------------
 
-/// The Formula Bench: a stone lectern on an octagonal plinth, its slanted
-/// top a glowing teal screen facing south (towards the plaza and the path).
+/// The Formula Bench: a timber lab bench like the one the Bench page shows
+/// up close (Paawan, 2026-11-05: the Bench is the centrepiece, and the
+/// world is to look real): a worktop on four legs, a brass ring stand
+/// holding a round flask of glowing teal (the one thing that glows, so it
+/// still reads as the place to go), and a rack of three test tubes.
 fn formula_bench(out: &mut MeshData, p: [i32; 3]) {
     let [x, y, z] = [p[0] as f32 + 0.5, p[1] as f32, p[2] as f32 + 0.5];
-    let stone = Paint {
-        rgb: ROCK,
-        glow: 0.0,
+    let paint = |rgb: V3, glow: f32| Paint {
+        rgb,
+        glow,
         mat: mat::BENCH,
     };
-    let dark = Paint {
-        rgb: mul(ROCK, 0.6),
-        glow: 0.0,
-        mat: mat::BENCH,
-    };
-    let teal = Paint {
-        rgb: TEAL,
-        glow: 1.0,
-        mat: mat::BENCH,
-    };
-    // Plinth, a teal ring, the column.
-    slab(out, [x, y + 0.07, z], [0.48, 0.07, 0.48], 0.14, stone);
-    slab(out, [x, y + 0.075, z], [0.495, 0.018, 0.495], 0.145, teal);
-    column(out, [x, y + 0.14, z], 0.27, 0.21, 0.56, 8, stone);
-    // The slanted desk: a thick board tilted towards +z.
-    let tilt = 0.42f32;
-    let (c, s) = (tilt.cos(), tilt.sin());
-    let top = y + 0.8;
-    let corner = |dx: f32, dz: f32, dy: f32| -> V3 {
-        // Rotate (dz, dy) about the x axis by `tilt` (front edge lower).
-        [x + dx, top + dy * c - dz * s, z + dz * c + dy * s]
-    };
-    let (hx, hz, ht) = (0.46f32, 0.33f32, 0.07f32);
-    let inside = corner(0.0, 0.0, 0.0);
-    let pts = |dy: f32| {
-        [
-            corner(-hx, -hz, dy),
-            corner(hx, -hz, dy),
-            corner(hx, hz, dy),
-            corner(-hx, hz, dy),
-        ]
-    };
-    let (bot, topp) = (pts(-ht), pts(ht));
-    for k in 0..4 {
-        let j = (k + 1) % 4;
-        facet(out, bot[k], bot[j], topp[j], inside, dark);
-        facet(out, bot[k], topp[j], topp[k], inside, dark);
+    let wood = paint(TIMBER, 0.0);
+    let top_wood = paint(mix(TIMBER, CLAY, 0.25), 0.0);
+    let brass = paint([0.55, 0.40, 0.16], 0.0);
+    let glass = paint([0.70, 0.78, 0.80], 0.0);
+    let teal = paint(TEAL, 0.9);
+    for (dx, dz) in [(-0.38, -0.3), (0.38, -0.3), (-0.38, 0.3), (0.38, 0.3)] {
+        slab(
+            out,
+            [x + dx, y + 0.31, z + dz],
+            [0.05, 0.31, 0.05],
+            0.02,
+            wood,
+        );
     }
-    facet(out, topp[0], topp[1], topp[2], inside, stone);
-    facet(out, topp[0], topp[2], topp[3], inside, stone);
-    facet(out, bot[0], bot[1], bot[2], inside, dark);
-    facet(out, bot[0], bot[2], bot[3], inside, dark);
-    // The screen: inset on the top face.
-    let scr = |dx: f32, dz: f32| corner(dx, dz, ht + 0.012);
-    let (sx, sz) = (hx - 0.08, hz - 0.08);
-    facet(out, scr(-sx, -sz), scr(sx, -sz), scr(sx, sz), inside, teal);
-    facet(out, scr(-sx, -sz), scr(sx, sz), scr(-sx, sz), inside, teal);
+    slab(out, [x, y + 0.16, z], [0.4, 0.025, 0.32], 0.02, wood);
+    slab(out, [x, y + 0.66, z], [0.48, 0.045, 0.38], 0.03, top_wood);
+    // Ring stand: a base plate, a rod and a ring, with the flask in it.
+    slab(
+        out,
+        [x + 0.12, y + 0.715, z - 0.05],
+        [0.12, 0.01, 0.09],
+        0.005,
+        brass,
+    );
+    column(
+        out,
+        [x + 0.2, y + 0.72, z - 0.1],
+        0.012,
+        0.012,
+        0.26,
+        6,
+        brass,
+    );
+    column(
+        out,
+        [x + 0.08, y + 0.86, z - 0.05],
+        0.085,
+        0.085,
+        0.012,
+        10,
+        brass,
+    );
+    // The flask: a round bulb of teal and a glass neck.
+    column(
+        out,
+        [x + 0.08, y + 0.76, z - 0.05],
+        0.05,
+        0.09,
+        0.06,
+        10,
+        teal,
+    );
+    column(
+        out,
+        [x + 0.08, y + 0.82, z - 0.05],
+        0.09,
+        0.05,
+        0.06,
+        10,
+        teal,
+    );
+    column(
+        out,
+        [x + 0.08, y + 0.88, z - 0.05],
+        0.022,
+        0.02,
+        0.1,
+        8,
+        glass,
+    );
+    // A rack of three test tubes on the left.
+    slab(
+        out,
+        [x - 0.24, y + 0.745, z + 0.05],
+        [0.12, 0.03, 0.04],
+        0.01,
+        wood,
+    );
+    for (k, rgb) in [[0.85, 0.35, 0.2], [0.3, 0.55, 0.85], [0.9, 0.85, 0.75]]
+        .into_iter()
+        .enumerate()
+    {
+        let tx = x - 0.32 + k as f32 * 0.08;
+        column(
+            out,
+            [tx, y + 0.71, z + 0.05],
+            0.014,
+            0.014,
+            0.08,
+            6,
+            paint(rgb, 0.0),
+        );
+        column(out, [tx, y + 0.79, z + 0.05], 0.014, 0.014, 0.06, 6, glass);
+    }
 }
 
 /// The Invention Bench: a chunky timber worktable with a clay crucible and

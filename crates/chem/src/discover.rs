@@ -1339,6 +1339,42 @@ mod tests {
         assert!(!need("reveal_the_hidden_mark").met_by(&fx.of(c.get("silver_chloride").unwrap())));
     }
 
+    /// I-059: after the grade re-band, every live quest can still be solved
+    /// at every band with bottles the valley gives, by a reaction that band
+    /// may use, and one of its listed solvers is a Sprout reaction.
+    #[test]
+    fn every_band_can_solve_every_quest_with_findable_bottles() {
+        let c = Codex::load();
+        let b = Bottles::load();
+        let fx = Effects::load();
+        let quests = Quests::load();
+        for q in quests.quests.iter().filter(|q| q.live) {
+            for band in Tier::ALL {
+                assert!(
+                    c.entries.iter().any(|e| usable(e, band)
+                        && q.needs.met_by(&fx.of(e))
+                        && b.findable_plan(e)),
+                    "{}: nothing at {band:?} solves it with findable bottles",
+                    q.id
+                );
+                assert!(
+                    q.solved_by
+                        .iter()
+                        .any(|id| c.get(id).is_some_and(|e| usable(e, band))),
+                    "{}: no listed solver is usable at {band:?}",
+                    q.id
+                );
+            }
+            assert!(
+                q.solved_by
+                    .iter()
+                    .any(|id| c.get(id).is_some_and(|e| e.band == Tier::Sprout)),
+                "{}: no listed solver is a Sprout reaction",
+                q.id
+            );
+        }
+    }
+
     /// I-057: a Guide lesson that points at a quest teaches a reaction that
     /// solves it.
     #[test]

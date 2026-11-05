@@ -1,5 +1,5 @@
 {
-  "about": "Teaching content for the Chemistry Bench free play page (bench-free.html): a first-visit walkthrough, lessons, hints and challenges for each age band, and an everyday line per reaction. Data only; the page renders it. Every reaction id is a content/chem/core.json id. A step's `do` is the action the page waits for. A lesson's `try.reactants` lists one entry per bottle tap, so a formula written twice means tap it twice (the counts are the equation's own coefficients, because the engine matches reactants by ratio). `try.conditions` are condition ids from names.json. `ngss` is a Next Generation Science Standards performance expectation. Hints are [nudge, idea, answer-pointer], keyed by every family visible at that band. Sources: `references` defines each source; `core` means the cited reaction's own `source` in core.json. test/bench-guide.test.ts checks every reference. A lesson's optional `world` points at the chemistry quest (content/chem/quests.json) that uses it in the block world: `quest` is its id and `say` the line the page shows (I-057).",
+  "about": "Teaching content for the Chemistry Bench free play page (bench-free.html): a first-visit walkthrough, lessons, hints and challenges for each grade band (Sprout grades 6-7, Seedling grades 8-9, Apprentice grades 10-11, Adept grade 12 and up: AP, college and adult players; docs/loop/items/I-059/spec.md), and an everyday line per reaction. Data only; the page renders it. Every reaction id is a content/chem/core.json id. A step's `do` is the action the page waits for. A lesson's `try.reactants` lists one entry per bottle tap, so a formula written twice means tap it twice (the counts are the equation's own coefficients, because the engine matches reactants by ratio). `try.conditions` are condition ids from names.json. `ngss` is a Next Generation Science Standards performance expectation; an Adept lesson's `ap` is the topic number in the College Board's AP Chemistry Course and Exam Description (R9). Hints are [nudge, idea, answer-pointer], keyed by every family visible at that band. Sources: `references` defines each source; `core` means the cited reaction's own `source` in core.json. test/bench-guide.test.ts checks every reference. A lesson's optional `world` points at the chemistry quest (content/chem/quests.json) that uses it in the block world: `quest` is its id and `say` the line the page shows (I-057).",
   "references": {
     "core": "The `source` field of each core.json reaction the text names (reviewed 2026-11-04).",
     "R1": "OpenStax, Chemistry 2e (Flowers, Theopold, Langley, Robinson, 2019), https://openstax.org/details/books/chemistry-2e",
@@ -9,182 +9,246 @@
     "R5": "US EPA, Effects of Acid Rain (section: Effects of Acid Rain on Materials), https://www.epa.gov/acidrain/effects-acid-rain",
     "R6": "Erisman, J. W. et al. (2008), How a century of ammonia synthesis changed the world, Nature Geoscience 1, 636-639, https://doi.org/10.1038/ngeo325",
     "R7": "Royal Society of Chemistry, Education: practical chemistry resources, https://edu.rsc.org/resources/practical",
-    "R8": "Royal Society of Chemistry, Education: The reaction between iron and sulfur, https://edu.rsc.org/resources/iron-and-sulfur-reaction/713.article"
+    "R8": "Royal Society of Chemistry, Education: The reaction between iron and sulfur, https://edu.rsc.org/resources/iron-and-sulfur-reaction/713.article",
+    "R9": "College Board, AP Chemistry Course and Exam Description (effective Fall 2020), https://apcentral.collegeboard.org/courses/ap-chemistry"
   },
   "bands": {
     "sprout": {
       "walkthrough": [
-        { "id": "sp_w1", "say": "This bottle has hydrogen. It is a very light gas. Tap it!", "do": { "tap_bottle": "H2" } },
-        { "id": "sp_w2", "say": "Tap hydrogen one more time. Now you have two.", "do": { "tap_bottle": "H2" } },
-        { "id": "sp_w3", "say": "Now tap oxygen. Oxygen is in the air we breathe.", "do": { "tap_bottle": "O2" } },
-        { "id": "sp_w4", "say": "Tap A spark or flame. A tiny spark gets things started. Only grown-ups use real sparks and flames.", "do": { "condition": "spark" } },
-        { "id": "sp_w5", "say": "Now tap Run! Pop! The two gases join and make water.", "do": { "run": true } }
+        {
+          "id": "sp_w1",
+          "say": "Hydrogen is the lightest gas. Each of its molecules is two hydrogen atoms joined together. Tap the hydrogen bottle.",
+          "do": { "tap_bottle": "H2" }
+        },
+        { "id": "sp_w2", "say": "Tap hydrogen again. Water needs two hydrogen molecules for every oxygen molecule.", "do": { "tap_bottle": "H2" } },
+        { "id": "sp_w3", "say": "Now tap oxygen (O2), the gas in the air we breathe.", "do": { "tap_bottle": "O2" } },
+        {
+          "id": "sp_w4",
+          "say": "Turn on A spark or flame. Hydrogen needs a spark to start burning. Only trained adults use real sparks near hydrogen.",
+          "do": { "condition": "spark" }
+        },
+        { "id": "sp_w5", "say": "Run the chamber. Pop! The atoms rearrange into water (H2O), a new substance. No atom is lost.", "do": { "run": true } }
       ],
       "walkthrough_sources": ["core", "R1"],
       "lessons": [
         {
-          "id": "sp_fire",
-          "title": "Fire needs air",
-          "idea": "Burning is a change you can't undo. The fuel joins with oxygen from the air and turns into gases you can't see. It gives off heat and light.",
-          "try": { "reactants": ["C", "O2"], "conditions": ["heat"], "expect": "carbon_burns" },
-          "ngss": "2-PS1-4",
-          "reactions": ["carbon_burns", "magnesium_burns", "sulfur_burns", "candle_burns"],
-          "sources": ["core", "R1", "R3"],
-          "world": { "quest": "melt_with_reaction", "say": "Try it in the world: a hot reaction can melt the ice gate in the Frozen Fields." }
-        },
-        {
-          "id": "sp_spark",
-          "title": "A spark starts it",
-          "idea": "Gas for a stove needs a spark to start burning. Then it keeps burning while there is gas and air.",
-          "try": { "reactants": ["CH4", "O2", "O2"], "conditions": ["spark"], "expect": "methane_burns" },
-          "ngss": "2-PS1-4",
-          "reactions": ["methane_burns", "propane_burns", "butane_burns"],
-          "sources": ["core", "R1", "R3"]
-        },
-        {
-          "id": "sp_pieces",
-          "title": "Water is made of tiny pieces",
-          "idea": "Two gases, hydrogen and oxygen, can join to make water. The same tiny pieces are put together in a new way.",
+          "id": "sp_atoms",
+          "title": "Atoms join into molecules",
+          "idea": "Everything is made of atoms. A water molecule (H2O) is one oxygen atom joined to two hydrogen atoms. In a reaction, atoms come apart and join up in new ways, but no atom is lost.",
           "try": { "reactants": ["H2", "H2", "O2"], "conditions": ["spark"], "expect": "hydrogen_burns" },
-          "ngss": "2-PS1-3",
+          "ngss": "MS-PS1-1",
           "reactions": ["hydrogen_burns"],
           "sources": ["core", "R1", "R3"]
         },
         {
-          "id": "sp_fizz",
-          "title": "Fizz!",
-          "idea": "Baking soda and vinegar make lots of bubbles. The bubbles are a gas called carbon dioxide.",
-          "try": { "reactants": ["NaHCO3", "CH3COOH"], "conditions": [], "expect": "baking_soda_vinegar" },
-          "ngss": "2-PS1-1",
-          "reactions": ["baking_soda_vinegar", "chalk_acid"],
+          "id": "sp_fire",
+          "title": "Burning needs oxygen",
+          "idea": "Burning is a chemical reaction: a fuel joins with oxygen (O2) from the air. Charcoal is mostly carbon, and it burns into carbon dioxide (CO2), giving off heat and light.",
+          "try": { "reactants": ["C", "O2"], "conditions": ["heat"], "expect": "carbon_burns" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["carbon_burns", "methane_burns"],
           "sources": ["core", "R1", "R3"],
-          "world": { "quest": "cool_the_vent", "say": "Try it in the world: this fizz gets cold. It can cool the hot vent on the charcoal mound." }
+          "world": { "quest": "melt_with_reaction", "say": "Try it in the world: burning charcoal gives off heat, which can melt the ice gate in the Frozen Fields." }
         },
         {
-          "id": "sp_rust",
-          "title": "Why things rust",
-          "idea": "Iron left out in wet air slowly turns into crumbly orange-brown rust. Rust needs both water and air.",
-          "try": { "reactants": ["Fe", "Fe", "Fe", "Fe", "O2", "O2", "O2"], "conditions": ["water"], "expect": "iron_rusts" },
-          "ngss": "2-PS1-1",
-          "reactions": ["iron_rusts"],
-          "sources": ["core", "R1", "R3"]
+          "id": "sp_fizz",
+          "title": "Bubbles are evidence",
+          "idea": "When baking soda meets vinegar, bubbles of carbon dioxide gas appear and the mix gets colder. A new gas and a temperature change are both evidence that new substances formed.",
+          "try": { "reactants": ["NaHCO3", "CH3COOH"], "conditions": [], "expect": "baking_soda_vinegar" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["baking_soda_vinegar"],
+          "sources": ["core", "R1", "R3"],
+          "world": { "quest": "cool_the_vent", "say": "Try it in the world: this fizz takes in heat, so it gets cold. It can cool the hot vent on the charcoal mound." }
+        },
+        {
+          "id": "sp_limewater",
+          "title": "A test for carbon dioxide",
+          "idea": "Clear limewater turns milky when carbon dioxide (CO2) bubbles through it. The milky bits are a new solid, chalk, so limewater is a test for the gas.",
+          "try": { "reactants": ["Ca(OH)2", "CO2"], "conditions": [], "expect": "limewater_test" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["limewater_test"],
+          "sources": ["core", "R1", "R3", "R7"]
         },
         {
           "id": "sp_cloudy",
-          "title": "Cloudy water",
-          "idea": "Mix two clear liquids and a white cloud can appear. The cloud is a new solid.",
+          "title": "A new solid appears",
+          "idea": "Mix two clear solutions, silver nitrate and salt water (NaCl), and a white solid appears. A solid forming when two liquids mix is evidence of a chemical reaction.",
           "try": { "reactants": ["AgNO3", "NaCl"], "conditions": [], "expect": "silver_chloride" },
-          "ngss": "2-PS1-1",
+          "ngss": "MS-PS1-2",
           "reactions": ["silver_chloride"],
           "sources": ["core", "R1", "R3"],
-          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: the cloudy bits are a solid. They can build a wall in the river." }
+          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: the white solid can build a wall in the river at the ford." }
         },
         {
           "id": "sp_copper",
-          "title": "A copper coat",
-          "idea": "Put iron in blue copper sulfate. Copper comes out of the blue liquid and coats the iron.",
+          "title": "A colour change",
+          "idea": "Put iron in blue copper sulfate solution and the iron gets a copper-coloured coat while the blue fades. The colour change shows new substances: copper metal and iron sulfate.",
           "try": { "reactants": ["Fe", "CuSO4"], "conditions": [], "expect": "iron_copper_sulfate" },
-          "ngss": "2-PS1-3",
+          "ngss": "MS-PS1-2",
           "reactions": ["iron_copper_sulfate"],
-          "sources": ["core", "R1", "R3"],
+          "sources": ["core", "R1", "R3", "R7"],
           "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: a colour change can show the hidden mark near the village." }
         },
         {
           "id": "sp_hot_rock",
-          "title": "Cooking a rock",
-          "idea": "Very strong heat turns chalk rock (limestone) into a new white powder called quicklime. A gas goes off into the air.",
+          "title": "Heat breaks it down",
+          "idea": "Strong heat breaks limestone into quicklime and carbon dioxide gas. Lime kilns have done this for thousands of years to make mortar.",
           "try": { "reactants": ["CaCO3"], "conditions": ["heat"], "expect": "limestone_roast" },
-          "ngss": "2-PS1-4",
-          "reactions": ["limestone_roast", "slaking_lime"],
-          "sources": ["core", "R1", "R3"],
-          "world": { "quest": "smother_with_co2", "say": "Try it in the world: cooking a rock makes a gas that stops fires, like the marsh gas fire." }
+          "ngss": "MS-PS1-2",
+          "reactions": ["limestone_roast"],
+          "sources": ["core", "R1", "R3", "R4"],
+          "world": { "quest": "smother_with_co2", "say": "Try it in the world: heating limestone makes carbon dioxide, a gas that can put out the marsh gas fire." }
         },
         {
-          "id": "sp_body",
-          "title": "Your body uses food",
-          "idea": "Your body uses food and the air you breathe to get energy. You breathe out a gas called carbon dioxide.",
+          "id": "sp_foam",
+          "title": "Breaking apart",
+          "idea": "Hydrogen peroxide slowly breaks down into water (H2O) and oxygen (O2). Yeast speeds this up a lot, so the oxygen makes a big foam.",
+          "try": { "reactants": ["H2O2"], "conditions": ["catalyst"], "expect": "peroxide_splits" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["peroxide_splits"],
+          "sources": ["core", "R1", "R2", "R3"]
+        },
+        {
+          "id": "sp_rust",
+          "title": "Why iron rusts",
+          "idea": "Iron left in wet air slowly joins with oxygen and turns into crumbly orange-brown rust. Rust needs both water and oxygen.",
+          "try": { "reactants": ["Fe", "Fe", "Fe", "Fe", "O2", "O2", "O2"], "conditions": ["water"], "expect": "iron_rusts" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["iron_rusts"],
+          "sources": ["core", "R1", "R3"]
+        },
+        {
+          "id": "sp_living",
+          "title": "Chemistry in living things",
+          "idea": "Your cells use sugar and oxygen (O2) to get energy, and you breathe out carbon dioxide (CO2) and water. Plants do the opposite overall: photosynthesis uses light to make sugar and oxygen.",
           "try": { "reactants": ["C6H12O6", "O2", "O2", "O2", "O2", "O2", "O2"], "conditions": ["catalyst"], "expect": "respiration" },
-          "ngss": "K-LS1-1",
-          "reactions": ["respiration", "fermentation", "photosynthesis"],
+          "ngss": "MS-LS1-7",
+          "reactions": ["respiration", "photosynthesis"],
           "sources": ["core", "R2", "R3"]
         }
       ],
       "hints": {
-        "combustion": ["Some things burn. What do they need?", "Fire happens when a fuel joins with oxygen. Some fuels need a spark, some need heat.", "Try charcoal and oxygen, then turn on Heat."],
-        "oxidation": ["What happens to iron in the rain?", "Wet iron slowly joins with oxygen. That makes rust.", "Tap iron 4 times and oxygen 3 times, then turn on A little water."],
-        "carbonate_acid": ["Some things fizz when they meet vinegar.", "Baking soda and chalk give off a gas when an acid touches them.", "Try baking soda and vinegar."],
-        "life": ["Living things do chemistry too.", "Yeast and your body use sugar. Tiny helpers make it go.", "Try sugar, then turn on A helper (like yeast)."],
-        "decomposition": ["Some things break apart with a helper.", "Hydrogen peroxide breaks into water and oxygen when a helper speeds it up.", "Try hydrogen peroxide, then turn on A helper (like yeast)."],
-        "thermal": ["What happens if you heat a rock?", "Very strong heat can turn chalk rock (limestone) into new stuff and a gas.", "Try chalk rock (limestone), then turn on Heat."],
-        "synthesis": ["Some things get hot when you add water.", "Quicklime joins with water and gets very hot.", "Try quicklime and water."],
-        "displacement": ["Put a metal in a blue liquid.", "Iron can push copper out of copper sulfate. The iron gets a copper coat.", "Try iron and copper sulfate."],
-        "precipitation": ["Two clear liquids can make something cloudy.", "When some liquids mix, a tiny solid forms and makes the water cloudy.", "Try silver nitrate and table salt."]
+        "combustion": ["Burning needs a fuel and oxygen.", "A fuel joins with oxygen (O2) from the air. Gases like hydrogen need a spark; solids like charcoal need heat.", "Try charcoal and oxygen, then turn on Heat."],
+        "oxidation": ["What happens to iron left out in the rain?", "Wet iron slowly joins with oxygen and makes rust. It needs water and air.", "Tap iron 4 times and oxygen 3 times, then turn on A little water."],
+        "carbonate_acid": ["Some things fizz when they meet vinegar.", "Baking soda gives off carbon dioxide (CO2) gas when an acid like vinegar touches it.", "Try baking soda and vinegar."],
+        "life": ["Living things do chemistry too.", "Your cells use sugar and oxygen. Plants use light to make sugar from carbon dioxide and water.", "Try sugar and 6 oxygen, then turn on A helper (like yeast)."],
+        "decomposition": ["Some substances break apart into simpler ones.", "Hydrogen peroxide breaks into water (H2O) and oxygen (O2). A helper like yeast makes it fast.", "Try hydrogen peroxide, then turn on A helper (like yeast)."],
+        "thermal": ["What happens if you heat a rock very strongly?", "Strong heat breaks limestone into quicklime and carbon dioxide gas.", "Try chalk rock (limestone), then turn on Heat."],
+        "displacement": ["Put a metal in a blue solution.", "Iron pushes copper out of copper sulfate. The iron gets a copper coat and the blue fades.", "Try iron and copper sulfate."],
+        "precipitation": ["Two clear liquids can make a solid.", "When some solutions mix, a solid forms and makes the liquid cloudy. Limewater does this with carbon dioxide.", "Try silver nitrate and table salt."]
       },
       "hint_sources": ["core", "R1", "R2"],
       "challenges": [
-        { "id": "sp_c_fire", "title": "Make a fire in the chamber", "goal": { "kind": "find_family", "family": "combustion" } },
-        { "id": "sp_c_fizz", "title": "Make it fizz", "goal": { "kind": "find_any_of", "ids": ["baking_soda_vinegar", "chalk_acid"] } },
-        { "id": "sp_c_cloud", "title": "Make a cloud in a jar", "goal": { "kind": "find_family", "family": "precipitation" } },
+        { "id": "sp_c_fire", "title": "Make something burn", "goal": { "kind": "find_family", "family": "combustion" } },
+        { "id": "sp_c_fizz", "title": "Make a gas you can see as bubbles", "goal": { "kind": "find_any_of", "ids": ["baking_soda_vinegar", "peroxide_splits"] } },
+        { "id": "sp_c_test", "title": "Test for carbon dioxide", "goal": { "kind": "find_any_of", "ids": ["limewater_test"] } },
+        { "id": "sp_c_cloud", "title": "Make a solid appear from two liquids", "goal": { "kind": "find_family", "family": "precipitation" } },
         { "id": "sp_c_copper", "title": "Give iron a copper coat", "goal": { "kind": "find_any_of", "ids": ["iron_copper_sulfate"] } },
-        { "id": "sp_c_life", "title": "Chemistry inside living things", "goal": { "kind": "find_any_of", "ids": ["respiration", "fermentation", "photosynthesis"] } },
-        { "id": "sp_c_five", "title": "Find five reactions", "goal": { "kind": "find_count", "count": 5 } }
+        { "id": "sp_c_life", "title": "Chemistry inside living things", "goal": { "kind": "find_any_of", "ids": ["respiration", "photosynthesis"] } },
+        { "id": "sp_c_six", "title": "Find six reactions", "goal": { "kind": "find_count", "count": 6 } }
       ]
     },
     "seedling": {
       "walkthrough": [
-        { "id": "se_w1", "say": "Sodium is a soft, shiny metal. It reacts so strongly that only trained chemists handle it. Tap the sodium bottle.", "do": { "tap_bottle": "Na" } },
-        { "id": "se_w2", "say": "Tap sodium again, so there are two on the table.", "do": { "tap_bottle": "Na" } },
-        { "id": "se_w3", "say": "Now tap chlorine. It is a yellow-green gas that is poisonous to breathe.", "do": { "tap_bottle": "Cl2" } },
-        { "id": "se_w4", "say": "This one needs energy to start. Turn on Heat.", "do": { "condition": "heat" } },
-        { "id": "se_w5", "say": "Run the chamber! Flash! A metal and a poisonous gas join to make the same stuff as table salt. It is a brand-new substance with new properties.", "do": { "run": true } }
+        {
+          "id": "se_w1",
+          "say": "Sodium (Na) is a soft, shiny metal. It reacts so strongly that only trained chemists handle it. Tap the sodium bottle.",
+          "do": { "tap_bottle": "Na" }
+        },
+        {
+          "id": "se_w2",
+          "say": "Tap sodium again. The balanced equation 2Na + Cl2 -> 2NaCl needs two sodium atoms for each chlorine molecule.",
+          "do": { "tap_bottle": "Na" }
+        },
+        { "id": "se_w3", "say": "Now tap chlorine (Cl2). It is a yellow-green gas that is poisonous to breathe.", "do": { "tap_bottle": "Cl2" } },
+        { "id": "se_w4", "say": "This synthesis needs energy to start. Turn on Heat.", "do": { "condition": "heat" } },
+        {
+          "id": "se_w5",
+          "say": "Run the chamber! A metal and a poisonous gas join into sodium chloride (NaCl), table salt: a new substance with new properties. Count the atoms: 2 Na and 2 Cl on each side.",
+          "do": { "run": true }
+        }
       ],
       "walkthrough_sources": ["core", "R1", "R4"],
       "lessons": [
         {
-          "id": "se_particles",
-          "title": "Too small to see",
-          "idea": "A gas is made of particles too small to see. When washing soda meets acid, bubbles of carbon dioxide appear, so you can tell the gas is there even though its particles are invisible.",
-          "try": { "reactants": ["Na2CO3", "HCl", "HCl"], "conditions": [], "expect": "washing_soda_acid" },
-          "ngss": "5-PS1-1",
-          "reactions": ["washing_soda_acid", "chalk_acid", "baking_soda_vinegar"],
-          "sources": ["core", "R1", "R3"],
-          "world": { "quest": "cool_the_vent", "say": "Try it in the world: baking soda and vinegar take in heat as they fizz. That can cool the hot vent on the charcoal mound in the Frozen Fields." }
-        },
-        {
           "id": "se_mass",
           "title": "Nothing disappears",
-          "idea": "When magnesium burns, the white powder weighs more than the metal did, because it joined with oxygen from the air. Count the oxygen too, and the total weight stays the same.",
+          "idea": "When magnesium burns, the white powder (MgO) weighs more than the metal did, because it joined with oxygen from the air. Count the oxygen too and the total mass stays the same: 2Mg + O2 -> 2MgO has 2 Mg and 2 O on each side.",
           "try": { "reactants": ["Mg", "Mg", "O2"], "conditions": ["heat"], "expect": "magnesium_burns" },
-          "ngss": "5-PS1-2",
-          "reactions": ["magnesium_burns", "iron_sulfur", "copper_oxide"],
+          "ngss": "MS-PS1-5",
+          "reactions": ["magnesium_burns", "copper_oxide"],
           "sources": ["core", "R1", "R3"],
           "world": { "quest": "melt_with_reaction", "say": "Try it in the world: a reaction that gives off heat can melt the ice gate in the Frozen Fields." }
         },
         {
-          "id": "se_new",
-          "title": "Brand-new stuff",
-          "idea": "Sodium is a soft metal and chlorine is a poisonous gas. Joined together they make table salt, a new substance with new properties.",
-          "try": { "reactants": ["Na", "Na", "Cl2"], "conditions": ["heat"], "expect": "salt_from_elements" },
-          "ngss": "5-PS1-4",
-          "reactions": ["salt_from_elements"],
-          "sources": ["core", "R1", "R3", "R4"]
+          "id": "se_balance",
+          "title": "Balancing with help",
+          "idea": "A balanced equation has the same number of each kind of atom on both sides. In CH4 + 2O2 -> CO2 + 2H2O there are 1 C, 4 H and 4 O on each side. Change only the big numbers in front, never the small ones inside a formula.",
+          "try": { "reactants": ["CH4", "O2", "O2"], "conditions": ["spark"], "expect": "methane_burns" },
+          "ngss": "MS-PS1-5",
+          "reactions": ["methane_burns", "hydrogen_burns"],
+          "sources": ["core", "R1", "R3"]
         },
         {
-          "id": "se_test_gas",
-          "title": "A test for a gas",
-          "idea": "Scientists tell materials apart by their properties. Carbon dioxide turns clear limewater milky, so limewater is a test for it.",
-          "try": { "reactants": ["Ca(OH)2", "CO2"], "conditions": [], "expect": "limewater_test" },
-          "ngss": "5-PS1-3",
-          "reactions": ["limewater_test"],
+          "id": "se_synthesis",
+          "title": "Synthesis: two become one",
+          "idea": "In a synthesis reaction, substances join into one new compound. A magnet pulls the iron out of an iron and sulfur mix, but after heating they have joined into iron sulfide (FeS), and the magnet no longer separates them.",
+          "try": { "reactants": ["Fe", "S"], "conditions": ["heat"], "expect": "iron_sulfur" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["iron_sulfur", "salt_from_elements", "magnesium_sulfur", "slaking_lime"],
+          "sources": ["core", "R3", "R8"]
+        },
+        {
+          "id": "se_decompose",
+          "title": "Decomposition: one becomes more",
+          "idea": "In a decomposition reaction, one substance breaks into simpler ones. Heating green copper carbonate (CuCO3) leaves black copper oxide and gives off carbon dioxide.",
+          "try": { "reactants": ["CuCO3"], "conditions": ["heat"], "expect": "copper_carbonate_heat" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["copper_carbonate_heat", "baking_soda_heat", "limestone_roast", "water_splits"],
+          "sources": ["core", "R3", "R7"],
+          "world": {
+            "quest": "smother_with_co2",
+            "say": "Try it in the world: breaking down a carbonate gives carbon dioxide, which can smother the gas fire in the marsh hollow."
+          }
+        },
+        {
+          "id": "se_combustion",
+          "title": "Combustion",
+          "idea": "Fuels made of carbon and hydrogen burn in oxygen to make carbon dioxide and water, and give off heat. Propane in a camping stove burns this way: C3H8 + 5O2 -> 3CO2 + 4H2O.",
+          "try": { "reactants": ["C3H8", "O2", "O2", "O2", "O2", "O2"], "conditions": ["spark"], "expect": "propane_burns" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["propane_burns", "butane_burns", "candle_burns", "ethanol_burns"],
+          "sources": ["core", "R1", "R3"]
+        },
+        {
+          "id": "se_swap",
+          "title": "Metal swap",
+          "idea": "When copper wire hangs in silver nitrate solution, shiny silver crystals grow on the wire and the liquid turns blue, because copper took silver's place. A more reactive metal pushes a less reactive one out of its compound.",
+          "try": { "reactants": ["Cu", "AgNO3", "AgNO3"], "conditions": [], "expect": "copper_silver_nitrate" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["copper_silver_nitrate", "zinc_copper_sulfate", "magnesium_copper_sulfate", "iron_copper_sulfate"],
           "sources": ["core", "R1", "R3"],
-          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: the milky solid that forms can build a wall in the river at the ford." }
+          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: the colour change of a metal swap can show the hidden mark near the village." }
+        },
+        {
+          "id": "se_warm_cold",
+          "title": "Warm or cold",
+          "idea": "Some reactions give out heat and feel warm, like quicklime with water. Others take heat in and feel cold, like baking soda with hydrochloric acid.",
+          "try": { "reactants": ["NaHCO3", "HCl"], "conditions": [], "expect": "baking_soda_hcl" },
+          "ngss": "MS-PS1-6",
+          "reactions": ["baking_soda_hcl", "slaking_lime", "baking_soda_vinegar"],
+          "sources": ["core", "R1", "R3"],
+          "world": {
+            "quest": "cool_the_vent",
+            "say": "Try it in the world: baking soda and vinegar take in heat as they fizz. That can cool the hot vent on the charcoal mound in the Frozen Fields."
+          }
         },
         {
           "id": "se_acid_base",
           "title": "Acids meet bases",
-          "idea": "Your stomach makes acid. An antacid like milk of magnesia is a base. It reacts with the acid to make a salt and water.",
+          "idea": "Your stomach makes acid. An antacid like milk of magnesia is a base, and it reacts with the acid to make a salt and water.",
           "try": { "reactants": ["Mg(OH)2", "HCl", "HCl"], "conditions": [], "expect": "antacid" },
-          "ngss": "5-PS1-4",
+          "ngss": "MS-PS1-2",
           "reactions": ["antacid", "neutralise_hcl_naoh"],
           "sources": ["core", "R1", "R3"]
         },
@@ -193,129 +257,132 @@
           "title": "Metals that fizz",
           "idea": "Zinc in hydrochloric acid fizzes. The bubbles are hydrogen gas, and the zinc gets used up as it turns into zinc chloride.",
           "try": { "reactants": ["Zn", "HCl", "HCl"], "conditions": [], "expect": "zinc_acid" },
-          "ngss": "5-PS1-4",
+          "ngss": "MS-PS1-2",
           "reactions": ["zinc_acid", "magnesium_acid"],
           "sources": ["core", "R1", "R3"]
         },
         {
-          "id": "se_swap",
-          "title": "Metal swap",
-          "idea": "When copper wire hangs in silver nitrate solution, shiny silver crystals grow on the wire and the liquid turns blue, because copper took silver's place.",
-          "try": { "reactants": ["Cu", "AgNO3", "AgNO3"], "conditions": [], "expect": "copper_silver_nitrate" },
-          "ngss": "5-PS1-4",
-          "reactions": ["copper_silver_nitrate", "zinc_copper_sulfate", "iron_copper_sulfate"],
-          "sources": ["core", "R1", "R3"],
-          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: the colour change of a metal swap can show the hidden mark near the village." }
-        },
-        {
-          "id": "se_mixture",
-          "title": "Mixture or new substance?",
-          "idea": "In a mix of iron and sulfur, a magnet can pull the iron out. After heating, they join into iron sulfide, a new substance, and you can no longer pull the iron out with a magnet.",
-          "try": { "reactants": ["Fe", "S"], "conditions": ["heat"], "expect": "iron_sulfur" },
-          "ngss": "5-PS1-4",
-          "reactions": ["iron_sulfur", "magnesium_sulfur"],
-          "sources": ["core", "R3", "R8"]
-        },
-        {
-          "id": "se_water_metals",
-          "title": "Metals in water",
-          "idea": "Some metals react with plain water. Calcium fizzes steadily, giving off hydrogen gas, and the water turns cloudy.",
-          "try": { "reactants": ["Ca", "H2O", "H2O"], "conditions": [], "expect": "calcium_water" },
-          "ngss": "5-PS1-3",
-          "reactions": ["calcium_water", "sodium_water", "lithium_water"],
-          "sources": ["core", "R3", "R4"]
-        },
-        {
-          "id": "se_sun_food",
-          "title": "Energy from the Sun",
-          "idea": "Plants use light from the Sun to make sugar from carbon dioxide and water. When you eat, your body uses that sugar with oxygen, so the energy in your food first came from the Sun.",
-          "try": { "reactants": ["C6H12O6", "O2", "O2", "O2", "O2", "O2", "O2"], "conditions": ["catalyst"], "expect": "respiration" },
-          "ngss": "5-PS3-1",
-          "reactions": ["photosynthesis", "respiration"],
-          "sources": ["core", "R2", "R3"]
+          "id": "se_test_gas",
+          "title": "Tests for gases",
+          "idea": "Chemists tell gases apart by simple tests. Carbon dioxide turns limewater milky, and hydrogen burns with a squeaky pop when a lit splint meets it.",
+          "try": { "reactants": ["Ca(OH)2", "CO2"], "conditions": [], "expect": "limewater_test" },
+          "ngss": "MS-PS1-2",
+          "reactions": ["limewater_test", "magnesium_acid"],
+          "sources": ["core", "R1", "R3", "R7"],
+          "world": { "quest": "wall_in_the_river", "say": "Try it in the world: the milky solid that forms can build a wall in the river at the ford." }
         }
       ],
       "hints": {
-        "combustion": ["Fuels burn when they join with oxygen.", "Fuels made of carbon and hydrogen burn to make carbon dioxide and water. Gases usually need a spark; solids like charcoal need heat.", "Try ethanol with 3 oxygen, then turn on A spark or flame."],
+        "combustion": ["Fuels burn when they join with oxygen.", "Fuels made of carbon and hydrogen burn to make carbon dioxide and water. Gases usually need a spark; solids like charcoal need heat.", "Try propane with 5 oxygen, then turn on A spark or flame."],
         "electrolysis": ["Can electricity pull water apart?", "Electricity splits water into hydrogen and oxygen. The hydrogen bubbles fill twice as much space as the oxygen bubbles.", "Try water, then turn on Electricity."],
         "oxidation": ["Some metals change colour when heated in air.", "A metal that joins with oxygen makes an oxide. Hot copper turns black.", "Try 2 copper and 1 oxygen, then turn on Heat."],
         "carbonate_acid": ["Carbonates fizz in acid.", "The fizz is carbon dioxide gas. Chalk, baking soda and washing soda are all carbonates.", "Try washing soda with 2 hydrochloric acid."],
-        "life": ["Your cells use food and air.", "Respiration uses sugar and oxygen. It gives out carbon dioxide, water and energy.", "Try sugar with 6 oxygen, then turn on A helper (like yeast)."],
+        "life": ["Living things break sugar down.", "Yeast turns sugar into alcohol and carbon dioxide; that is fermentation. Your cells use sugar and oxygen instead.", "Try sugar, then turn on A helper (like yeast)."],
         "decomposition": ["One substance can split into two.", "Hydrogen peroxide breaks down into water and oxygen gas. A helper called a catalyst makes it fast.", "Try hydrogen peroxide, then turn on A helper (like yeast)."],
-        "thermal": ["Heat can break some things apart.", "Heating chalk rock (limestone) gives quicklime and carbon dioxide.", "Try chalk rock (limestone), then turn on Heat."],
+        "thermal": ["Heat can break some things apart.", "Heating a carbonate gives an oxide and carbon dioxide. Green copper carbonate turns black.", "Try copper carbonate, then turn on Heat."],
         "synthesis": ["Two elements can join into a brand-new substance.", "Sodium and chlorine join to make table salt. Iron and sulfur join to make iron sulfide.", "Try iron and sulfur, then turn on Heat."],
-        "displacement": ["A more reactive metal can push out a less reactive one.", "Zinc pushes copper out of copper sulfate. Copper pushes silver out of silver nitrate.", "Try copper with 2 silver nitrate."],
+        "displacement": ["A more reactive metal can push out a less reactive one.", "Zinc and magnesium push copper out of copper sulfate. Copper pushes silver out of silver nitrate.", "Try copper with 2 silver nitrate."],
         "precipitation": ["Some mixes go cloudy.", "A solid that forms in a liquid is called a precipitate. Limewater turns milky with carbon dioxide.", "Try limewater and carbon dioxide."],
-        "water_metal": ["Some metals react with plain water.", "These metals make hydrogen gas and leave an alkali in the water.", "Try calcium with 2 water."],
         "neutralisation": ["Acids and bases cancel each other out.", "An acid plus a base makes a salt and water. Antacids work this way.", "Try milk of magnesia with 2 hydrochloric acid."],
         "metal_acid": ["Some metals fizz in acid.", "The bubbles are hydrogen gas, and a salt is left in the liquid.", "Try zinc with 2 hydrochloric acid."]
       },
       "hint_sources": ["core", "R1", "R2", "R4"],
       "challenges": [
+        {
+          "id": "se_c_join",
+          "title": "Synthesis: join two elements",
+          "goal": { "kind": "find_any_of", "ids": ["salt_from_elements", "iron_sulfur", "magnesium_sulfur"] }
+        },
+        { "id": "se_c_break", "title": "Decomposition: break one substance apart", "goal": { "kind": "find_family", "family": "decomposition" } },
         { "id": "se_c_fizz_metal", "title": "Make a metal fizz in acid", "goal": { "kind": "find_family", "family": "metal_acid" } },
         { "id": "se_c_neutral", "title": "Cancel out an acid", "goal": { "kind": "find_family", "family": "neutralisation" } },
-        { "id": "se_c_water", "title": "A metal that reacts with water", "goal": { "kind": "find_family", "family": "water_metal" } },
-        { "id": "se_c_join", "title": "Join two elements", "goal": { "kind": "find_any_of", "ids": ["salt_from_elements", "iron_sulfur", "magnesium_sulfur"] } },
         { "id": "se_c_balance_water", "title": "Balance the scale: hydrogen and oxygen make water", "goal": { "kind": "balance", "reaction": "hydrogen_burns" } },
         { "id": "se_c_balance_mg", "title": "Balance the scale: burning magnesium", "goal": { "kind": "balance", "reaction": "magnesium_burns" } },
-        { "id": "se_c_ten", "title": "Find ten reactions", "goal": { "kind": "find_count", "count": 10 } }
+        { "id": "se_c_fifteen", "title": "Find fifteen reactions", "goal": { "kind": "find_count", "count": 15 } }
       ]
     },
     "apprentice": {
       "walkthrough": [
-        { "id": "ap_w1", "say": "Let's make ammonia the way factories do. The Haber process needs three conditions. First, turn on Catalyst (factories use iron).", "do": { "condition": "catalyst" } },
+        {
+          "id": "ap_w1",
+          "say": "Let's make ammonia the way factories do. The Haber process needs three conditions. First, turn on Catalyst (factories use iron).",
+          "do": { "condition": "catalyst" }
+        },
         { "id": "ap_w2", "say": "Next, turn on High pressure. Squeezing the gases helps them join.", "do": { "condition": "pressure" } },
         { "id": "ap_w3", "say": "Then turn on Heat, so the reaction goes fast enough.", "do": { "condition": "heat" } },
-        { "id": "ap_w4", "say": "Now type the whole balanced equation, N2 + 3H2 -> 2NH3, and press Enter. A full equation goes straight to the chamber. Count the atoms: 2 N and 6 H on each side.", "do": { "type": "N2 + 3H2 -> 2NH3" } }
+        {
+          "id": "ap_w4",
+          "say": "Now type the whole balanced equation, N2 + 3H2 -> 2NH3, and press Enter. A full equation goes straight to the chamber. Count the atoms: 2 N and 6 H on each side.",
+          "do": { "type": "N2 + 3H2 -> 2NH3" }
+        }
       ],
       "walkthrough_sources": ["core", "R1", "R6"],
       "lessons": [
         {
-          "id": "ap_molecules",
-          "title": "Atoms build molecules",
-          "idea": "Every substance is made of atoms. A hydrogen molecule (H2) is two H atoms joined; a water molecule (H2O) is one O atom joined to two H atoms. In a reaction the atoms come apart and join up in new ways.",
-          "try": { "reactants": ["H2", "H2", "O2"], "conditions": ["spark"], "expect": "hydrogen_burns" },
-          "ngss": "MS-PS1-1",
-          "reactions": ["hydrogen_burns", "water_splits"],
-          "sources": ["core", "R1", "R3"]
+          "id": "ap_balance",
+          "title": "Balancing equations",
+          "idea": "Atoms are rearranged, never created or destroyed, so each element needs the same count on both sides. Balance C first, then H, then O: 2C2H6 + 7O2 -> 4CO2 + 6H2O has 4 C, 12 H and 14 O on each side.",
+          "try": { "reactants": ["C2H6", "C2H6", "O2", "O2", "O2", "O2", "O2", "O2", "O2"], "conditions": ["spark"], "expect": "ethane_burns" },
+          "ngss": "HS-PS1-7",
+          "reactions": ["ethane_burns", "propane_burns", "octane_burns"],
+          "sources": ["core", "R1", "R3"],
+          "world": {
+            "quest": "melt_with_reaction",
+            "say": "Try it in the world: any of these burnings gives off enough heat to melt the ice gate in the Frozen Fields."
+          }
         },
         {
-          "id": "ap_evidence",
-          "title": "Evidence of a reaction",
-          "idea": "A colour change, a gas, a new solid or a temperature change are signs that new substances formed. Two colourless solutions, lead nitrate and potassium iodide, give a bright yellow solid. (In a real lab, lead compounds are toxic.)",
+          "id": "ap_solubility",
+          "title": "Precipitates and the solubility rules",
+          "idea": "When two salt solutions mix, the ions swap partners, and a pair that cannot dissolve comes out as a solid precipitate. Most iodides dissolve, but lead iodide does not, so lead nitrate and potassium iodide give a bright yellow solid. (In a real lab, lead compounds are toxic.)",
           "try": { "reactants": ["Pb(NO3)2", "KI", "KI"], "conditions": [], "expect": "golden_rain" },
-          "ngss": "MS-PS1-2",
-          "reactions": ["golden_rain", "copper_hydroxide", "barium_sulfate", "chalk_acid"],
+          "ngss": "HS-PS1-2",
+          "reactions": ["golden_rain", "copper_hydroxide", "barium_sulfate", "calcium_carbonate_ppt"],
           "sources": ["core", "R1", "R3"],
           "world": { "quest": "wall_in_the_river", "say": "Try it in the world: a precipitate builds a short-lived wall. Build one in the river at the ford." }
         },
         {
-          "id": "ap_balance",
-          "title": "Balancing equations",
-          "idea": "Atoms are rearranged, never created or destroyed, so each element needs the same count on both sides. CH4 + 2O2 -> CO2 + 2H2O has 1 C, 4 H and 4 O on each side.",
-          "try": { "reactants": ["CH4", "O2", "O2"], "conditions": ["spark"], "expect": "methane_burns" },
-          "ngss": "MS-PS1-5",
-          "reactions": ["methane_burns", "propane_burns", "ethane_burns"],
+          "id": "ap_reactivity",
+          "title": "The reactivity series",
+          "idea": "A more reactive metal takes the place of a less reactive one in a compound. Magnesium pushes copper out of copper sulfate, but copper cannot push magnesium out of magnesium sulfate.",
+          "try": { "reactants": ["Mg", "CuSO4"], "conditions": [], "expect": "magnesium_copper_sulfate" },
+          "ngss": "HS-PS1-2",
+          "reactions": ["magnesium_copper_sulfate", "magnesium_zinc_sulfate", "zinc_silver_nitrate", "aluminium_copper_sulfate"],
           "sources": ["core", "R1", "R3"],
-          "world": { "quest": "melt_with_reaction", "say": "Try it in the world: any of these burnings gives off enough heat to melt the ice gate in the Frozen Fields." }
+          "world": {
+            "quest": "reveal_the_hidden_mark",
+            "say": "Try it in the world: a displacement that coats a metal and changes colour can reveal the hidden mark near the village."
+          }
+        },
+        {
+          "id": "ap_group1",
+          "title": "Metals in water",
+          "idea": "Group 1 metals react with water to make a hydroxide (an alkali) and hydrogen gas. Reactivity rises down the group: lithium fizzes, sodium melts into a ball and skates about, and potassium bursts into a lilac flame.",
+          "try": { "reactants": ["K", "H2O"], "conditions": [], "expect": "potassium_water" },
+          "ngss": "HS-PS1-1",
+          "reactions": ["lithium_water", "sodium_water", "potassium_water", "calcium_water"],
+          "sources": ["core", "R3", "R4"]
         },
         {
           "id": "ap_energy",
-          "title": "Hot and cold reactions",
-          "idea": "Some reactions release thermal energy and some absorb it. Baking soda with hydrochloric acid absorbs heat, so the mixture gets colder. Air-activated hand warmers do the opposite: iron powder rusting quickly releases heat.",
+          "title": "Energy changes in words",
+          "idea": "In an exothermic reaction the products store less energy than the reactants, so the difference is released as heat; in an endothermic one the products store more, so heat is taken in. Baking soda with hydrochloric acid is endothermic, while quicklime with water is strongly exothermic.",
           "try": { "reactants": ["NaHCO3", "HCl"], "conditions": [], "expect": "baking_soda_hcl" },
-          "ngss": "MS-PS1-6",
-          "reactions": ["baking_soda_hcl", "iron_rusts", "slaking_lime"],
+          "ngss": "HS-PS1-4",
+          "reactions": ["baking_soda_hcl", "slaking_lime", "iron_rusts"],
           "sources": ["core", "R1", "R3"],
-          "world": { "quest": "cool_the_vent", "say": "Try it in the world: the vent on the charcoal mound in the Frozen Fields needs a reaction that takes in heat by itself." }
+          "world": {
+            "quest": "cool_the_vent",
+            "say": "Try it in the world: the vent on the charcoal mound in the Frozen Fields needs a reaction that takes in heat by itself."
+          }
         },
         {
-          "id": "ap_resources",
-          "title": "New materials from natural resources",
-          "idea": "The Haber process turns nitrogen from the air and hydrogen (mostly made from natural gas) into ammonia. Ammonia is made into fertiliser, which much of the world's food depends on.",
+          "id": "ap_conditions",
+          "title": "Conditions: the Haber process",
+          "idea": "Many reactions need the right conditions. The Haber process joins nitrogen and hydrogen into ammonia with an iron catalyst, high pressure and heat, and that ammonia becomes the fertiliser much of the world's food depends on.",
           "try": { "reactants": ["N2", "H2", "H2", "H2"], "conditions": ["catalyst", "pressure", "heat"], "expect": "haber" },
-          "ngss": "MS-PS1-3",
-          "reactions": ["haber", "blast_furnace", "limestone_roast"],
+          "ngss": "HS-PS1-6",
+          "reactions": ["haber", "hcl_synthesis", "lightning_nitrogen"],
           "sources": ["core", "R3", "R6"]
         },
         {
@@ -323,47 +390,40 @@
           "title": "Neutralisation",
           "idea": "An acid and a base react to make a salt and water. Potassium hydroxide and hydrochloric acid make potassium chloride and water, and the pH moves toward 7.",
           "try": { "reactants": ["KOH", "HCl"], "conditions": [], "expect": "neutralise_hcl_koh" },
-          "ngss": "MS-PS1-2",
+          "ngss": "HS-PS1-2",
           "reactions": ["neutralise_hcl_koh", "neutralise_hcl_naoh", "neutralise_h2so4_naoh", "neutralise_vinegar_naoh"],
           "sources": ["core", "R1", "R3"]
-        },
-        {
-          "id": "ap_reactivity",
-          "title": "The reactivity series",
-          "idea": "A more reactive metal takes the place of a less reactive one in a compound. Magnesium pushes copper out of copper sulfate, but copper cannot push magnesium out of magnesium sulfate.",
-          "try": { "reactants": ["Mg", "CuSO4"], "conditions": [], "expect": "magnesium_copper_sulfate" },
-          "ngss": "MS-PS1-2",
-          "reactions": ["magnesium_copper_sulfate", "magnesium_zinc_sulfate", "zinc_silver_nitrate", "iron_copper_sulfate"],
-          "sources": ["core", "R1", "R3"],
-          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: a displacement that coats a metal and changes colour can reveal the hidden mark near the village." }
         },
         {
           "id": "ap_halogens",
           "title": "Halogen swaps",
           "idea": "Chlorine is more reactive than bromine, so chlorine pushes bromine out of potassium bromide. The colourless solution turns orange as bromine forms.",
           "try": { "reactants": ["Cl2", "KBr", "KBr"], "conditions": [], "expect": "chlorine_bromide" },
-          "ngss": "MS-PS1-2",
+          "ngss": "HS-PS1-1",
           "reactions": ["chlorine_bromide", "chlorine_iodide", "bromine_iodide"],
           "sources": ["core", "R3", "R4"]
         },
         {
-          "id": "ap_respiration",
-          "title": "Cells release energy",
-          "idea": "In cellular respiration, glucose reacts with oxygen to form carbon dioxide and water, releasing energy the cell uses. Enzymes act as catalysts, so it happens at body temperature.",
-          "try": { "reactants": ["C6H12O6", "O2", "O2", "O2", "O2", "O2", "O2"], "conditions": ["catalyst"], "expect": "respiration" },
-          "ngss": "MS-LS1-7",
-          "reactions": ["respiration", "photosynthesis", "fermentation"],
-          "sources": ["core", "R2", "R3"]
-        },
-        {
           "id": "ap_thermal",
           "title": "Breaking down with heat",
-          "idea": "Heating green copper carbonate leaves black copper oxide and gives off carbon dioxide. The colour change and the gas are evidence that a new substance formed.",
+          "idea": "Heating green copper carbonate leaves black copper oxide and gives off carbon dioxide. Carbonates of more reactive metals, like calcium carbonate, need much stronger heat to break down.",
           "try": { "reactants": ["CuCO3"], "conditions": ["heat"], "expect": "copper_carbonate_heat" },
-          "ngss": "MS-PS1-2",
+          "ngss": "HS-PS1-2",
           "reactions": ["copper_carbonate_heat", "magnesium_carbonate_heat", "limestone_roast"],
-          "sources": ["core", "R3", "R7"],
-          "world": { "quest": "smother_with_co2", "say": "Try it in the world: breaking down a carbonate gives carbon dioxide, which can smother the gas fire in the marsh hollow." }
+          "sources": ["core", "R3", "R4", "R7"],
+          "world": {
+            "quest": "smother_with_co2",
+            "say": "Try it in the world: breaking down a carbonate gives carbon dioxide, which can smother the gas fire in the marsh hollow."
+          }
+        },
+        {
+          "id": "ap_electrolysis",
+          "title": "Electrolysis",
+          "idea": "An electric current can split a compound that would not break apart by itself. In copper chloride solution, copper coats one electrode and chlorine gas bubbles off the other.",
+          "try": { "reactants": ["CuCl2"], "conditions": ["electricity"], "expect": "copper_chloride_electrolysis" },
+          "ngss": "HS-PS1-2",
+          "reactions": ["copper_chloride_electrolysis", "salt_electrolysis", "water_splits"],
+          "sources": ["core", "R1", "R3"]
         }
       ],
       "hints": {
@@ -372,28 +432,31 @@
         "oxidation": ["Metals gain oxygen when heated in air.", "A metal combining with oxygen forms a metal oxide; this is oxidation.", "Try 2Zn + O2 with Heat."],
         "carbonate_acid": ["Carbonate + acid -> salt + water + CO2.", "The fizz is CO2. Count the H atoms: water takes two of them.", "Try NaHCO3 + HCl, and notice it absorbs heat."],
         "life": ["Cells release energy from glucose.", "Aerobic respiration: glucose + oxygen -> carbon dioxide + water. Enzymes are the catalysts.", "Try C6H12O6 + 6O2 with Catalyst."],
-        "decomposition": ["One reactant, two or more products.", "Ozone breaks down to oxygen in ultraviolet light; some unstable compounds decompose violently at the slightest touch, which is why chemists never make them outside a controlled lab.", "Type 2H2O2 -> 2H2O + O2 with Catalyst on."],
+        "decomposition": ["One reactant, two or more products.", "In a decomposition one compound breaks into simpler substances; a catalyst can speed it up without being used up.", "Type 2H2O2 -> 2H2O + O2 with Catalyst on."],
         "thermal": ["Heating some compounds gives off a gas.", "Thermal decomposition: many metal carbonates break into a metal oxide and CO2.", "Try CuCO3 with Heat."],
         "synthesis": ["Two substances, one product.", "In a synthesis reaction, reactants combine into a single compound.", "Try H2 + Cl2 with Light."],
         "displacement": ["Compare how reactive the metals are.", "A more reactive metal displaces a less reactive one from its compound.", "Try Mg + CuSO4, or Fe2O3 + 2Al with Heat (thermite)."],
         "precipitation": ["Two solutions, one solid.", "The ions swap partners; if one new compound does not dissolve, it forms a precipitate.", "Try Pb(NO3)2 + 2KI for a bright yellow solid."],
-        "water_metal": ["Some metals react with water, some only with steam.", "Reactive metals make a hydroxide (or oxide) and hydrogen. Magnesium reacts very slowly with cold water but fast with steam.", "Try Mg + H2O with Heat."],
+        "water_metal": ["Some metals react with cold water, some only with steam.", "Group 1 metals make a hydroxide and hydrogen, faster down the group. Magnesium reacts very slowly with cold water but fast with steam.", "Try K + H2O, or Mg + H2O with Heat."],
         "neutralisation": ["Acid + base -> salt + water.", "H+ from the acid and OH- from the base join to make water.", "Try KOH + HCl."],
         "metal_acid": ["Metal + acid -> salt + hydrogen.", "Metals above hydrogen in the reactivity series react with dilute acids.", "Try Fe + 2HCl, or Mg + H2SO4."],
         "industrial": ["Factories make fertiliser from air.", "The Haber process joins nitrogen and hydrogen using an iron catalyst, high pressure and heat.", "Try N2 + 3H2 with Catalyst, High pressure and Heat."],
-        "redox": ["Take the oxygen away from a metal oxide.", "Carbon or carbon monoxide can remove oxygen from some metal oxides. Losing oxygen is reduction.", "Try 2CuO + C with Heat."],
         "halogen": ["Halogens compete too.", "A more reactive halogen displaces a less reactive one from its salt: chlorine, then bromine, then iodine.", "Try Cl2 + 2KBr."]
       },
       "hint_sources": ["core", "R1", "R2", "R4"],
       "challenges": [
         { "id": "ap_c_halogen", "title": "Win a halogen swap", "goal": { "kind": "find_family", "family": "halogen" } },
         { "id": "ap_c_industry", "title": "Run an industrial process", "goal": { "kind": "find_family", "family": "industrial" } },
-        { "id": "ap_c_redox", "title": "Steal the oxygen from a metal oxide", "goal": { "kind": "find_family", "family": "redox" } },
-        { "id": "ap_c_balance_methane", "title": "Balance: methane burns", "goal": { "kind": "balance", "reaction": "methane_burns" } },
+        {
+          "id": "ap_c_group1",
+          "title": "Compare Group 1 metals in water",
+          "goal": { "kind": "find_all_of", "ids": ["lithium_water", "sodium_water", "potassium_water"] }
+        },
+        { "id": "ap_c_balance_ethane", "title": "Balance: ethane burns", "goal": { "kind": "balance", "reaction": "ethane_burns" } },
         { "id": "ap_c_balance_propane", "title": "Balance: propane burns", "goal": { "kind": "balance", "reaction": "propane_burns" } },
         { "id": "ap_c_balance_haber", "title": "Balance: the Haber process", "goal": { "kind": "balance", "reaction": "haber" } },
         { "id": "ap_c_precip", "title": "Make three different precipitates", "goal": { "kind": "find_count", "count": 3, "family": "precipitation" } },
-        { "id": "ap_c_25", "title": "Find 25 reactions", "goal": { "kind": "find_count", "count": 25 } }
+        { "id": "ap_c_30", "title": "Find 30 reactions", "goal": { "kind": "find_count", "count": 30 } }
       ]
     },
     "adept": {
@@ -402,7 +465,11 @@
         { "id": "ad_w2", "say": "Tap SO2 again: the coefficients are the mole ratio, so you need two.", "do": { "tap_bottle": "SO2" } },
         { "id": "ad_w3", "say": "Now use the type box: type O2 and press Enter. A single formula goes onto the table.", "do": { "type": "O2" } },
         { "id": "ad_w4", "say": "Turn on Catalyst. Industry uses vanadium(V) oxide, which lowers the activation energy.", "do": { "condition": "catalyst" } },
-        { "id": "ad_w5", "say": "Turn on Heat. The forward reaction is exothermic, so heat lowers the equilibrium yield, but without it the rate is too slow: plants compromise at about 400 to 450 °C.", "do": { "condition": "heat" } },
+        {
+          "id": "ad_w5",
+          "say": "Turn on Heat. The forward reaction is exothermic, so heat lowers the equilibrium yield, but without it the rate is too slow: plants compromise at about 400 to 450 °C.",
+          "do": { "condition": "heat" }
+        },
         { "id": "ad_w6", "say": "Run the chamber, then check the scale: 2 S and 6 O on each side.", "do": { "run": true } }
       ],
       "walkthrough_sources": ["core", "R1", "R4"],
@@ -413,8 +480,9 @@
           "idea": "Reactivity with water rises down Group 2: magnesium barely reacts with cold water but reacts with steam, calcium fizzes steadily, and barium reacts faster still. Down the group the two outer electrons are further from the nucleus and more shielded, so they are lost more easily.",
           "try": { "reactants": ["Ba", "H2O", "H2O"], "conditions": [], "expect": "barium_water" },
           "ngss": "HS-PS1-1",
+          "ap": "1.7",
           "reactions": ["magnesium_steam", "calcium_water", "strontium_water", "barium_water"],
-          "sources": ["core", "R1", "R3", "R4"]
+          "sources": ["core", "R1", "R3", "R4", "R9"]
         },
         {
           "id": "ad_halogens",
@@ -422,9 +490,13 @@
           "idea": "Halogens react by gaining one electron to complete their outer shell. Smaller halogen atoms attract that electron more strongly, so chlorine displaces bromine and iodine from their salts, and bromine displaces iodine, but not the reverse.",
           "try": { "reactants": ["Br2", "KI", "KI"], "conditions": [], "expect": "bromine_iodide" },
           "ngss": "HS-PS1-2",
+          "ap": "4.9",
           "reactions": ["chlorine_bromide", "chlorine_iodide", "bromine_iodide"],
-          "sources": ["core", "R1", "R3", "R4"],
-          "world": { "quest": "reveal_the_hidden_mark", "say": "Try it in the world: the colour change of a halogen displacement can reveal the hidden mark near the village." }
+          "sources": ["core", "R1", "R3", "R4", "R9"],
+          "world": {
+            "quest": "reveal_the_hidden_mark",
+            "say": "Try it in the world: the colour change of a halogen displacement can reveal the hidden mark near the village."
+          }
         },
         {
           "id": "ad_bonds",
@@ -432,8 +504,19 @@
           "idea": "Breaking bonds takes energy and forming bonds releases it. Steam reforming is endothermic: breaking the bonds in CH4 and H2O takes more energy than forming CO and H2 gives back, so the reactor must be heated.",
           "try": { "reactants": ["CH4", "H2O"], "conditions": ["catalyst", "heat"], "expect": "steam_reforming" },
           "ngss": "HS-PS1-4",
+          "ap": "6.7",
           "reactions": ["steam_reforming", "methane_burns", "water_gas"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3", "R9"]
+        },
+        {
+          "id": "ad_enthalpy",
+          "title": "ΔH in kilojoules",
+          "idea": "ΔH is the heat change per mole of reaction as written: the sum of the standard enthalpies of formation of the products minus those of the reactants. For CH4 + 2O2 -> CO2 + 2H2O it is about -890 kJ, so burning one mole of methane releases about 890 kJ.",
+          "try": { "reactants": ["CH4", "O2", "O2"], "conditions": ["spark"], "expect": "methane_burns" },
+          "ngss": "HS-PS1-4",
+          "ap": "6.8",
+          "reactions": ["methane_burns", "steam_reforming"],
+          "sources": ["core", "R1", "R3", "R9"]
         },
         {
           "id": "ad_rates",
@@ -441,8 +524,9 @@
           "idea": "Particles react only when they collide with enough energy. A higher temperature or concentration means more such collisions each second; a catalyst offers a pathway with a lower activation energy, which is why ethene and hydrogen are combined over a nickel catalyst.",
           "try": { "reactants": ["C2H4", "H2"], "conditions": ["catalyst"], "expect": "ethene_hydrogen" },
           "ngss": "HS-PS1-5",
+          "ap": "5.11",
           "reactions": ["ethene_hydrogen", "contact_so3", "haber"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3", "R9"]
         },
         {
           "id": "ad_equilibrium",
@@ -450,8 +534,9 @@
           "idea": "N2 + 3H2 <=> 2NH3 turns 4 moles of gas into 2 and releases heat. High pressure shifts the equilibrium toward ammonia; a low temperature would too, but the rate would be too slow, so plants compromise at roughly 400 to 450 °C with an iron catalyst.",
           "try": { "reactants": ["N2", "H2", "H2", "H2"], "conditions": ["catalyst", "pressure", "heat"], "expect": "haber" },
           "ngss": "HS-PS1-6",
+          "ap": "7.9",
           "reactions": ["haber", "contact_so3", "nitrogen_dioxide_dimer"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3", "R9"]
         },
         {
           "id": "ad_stoich",
@@ -459,8 +544,9 @@
           "idea": "In Fe2O3 + 2Al -> Al2O3 + 2Fe, one mole of iron(III) oxide (about 160 g) reacts with two moles of aluminium (about 54 g). Coefficients count particles; molar masses turn them into masses, and total mass is conserved.",
           "try": { "reactants": ["Fe2O3", "Al", "Al"], "conditions": ["heat"], "expect": "thermite" },
           "ngss": "HS-PS1-7",
+          "ap": "4.5",
           "reactions": ["thermite", "blast_furnace"],
-          "sources": ["core", "R1", "R3"],
+          "sources": ["core", "R1", "R3", "R9"],
           "world": { "quest": "melt_with_reaction", "say": "Try it in the world: a strongly exothermic reaction melts the ice gate in the Frozen Fields." }
         },
         {
@@ -469,8 +555,9 @@
           "idea": "When hydrogen passes over hot black copper oxide, pink-brown copper forms along with water. Copper is reduced (oxidation state +2 to 0) while hydrogen is oxidised (0 to +1): one cannot happen without the other.",
           "try": { "reactants": ["CuO", "H2"], "conditions": ["heat"], "expect": "copper_oxide_hydrogen" },
           "ngss": "HS-PS1-2",
+          "ap": "4.9",
           "reactions": ["copper_oxide_hydrogen", "copper_oxide_carbon", "magnesium_co2", "blast_furnace"],
-          "sources": ["core", "R1", "R3"],
+          "sources": ["core", "R1", "R3", "R9"],
           "world": { "quest": "smother_with_co2", "say": "Try it in the world: a reduction whose only gas is CO2 can smother the gas fire in the marsh hollow." }
         },
         {
@@ -479,8 +566,9 @@
           "idea": "Ethene's C=C double bond lets bromine add across it, giving colourless 1,2-dibromoethane. Orange bromine losing its colour is the standard test for an alkene.",
           "try": { "reactants": ["C2H4", "Br2"], "conditions": [], "expect": "ethene_bromine" },
           "ngss": "HS-PS1-2",
+          "ap": "4.7",
           "reactions": ["ethene_bromine", "ethene_hydrogen", "ethene_water"],
-          "sources": ["core", "R1", "R3"]
+          "sources": ["core", "R1", "R3", "R9"]
         },
         {
           "id": "ad_hydroxides",
@@ -488,8 +576,9 @@
           "idea": "Adding sodium hydroxide to a solution of a metal ion can precipitate an insoluble hydroxide, and its colour identifies the ion: orange-brown for iron(III), green for iron(II), pale blue for copper(II).",
           "try": { "reactants": ["FeCl3", "NaOH", "NaOH", "NaOH"], "conditions": [], "expect": "iron3_hydroxide" },
           "ngss": "HS-PS1-2",
+          "ap": "4.2",
           "reactions": ["iron3_hydroxide", "iron2_hydroxide", "copper_hydroxide", "zinc_hydroxide"],
-          "sources": ["core", "R1", "R3", "R4"],
+          "sources": ["core", "R1", "R3", "R4", "R9"],
           "world": { "quest": "wall_in_the_river", "say": "Try it in the world: a hydroxide precipitate builds a wall. Dam the river at the ford with one." }
         }
       ],
@@ -517,7 +606,11 @@
       "challenges": [
         { "id": "ad_c_organic", "title": "Do some carbon chemistry", "goal": { "kind": "find_family", "family": "organic" } },
         { "id": "ad_c_gas", "title": "Prepare a gas in the lab", "goal": { "kind": "find_family", "family": "gas_prep" } },
-        { "id": "ad_c_group2", "title": "Compare Group 2 metals in water", "goal": { "kind": "find_count", "count": 3, "ids": ["magnesium_steam", "calcium_water", "strontium_water", "barium_water"] } },
+        {
+          "id": "ad_c_group2",
+          "title": "Compare Group 2 metals in water",
+          "goal": { "kind": "find_count", "count": 3, "ids": ["magnesium_steam", "calcium_water", "strontium_water", "barium_water"] }
+        },
         { "id": "ad_c_electro", "title": "Split a compound with electricity", "goal": { "kind": "find_family", "family": "electrolysis" } },
         { "id": "ad_c_balance_octane", "title": "Balance: octane burns", "goal": { "kind": "balance", "reaction": "octane_burns" } },
         { "id": "ad_c_balance_nitric", "title": "Balance: copper in nitric acid", "goal": { "kind": "balance", "reaction": "copper_nitric" } },
@@ -565,7 +658,10 @@
     "washing_soda_acid": "Washing soda is a cleaning powder; like chalk and baking soda, it fizzes with acid.",
     "zinc_copper_sulfate": "One of the first reliable batteries, the Daniell cell, made electricity from this metal swap by keeping the zinc away from the copper sulfate so the electrons had to travel through a wire.",
     "copper_silver_nitrate": "In a school lab, copper wire hung in silver nitrate solution grows a silver tree of crystals.",
-    "co2_water": "Fizzy drinks have carbon dioxide dissolved in them, which makes them a little acidic."
+    "co2_water": "Fizzy drinks have carbon dioxide dissolved in them, which makes them a little acidic.",
+    "copper_carbonate_heat": "Heating green malachite, a copper carbonate ore, was one of the first steps people used to get copper.",
+    "baking_soda_hcl": "Baking soda is used to clean up small acid spills, because it neutralises the acid.",
+    "magnesium_copper_sulfate": "In school labs, a strip of magnesium in blue copper sulfate solution quickly turns brown with copper."
   },
   "where_you_see_it_sources": {
     "methane_burns": ["core", "R1"],
@@ -606,6 +702,9 @@
     "washing_soda_acid": ["core", "R1"],
     "zinc_copper_sulfate": ["core", "R1"],
     "copper_silver_nitrate": ["core", "R7"],
-    "co2_water": ["core", "R1"]
+    "co2_water": ["core", "R1"],
+    "copper_carbonate_heat": ["core", "R4"],
+    "baking_soda_hcl": ["core", "R1"],
+    "magnesium_copper_sulfate": ["core", "R7"]
   }
 }

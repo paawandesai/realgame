@@ -280,20 +280,67 @@ fn ball(out: &mut MeshData, c: V3, r: V3, seed: [i32; 3], paint: Paint) {
         [8, 6, 7],
         [9, 8, 1],
     ];
+    // Subdivide the icosahedron once (80 faces) and give each vertex a
+    // lumpy radius and a smooth normal, so a crown reads as a mass of
+    // foliage rather than a cut gem (2026-11-05, Paawan: the realistic look
+    // everywhere).
     let spin = unit(seed[0], seed[1], seed[2], 31) * std::f32::consts::TAU;
     let (s, co) = spin.sin_cos();
-    let pts: Vec<V3> = V
+    let mut dirs: Vec<V3> = V.iter().map(|v| norm(*v)).collect();
+    let mut faces: Vec<[usize; 3]> = Vec::with_capacity(80);
+    let mut mid = std::collections::HashMap::new();
+    let mut midpoint = |a: usize, b: usize, dirs: &mut Vec<V3>| -> usize {
+        let key = (a.min(b), a.max(b));
+        *mid.entry(key).or_insert_with(|| {
+            dirs.push(norm(add(dirs[a], dirs[b])));
+            dirs.len() - 1
+        })
+    };
+    for f in F {
+        let ab = midpoint(f[0], f[1], &mut dirs);
+        let bc = midpoint(f[1], f[2], &mut dirs);
+        let ca = midpoint(f[2], f[0], &mut dirs);
+        faces.extend_from_slice(&[[f[0], ab, ca], [f[1], bc, ab], [f[2], ca, bc], [ab, bc, ca]]);
+    }
+    let pts: Vec<(V3, V3)> = dirs
         .iter()
         .enumerate()
         .map(|(k, v)| {
-            let v = norm(*v);
             let v = [v[0] * co - v[2] * s, v[1], v[0] * s + v[2] * co];
-            let w = 0.86 + 0.28 * unit(seed[0] + k as i32, seed[1], seed[2], 13);
-            add(c, [v[0] * r[0] * w, v[1] * r[1] * w, v[2] * r[2] * w])
+            let w = 0.84 + 0.32 * unit(seed[0] + k as i32, seed[1], seed[2], 13);
+            let p = add(c, [v[0] * r[0] * w, v[1] * r[1] * w, v[2] * r[2] * w]);
+            // The ellipsoid's normal, nudged by the lump.
+            let n = norm([v[0] / r[0], v[1] / r[1], v[2] / r[2]]);
+            (p, n)
         })
         .collect();
-    for f in F {
-        tri(out, pts[f[0]], pts[f[1]], pts[f[2]], c, paint);
+    let base = out.positions.len() as u32;
+    for (p, n) in &pts {
+        let mut rgb = paint.rgb;
+        if let Some((top, amount)) = paint.top {
+            let t = ((n[1] - 0.78) / 0.17).clamp(0.0, 1.0) * amount;
+            rgb = mix(rgb, top, t);
+        }
+        // Undersides sit in the crown's own shade.
+        let light = 1.0 - 0.3 * (-n[1]).max(0.0);
+        out.positions.push(*p);
+        out.normals.push(*n);
+        out.colors.push([rgb[0], rgb[1], rgb[2], light]);
+        out.uvs.push([paint.glow, 0.0]);
+        out.mats.push(paint.mat);
+        out.light.push(light);
+    }
+    for f in faces {
+        // Wound to face out.
+        let (a, b, cc) = (pts[f[0]].0, pts[f[1]].0, pts[f[2]].0);
+        let n = cross(sub(b, a), sub(cc, a));
+        let centre = mul(add(add(a, b), cc), 1.0 / 3.0);
+        let idx = if dot(n, sub(centre, c)) < 0.0 {
+            [f[0], f[2], f[1]]
+        } else {
+            [f[0], f[1], f[2]]
+        };
+        out.indices.extend(idx.iter().map(|&k| base + k as u32));
     }
 }
 

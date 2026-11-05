@@ -216,12 +216,16 @@ test("bottles on \"in\" show in the 3D scene, follow the counts and clear with t
   assert.equal(await page.evaluate(() => (window as any).__benchFree.plateCount()), 1);
   await page.click("#clear");
   assert.equal(await count(), 0);
-  // Sprout sees it too (names, no formulas).
+  // Sprout (grades 6-7, I-059) sees it too, with formulas, and has the
+  // element shelf and plate as models, but no "out" side.
   await page.click('.band button[data-band="sprout"]');
   await page.click('.bottle[data-formula="H2"]');
   await page.click('.bottle[data-formula="H2"]');
   assert.equal(await chamber(), 2);
-  assert.match(await page.textContent("#chamberTag"), /2 × hydrogen/);
+  assert.match(await page.textContent("#chamberTag"), /2H₂/);
+  assert.match(await page.textContent('.bottle[data-formula="H2"]'), /H₂/);
+  assert.ok(await page.isVisible("#elementBox"), "Sprout has the element shelf");
+  assert.ok(await page.isHidden("#rightSide") && await page.isHidden("#toRight"), "Sprout has no out side");
   assert.deepEqual(page.errors, []);
   await page.close();
 });

@@ -396,9 +396,9 @@
    "soluble": false,
    "colour": {
     "s": {
-     "described": "pale yellow",
+     "described": "yellow",
      "src": "COLOUR-GE",
-     "hex": "#f2df73",
+     "hex": "#f0d43c",
      "hex_estimated": true
     }
    },
@@ -5978,9 +5978,9 @@
    "soluble": false,
    "colour": {
     "s": {
-     "described": "red-brown",
+     "described": "reddish-pink",
      "src": "COLOUR-GE",
-     "hex": "#8a3b2a",
+     "hex": "#c4716e",
      "hex_estimated": true
     }
    }

@@ -1,14 +1,14 @@
-// The realistic look's scanned ground textures (?look=new; graphics plan,
+// The realistic look's scanned textures (the default; ?look=old skips them; graphics plan,
 // docs/graphics/world-look-realistic.md). Loads the two stacked JPEGs
 // (tex/terrain-albedo.jpg and tex/terrain-normal.jpg: one 1024 px tile per
-// layer, top to bottom: grass, soil, rock, snow), lets the browser decode
+// layer, top to bottom: grass, soil, rock, snow, then the models' bark,
+// leaves, planks, brick, metal), lets the browser decode
 // them, builds each layer's mip chain on a canvas and leaves the bytes on
 // window.__terrainTex for the game (look.rs), which turns them into
 // texture arrays and clears the global. ?low uses 512 px tiles.
 (function () {
   const q = new URLSearchParams(location.search);
-  if (q.get('look') !== 'new') return;
-  const LAYERS = 4;
+  if (q.get('look') === 'old') return;
   const SIZE = q.has('low') ? 512 : 1024;
   const LEVELS = Math.log2(SIZE) + 1;
 
@@ -20,7 +20,7 @@
   }
 
   // All layers' mips, layer-major, RGBA8.
-  function chain(bmp) {
+  function chain(bmp, LAYERS) {
     const tile = bmp.width;
     let per = 0;
     for (let l = 0; l < LEVELS; l++) per += Math.max(1, SIZE >> l) ** 2 * 4;
@@ -54,7 +54,9 @@
   (async () => {
     try {
       const [a, n] = await Promise.all([bitmap('tex/terrain-albedo.jpg'), bitmap('tex/terrain-normal.jpg')]);
-      window.__terrainTex = { size: SIZE, layers: LAYERS, levels: LEVELS, albedo: chain(a), normal: chain(n) };
+      // The strip is as many square tiles tall as it has layers.
+      const layers = Math.min(Math.round(a.height / a.width), Math.round(n.height / n.width));
+      window.__terrainTex = { size: SIZE, layers, levels: LEVELS, albedo: chain(a, layers), normal: chain(n, layers) };
       a.close();
       n.close();
     } catch (e) {

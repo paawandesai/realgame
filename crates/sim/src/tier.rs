@@ -1,6 +1,10 @@
-//! Age bands for the 3D game: who may learn or craft which spell.
+//! Grade bands for the 3D game: who may learn or craft which spell, and which
+//! Chemistry Bench reactions a player sees.
 //!
-//! Four bands, lowest first. This is not the 2D game's `game::Tier`, which has
+//! Four bands, lowest first, by US school grade (I-059; they were age bands
+//! before): Sprout grades 6-7, Seedling grades 8-9, Apprentice grades 10-11,
+//! and Adept grade 12 and up (AP, college and adult players). The ids, and so
+//! saved progress keyed by them, are unchanged. This is not the 2D game's `game::Tier`, which has
 //! three bands and silently maps unknown text to `Apprentice`; `from_id` here
 //! is exact and returns `None` for anything it does not know.
 
@@ -17,6 +21,17 @@ pub enum Tier {
 
 impl Tier {
     pub const ALL: [Tier; 4] = [Tier::Sprout, Tier::Seedling, Tier::Apprentice, Tier::Adept];
+
+    /// The school grades the band is for, as the pages label it
+    /// ("Sprout · Grades 6–7").
+    pub fn grades(self) -> &'static str {
+        match self {
+            Tier::Sprout => "Grades 6–7",
+            Tier::Seedling => "Grades 8–9",
+            Tier::Apprentice => "Grades 10–11",
+            Tier::Adept => "Grade 12+",
+        }
+    }
 
     /// The content id (`"sprout"`, `"seedling"`, `"apprentice"`, `"adept"`).
     pub fn id(self) -> &'static str {
@@ -57,6 +72,14 @@ mod tests {
         );
         assert_eq!(Tier::from_id("Sprout"), None);
         assert_eq!(Tier::from_id(""), None);
+    }
+
+    #[test]
+    fn bands_are_labelled_by_grade() {
+        assert_eq!(
+            Tier::ALL.map(Tier::grades),
+            ["Grades 6–7", "Grades 8–9", "Grades 10–11", "Grade 12+"]
+        );
     }
 
     #[test]

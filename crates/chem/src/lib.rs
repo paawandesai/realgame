@@ -5,7 +5,7 @@
 //! everywhere. It holds three things:
 //!
 //! - the **codex**: the core tier of known reactions (`content/chem/core.json`),
-//!   each balanced, sourced and tagged with the lowest age band it is taught at;
+//!   each balanced, sourced and tagged with the lowest grade band it is taught at;
 //! - **judging**: what happens when a player puts something in the chamber
 //!   (a known reaction, one that needs a condition, one above their band, an
 //!   unbalanced try, or a combination that is not in our data);
@@ -19,6 +19,7 @@
 #![deny(unsafe_code)]
 
 pub mod discover;
+pub mod evidence;
 /// Re-exported so the client builds its state JSON with the same crate.
 pub use serde_json;
 pub mod literature;
@@ -164,6 +165,18 @@ pub struct Entry {
     /// The rule a rule-tier entry follows (`RuleDef::id`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
+    /// Where the reaction comes from in the real world (I-058). An entry
+    /// with no evidence, or `unverified` evidence, is hidden from play.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<evidence::Evidence>,
+}
+
+impl Entry {
+    /// Whether the game may show, run and save this reaction: only with
+    /// `textbook` or `data` evidence (I-058).
+    pub fn playable(&self) -> bool {
+        self.evidence.as_ref().is_some_and(|e| e.kind.playable())
+    }
 }
 
 #[derive(Deserialize)]
@@ -249,8 +262,13 @@ pub enum Outcome {
 
 pub struct Codex {
     pub families: Vec<String>,
-    /// The checked entries first, then the rule tier's.
+    /// The checked entries first, then the rule tier's: only playable ones
+    /// (textbook or data evidence), unless built with `load_audit`.
     pub entries: Vec<Entry>,
+    /// Entries left out of play because their evidence is `unverified` or
+    /// missing (I-058): never shown, run, judged known or saved. They wait
+    /// for review (docs/loop/items/I-058/spec.md).
+    pub hidden: Vec<Entry>,
     /// The rules of the rule tier.
     pub rules: Vec<RuleDef>,
     keys: Vec<(SideKey, SideKey)>,
@@ -260,14 +278,21 @@ pub struct Codex {
 }
 
 impl Codex {
-    /// The whole codex: the checked core tier and the rule tier.
+    /// The playable codex: the core tier and the rule tier, without the
+    /// entries whose evidence is `unverified` (they are in `hidden`).
     pub fn load() -> Codex {
         Codex::from_parts(CORE_JSON, Some(RULES_JSON)).expect("content/chem is valid")
     }
 
-    /// The checked core tier alone.
+    /// The playable core tier alone.
     pub fn load_core() -> Codex {
         Codex::from_json(CORE_JSON).expect("content/chem/core.json is valid")
+    }
+
+    /// Every entry, hidden ones included, for data checks and the teacher
+    /// table (`content/chem/evidence.csv`). Never for play.
+    pub fn load_audit() -> Codex {
+        Codex::build(CORE_JSON, Some(RULES_JSON), true).expect("content/chem is valid")
     }
 
     pub fn from_json(json: &str) -> Result<Codex, String> {
@@ -276,7 +301,12 @@ impl Codex {
 
     /// A codex from a core file and, optionally, a rules file. Rule entries
     /// are marked `CodexTier::Rule` and must name a rule of the file.
+    /// Entries that are not `playable` go to `hidden`.
     pub fn from_parts(core: &str, rules: Option<&str>) -> Result<Codex, String> {
+        Codex::build(core, rules, false)
+    }
+
+    fn build(core: &str, rules: Option<&str>, keep_hidden: bool) -> Result<Codex, String> {
         let file: CoreFile = serde_json::from_str(core).map_err(|e| e.to_string())?;
         let mut reactions = file.reactions;
         for e in &mut reactions {
@@ -299,13 +329,20 @@ impl Codex {
             }
             rule_defs = rf.rules;
         }
-        let mut keys = Vec::with_capacity(reactions.len());
-        let mut known_species = BTreeSet::new();
+        // Every entry must parse and balance, hidden or not.
         for e in &reactions {
             let eq = parse_equation(&e.equation).map_err(|err| format!("{}: {err}", e.id))?;
             if !eq.is_balanced() {
                 return Err(format!("{}: not balanced", e.id));
             }
+        }
+        let (reactions, hidden): (Vec<Entry>, Vec<Entry>) = reactions
+            .into_iter()
+            .partition(|e| keep_hidden || e.playable());
+        let mut keys = Vec::with_capacity(reactions.len());
+        let mut known_species = BTreeSet::new();
+        for e in &reactions {
+            let eq = parse_equation(&e.equation).map_err(|err| format!("{}: {err}", e.id))?;
             for t in eq.reactants.iter().chain(eq.products.iter()) {
                 known_species.insert(t.formula.clone());
             }
@@ -314,6 +351,7 @@ impl Codex {
         Ok(Codex {
             families: file.families,
             entries: reactions,
+            hidden,
             rules: rule_defs,
             keys,
             known_species,
@@ -514,16 +552,24 @@ mod tests {
         }
     }
 
+    /// I-059 grade bands: Sprout (grades 6-7) is a small, simple codex of
+    /// everyday reactions, and each band above it adds more.
     #[test]
     fn every_band_has_a_codex_to_finish() {
         let c = Codex::load();
+        let upto = |band: Tier| c.entries.iter().filter(|e| e.band <= band).count();
+        let sprout = upto(Tier::Sprout);
+        assert!((10..=16).contains(&sprout), "Sprout reaches {sprout}");
         for (band, min) in [
-            (Tier::Sprout, 15),
             (Tier::Seedling, 30),
             (Tier::Apprentice, 90),
+            (Tier::Adept, 400),
         ] {
-            let n = c.entries.iter().filter(|e| e.band <= band).count();
+            let n = upto(band);
             assert!(n >= min, "{band:?} reaches only {n}");
+        }
+        for w in Tier::ALL.windows(2) {
+            assert!(upto(w[1]) > upto(w[0]), "{:?} adds nothing", w[1]);
         }
     }
 
