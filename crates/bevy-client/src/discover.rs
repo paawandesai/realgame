@@ -39,6 +39,7 @@ use crate::spells;
 pub const NEED_LINE: &str = "This spell needs {} from your pack, and you have none.";
 /// The melt quest's done line (`content/chem/quests.json`), kept as a name
 /// for the tests.
+#[cfg(test)]
 pub const QUEST_DONE: &str =
     "Chemistry quest done! Your reaction gave off heat and the ice melted.";
 
@@ -1074,5 +1075,52 @@ mod tests {
         let row = &w["quests"][1];
         assert_eq!(row["line"], quest("smother_with_co2").line_sprout.as_str());
         assert_eq!(row["hint"], quest("smother_with_co2").hint_sprout.as_str());
+    }
+
+    /// I-057: in the real valley, one cast of the findable Sprout CO2
+    /// reaction (limestone roast, chalk only) at a burning marsh vent puts
+    /// it out for lack of oxygen within the smother quest's window and
+    /// radius, with the rim gap open (the player need not have done the
+    /// hollow step).
+    #[test]
+    fn a_findable_co2_reaction_smothers_a_marsh_vent_in_time() {
+        use realgame_matter::{By, Emit, EmitKind, MatterEvent as M, World as Matter, DT};
+        let q = quest("smother_with_co2");
+        let mut vox = realgame_voxel::gen::generate(realgame_voxel::DEFAULT_SEED);
+        let mut m = Matter::new(1);
+        let mut ev = Vec::new();
+        for _ in 0..2 {
+            m.step(&mut vox, &mut ev);
+        }
+        let v = realgame_voxel::gen::HOLLOW_VENTS[0];
+        assert!(vox.get(v).has(realgame_voxel::Cell::BURNING), "it burns");
+        let idx = index_of("limestone_roast").unwrap();
+        assert!(data().bottles.findable_plan(entry(idx).unwrap().0));
+        let landing = Vec3::new(v[0] as f32 + 0.5, v[1] as f32 + 1.0, v[2] as f32 + 0.5);
+        m.emit(Emit {
+            pos: landing.into(),
+            normal: [0, 1, 0],
+            what: EmitKind::Co2,
+            amount: Disc::tag(idx).amount,
+        });
+        let mut d = Disc::default();
+        d.landed(idx, landing, 0.0);
+        let mut t = 0.0;
+        ev.clear();
+        while t < q.window_s && !d.quests_done.contains(&q.id) {
+            m.step(&mut vox, &mut ev);
+            t += DT;
+            for e in ev.drain(..) {
+                match e {
+                    M::Smothered { vent } => d.event(d::EVENT_SMOTHERED, centre(vent), t),
+                    M::Extinguished {
+                        cell,
+                        by: By::NoOxygen,
+                    } => d.event(d::EVENT_SMOTHERED, centre(cell), t),
+                    _ => {}
+                }
+            }
+        }
+        assert!(d.quests_done.contains(&q.id), "not smothered in {t} s");
     }
 }
