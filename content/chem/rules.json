@@ -1523,6 +1523,434 @@
   }
  },
  "show": {
+  "rule_acid_base_ch3cooh_cao": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_ch3cooh_caoh2": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_ch3cooh_mgoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hcl_cao": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_ch3cooh_koh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_ch3cooh_mgo": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_ch3cooh_znoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_aloh3": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_cuoh2": {
+   "note": "The pale blue powder dissolves and the solution turns blue; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_mgo": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_mgoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_znoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_koh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hbr_naoh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hcl_aloh3": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hcl_cuo": {
+   "note": "The black powder dissolves and the solution turns blue-green; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hcl_cuoh2": {
+   "note": "The pale blue powder dissolves and the solution turns blue-green; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hcl_znoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_cao": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_caoh2": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hno3_mgo": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_mgoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_znoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_ch3cooh_baoh2": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_ch3cooh_cuo": {
+   "note": "The black powder dissolves and the solution turns blue; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_ch3cooh_cuoh2": {
+   "note": "The pale blue powder dissolves and the solution turns blue; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_ch3cooh_lioh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_ch3cooh_nh3": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_ch3cooh_zno": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_fe2o3": {
+   "note": "The red-brown powder dissolves and the solution turns yellow-brown; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_feoh3": {
+   "note": "The red-brown powder dissolves and the solution turns yellow-brown; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h2so4_lioh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_h2so4_zno": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_h3po4_koh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_h3po4_naoh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_h3po4_nh3": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hbr_aloh3": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_baoh2": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hbr_cao": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_caoh2": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hbr_cuo": {
+   "note": "The black powder dissolves and the solution turns blue; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_cuoh2": {
+   "note": "The pale blue powder dissolves and the solution turns blue; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_fe2o3": {
+   "note": "The red-brown powder dissolves and the solution turns red-brown; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_feoh3": {
+   "note": "The red-brown powder dissolves and the solution turns red-brown; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_lioh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hbr_mgo": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_mgoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_nh3": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hbr_zno": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hbr_znoh2": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hcl_baoh2": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hcl_fe2o3": {
+   "note": "The red-brown powder dissolves and the solution turns yellow-orange; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hcl_feoh3": {
+   "note": "The red-brown powder dissolves and the solution turns yellow-orange; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hcl_zno": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_ag2o": {
+   "note": "The brown-black powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_aloh3": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_baoh2": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hno3_cuo": {
+   "note": "The black powder dissolves and the solution turns blue; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_cuoh2": {
+   "note": "The pale blue powder dissolves and the solution turns blue; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_fe2o3": {
+   "note": "The red-brown powder dissolves and the solution turns yellow-brown; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_feoh3": {
+   "note": "The red-brown powder dissolves and the solution turns yellow-brown; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
+  "rule_acid_base_hno3_lioh": {
+   "note": "Two colourless solutions mix and stay colourless; the mixture warms a little.",
+   "why": "by rule: two solutions"
+  },
+  "rule_acid_base_hno3_zno": {
+   "note": "The white powder dissolves; the mixture warms a little.",
+   "speed": [
+    "fast",
+    "a minute or so"
+   ],
+   "why": "by rule: a solid base dissolves"
+  },
   "rule_fuel_burns_c12h26_o2": {
    "flame": "soot",
    "why": "by rule: the flame of a fuel of its kind (COLOUR-HC)"

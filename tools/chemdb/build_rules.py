@@ -690,6 +690,26 @@ for e in reactions:
     if e["rule"] == "fuel_burns":
         fuel = terms(e["equation"].split(" -> ")[0])[0][1]
         show[e["id"]] = {"flame": FUELS[fuel][3], "why": "by rule: the flame of a fuel of its kind (COLOUR-HC)"}
+    elif e["rule"] == "acid_base":
+        # A neutralisation shows little: say what there is to see, as
+        # show.json does for the core ones.
+        (_, acid), (_, base) = terms(e["equation"].split(" -> ")[0])
+        prod = terms(e["equation"].split(" -> ")[1])[0][1]
+        warm = {"releases": "the mixture warms a little", "little": "the temperature hardly changes",
+                "absorbs": "the mixture cools a little"}[e["heat"]]
+        pcol = subs[prod].get("colour", {})
+        if base in ("NaOH", "KOH", "LiOH", "Ba(OH)2", "NH3", "Ca(OH)2"):
+            if SOL.get(prod) == "insoluble":
+                note = f"A {pcol['s']['described']} solid forms as the two solutions mix; {warm}."
+            else:
+                note = f"Two colourless solutions mix and stay colourless; {warm}."
+            show[e["id"]] = {"note": note, "why": "by rule: two solutions"}
+        else:
+            bcol = subs[base]["colour"]["s"]["described"]
+            aq = pcol.get("aq", {}).get("described", "colourless")
+            turns = "" if aq.startswith("colourless") else f" and the solution turns {aq}"
+            note = f"The {bcol} powder dissolves{turns}; {warm}."
+            show[e["id"]] = {"note": note, "speed": ["fast", "a minute or so"], "why": "by rule: a solid base dissolves"}
 
 used_final = sorted({f for e in reactions for side in e["equation"].split(" -> ") for _, f in terms(side)})
 out = {

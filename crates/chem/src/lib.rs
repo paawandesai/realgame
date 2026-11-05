@@ -23,6 +23,7 @@ pub mod discover;
 pub use serde_json;
 pub mod literature;
 pub mod predict;
+pub mod rules;
 pub mod show;
 #[cfg(feature = "web")]
 #[allow(unsafe_code)]
@@ -34,6 +35,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const CORE_JSON: &str = include_str!("../../../content/chem/core.json");
+/// The "by rule" tier (Bench plan B2, I-056): reactions generated from six
+/// textbook rules by `tools/chemdb/build_rules.py`.
+pub const RULES_JSON: &str = include_str!("../../../content/chem/rules.json");
 /// Element display data and everyday names for every codex substance.
 pub const NAMES_JSON: &str = include_str!("../../../content/chem/names.json");
 
@@ -104,7 +108,33 @@ pub enum Hazard {
     Lab,
 }
 
-/// One codex entry, as stored in `content/chem/core.json`.
+/// How sure the codex is of a reaction: hand-checked and science-reviewed
+/// (`content/chem/core.json`), or predicted by a stated textbook rule
+/// (`content/chem/rules.json`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CodexTier {
+    #[default]
+    Checked,
+    Rule,
+}
+
+/// One rule of the rule tier: its id, the family it fills and the rule in
+/// plain words (the Bench names it: "predicted by rule").
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RuleDef {
+    pub id: String,
+    pub family: String,
+    /// A two- or three-word name ("acid + base").
+    pub name: String,
+    /// The rule in plain words.
+    pub text: String,
+    /// A key of the rules file's `sources`.
+    pub source: String,
+}
+
+/// One codex entry, as stored in `content/chem/core.json` (or
+/// `content/chem/rules.json` for the rule tier).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Entry {
     pub id: String,
@@ -128,11 +158,23 @@ pub struct Entry {
     /// A safety badge for trying it for real; `None` for kitchen-safe ones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hazard: Option<Hazard>,
+    /// Checked (core) or predicted by rule.
+    #[serde(default)]
+    pub tier: CodexTier,
+    /// The rule a rule-tier entry follows (`RuleDef::id`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct CoreFile {
     families: Vec<String>,
+    reactions: Vec<Entry>,
+}
+
+#[derive(Deserialize)]
+struct RulesFile {
+    rules: Vec<RuleDef>,
     reactions: Vec<Entry>,
 }
 
@@ -172,7 +214,7 @@ pub fn reduced(eq: &Equation) -> (SideKey, SideKey) {
 }
 
 /// `side` with its coefficients divided by their shared factor.
-fn reduce_side(side: &SideKey) -> SideKey {
+pub(crate) fn reduce_side(side: &SideKey) -> SideKey {
     let g = side.values().fold(0, |g, &c| gcd(g, c)).max(1);
     side.iter().map(|(f, &n)| (f.clone(), n / g)).collect()
 }
@@ -207,7 +249,10 @@ pub enum Outcome {
 
 pub struct Codex {
     pub families: Vec<String>,
+    /// The checked entries first, then the rule tier's.
     pub entries: Vec<Entry>,
+    /// The rules of the rule tier.
+    pub rules: Vec<RuleDef>,
     keys: Vec<(SideKey, SideKey)>,
     /// Every formula that appears in the codex, for the predictor's "known
     /// species" check.
@@ -215,15 +260,48 @@ pub struct Codex {
 }
 
 impl Codex {
+    /// The whole codex: the checked core tier and the rule tier.
     pub fn load() -> Codex {
+        Codex::from_parts(CORE_JSON, Some(RULES_JSON)).expect("content/chem is valid")
+    }
+
+    /// The checked core tier alone.
+    pub fn load_core() -> Codex {
         Codex::from_json(CORE_JSON).expect("content/chem/core.json is valid")
     }
 
     pub fn from_json(json: &str) -> Result<Codex, String> {
-        let file: CoreFile = serde_json::from_str(json).map_err(|e| e.to_string())?;
-        let mut keys = Vec::with_capacity(file.reactions.len());
+        Codex::from_parts(json, None)
+    }
+
+    /// A codex from a core file and, optionally, a rules file. Rule entries
+    /// are marked `CodexTier::Rule` and must name a rule of the file.
+    pub fn from_parts(core: &str, rules: Option<&str>) -> Result<Codex, String> {
+        let file: CoreFile = serde_json::from_str(core).map_err(|e| e.to_string())?;
+        let mut reactions = file.reactions;
+        for e in &mut reactions {
+            e.tier = CodexTier::Checked;
+            e.rule = None;
+        }
+        let mut rule_defs = Vec::new();
+        if let Some(r) = rules {
+            let rf: RulesFile = serde_json::from_str(r).map_err(|e| format!("rules: {e}"))?;
+            for mut e in rf.reactions {
+                if !e
+                    .rule
+                    .as_ref()
+                    .is_some_and(|id| rf.rules.iter().any(|d| &d.id == id))
+                {
+                    return Err(format!("{}: names no rule of the file", e.id));
+                }
+                e.tier = CodexTier::Rule;
+                reactions.push(e);
+            }
+            rule_defs = rf.rules;
+        }
+        let mut keys = Vec::with_capacity(reactions.len());
         let mut known_species = BTreeSet::new();
-        for e in &file.reactions {
+        for e in &reactions {
             let eq = parse_equation(&e.equation).map_err(|err| format!("{}: {err}", e.id))?;
             if !eq.is_balanced() {
                 return Err(format!("{}: not balanced", e.id));
@@ -235,10 +313,17 @@ impl Codex {
         }
         Ok(Codex {
             families: file.families,
-            entries: file.reactions,
+            entries: reactions,
+            rules: rule_defs,
             keys,
             known_species,
         })
+    }
+
+    /// The rule a rule-tier entry follows.
+    pub fn rule_of(&self, e: &Entry) -> Option<&RuleDef> {
+        let id = e.rule.as_deref()?;
+        self.rules.iter().find(|r| r.id == id)
     }
 
     pub fn get(&self, id: &str) -> Option<&Entry> {
@@ -289,10 +374,12 @@ impl Codex {
         let mut matches: Vec<usize> = (0..self.entries.len())
             .filter(|&i| reduce_side(&self.keys[i].0) == l)
             .collect();
+        // A checked reaction comes before a rule one (the rule tier never
+        // shares reactants with the core, but a checked answer always wins).
         matches.sort_by_key(|&i| {
             let e = &self.entries[i];
             let met = e.needs.iter().all(|n| n.met_by(have));
-            (!met, e.band > band)
+            (!met, e.band > band, e.tier)
         });
         let i = *matches.first()?;
         Some((i, self.known(i, have, band)))

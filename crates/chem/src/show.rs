@@ -665,8 +665,22 @@ impl Shows {
     pub fn build(codex: &Codex) -> Shows {
         let subs: SubstFile =
             serde_json::from_str(SUBSTANCES_JSON).expect("content/chem/substances.json is valid");
-        let fixes: ShowFile =
+        let mut fixes: ShowFile =
             serde_json::from_str(SHOW_JSON).expect("content/chem/show.json is valid");
+        // The rule tier's own fixes (each burning's flame), I-056.
+        #[derive(Deserialize)]
+        struct RuleShow {
+            show: BTreeMap<String, Fix>,
+        }
+        let rule: RuleShow =
+            serde_json::from_str(crate::RULES_JSON).expect("content/chem/rules.json is valid");
+        for (id, fix) in rule.show {
+            assert!(
+                !fixes.reactions.contains_key(&id),
+                "{id}: a rule fix shadows show.json"
+            );
+            fixes.reactions.insert(id, fix);
+        }
         let geometry = Geometries::load();
         let mut sources = subs.sources.clone();
         sources.extend(fixes.sources.clone());

@@ -3537,7 +3537,8 @@
      "hex": "#3f8f4f",
      "hex_estimated": true
     }
-   }
+   },
+   "grain": "cloudy"
   },
   "CuCl2": {
    "cas": "7447-39-4",

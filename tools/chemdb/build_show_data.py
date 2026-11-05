@@ -295,7 +295,7 @@ GRAIN = {"Ca(OH)2": "cloudy", "AgCl": "cloudy", "AgBr": "cloudy", "AgI": "cloudy
          "Ag": "grainy", "Pb": "grainy", "Zn": "grainy", "I2": "grainy",
          # Rule tier (I-056): fresh precipitates are fine or gelatinous.
          "Ag2CO3": "cloudy", "BaCO3": "cloudy", "ZnCO3": "cloudy", "FeCO3": "cloudy", "Al(OH)3": "cloudy",
-         "AlPO4": "cloudy", "Ca3(PO4)2": "cloudy"}
+         "AlPO4": "cloudy", "Ca3(PO4)2": "cloudy", "CuCO3": "cloudy"}
 
 # Boiling or sublimation points missing from the CRC physical constants file
 # (K, at 1 atm), from the CRC Handbook's printed table (verified: false).
