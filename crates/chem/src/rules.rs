@@ -529,6 +529,7 @@ mod tests {
             hazard: None,
             tier: CodexTier::Rule,
             rule: Some(rule.into()),
+            evidence: None,
         };
         let bad = [
             // Copper is below zinc: it cannot push zinc out.

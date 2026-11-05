@@ -694,6 +694,136 @@ def cap(t):
     return t[0].upper() + t[1:]
 
 
+
+# ---------------------------------------------------------------------------
+# Evidence (I-058, docs/loop/items/I-058/spec.md)
+# ---------------------------------------------------------------------------
+# Every rule reaction is `data` evidence: the rule's statement on an open page
+# plus the table entries it is applied to. `checked` is true when the rule
+# statement and the table entries were read on the fetched pages (2026-11-05):
+# OpenStax Table 4.1, Wikipedia's electrode potential data page, and the pages
+# below. The enthalpies of formation come from the chemicals package's
+# machine-readable CRC tables (substances.json) and were not re-fetched.
+WIKI = "https://en.wikipedia.org/wiki/"
+EV_PAGES = {
+    "acid_base": ("OpenStax, Chemistry 2e (2019), section 4.2 'Acid-Base Reactions'; Wikipedia, 'Basic oxide'; Wikipedia, 'Ammonia'",
+                  "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+                  "An acid and a base give a salt and water (OpenStax: Mg(OH)2(s) + 2HCl(aq) -> MgCl2(aq) + 2H2O(l); "
+                  "Ba(OH)2(aq) + 2HNO3(aq) -> Ba(NO3)2(aq) + 2H2O(l)); 'basic oxides react with an acid to form salt "
+                  "and water' (Wikipedia 'Basic oxide'); ammonia takes the acid's proton: NH3 + HCl -> NH4Cl (Wikipedia 'Ammonia')."),
+    "metal_acid": ("Wikipedia, 'Single displacement reaction'; Wikipedia, 'Standard electrode potential (data page)'",
+                   WIKI + "Standard_electrode_potential_(data_page)",
+                   "'Metals react with acids to form salts and hydrogen gas' (Wikipedia 'Single displacement reaction'), "
+                   "for a metal whose standard reduction potential is below that of hydrogen (0 V)."),
+    "carbonate_acid": ("Wikipedia, 'Carbonate'; Wikipedia, 'Sodium bicarbonate'",
+                       WIKI + "Carbonate",
+                       "'Acidification of carbonates generally liberates carbon dioxide': CaCO3 + 2HCl -> CaCl2 + CO2 + H2O "
+                       "(Wikipedia 'Carbonate'); NaHCO3 + HCl -> NaCl + H2O + CO2 (Wikipedia 'Sodium bicarbonate')."),
+    "fuel_burns": ("Wikipedia, 'Combustion'; Wikipedia, 'Alkane'",
+                   WIKI + "Combustion",
+                   "'When a hydrocarbon burns in oxygen, the reaction will primarily yield carbon dioxide and water' "
+                   "(Wikipedia 'Combustion')."),
+    "precipitate": ("OpenStax, Chemistry 2e (2019), section 4.2, Table 4.1 'Solubilities of Common Ionic Compounds in Water'",
+                    "https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions",
+                    "Two dissolved salts swap partners and the pair that Table 4.1 lists as insoluble comes out as a solid "
+                    "(OpenStax: NaCl(aq) + AgNO3(aq) -> AgCl(s) + NaNO3(aq))."),
+    "displacement": ("Wikipedia, 'Standard electrode potential (data page)'; Wikipedia, 'Single displacement reaction'",
+                     WIKI + "Standard_electrode_potential_(data_page)",
+                     "'A metal higher on the list can displace anything below it' (Wikipedia 'Single displacement "
+                     "reaction'), the list ordered by standard reduction potential."),
+}
+# Standard reduction potentials as read on Wikipedia's data page (V).
+EV_E0 = {"Li": -3.0401, "K": -2.931, "Ba": -2.912, "Ca": -2.868, "Na": -2.71, "Mg": -2.372, "Al": -1.662,
+         "Zn": -0.7618, "Fe": -0.44, "Pb": -0.126, "H": 0.0, "Cu": 0.337, "Ag": 0.7996}
+TABLE_41 = {
+    "group1": "NH4+ and group 1 cations: soluble, no exceptions",
+    "Cl-": "Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+",
+    "Br-": "Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+",
+    "I-": "Cl-, Br-, I-: soluble except with Ag+, Hg2 2+, Pb2+",
+    "NO3-": "C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions",
+    "CH3COO-": "C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions",
+    "HCO3-": "C2H3O2-, HCO3-, NO3-, ClO3-: soluble, no exceptions",
+    "SO4-2": "SO4 2-: soluble except with Ag+, Ba2+, Ca2+, Hg2 2+, Pb2+, Sr2+",
+    "CO3-2": "CO3 2-, CrO4 2-, PO4 3-, S2-: insoluble except with group 1 cations and NH4+",
+    "PO4-3": "CO3 2-, CrO4 2-, PO4 3-, S2-: insoluble except with group 1 cations and NH4+",
+    "OH-": "OH-: insoluble except with group 1 cations and Ba2+",
+}
+
+
+def table_41(f):
+    """The Table 4.1 line that decides salt f, and what it says."""
+    cat, an = SALTS[f]["cation"], SALTS[f]["anion"]
+    line = TABLE_41["group1"] if cat in GROUP1 else TABLE_41[an]
+    return f"Table 4.1: {f} {SOL[f]} ({line})"
+
+
+def dh_entry(eq, states, rule, per, hot):
+    family = RULE[rule]["family"]
+    medium = "water" if family in AQUEOUS else "air"
+    hot = hot or family == "combustion"
+    parts = []
+    for side, sign in ((eq.split(" -> ")[0], -1), (eq.split(" -> ")[1], 1)):
+        for k, f in terms(side):
+            st = state_of(f, "p" if sign > 0 else "r", medium, hot, states)
+            parts.append(f"{f}({st}) {subs[f]['dhf'][st]['v']:g}")
+    return "dHf kJ/mol (CRC/NBS, substances.json): " + ", ".join(parts)
+
+
+def evidence_of(rule, rs, ps, extra, eq, states, per, needs, kj, kj_per):
+    src, url, claim = EV_PAGES[rule]
+    entries = []
+    checked = True
+    note = None
+    if rule == "precipitate":
+        ppt = extra["precipitate"]
+        entries += [table_41(ppt), table_41(ps[1])] + [table_41(f) for f in rs]
+        col = subs[ppt]["colour"]["s"]
+        entries.append(f"colour of {ppt}(s): {col['described']} ({col['src']}, substances.json)")
+    elif rule == "displacement":
+        m1, sl = rs
+        m2 = ps[1]
+        entries.append(f"E({METAL_ION[m1]}/{m1}) = {EV_E0[m1]} V < E({METAL_ION[m2]}/{m2}) = {EV_E0[m2]} V "
+                       f"(the game also asks for a gap of at least {MARGIN_V} V)")
+        entries += [table_41(sl), table_41(ps[0])]
+        if m1 in PASSIVATED:
+            an = SALTS[sl]["anion"]
+            entries.append(f"aluminium's oxide skin is broken by {ANIONS[an][2]} (PASSIVE)")
+            if an != "Cl-":
+                checked = False
+                note = ("Wikipedia 'Aluminium' says dissolved chlorides corrode it; that bromide breaks the oxide skin "
+                        "too is from Greenwood and Earnshaw (PASSIVE), not fetched.")
+    elif rule == "metal_acid":
+        metal, acid = rs
+        entries.append(f"E({METAL_ION[metal]}/{metal}) = {EV_E0[metal]} V < E(H+/H2) = 0 V")
+        entries.append(f"{acid} is not an oxidising acid (rules.json tables.acids)")
+        entries.append(table_41(ps[0]))
+        if metal in PASSIVATED and ACIDS[acid]["anion"] != "Cl-":
+            checked = False
+            note = ("That bromide breaks aluminium's oxide skin is from Greenwood and Earnshaw (PASSIVE), not fetched.")
+    elif rule == "carbonate_acid":
+        entries.append(table_41(ps[0]))
+        entries.append(f"{rs[0]} goes in as a solid powder")
+    elif rule == "acid_base":
+        if ps[0] in SALTS:
+            entries.append(table_41(ps[0]))
+    elif rule == "fuel_burns":
+        fuel = rs[0]
+        fp = FUELS[fuel][4]
+        entries.append(f"{FUELS[fuel][0]}: needs {needs[0]} (flash point {fp} C, FLASH; lit by a spark at or below "
+                       f"{SPARK_MAX_C} C)" if fp is not None else f"{FUELS[fuel][0]}: a gas, lit by a spark")
+        if "O" in bsd.atoms(fuel):
+            checked = False
+            note = ("An alcohol, not a hydrocarbon: the fetched pages state complete combustion for hydrocarbons, and "
+                    "for ethanol and methanol (Wikipedia 'Ethanol', 'Methanol'), not for this alcohol.")
+        else:
+            note = "The flash points (FLASH, PubChem / NIOSH) that set the condition were not re-fetched."
+    entries.append(f"dH = {kj:g} kJ per equation, {kj_per:g} kJ per mol {per} ({'little' if abs(kj_per) <= 25 else 'releases' if kj_per < 0 else 'absorbs'})")
+    entries.append(dh_entry(eq, states, rule, per, "heat" in needs))
+    ev = {"kind": "data", "source": src, "url": url, "checked": checked, "claim": claim, "entries": entries}
+    if note:
+        ev["note"] = note
+    return ev
+
 reactions = []
 added = {}
 show = {}
@@ -805,6 +935,7 @@ for rule, rs, ps, extra in cands:
         "per": per,
         "dh_per_kj": kj_per,
     }
+    e["evidence"] = evidence_of(rule, rs, ps, extra, eq, states, per, needs, kj, kj_per)
     if band in ("sprout", "seedling"):
         e["short"] = short
     if hazard:

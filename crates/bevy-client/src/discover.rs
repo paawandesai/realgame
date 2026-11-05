@@ -844,6 +844,36 @@ mod tests {
         assert_eq!(d.active(0), None);
     }
 
+    /// I-058: the world's codex holds only reactions with textbook or data
+    /// evidence, and a save that names one left out (unverified, or an
+    /// older save's id) loads nothing for it: not found, saved or equipped.
+    #[test]
+    fn an_unverified_reaction_is_never_found_saved_or_equipped() {
+        let codex = &spells::book().codex;
+        assert!(codex.entries.iter().all(|e| e.playable()));
+        let audit = realgame_chem::Codex::load_audit();
+        let mut ids: Vec<String> = audit
+            .entries
+            .iter()
+            .filter(|e| !e.playable())
+            .map(|e| e.id.clone())
+            .collect();
+        assert_eq!(ids.len(), codex.hidden.len());
+        ids.push("an_unverified_reaction".into());
+        for id in &ids {
+            assert_eq!(index_of(id), None, "{id}");
+            let mut d = loaded();
+            let (found, saved) = (d.found.clone(), d.saved.clone());
+            d.command(&format!("found {id}"));
+            d.command(&format!("saved {id}:2"));
+            d.command(&format!("slots {id},-,-,-"));
+            d.command(&format!("equip {id} 1"));
+            assert_eq!(d.found, found, "{id}: found");
+            assert_eq!(d.saved, saved, "{id}: saved");
+            assert_eq!(d.slot[0], None, "{id}: equipped");
+        }
+    }
+
     #[test]
     fn two_builds_master_a_discovered_spell() {
         let mut d = loaded();
