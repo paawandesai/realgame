@@ -32,6 +32,7 @@ mod firebreak;
 mod fx;
 mod gates;
 mod late;
+mod lens;
 mod level2;
 mod level3;
 mod look;
@@ -906,6 +907,7 @@ fn main() {
             voxel_cast::plugin,
             late::plugin,
             look::plugin,
+            lens::plugin,
             mood::plugin,
             powers::plugin,
             firebreak::plugin,
