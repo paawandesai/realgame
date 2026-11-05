@@ -67,3 +67,24 @@ The world (`discover.js`) and the Bench page read and write the same keys. The w
 - `golden.mjs` test 17 now loads with `voice: true` saved. Spoken lines have been opt-in since db6ddf1 ("Read lines aloud"), so its three speech checks were failing before this item too. They now check what is spoken when voice is on, and the sound-off check still checks that nothing is.
 - `tests/e2e/analytics-e2e.mjs` test 15 reads the chooser and cards from the frame.
 - Unit tests: `test/bench-spells.test.ts` (shared-save helpers), and `test/bench-free.test.ts` and `test/bench-layout.test.ts` (the new files and the Spells tab).
+
+## 6. Adept in the world's grade picker
+
+Paawan approved Adept as a fourth choice in the world's grade picker (I-059 had left it for a separate decision because of analytics).
+
+- **The picker.** `index.html` `#age` now has four pictures: "Sprout · Grades 6–7", "Seedling · Grades 8–9", "Apprentice · Grades 10–11" (relabelled from "Grade 10+") and "Adept · Grade 12+". `age.js` expects four buttons, and the arrows and Tab move between all four. The Bench's band question copies the picker's pictures, so it also offers four.
+- **The world.** Adept is its own band (`Tier::Adept`). `bench.js` `bandFrom` no longer reads Adept as Apprentice, and `startBench` already sent all four bands. Only the formula builder's layout (`bandOf`, used by `mountBuilder` and `reasonFor`) builds Adept the way it builds Apprentice, by typing.
+- **Analytics.** `adept` is a fourth anonymous band value, and nothing personal is added:
+  - `functions/_lib/analytics.ts` `BANDS` and `zeroBands`;
+  - `crates/bevy-client/web/analytics.js` `BANDS`;
+  - `migrations/0003_adept_band.sql`, which rebuilds `events` with the wider `band` CHECK (same columns, same CHECKs, STRICT kept);
+  - the dashboard: `dashboard/dashboard.js`, `dashboard/index.html` and `dashboard/dashboard.css`;
+  - `docs/ANALYTICS.md`.
+
+  The Classic (2D) game still sends only its three bands.
+- **Tests.** Tests that pinned three bands now pin four:
+  - `test/handlers.test.ts`, `test/quest.test.ts` and `test/validate.test.ts` (band counts, plus a new migration 0003 test and a new adept-event test);
+  - `test/bevy-analytics.test.ts`;
+  - `test/bench.test.ts` (`bandFrom`);
+  - `tests/e2e/analytics-e2e.mjs` (four picker buttons, the arrows reach Adept, the Bench's chooser has four);
+  - `tests/e2e/golden.mjs` (the Bench's band question has four 160 px pictures).
