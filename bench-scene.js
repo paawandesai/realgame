@@ -19,52 +19,102 @@ const THREE = /** @type {any} */ (globalThis).THREE;
  */
 export function createBenchScene(canvas, opts) {
   const EL = opts.elements;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Quality tier (graphics plan): 'low' drops shadows, glass refraction and
+  // the high pixel ratio; 'mid' is the default; 'high' adds sharper shadows.
+  /** @type {'low'|'mid'|'high'} */
+  let tier = /** @type {any} */ (opts.tier || new URLSearchParams(location.search).get('tier') || 'mid');
+  if (!['low', 'mid', 'high'].includes(tier)) tier = 'mid';
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: tier !== 'low' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier === 'low' ? 1 : tier === 'mid' ? 1.5 : 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.shadowMap.enabled = true;
+  // Filmic tonemapping keeps bright glass and flame highlights soft.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = tier !== 'low';
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x12161f);
-  scene.fog = new THREE.Fog(0x12161f, 12, 26);
+  scene.background = labBackdrop();
+  scene.fog = new THREE.Fog(0x0e1118, 14, 30);
+  // Image-based light from a small lab drawn in code (no image files): warm
+  // window, cool ceiling, dark walls. Gives atoms and glass real reflections.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = labEnvironment();
+  const envTex = pmrem.fromScene(envScene, 0.02).texture;
+  scene.environment = envTex;
+  envScene.traverse((/** @type {any} */ o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  pmrem.dispose();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
   camera.position.set(0.75, 4.4, 9.4);
   const controls = new THREE.OrbitControls(camera, canvas);
   controls.target.set(0.75, 0.9, 0); controls.enableDamping = true; controls.minDistance = 3.5; controls.maxDistance = 13; controls.maxPolarAngle = 1.45;
-  scene.add(new THREE.HemisphereLight(0xbcd0ff, 0x3a2a18, 0.55));
-  const lamp = new THREE.SpotLight(0xffd9a0, 1.6, 30, 0.6, 0.5); lamp.position.set(-2, 8, 4); lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); scene.add(lamp); lamp.target.position.set(0.5, 0, 0); scene.add(lamp.target);
-  const rim = new THREE.DirectionalLight(0x7fa8ff, 0.5); rim.position.set(4, 3, -5); scene.add(rim);
-  const wood = new THREE.MeshStandardMaterial({ color: 0x7a5232, roughness: 0.75 });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.3, 3.6), wood); top.position.set(0.6, -0.15, 0); top.receiveShadow = true; scene.add(top);
-  for (const [x, z] of [[-3.3, -1.5], [4.5, -1.5], [-3.3, 1.5], [4.5, 1.5]]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.28, 3, 0.28), wood); leg.position.set(x, -1.8, z); scene.add(leg); }
-  const back = new THREE.Mesh(new THREE.BoxGeometry(8.4, 2.6, 0.18), new THREE.MeshStandardMaterial({ color: 0x5a3c24, roughness: 0.8 })); back.position.set(0.6, 1.3, -1.9); scene.add(back);
-  const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.6, 0.12, 48), new THREE.MeshStandardMaterial({ color: 0x2b3448, metalness: 0.6, roughness: 0.35 }));
+  scene.add(new THREE.HemisphereLight(0xbcd0ff, 0x2a1c10, 0.25));
+  // Key: warm window light from the left; soft shadows.
+  const lamp = new THREE.SpotLight(0xffd6a0, 1.5, 30, 0.62, 0.65); lamp.position.set(-3.5, 8, 5); lamp.castShadow = true;
+  lamp.shadow.mapSize.set(tier === 'high' ? 2048 : 1024, tier === 'high' ? 2048 : 1024); lamp.shadow.radius = 4; lamp.shadow.bias = -0.0004;
+  scene.add(lamp); lamp.target.position.set(0.5, 0, 0); scene.add(lamp.target);
+  // Cool rim from behind so atoms separate from the dark room.
+  const rim = new THREE.DirectionalLight(0x8fb4ff, 0.7); rim.position.set(4, 4, -6); scene.add(rim);
+  const woodTex = woodTexture(); woodTex.anisotropy = tier === 'low' ? 1 : 4;
+  const wood = new THREE.MeshStandardMaterial({ color: 0xffffff, map: woodTex, roughness: 0.62, bumpMap: woodTex, bumpScale: 0.004, envMapIntensity: 0.6 });
+  // The room: a dark floor and back wall, so the bench is lit inside a space.
+  const roomMat = new THREE.MeshStandardMaterial({ color: 0x0b0a09, roughness: 0.95, envMapIntensity: 0.08 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), roomMat); floor.rotation.x = -Math.PI / 2; floor.position.y = -3.3; floor.receiveShadow = true; scene.add(floor);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(60, 20), roomMat); wall.position.set(0, 4, -6); scene.add(wall);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.3, 3.6), wood); top.position.set(0.6, -0.15, 0); top.receiveShadow = true; top.castShadow = true; scene.add(top);
+  for (const [x, z] of [[-3.3, -1.5], [4.5, -1.5], [-3.3, 1.5], [4.5, 1.5]]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.28, 3, 0.28), wood); leg.position.set(x, -1.8, z); leg.castShadow = true; scene.add(leg); }
+  const back = new THREE.Mesh(new THREE.BoxGeometry(8.4, 2.6, 0.18), new THREE.MeshStandardMaterial({ color: 0xb08a68, map: woodTex, roughness: 0.7, envMapIntensity: 0.5 })); back.position.set(0.6, 1.3, -1.9); back.receiveShadow = true; scene.add(back);
+  const brass = new THREE.MeshStandardMaterial({ color: 0xe0b46a, metalness: 1, roughness: 0.28, envMapIntensity: 1.6 });
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.6, 0.12, 64), new THREE.MeshStandardMaterial({ color: 0x2b3448, metalness: 0.7, roughness: 0.28 }));
   plate.position.set(-1.2, 0.06, 0.2); plate.receiveShadow = true; scene.add(plate);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(1.52, 0.035, 8, 64), new THREE.MeshBasicMaterial({ color: 0xe8b04a })); ring.rotation.x = Math.PI / 2; ring.position.set(-1.2, 0.13, 0.2); scene.add(ring);
   const CH = new THREE.Vector3(2.7, 1.25, 0.1);
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.0), new THREE.MeshPhysicalMaterial({ color: 0x9fc3ff, transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0, depthWrite: false }));
-  glass.position.copy(CH); scene.add(glass);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2.4, 2.4, 2.0)), new THREE.LineBasicMaterial({ color: 0x9fc3ff, transparent: true, opacity: 0.5 }));
+  // The chamber: clear glass that reflects the lab (environment light, a
+  // clearcoat sheen and Fresnel edges), on a brass base with a brass lid rim.
+  const glassMat = tier === 'low'
+    ? new THREE.MeshStandardMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.14, roughness: 0.05, metalness: 0.1, depthWrite: false })
+    : new THREE.MeshPhysicalMaterial({ color: 0xe8f6ff, transparent: true, opacity: 0.16, roughness: 0.02, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, reflectivity: 0.9, envMapIntensity: 2.2, depthWrite: false, side: THREE.DoubleSide });
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.0), glassMat);
+  glass.position.copy(CH); glass.renderOrder = 2; scene.add(glass);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2.4, 2.4, 2.0)), new THREE.LineBasicMaterial({ color: 0xd8f0ff, transparent: true, opacity: 0.35 }));
   edges.position.copy(CH); scene.add(edges);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.1, 2.2), new THREE.MeshStandardMaterial({ color: 0x262b33, metalness: 0.4, roughness: 0.35 })); base.position.set(CH.x, CH.y - 1.25, CH.z); base.castShadow = true; base.receiveShadow = true; scene.add(base);
+  // An open brass frame on top (four bars), so the chamber reads as glass, not a box with a lid.
+  for (const [w, d, x, z] of [[2.5, 0.07, 0, 1.03], [2.5, 0.07, 0, -1.03], [0.07, 2.1, 1.23, 0], [0.07, 2.1, -1.23, 0]]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, d), brass); bar.position.set(CH.x + x, CH.y + 1.22, CH.z + z); bar.castShadow = true; scene.add(bar);
+  }
   const chamberLight = new THREE.PointLight(0xff8a3a, 0, 6); chamberLight.position.copy(CH); scene.add(chamberLight);
-  const sphereGeo = new THREE.SphereGeometry(1, 28, 20);
-  const bondGeo = new THREE.CylinderGeometry(0.07, 0.07, 1, 12);
-  const bondMat = new THREE.MeshStandardMaterial({ color: 0xc9ced8, roughness: 0.4, metalness: 0.2 });
+  const sphereGeo = new THREE.SphereGeometry(1, tier === 'low' ? 20 : 36, tier === 'low' ? 14 : 26);
+  // A half bond: unit length from y = 0 to y = 1, so each half is coloured by its own atom.
+  const bondGeo = new THREE.CylinderGeometry(0.065, 0.065, 1, 14); bondGeo.translate(0, 0.5, 0);
   /** @type {Record<string, any>} */
   const atomMat = {};
-  const matFor = (/** @type {string} */ el) => atomMat[el] || (atomMat[el] = new THREE.MeshStandardMaterial({ color: EL[el]?.c ?? 0xcccccc, roughness: el === 'C' ? 0.5 : 0.3, metalness: 0.05 }));
+  // Glossy molecular-model plastic: a clearcoat highlight over the element colour.
+  const matFor = (/** @type {string} */ el) => atomMat[el] || (atomMat[el] = tier === 'low'
+    ? new THREE.MeshStandardMaterial({ color: EL[el]?.c ?? 0xcccccc, roughness: 0.32, metalness: 0.0 })
+    : new THREE.MeshPhysicalMaterial({ color: EL[el]?.c ?? 0xcccccc, roughness: el === 'C' ? 0.42 : 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.1 }));
+  /** @type {Record<string, any>} */
+  const bondMats = {};
+  const bondMatFor = (/** @type {string} */ el) => bondMats[el] || (bondMats[el] = new THREE.MeshStandardMaterial({ color: EL[el]?.c ?? 0xc9ced8, roughness: 0.38, metalness: 0, envMapIntensity: 0.9 }));
   const atomMesh = (/** @type {string} */ el) => { const m = new THREE.Mesh(sphereGeo, matFor(el)); m.scale.setScalar(EL[el]?.r ?? 0.3); m.castShadow = true; return m; };
   const UP = new THREE.Vector3(0, 1, 0);
-  const drawBonds = (/** @type {any} */ group, /** @type {any[]} */ pos, /** @type {Bond[]} */ bonds) => {
+  // Bonds are drawn as two halves, each in its atom's colour (as in
+  // textbook models); double and triple bonds are thinner parallel rods.
+  const drawBonds = (/** @type {any} */ group, /** @type {any[]} */ pos, /** @type {Bond[]} */ bonds, /** @type {string[]} */ els) => {
     let k = 0;
     for (const b of bonds) {
       const a = pos[b.a], c = pos[b.b]; if (!a || !c) continue; const d = c.clone().sub(a); const L = d.length(); if (L < 1e-3) continue;
-      const side = d.clone().cross(Math.abs(d.y) < 0.9 * L ? UP : new THREE.Vector3(1, 0, 0)).normalize().multiplyScalar(0.12);
+      const side = d.clone().cross(Math.abs(d.y) < 0.9 * L ? UP : new THREE.Vector3(1, 0, 0)).normalize().multiplyScalar(0.11);
+      const dir = d.clone().normalize(); const thin = b.o > 1 ? 0.72 : 1;
       for (let o = 0; o < b.o; o++) {
-        let rod = group.children[k++]; if (!rod) { rod = new THREE.Mesh(bondGeo, bondMat); group.add(rod); }
-        rod.visible = true;
-        rod.position.copy(a).add(c).multiplyScalar(0.5).add(side.clone().multiplyScalar(o - (b.o - 1) / 2));
-        rod.scale.set(1, L, 1);
-        rod.quaternion.setFromUnitVectors(UP, d.clone().normalize());
+        const off = side.clone().multiplyScalar(o - (b.o - 1) / 2);
+        for (const half of [0, 1]) {
+          const el = (half ? els[b.b] : els[b.a]) ?? '';
+          let rod = group.children[k++]; if (!rod) { rod = new THREE.Mesh(bondGeo); rod.castShadow = tier !== 'low'; group.add(rod); }
+          rod.material = bondMatFor(el); rod.visible = true;
+          rod.position.copy(half ? c : a).add(off);
+          rod.scale.set(thin, L / 2, thin);
+          rod.quaternion.setFromUnitVectors(UP, half ? dir.clone().negate() : dir);
+        }
       }
     }
     for (; k < group.children.length; k++) group.children[k].visible = false;
@@ -135,12 +185,12 @@ export function createBenchScene(canvas, opts) {
     else if (t < 1.7) { const k = ease((t - 0.9) / 0.8); anim.items.forEach((/** @type {any} */ it) => it.mesh.position.copy(it.from).lerp(it.mid, k)); }
     else if (t < 2.7) { const k = ease((t - 1.7) / 1.0); anim.items.forEach((/** @type {any} */ it) => it.mesh.position.copy(it.mid).lerp(it.to, k)); }
     else anim.items.forEach((/** @type {any} */ it) => it.mesh.position.copy(it.to));
-    if (t < 0.9 || fizzle) { anim.before.visible = true; anim.after.visible = false; drawBonds(anim.before, pos, flat(anim.A)); }
+    if (t < 0.9 || fizzle) { anim.before.visible = true; anim.after.visible = false; drawBonds(anim.before, pos, flat(anim.A), anim.A.flatMap((/** @type {any} */ m) => m.els)); }
     else if (t > 2.45) {
       anim.before.visible = false; anim.after.visible = true;
       /** @type {any[]} */ const Pp = [];
       for (const m of anim.B) m.els.forEach((/** @type {string} */ e, /** @type {number} */ i) => { const it = anim.items.find((/** @type {any} */ x) => x.to.equals(m.pos[i])); Pp.push(it ? it.mesh.position : m.pos[i]); });
-      drawBonds(anim.after, Pp, flat(anim.B));
+      drawBonds(anim.after, Pp, flat(anim.B), anim.B.flatMap((/** @type {any} */ m) => m.els));
     } else { anim.before.visible = false; anim.after.visible = false; }
     if (!fizzle && t > 2.7 && !anim.fired) {
       anim.fired = true;
@@ -180,8 +230,8 @@ export function createBenchScene(canvas, opts) {
       relax(pos, atoms.map((a) => a.el), plateBondList, 3);
       atoms.forEach((a, i) => { a.p.copy(pos[i].add(PLATE)); a.mesh.position.copy(a.p); if (!reduce) a.mesh.position.y += Math.sin(tt * 1.6) * 0.04; });
       const spin = reduce ? 0 : dt * 0.35; atoms.forEach((a) => { const v = a.p.clone().sub(PLATE); v.applyAxisAngle(UP, spin); a.p.copy(v.add(PLATE)); });
-      drawBonds(plateBonds, atoms.map((a) => a.mesh.position), plateBondList);
-    } else drawBonds(plateBonds, [], []);
+      drawBonds(plateBonds, atoms.map((a) => a.mesh.position), plateBondList, atoms.map((a) => a.el));
+    } else drawBonds(plateBonds, [], [], []);
     stepAnim(dt);
     fxGroup.children.forEach((/** @type {any} */ m) => { m.position.y += m.userData.v * dt * (anim && anim.fx === 'cloud' ? -0.3 : 1); m.material.opacity = Math.max(0, m.material.opacity - dt * 0.3); if (m.position.y > CH.y + 1.1) m.position.y = CH.y - 1.1; if (m.position.y < CH.y - 1.15) m.position.y = CH.y - 1.15; });
     ring.material.color.setHex(plateOk ? 0x5fd08a : 0xe8b04a);
@@ -219,7 +269,61 @@ export function createBenchScene(canvas, opts) {
     dispose() {
       running = false; ro.disconnect();
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointerup', up);
-      controls.dispose(); renderer.dispose();
+      controls.dispose(); envTex.dispose(); woodTex.dispose(); renderer.dispose();
     },
+    /** The current quality tier ('low', 'mid' or 'high'); set it with `?tier=` or `opts.tier`. */
+    get tier() { return tier; },
   };
+}
+
+// ---------- generated looks (no image files: everything is drawn in code) ----------
+
+/** A soft vertical gradient behind the bench: dark room, a faint warm glow low left. */
+function labBackdrop() {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 256;
+  const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#07090d'); grad.addColorStop(0.55, '#141821'); grad.addColorStop(1, '#1d1a1a');
+  g.fillStyle = grad; g.fillRect(0, 0, 16, 256);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  return t;
+}
+
+/**
+ * A tiny lab for image-based light: a dark box with a warm window, a cool
+ * ceiling panel and a dim teal glow, rendered once into a PMREM.
+ */
+function labEnvironment() {
+  const env = new THREE.Scene();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(20, 10, 20), new THREE.MeshBasicMaterial({ color: 0x15171c, side: THREE.BackSide }));
+  box.position.y = 3; env.add(box);
+  const panel = (/** @type {number} */ color, /** @type {number} */ w, /** @type {number} */ h, /** @type {number[]} */ p, /** @type {number[]} */ r) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    m.position.set(p[0], p[1], p[2]); m.rotation.set(r[0], r[1], r[2]); env.add(m);
+  };
+  panel(0xfff0d8, 6, 4, [-9.9, 4, 3], [0, Math.PI / 2, 0]); // window, left
+  panel(0x9fb8ff, 8, 3, [0, 7.9, 0], [Math.PI / 2, 0, 0]); // ceiling softbox
+  panel(0x2a6f66, 10, 1.5, [0, 1, -9.9], [0, 0, 0]); // teal strip on the back wall
+  panel(0x443322, 20, 20, [0, -1.9, 0], [-Math.PI / 2, 0, 0]); // warm floor bounce
+  return env;
+}
+
+/** Dark-oak grain: streaks along the board with darker knots of noise. */
+function woodTexture() {
+  const W = 512, H = 128;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+  g.fillStyle = '#6f4a2c'; g.fillRect(0, 0, W, H);
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 140; i++) {
+    const y = rnd() * H, a = 0.05 + rnd() * 0.12, dark = rnd() < 0.6;
+    g.strokeStyle = dark ? `rgba(40,24,12,${a})` : `rgba(160,112,70,${a})`;
+    g.lineWidth = 0.6 + rnd() * 2.2; g.beginPath();
+    const f = 0.004 + rnd() * 0.01, amp = 1 + rnd() * 4, ph = rnd() * 6;
+    for (let x = 0; x <= W; x += 8) { const yy = y + Math.sin(x * f + ph) * amp; if (x) g.lineTo(x, yy); else g.moveTo(x, yy); }
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding; t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 1);
+  return t;
 }
