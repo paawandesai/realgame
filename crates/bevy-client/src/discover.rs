@@ -3,8 +3,10 @@
 //! shipped spells' rules (`realgame_chem::discover`). See
 //! `docs/loop/items/I-053/spec.md`.
 //!
-//! - A saved spell sits on the slot (1-4) of the shipped spell whose rule it
-//!   runs; pressing that key again switches between the two.
+//! - A saved spell sits on a spell key (1-4) the player picks in the pack
+//!   (by default the key of the shipped spell whose rule it runs); pressing
+//!   that key again switches between the shipped spell and the discovery.
+//!   On any key it flies and lands by its own rule (`fly`).
 //! - It is built twice (worked casts, judged by the codex) before it casts
 //!   instantly; a Sprout casts it without building.
 //! - In the block world a cast needs a bottle (pack item) of every reactant
@@ -13,8 +15,8 @@
 //!   gives off heat.
 //!
 //! The page loads the save through `window.__gameIn.disc` (`found`,
-//! `saved`, `slots`, `quests`, and the player's `equip <id>` / `unequip
-//! <slot>` / `toggle <slot>`) and reads `window.__discState`, whose `save`
+//! `saved`, `slots`, `quests`, and the player's `equip <id> [key]` /
+//! `unequip <key>` / `toggle <key>`) and reads `window.__discState`, whose `save`
 //! it writes to localStorage (`web/formula-save.js`).
 
 use std::collections::BTreeMap;
@@ -30,7 +32,8 @@ use realgame_sim::valley::Item;
 use crate::spells;
 
 /// Says what is missing when a cast has no bottle; `{}` is the item names.
-pub const NEED_LINE: &str = "No bottle for that spell yet. Find: {}.";
+/// `Disc::need_line` adds where to get the first of them.
+pub const NEED_LINE: &str = "This spell needs {} from your pack, and you have none.";
 /// The live chemistry quest's line, and Sprout's.
 pub const QUEST_LINE: &str =
     "Chemistry quest: melt some ice with a reaction from the Bench that gives off heat.";
@@ -163,6 +166,35 @@ impl Disc {
         Some(d::spell_def(e, fx))
     }
 
+    /// The shipped spell (0-3) whose flight and landing a cast of discovery
+    /// `idx` uses, whichever key it sits on: its rule's spell.
+    pub fn fly(idx: usize) -> Option<usize> {
+        entry(idx).map(|(_, fx)| usize::from(fx.runs.slot()) - 1)
+    }
+
+    /// The key (0-3) discovery `idx` sits on, if any.
+    pub fn key_of(&self, idx: usize) -> Option<usize> {
+        self.slot.iter().position(|s| *s == Some(idx))
+    }
+
+    /// Puts saved spell `idx` on key `k` (0-3), taking it off any other key
+    /// (one key per spell) and replacing what `k` held. It is switched on.
+    pub fn put(&mut self, idx: usize, k: usize) -> bool {
+        if k >= 4 || !self.saved.iter().any(|s| s.0 == idx) {
+            return false;
+        }
+        for j in 0..4 {
+            if j != k && self.slot[j] == Some(idx) {
+                self.slot[j] = None;
+                self.on[j] = false;
+            }
+        }
+        self.slot[k] = Some(idx);
+        self.on[k] = true;
+        self.rev += 1;
+        true
+    }
+
     /// The cast's tag (the emit scale and the codex index).
     pub fn tag(idx: usize) -> CastTag {
         let amount = entry(idx).map_or(1.0, |(_, fx)| fx.runs.amount(fx.strength));
@@ -221,13 +253,13 @@ impl Disc {
                 }
             }
             "slots" => {
+                // Any key holds any saved spell, each spell on one key only
+                // (the first key that names it).
                 for (k, id) in arg.split(',').take(4).enumerate() {
                     let i = index_of(id).filter(|i| self.saved.iter().any(|s| s.0 == *i));
                     if let Some(i) = i {
-                        if let Some((_, fx)) = entry(i) {
-                            if usize::from(fx.runs.slot()) == k + 1 {
-                                self.slot[k] = Some(i);
-                            }
+                        if self.key_of(i).is_none_or(|j| j == k) {
+                            self.slot[k] = Some(i);
                         }
                     }
                 }
@@ -242,20 +274,18 @@ impl Disc {
                 }
             }
             "equip" => {
+                // `equip <id> [key 1-4]`: no key puts it on its rule's key.
                 let Some(i) = index_of(arg).filter(|i| self.saved.iter().any(|s| s.0 == *i)) else {
                     return;
                 };
-                if let Some((e, fx)) = entry(i) {
-                    let k = usize::from(fx.runs.slot()) - 1;
-                    self.slot[k] = Some(i);
-                    self.on[k] = true;
-                    self.rev += 1;
-                    self.say = Some(format!(
-                        "{} is on key {}. Press {} again to switch spells.",
-                        e.name,
-                        k + 1,
-                        k + 1
-                    ));
+                let Some((e, fx)) = entry(i) else { return };
+                let k = match w.next().map(str::parse::<usize>) {
+                    None => usize::from(fx.runs.slot()) - 1,
+                    Some(Ok(k @ 1..=4)) => k - 1,
+                    Some(_) => return,
+                };
+                if self.put(i, k) {
+                    self.say = Some(equip_line(&e.name, k));
                 }
             }
             "unequip" => {
@@ -292,10 +322,13 @@ impl Disc {
         Some(data().bottles.plan(e, &held))
     }
 
-    /// The caption naming the items that supply `missing` substances.
+    /// The caption naming the items that supply `missing` substances, and
+    /// where to get the first item of each (`bottles.json` `find`).
     pub fn need_line(missing: &[String]) -> String {
-        let mut names: Vec<String> = Vec::new();
+        let mut groups: Vec<String> = Vec::new();
+        let mut finds: Vec<String> = Vec::new();
         for s in missing {
+            let mut names: Vec<String> = Vec::new();
             for b in data().bottles.items.iter().filter(|b| &b.species == s) {
                 if let Some(it) = Item::from_key(&b.item) {
                     let l = it.label();
@@ -304,11 +337,63 @@ impl Disc {
                     }
                 }
             }
-            if !data().bottles.items.iter().any(|b| &b.species == s) {
-                names.push(s.clone());
+            match data().bottles.items.iter().find(|b| &b.species == s) {
+                Some(b) => {
+                    let l = Item::from_key(&b.item).map_or(b.item.clone(), |it| it.label());
+                    finds.push(format!("{l}: {}", b.find));
+                }
+                None => names.push(s.clone()),
             }
+            groups.push(names.join(" or "));
         }
-        NEED_LINE.replace("{}", &names.join(" or "))
+        let mut line = NEED_LINE.replace("{}", &groups.join(" and "));
+        for f in finds {
+            line.push(' ');
+            line.push_str(&f);
+        }
+        line
+    }
+
+    /// What discovery `idx` uses from the pack, per reactant the air does
+    /// not supply: the substance, its everyday name, the items that supply
+    /// it, how many the pack holds and where to get the first item.
+    pub fn uses(
+        idx: usize,
+        pack: &realgame_sim::valley::Pack,
+    ) -> Vec<realgame_chem::serde_json::Value> {
+        use realgame_chem::serde_json::json;
+        let Some((e, _)) = entry(idx) else {
+            return Vec::new();
+        };
+        let all = data().bottles.plan(e, &|_| 0).missing;
+        all.iter()
+            .map(|s| {
+                let items: Vec<_> = data()
+                    .bottles
+                    .items
+                    .iter()
+                    .filter(|b| &b.species == s)
+                    .collect();
+                let labels: Vec<String> = items
+                    .iter()
+                    .map(|b| Item::from_key(&b.item).map_or(b.item.clone(), |it| it.label()))
+                    .collect();
+                let have: u32 = items
+                    .iter()
+                    .map(|b| Item::from_key(&b.item).map_or(0, |it| pack.count(it)))
+                    .sum();
+                let first = items.first();
+                json!({
+                    "species": s,
+                    "name": substance_name(s),
+                    "items": labels,
+                    "have": have,
+                    "used": first.is_some_and(|b| b.consumed),
+                    "findItem": labels.first(),
+                    "find": first.map(|b| b.find.clone()),
+                })
+            })
+            .collect()
     }
 
     /// Takes the plan's consumed bottles from the pack.
@@ -378,6 +463,8 @@ impl Disc {
                     "instant": band.is_some_and(|b| d::instant(e, b, n)),
                     "effect": fx,
                     "slot": fx.runs.slot(),
+                    "key": self.key_of(i).map(|k| k + 1),
+                    "uses": Disc::uses(i, pack),
                     "missing": plan.missing,
                     "bottles": plan.missing.is_empty(),
                 }))
@@ -391,7 +478,7 @@ impl Disc {
                 let n = Item::from_key(&b.item).map_or(0, |it| pack.count(it));
                 (n > 0).then(|| {
                     let label = Item::from_key(&b.item).map_or(b.item.clone(), |it| it.label());
-                    json!({ "item": b.item, "label": label, "species": b.species, "n": n })
+                    json!({ "item": b.item, "label": label, "species": b.species, "n": n, "find": b.find })
                 })
             })
             .collect();
@@ -422,9 +509,16 @@ impl Disc {
             .collect();
         let saved_map: serde_json::Map<String, serde_json::Value> =
             self.saved.iter().map(|&(i, n)| (id(i), json!(n))).collect();
+        // Where to get the first bottle (charcoal): the pack says it when
+        // the pack holds none.
+        let starter = data().bottles.items.first().map(|b| {
+            let l = Item::from_key(&b.item).map_or(b.item.clone(), |it| it.label());
+            format!("{l}: {}", b.find)
+        });
         json!({
             "v": 1,
             "rev": self.rev,
+            "starter": starter,
             "loaded": self.loaded,
             "found": self.found.iter().map(|&i| id(i)).collect::<Vec<_>>(),
             "saved": saved,
@@ -438,6 +532,26 @@ impl Disc {
         })
         .to_string()
     }
+}
+
+/// Said when a discovery goes on key `k` (0-3).
+pub fn equip_line(name: &str, k: usize) -> String {
+    let shipped = crate::chem::Spell::ALL.get(k).map_or("", |s| s.name());
+    format!(
+        "{name} is on key {n}. Press {n} again to switch between {name} and {shipped}.",
+        n = k + 1
+    )
+}
+
+/// A substance's everyday name (`content/chem/names.json`), else its formula.
+pub fn substance_name(formula: &str) -> String {
+    static NAMES: OnceLock<realgame_chem::serde_json::Value> = OnceLock::new();
+    let names = NAMES.get_or_init(|| {
+        realgame_chem::serde_json::from_str(realgame_chem::NAMES_JSON).unwrap_or_default()
+    });
+    names["substances"][formula]
+        .as_str()
+        .map_or_else(|| formula.to_string(), str::to_string)
 }
 
 /// Registered in voxel mode: the page's commands, the quest check and the
@@ -555,12 +669,62 @@ mod tests {
         let mut d = d;
         d.command("saved carbon_burns:0");
         assert_eq!(d.builds(c), 1, "a load never lowers builds");
-        // A slot must hold a saved spell of that slot's rule.
-        d.command("slots chalk_acid,-,-,carbon_burns");
-        assert_eq!(d.slot, [None, None, None, None]);
-        d.command("slots carbon_burns,-,-,chalk_acid");
-        assert_eq!(d.slot[0], Some(c));
-        assert_eq!(d.slot[3], index_of("chalk_acid"));
+        // A key holds any saved spell (the player picks the key), each
+        // spell on one key only; an unsaved or unknown id is dropped.
+        d.command("slots chalk_acid,-,haber,carbon_burns");
+        assert_eq!(d.slot, [index_of("chalk_acid"), None, None, Some(c)]);
+        let mut d2 = loaded();
+        d2.command("slots carbon_burns,carbon_burns,-,-");
+        assert_eq!(d2.slot, [Some(c), None, None, None], "one key per spell");
+    }
+
+    #[test]
+    fn the_player_picks_the_key_and_the_spell_keeps_its_own_flight() {
+        let mut d = loaded();
+        let c = index_of("carbon_burns").unwrap();
+        let chalk = index_of("chalk_acid").unwrap();
+        // A fire-type reaction on key 3 (Frost's key).
+        d.command("equip carbon_burns 3");
+        assert_eq!(d.active(2), Some(c));
+        assert_eq!(d.active(0), None, "not on its rule's key");
+        assert_eq!(Disc::fly(c), Some(0), "it still flies and lands as Fire");
+        assert_eq!(
+            d.say.as_deref(),
+            Some("Charcoal burns is on key 3. Press 3 again to switch between Charcoal burns and Frost.")
+        );
+        // Moving it to key 2 takes it off key 3.
+        d.command("equip carbon_burns 2");
+        assert_eq!(d.key_of(c), Some(1));
+        assert_eq!(d.slot[2], None);
+        assert!(!d.on[2]);
+        // Another spell on the same key replaces it.
+        d.command("equip chalk_acid 2");
+        assert_eq!(d.active(1), Some(chalk));
+        assert_eq!(d.key_of(c), None);
+        assert_eq!(Disc::fly(chalk), Some(3), "a CO2 fizz flies as CO2");
+        // Bad keys change nothing.
+        let rev = d.rev;
+        d.command("equip carbon_burns 5");
+        d.command("equip carbon_burns 0");
+        d.command("equip carbon_burns x");
+        assert_eq!(d.rev, rev);
+        assert_eq!(d.key_of(c), None);
+        // The state says which key each saved spell is on.
+        let json = d.state_json(Some(Tier::Seedling), &realgame_sim::valley::Pack::default());
+        let v: realgame_chem::serde_json::Value =
+            realgame_chem::serde_json::from_str(&json).unwrap();
+        let row = |id: &str| {
+            v["saved"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r["id"] == id)
+                .unwrap()
+                .clone()
+        };
+        assert_eq!(row("chalk_acid")["key"], 2);
+        assert!(row("carbon_burns")["key"].is_null());
+        assert_eq!(row("carbon_burns")["slot"], 1, "the suggested key");
     }
 
     #[test]
@@ -607,7 +771,23 @@ mod tests {
         assert_eq!(plan.missing, vec!["C".to_string()]);
         let line = Disc::need_line(&plan.missing);
         assert!(line.contains("Coal") && line.contains("Charcoal"), "{line}");
+        // It says where to get it, in plain words: the charcoal mound.
+        assert!(
+            line.contains("Charcoal: Heat wood with very little air")
+                && line.contains("vent on the charcoal mound (Frozen Fields)"),
+            "{line}"
+        );
+        assert!(!line.to_lowercase().contains("dig"), "{line}");
+        // The pack lists what the spell uses and where it comes from.
+        let uses = Disc::uses(c, &pack);
+        assert_eq!(uses.len(), 1, "oxygen comes from the air");
+        assert_eq!(uses[0]["species"], "C");
+        assert_eq!(uses[0]["name"], "carbon (charcoal)");
+        assert_eq!(uses[0]["have"], 0);
+        assert_eq!(uses[0]["findItem"], "Charcoal");
+        assert!(uses[0]["find"].as_str().unwrap().contains("Frozen Fields"));
         pack.add(Item::Block(realgame_sim::valley::mat::COAL_ORE), 2);
+        assert_eq!(Disc::uses(c, &pack)[0]["have"], 2);
         let plan = Disc::plan(c, &pack).unwrap();
         assert!(plan.missing.is_empty());
         Disc::take(&plan, &mut pack);

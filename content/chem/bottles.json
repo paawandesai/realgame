@@ -1,15 +1,15 @@
 {
   "version": 1,
-  "about": "Story mode's bottles (docs/loop/items/I-053/spec.md section 5): the codex substance each pack item supplies to a discovered spell. Air supplies its gases free. In the block world a cast of a discovered spell needs a bottle of every reactant and uses up one of each item marked consumed; free play (the Chemistry Bench page) has unlimited bottles.",
+  "about": "Story mode's bottles (docs/loop/items/I-053/spec.md section 5): the codex substance each pack item supplies to a discovered spell. Air supplies its gases free. In the block world a cast of a discovered spell needs a bottle of every reactant and uses up one of each item marked consumed; free play (the Chemistry Bench page) has unlimited bottles. `find` says in plain words where the player gets the item: the missing-bottle caption and the pack show it. Charcoal comes before coal: it is the carbon the story gives (the charcoal clamp), and coal is the alternative.",
   "air": ["O2", "N2"],
   "items": [
-    { "item": "coal_ore", "species": "C", "consumed": true, "why": "coal is mostly carbon" },
-    { "item": "charcoal", "species": "C", "consumed": true, "why": "charcoal is mostly carbon" },
-    { "item": "snow", "species": "H2O", "consumed": true, "why": "snow is frozen water" },
-    { "item": "iron", "species": "Fe", "consumed": true, "why": "an iron block" },
-    { "item": "iron_ore", "species": "Fe2O3", "consumed": true, "why": "the valley's iron ore is haematite, Fe2O3" },
-    { "item": "sand", "species": "SiO2", "consumed": true, "why": "sand is mostly silica, SiO2" },
-    { "item": "o2_flask", "species": "O2", "consumed": false, "why": "a flask of oxygen; a cast takes a little" },
-    { "item": "h2_balloon", "species": "H2", "consumed": false, "why": "a balloon of hydrogen; a cast takes a little" }
+    { "item": "charcoal", "species": "C", "consumed": true, "why": "charcoal is mostly carbon", "find": "Heat wood with very little air: cast Fire into the vent on the charcoal mound (Frozen Fields). When the smoke clears, press E there." },
+    { "item": "coal_ore", "species": "C", "consumed": true, "why": "coal is mostly carbon", "find": "Coal works just like charcoal, if you already have some." },
+    { "item": "snow", "species": "H2O", "consumed": true, "why": "snow is frozen water", "find": "Snow covers the Frozen Fields. Point the Pick (key 5) at snowy ground and hold the mouse to scoop some up." },
+    { "item": "iron", "species": "Fe", "consumed": true, "why": "an iron block", "find": "Iron is hard to find in this valley. Try a spell that uses charcoal instead." },
+    { "item": "iron_ore", "species": "Fe2O3", "consumed": true, "why": "the valley's iron ore is haematite, Fe2O3", "find": "A few rusty brown blocks hide in the rock under the charcoal mound. The Pick (key 5) can pick one up." },
+    { "item": "sand", "species": "SiO2", "consumed": true, "why": "sand is mostly silica, SiO2", "find": "Sand lines the river bed at the ford. Point the Pick (key 5) at it and hold the mouse to scoop some up." },
+    { "item": "o2_flask", "species": "O2", "consumed": false, "why": "a flask of oxygen; a cast takes a little", "find": "Run the water-splitting rig in the cave (press E there). Each run fills an O2 flask and an H2 balloon." },
+    { "item": "h2_balloon", "species": "H2", "consumed": false, "why": "a balloon of hydrogen; a cast takes a little", "find": "Run the water-splitting rig in the cave (press E there). Each run fills an H2 balloon and an O2 flask." }
   ]
 }

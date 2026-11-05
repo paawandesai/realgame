@@ -356,6 +356,9 @@ pub struct BottleItem {
     /// One is used up per cast.
     pub consumed: bool,
     pub why: String,
+    /// Where the player gets this item, in plain words for the youngest band
+    /// (the missing-bottle caption and the pack show it).
+    pub find: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -638,6 +641,13 @@ mod tests {
         let b = Bottles::load();
         for i in &b.items {
             assert!(c.known_species.contains(&i.species), "{}", i.species);
+            // Every bottle says where to get it, in short plain sentences.
+            assert!(
+                !i.find.is_empty() && i.find.len() <= 140 && i.find.ends_with('.'),
+                "{}: {:?}",
+                i.item,
+                i.find
+            );
             assert!(
                 realgame_sim::valley::Item::from_key(&i.item).is_some(),
                 "{} is not a pack item",
@@ -647,6 +657,14 @@ mod tests {
         let carbon = c.get("carbon_burns").unwrap();
         let none = b.plan(carbon, &|_| 0);
         assert_eq!(none.missing, vec!["C".to_string()]);
+        // Charcoal (the story's carbon, from the clamp) is offered first.
+        assert_eq!(
+            b.items
+                .iter()
+                .find(|i| i.species == "C")
+                .map(|i| i.item.as_str()),
+            Some("charcoal")
+        );
         let coal = b.plan(carbon, &|k| u32::from(k == "coal_ore"));
         assert!(coal.missing.is_empty());
         assert_eq!(coal.take, vec!["coal_ore".to_string()]);

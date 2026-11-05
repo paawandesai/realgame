@@ -231,7 +231,7 @@ The single register of every science claim the first-person 3D client shows the 
 | `Building the valley…` | crates/bevy-client/web/loading.js | Loading screen status (how far the page has loaded); it states no science. |
 | `H2 lift` | crates/bevy-client/src/powers.rs | Power name (Water's power on F). A label; the claim is C-106. |
 | `CO2 dash` | crates/bevy-client/src/powers.rs | Power name (CO2's power on F). A label; the claim is C-108. |
-| `{} is locked. Learn {} at the Formula Bench (B) to unlock it: {}.` | crates/bevy-client/src/powers.rs | Game instruction (a locked power); the hint filled in is C-110 or a power description. |
+| `{p} is locked until you know {s}. Press {k} and cast {s} once (or learn it at the Formula Bench, B). {p}: {h}.` | crates/bevy-client/src/powers.rs | Game instruction (a locked power and how to unlock it, Paawan's playtest 2); the hint filled in is C-110 or a power description. |
 | `Ice walkway: no open water ahead to freeze. Face the water.` | crates/bevy-client/src/powers.rs | Game instruction (the walkway found no water to freeze); it states no science. |
 | `{}: stand on the ground first.` | crates/bevy-client/src/powers.rs | Game instruction (a power used in the air). |
 | `{name} found! {REWARD} crystals and a rank point.` | crates/bevy-client/src/powers.rs | Game status (a cache found and its reward); it states no science. |
@@ -347,14 +347,15 @@ The single register of every science claim the first-person 3D client shows the 
 | `Follow the gold light to the Formula Bench, then press E.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, before Water is learned); it states no science. |
 | `Follow the gold light to the burning workshop. Aim at the flames and click.` | crates/bevy-client/web/hud.js | P10: Game instruction (first quest, after Water is learned); it states no science. |
 | `Move the mouse to steer the white cursor, then click. Esc closes.` | crates/bevy-client/web/worked.js | B3: Game instruction on the cast panel while the mouse is captured; it states no science. |
-| `No bottle for that spell yet. Find: {}.` | crates/bevy-client/src/discover.rs | I-053: game instruction naming the pack items (coal, charcoal, ...) a discovered spell needs; which item supplies which substance is content/chem/bottles.json. It states no science. |
-| `{} is on key {}. Press {} again to switch spells.` | crates/bevy-client/src/discover.rs | I-053: game instruction (a saved spell was put on its hotbar key); it states no science. |
+| `This spell needs {} from your pack, and you have none.` | crates/bevy-client/src/discover.rs | I-053, Paawan's playtest 2: game instruction naming the pack items (charcoal, coal, ...) a discovered spell needs, followed by each item's `find` line from content/chem/bottles.json (where to get it; charcoal's is C-111/C-112, the clamp); which item supplies which substance is content/chem/bottles.json. It states no new science. |
+| `{name} is on key {n}. Press {n} again to switch between {name} and {shipped}.` | crates/bevy-client/src/discover.rs | I-053, Paawan's playtest 2: game instruction (a saved spell was put on the spell key the player picked); it states no science. |
 | `That reaction is for an older band.` | crates/bevy-client/src/main.rs | I-053: game rule (a saved spell above the player's age band); it states no science. |
 | `Saved! Open your pack in the game (Tab) to use it.` | crates/bevy-client/web/bench-free.js | I-053: game instruction after saving a Bench find as a spell; it states no science. |
 | `methane_burns` | crates/bevy-client/web/discover.js | I-053: a codex id (content/chem/core.json) the page adds to the Bench's finds; machine data, not shown. |
 | `Find a reaction on the` | crates/bevy-client/web/pack.js | I-053: game instruction in the pack (start of a sentence linking the Chemistry Bench); it states no science. |
 | `and save it as a spell. It shows up here.` | crates/bevy-client/web/pack.js | I-053: game instruction in the pack (end of the sentence above); it states no science. |
-| `Bottles: none yet. Dig coal to get one.` | crates/bevy-client/web/pack.js | I-053: game instruction (digging a coal block puts coal in the pack, which supplies carbon to a discovered spell; content/chem/bottles.json); it states no science. |
+| `Pick a key for each spell. In the world, press that key, then press it again to switch back to the usual spell.` | crates/bevy-client/web/pack.js | I-053, Paawan's playtest 2: game instruction for the key picker; it states no science. |
+| `${verb} ${what}. You have ${u.have}.` | crates/bevy-client/web/pack.js | I-053, Paawan's playtest 2: what a saved spell uses from the pack and how many the pack holds (content/chem/bottles.json); it states no science. |
 
 ## Sources
 

@@ -2310,6 +2310,8 @@ fn aim_and_cast(
             }
         }
         let tag = disc_now.map_or(discover::CastTag::PLAIN, discover::Disc::tag);
+        // A discovery flies by its own rule, whichever key it sits on.
+        let fly = disc_now.and_then(discover::Disc::fly).unwrap_or(game.spell);
         // If the cooldown ran out during this frame, the part of the frame
         // past zero counts toward the next one, so held fire keeps one cast
         // per 0.3 s of game time at any frame rate (at 4 fps, a cast every
@@ -2334,16 +2336,9 @@ fn aim_and_cast(
             if std::mem::take(&mut worked_first) {
                 // break-2 B1: a worked cast never charged (its press opened
                 // the builder), so it lobs to the crosshair instead.
-                v.shoot_aimed(game.spell, hand, eye, player.forward(), game.epoch, tag);
+                v.shoot_aimed(fly, hand, eye, player.forward(), game.epoch, tag);
             } else {
-                v.shoot(
-                    game.spell,
-                    hand,
-                    player.forward(),
-                    game.held,
-                    game.epoch,
-                    tag,
-                );
+                v.shoot(fly, hand, player.forward(), game.held, game.epoch, tag);
             }
             continue;
         }
