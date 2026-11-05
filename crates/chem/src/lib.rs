@@ -23,6 +23,7 @@ pub mod discover;
 pub use serde_json;
 pub mod literature;
 pub mod predict;
+pub mod show;
 #[cfg(feature = "web")]
 #[allow(unsafe_code)]
 pub mod web;

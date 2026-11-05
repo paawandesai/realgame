@@ -181,18 +181,6 @@ struct Override {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Tints {
-    #[allow(dead_code)]
-    check: String,
-    flame: BTreeMap<String, String>,
-    substance: BTreeMap<String, String>,
-    #[allow(dead_code)]
-    about: String,
-    sources: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct EffectsFile {
     #[allow(dead_code)]
     version: u32,
@@ -205,13 +193,18 @@ struct EffectsFile {
     kind_rules: Vec<KindRule>,
     strength_rules: Vec<StrengthRule>,
     overrides: BTreeMap<String, Override>,
-    tints: Tints,
+    #[allow(dead_code)]
+    strength_scale: String,
+    #[allow(dead_code)]
+    tint_rule: String,
 }
 
-/// The effect rules, loaded once.
+/// The effect rules, loaded once, with the reaction show records
+/// (`crate::show`, I-054) that give each spell its tint and strength.
 pub struct Effects {
     file: EffectsFile,
     gases: BTreeSet<String>,
+    shows: crate::show::Shows,
 }
 
 fn heat_id(h: Option<Heat>) -> &'static str {
@@ -253,7 +246,16 @@ impl Effects {
             .iter()
             .filter_map(|g| g.as_str().map(str::to_string))
             .collect();
-        Ok(Effects { file, gases })
+        Ok(Effects {
+            file,
+            gases,
+            shows: crate::show::Shows::load(),
+        })
+    }
+
+    /// The show records the effects are built from.
+    pub fn shows(&self) -> &crate::show::Shows {
+        &self.shows
     }
 
     fn matches(&self, w: &When, e: &Entry, eq: &Equation) -> bool {
@@ -281,13 +283,24 @@ impl Effects {
                 .find(|r| self.matches(&r.when, e, &eq))
                 .map_or(EffectKind::Water, |r| r.kind)
         });
-        let strength = over.and_then(|o| o.strength).unwrap_or_else(|| {
-            self.file
-                .strength_rules
-                .iter()
-                .find(|r| self.matches(&r.when, e, &eq))
-                .map_or(0.4, |r| r.strength)
-        });
+        let show = self.shows.get(&e.id);
+        // Strength comes from |ΔH| on the documented scale
+        // (`show::strength_of`, I-054 spec section 6); with no ΔH, from the
+        // heat-class rules.
+        let strength =
+            over.and_then(|o| o.strength)
+                .unwrap_or_else(|| match show.and_then(|r| r.dh.kj) {
+                    Some(kj) => {
+                        let driven_cold = e.heat == Some(Heat::Absorbs) && !e.needs.is_empty();
+                        crate::show::strength_of(kj, driven_cold)
+                    }
+                    None => self
+                        .file
+                        .strength_rules
+                        .iter()
+                        .find(|r| self.matches(&r.when, e, &eq))
+                        .map_or(0.4, |r| r.strength),
+                });
         let mut runs = self.file.runs.get(&kind).copied().unwrap_or(Runs::None);
         // A fizz smothers a fire only when every gas it gives is one that
         // neither burns nor feeds a flame (CO2, N2); H2 or O2 would not.
@@ -311,16 +324,9 @@ impl Effects {
             Some(Heat::Absorbs) => -1,
             Some(Heat::Little) | None => 0,
         };
-        let tint = if runs == Runs::Fire {
-            eq.reactants
-                .iter()
-                .find_map(|t| self.file.tints.flame.get(&t.formula))
-        } else {
-            eq.products
-                .iter()
-                .find_map(|t| self.file.tints.substance.get(&t.formula))
-        }
-        .cloned();
+        // The tint is the show record's: a fire's flame colour, otherwise the
+        // first coloured product (precipitate, gas or solution).
+        let tint = show.and_then(|r| r.tint(runs == Runs::Fire));
         Effect {
             reaction_id: e.id.clone(),
             kind,
@@ -336,9 +342,13 @@ impl Effects {
         codex.entries.iter().map(|e| self.of(e)).collect()
     }
 
-    /// The tint table's sources (shown on the Bench page's credits).
-    pub fn tint_sources(&self) -> &[String] {
-        &self.file.tints.sources
+    /// The sources of every colour a tint can come from (shown on the
+    /// Bench page's credits).
+    pub fn tint_sources(&self) -> Vec<String> {
+        ["COLOUR-GE", "COLOUR-FLAME", "COLOUR-HC"]
+            .iter()
+            .filter_map(|k| self.shows.sources.get(*k).cloned())
+            .collect()
     }
 }
 
@@ -589,10 +599,28 @@ mod tests {
         for fam in &f.file.aqueous_families {
             assert!(c.families.contains(fam), "{fam}");
         }
-        for s in f.file.tints.substance.keys().chain(&f.file.smothers) {
+        for s in &f.file.smothers {
             assert!(c.known_species.contains(s), "{s} is not a codex substance");
         }
         assert!(!f.tint_sources().is_empty());
+        // Every tint is a sourced colour of the reaction's show record.
+        for e in &c.entries {
+            let fx = f.of(e);
+            let rec = f.shows.get(&e.id).unwrap();
+            if let Some(t) = &fx.tint {
+                let flame = rec.flame.as_ref().and_then(|x| x.light.hex.as_ref());
+                let coloured = rec
+                    .species
+                    .iter()
+                    .filter_map(|s| s.colour.as_ref())
+                    .any(|c| c.hex.as_ref() == Some(t) && c.hex_estimated);
+                assert!(
+                    flame == Some(t) || coloured,
+                    "{}: tint {t} has no source",
+                    e.id
+                );
+            }
+        }
         // The last rule of each list matches everything, so nothing falls through.
         assert!(f.file.kind_rules.last().unwrap().when.family.is_none());
         assert!(f.file.strength_rules.last().unwrap().when.heat.is_none());

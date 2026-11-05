@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Which spell effect each codex reaction (content/chem/core.json) casts as once a Bench discovery is saved as a spell (docs/loop/items/I-053/spec.md). The effect is derived from the reaction's own data by the ordered rules below (the first match wins), never written per reaction, except the listed overrides. kind is the look the renderer styles (fire, water, frost, foam, cloud, glow); runs is the world chemistry rule it reuses (fire, water, frost, foam, or none: a puff with no rule); strength (0 to 1) scales that rule's emit, 1 being the shipped spell; heat is -1 (absorbs), 0 or +1 (releases). tint is an optional sRGB colour of the visible change (flame colour, coloured gas or precipitate) from the tint tables; absent means the renderer's default. Tint data is draft until the science review.",
+  "about": "Which spell effect each codex reaction (content/chem/core.json) casts as once a Bench discovery is saved as a spell (docs/loop/items/I-053/spec.md). The effect is derived from the reaction's own data by the ordered rules below (the first match wins), never written per reaction, except the listed overrides. kind is the look the renderer styles (fire, water, frost, foam, cloud, glow); runs is the world chemistry rule it reuses (fire, water, frost, foam, or none: a puff with no rule); strength (0 to 1) scales that rule's emit, 1 being the shipped spell; heat is -1 (absorbs), 0 or +1 (releases). tint is an optional sRGB colour of the visible change (flame colour, coloured gas or precipitate) from the reaction's show record (tint_rule); absent means the renderer's default. strength comes from the show record's ΔH where there is one (strength_scale). Show data is draft until the science review.",
   "kinds": ["fire", "water", "frost", "foam", "cloud", "glow"],
   "runs": {
     "fire": "fire",
@@ -32,37 +32,6 @@
   "overrides": {
     "thermite": { "kind": "fire", "strength": 1.0, "why": "thermite burns white hot with sparks, though its hazard badge is lab" }
   },
-  "tints": {
-    "check": "draft",
-    "flame": {
-      "Li": "#d6213a",
-      "Na": "#ffb21e",
-      "K": "#b58fd8",
-      "Ca": "#ff6b2b",
-      "Sr": "#e8202a",
-      "Ba": "#a8e05a",
-      "Mg": "#f5f7ff"
-    },
-    "substance": {
-      "AgCl": "#f4f4f4",
-      "AgBr": "#f1e6b0",
-      "AgI": "#f2df73",
-      "PbI2": "#ffd21f",
-      "PbCl2": "#f4f4f4",
-      "BaSO4": "#f4f4f4",
-      "CaCO3": "#f4f4f4",
-      "Mg(OH)2": "#f4f4f4",
-      "Zn(OH)2": "#f4f4f4",
-      "Cu(OH)2": "#3d8fe0",
-      "Fe(OH)2": "#5b7f4f",
-      "Fe(OH)3": "#a0522d",
-      "Cl2": "#c8d84a",
-      "NO2": "#a2401c"
-    },
-    "about": "flame: the flame colour of a metal burning, used when a reactant is that bare element and the effect runs fire. substance: the colour of a precipitate or coloured gas among the products, used for every other kind (the first product with a colour).",
-    "sources": [
-      "Flame colours: Wikipedia, 'Flame test' (lithium crimson, sodium yellow-orange, potassium lilac, calcium orange-red, strontium red, barium pale green): https://en.wikipedia.org/wiki/Flame_test ; magnesium burns with a brilliant white light: https://en.wikipedia.org/wiki/Magnesium",
-      "Precipitate and gas colours: the Wikipedia article for each substance (silver chloride white, silver bromide cream, silver iodide pale yellow, lead(II) iodide bright yellow, lead(II) chloride, barium sulfate, calcium carbonate, magnesium hydroxide and zinc hydroxide white, copper(II) hydroxide blue, iron(II) hydroxide green, iron(III) hydroxide red-brown, chlorine yellow-green, nitrogen dioxide red-brown); OpenStax Chemistry 2e, section 4.2: https://openstax.org/books/chemistry-2e/pages/4-2-classifying-chemical-reactions"
-    ]
-  }
+  "strength_scale": "When the reaction's show record has a ΔH (content/chem/show.json, crates/chem/src/show.rs), strength = ln(1 + |ΔH| / kJ) / ln(1 + 800), clamped to 0.1..1 and rounded to 0.01: a burning (several hundred kJ per mole of reaction) is a full-strength spell, a neutralisation (about 56 kJ) about 0.6, a few kJ about 0.2. A reaction that takes in heat only while it is given heat, light or electricity chills little, so it counts a quarter (at least 0.05). With no ΔH the strength_rules above apply. Gameplay scale; ΔH itself is sourced (docs/loop/items/I-054/spec.md section 6).",
+  "tint_rule": "tint comes from the reaction's show record: for an effect that runs Fire, the colour of its flame's emitter (sodium yellow-orange, lithium crimson, ...); otherwise the first product with a rendered colour (a precipitate, coloured gas or coloured solution), never water. Colours and their sources are in content/chem/substances.json and show.json."
 }
