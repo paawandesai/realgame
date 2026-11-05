@@ -35,6 +35,26 @@ export function effects_json() {
 }
 
 /**
+ * The geometry of one species (`content/chem/geometry.json`), or `null`.
+ * @param {string} formula
+ * @returns {string}
+ */
+export function geometry_json(formula) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(formula, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.geometry_json(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * Judges `input`, which is either a whole equation (`2H2 + O2 -> 2H2O`) or
  * just what is in the chamber (`2H2 + O2`). `have` is a comma list of
  * needs; `band_id` is `sprout`, `seedling`, `apprentice` or `adept`.
@@ -95,6 +115,68 @@ export function names_json() {
     let deferred1_1;
     try {
         const ret = wasm.names_json();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * One frame of reaction `id` at time `t` (0..1): atoms (Å), bonds with
+ * their stretch, the events under way and the effect with each visible
+ * change's intensity (`show::frame`). `null` for an unknown id.
+ * @param {string} id
+ * @param {number} t
+ * @returns {string}
+ */
+export function show_frame_json(id, t) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.show_frame_json(ptr0, len0, t);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
+ * The reaction show record of codex reaction `id` (`show::ShowRecord`,
+ * I-054): states, colours, visible changes, ΔH, speed, flame, gases,
+ * precipitates and the atom story. `null` for an unknown id.
+ * @param {string} id
+ * @returns {string}
+ */
+export function show_json(id) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.show_json(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
+ * Every source key the show records cite, with its full reference.
+ * @returns {string}
+ */
+export function show_sources_json() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.show_sources_json();
         deferred1_0 = ret[0];
         deferred1_1 = ret[1];
         return getStringFromWasm0(ret[0], ret[1]);

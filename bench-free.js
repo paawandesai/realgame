@@ -11,7 +11,7 @@
 // (walkthroughs, lessons, hints, challenges, everyday lines) comes from
 // content/chem/guide.json, shipped as chem-guide.json.
 
-import init, { codex_json, effects_json, judge_json, literature_key_json, names_json } from './chem.js';
+import init, { codex_json, effects_json, judge_json, literature_key_json, names_json, show_json } from './chem.js';
 import { readSpells, saveSpell } from './formula-save.js';
 import { parseFormula as parseWith, hill, sideOf, sideText } from './bench-free-lib.js';
 import { createBenchScene } from './bench-scene.js';
@@ -334,6 +334,77 @@ async function main() {
   };
   /** @type {Record<string, string>} */
   const HEAT = names.heat;
+  // ---------- what you would really see (reaction show records, I-054) ----------
+  // Each codex reaction's show record (crates/chem/src/show.rs) says what a
+  // real bench shows: states, sourced colours, the visible changes, ΔH and
+  // speed. The card says it in the band's words: plain words for Sprout and
+  // Seedling, states from Apprentice, ΔH at Adept.
+  /** @type {Record<string, any>} */
+  const SHOWS = {};
+  const showOf = (/** @type {string} */ id) => (SHOWS[id] ??= JSON.parse(show_json(id)));
+  const listWords = (/** @type {string[]} */ xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+  const STATE_WORD = { s: 'solid', l: 'liquid', g: 'gas', aq: 'dissolved' };
+  /** A substance's everyday name without its bracketed second name ("carbon (charcoal)" is carbon). */
+  const bare = (/** @type {string} */ f) => nameOf(f).replace(/ \(.*\)$/, '');
+  /** "a" or "an" before a word. */
+  const an = (/** @type {string} */ w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+  /** A gas's name: names.json names some substances by their solution (HCl is hydrochloric acid); as a gas it is hydrogen chloride. */
+  const GAS_NAME = { HCl: 'hydrogen chloride' };
+  const gasName = (/** @type {string} */ f) => GAS_NAME[/** @type {keyof typeof GAS_NAME} */ (f)] || nameOf(f);
+  /** A glow's colour word from its temperature (no temperature: an externally heated solid). */
+  const glowWord = (/** @type {any} */ t) => (!t ? 'a glow from the hot solid' : t.k < 1200 ? 'a red-hot glow' : t.k < 1800 ? 'an orange-hot glow' : 'a white-hot glow');
+  /** The visible changes of a show record, as short phrases. Sprout gets the two plainest. */
+  const seeParts = (/** @type {any} */ s, young = false) => {
+    /** @type {string[]} */
+    const parts = [];
+    const add = (/** @type {string} */ x) => { if (!parts.includes(x)) parts.push(x); };
+    // A colour as an adjective ("blue copper sulfate"); none when colourless, or when it repeats the name ("shiny silver" silver).
+    const tone = (/** @type {any} */ c, /** @type {string} */ f = '') => (c && !c.described.startsWith('colourless') && !(f && c.described.includes(bare(f))) ? `${c.described} ` : '');
+    for (const v of s.visible) {
+      if (v === 'flame') add(s.flame && s.flame.emitter !== 'unknown' ? `${an(s.flame.described)} flame` : 'a flame');
+      else if (v === 'glow') add(glowWord(s.glow?.temp));
+      else if (v === 'bubbles') { const g = s.gases.filter((/** @type {any} */ x) => x.side === 'product').map((/** @type {any} */ x) => gasName(x.formula).replace(/ \(.*\)$/, '')); add(g.length ? `bubbles of ${listWords(g)}` : 'bubbles'); }
+      else if (v === 'precipitate') for (const x of s.precipitates) add(`${an(`${tone(x.colour)}solid`)} (${bare(x.formula)}) ${x.grain === 'grainy' ? 'settling to the bottom' : 'clouding the liquid'}`);
+      else if (v === 'coating') for (const x of s.coatings) add(`${tone(x.colour, x.formula)}${bare(x.formula)} coating the ${x.on === 'electrode' ? 'electrode' : bare(x.on)}`);
+      else if (v === 'colour_change') {
+        const gone = s.colour_changes.filter((/** @type {any} */ c) => !c.appears);
+        const comes = s.colour_changes.filter((/** @type {any} */ c) => c.appears);
+        if (young) {
+          const c = gone[0] || comes[0];
+          if (c) add(`the ${c.colour.described} colour ${c.appears ? 'appearing' : 'fading'}`);
+        } else if (gone.length || comes.length) add(`a colour change: ${listWords([...gone.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${bare(c.formula)} going`), ...comes.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${bare(c.formula)} appearing`)])}`);
+      } else if (v === 'smoke') for (const x of s.smoke) add(x.kind === 'vapour' ? `${tone(x.colour)}${bare(x.formula)} vapour` : `${tone(x.colour)}${x.kind}`);
+      else if (v === 'frost') add('frost');
+      else if (v === 'shimmer') add('the hot air shimmering above it');
+      else if (v === 'condensation') add('droplets forming on the cool glass');
+    }
+    return young ? parts.slice(0, 2) : parts;
+  };
+  const DRIFT = { rises: 'so it rises', sinks: 'so it sinks', mixes: 'close enough that it mixes with the air instead of rising or sinking' };
+  /** The "what you would see" lines of the result card, for this band. */
+  const seeHtml = (/** @type {any} */ s) => {
+    if (!s) return '';
+    const parts = seeParts(s, isSprout());
+    // Phrases that hold their own list are kept apart with semicolons.
+    const seen = parts.some((x) => /, | and /.test(x)) ? parts.join('; ') : listWords(parts);
+    let h = parts.length ? `<p class="see"><b>What you’d see:</b> ${esc(seen)}.</p>` : '';
+    if (s.note) h += `<p class="see">${esc(s.note)}</p>`;
+    if (s.sped_up) h += `<p class="see">For real this takes ${esc(s.timescale)}, so the Bench shows it sped up.</p>`;
+    if (rank(band) >= rank('apprentice')) {
+      const st = s.species.map((/** @type {any} */ x) => `${x.coef > 1 ? x.coef : ''}${subs(x.formula)}(${x.state})`);
+      const nr = s.species.filter((/** @type {any} */ x) => x.side === 'reactant').length;
+      h += `<p class="see eq">${st.slice(0, nr).join(' + ')} → ${st.slice(nr).join(' + ')}</p>`;
+      h += `<p class="see">States: ${esc(listWords([...new Set(s.species.map((/** @type {any} */ x) => `${x.state} = ${STATE_WORD[/** @type {keyof typeof STATE_WORD} */ (x.state)]}`))]))}.</p>`;
+    }
+    if (rank(band) >= rank('adept')) {
+      if (s.dh.kj !== null) h += `<p class="see">ΔH = ${s.dh.kj > 0 ? '+' : '−'}${Math.abs(s.dh.kj).toFixed(1)} kJ per mole of reaction as written${s.dh.dh_estimated ? ' (estimated)' : ''}, from standard enthalpies of formation.</p>`;
+      const t = s.flame?.temp || s.glow?.temp;
+      if (t) h += `<p class="see">Up to about ${Math.round(t.k / 100) * 100} K: an estimated upper bound (no heat lost).</p>`;
+      if (s.flame?.typical_k) h += `<p class="see">Its glowing soot is nearer ${Math.round(s.flame.typical_k / 100) * 100} K, which gives the yellow.</p>`;
+      for (const g of s.gases.filter((/** @type {any} */ x) => x.side === 'product')) h += `<p class="see">${esc(gasName(g.formula).replace(/ \(.*\)$/, ''))}: ${g.density_rel_air.toFixed(2)} times as dense as air, ${DRIFT[/** @type {keyof typeof DRIFT} */ (g.drift)]}.</p>`;
+    }
+    return h;
+  };
   const fxFor = (/** @type {any} */ r, /** @type {Record<string, number>} */ out) => (names.effects[r.family] === 'flame' ? 'flame' : Object.keys(out).some((f) => GASES.has(f)) ? 'bubbles' : names.effects[r.family] || 'glow');
   // Lab records: published reactions (Open Reaction Database), fetched the
   // first time a try isn't in the codex. Keys come from the engine.
@@ -392,9 +463,10 @@ async function main() {
       if (rt && !balanced.includes(r.id)) { balanced = [...balanced, r.id]; store.set('balanced', balanced); }
       if (isNew) { found = [...found, r.id]; store.set('found', found); }
       drawCodex();
-      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
+      const show = showOf(r.id);
+      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${seeHtml(show)}${show?.feel ? `<p>${esc(show.feel)}</p>` : r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
       $('result').append(saveSpellButton(r));
-      note(eqText, r.name, true); animate(inSide, out, fxFor(r, out)); return;
+      note(eqText, r.name, true); animate(inSide, out, fxFor(r, out), show); return;
     }
     if (raw.kind === 'unbalanced') {
       const near = raw.close ? `<p>You’re close: these really do react. ${rank(band) <= rank('seedling') ? 'Try changing how many of each you use.' : 'Change the numbers in front.'}</p>` : '<p>Atoms are never made or destroyed, so both sides need the same atoms.</p>';
@@ -446,8 +518,10 @@ async function main() {
   // The chamber animation is drawn by bench-scene.js; here each side becomes
   // up to 12 molecules with their drawn bonds.
   const mols = (/** @type {Record<string, number>} */ side) => Object.entries(side).flatMap(([f, n]) => Array(Math.min(n, 6)).fill(f)).slice(0, 12).map((f) => { const els = atomsOf(f); return { els, bonds: structure(els).bonds }; });
-  const animate = (/** @type {Record<string, number>} */ inSide, /** @type {Record<string, number>} */ outSide, /** @type {any} */ fx) => {
-    const a = mols(inSide); scene3d.playReaction(a, mols(outSide), fx); chamberMols = a.length; previewKey = sideText(left); ran = true; drawChamberTag();
+  // The show record goes to the scene as an optional 4th argument (the
+  // graphics thread draws from it; today's scene ignores it).
+  const animate = (/** @type {Record<string, number>} */ inSide, /** @type {Record<string, number>} */ outSide, /** @type {any} */ fx, /** @type {any} */ show = undefined) => {
+    const a = mols(inSide); /** @type {any} */ (scene3d).playReaction(a, mols(outSide), fx, show); chamberMols = a.length; previewKey = sideText(left); ran = true; drawChamberTag();
   };
 
   // What is on "in" always shows in the 3D chamber: one molecule per count
