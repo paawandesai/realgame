@@ -3009,6 +3009,16 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await frames(3);
   };
   const isOpen = () => page.evaluate(() => { const b = document.getElementById('bench'); return !!b && !b.hidden; });
+  // Open and the Bench page ready inside it (its first load takes a moment).
+  // After B: when it opened, wait for the Bench page to be ready (its first
+  // load in a page takes a few seconds; the overlay itself shows at once).
+  const readyWait = async () => {
+    await frames(2);
+    if (!(await isOpen())) return;
+    for (const t0 = Date.now(); !(await isReady()) && Date.now() - t0 < 90000;) await sleep(200);
+    await frames(2);
+  };
+  const isReady = () => page.evaluate(() => { const b = document.getElementById('bench'); return !!b && !b.hidden && !!window.__bench.ui().ready; });
   const lockNow = async () => {
     if (await page.evaluate(() => document.pointerLockElement === document.getElementById('game'))) return true;
     await page.mouse.click(VW / 2, VH / 2);
@@ -3017,20 +3027,70 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     }
     return false;
   };
-  const center = (sel) => page.evaluate((sel) => {
-    const el = document.querySelector(sel);
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
-  }, sel);
+  // I-060: the Bench is a page (bench-free.html?mode=story) in an iframe in
+  // #bench. The old Bench's selectors map onto the one Bench's: its builder
+  // (bench.js mountBuilder) keeps the .bench-* classes inside the Spells
+  // tab's .sb-mount; the panel's parts are the Spells tab's (.sb-*) and the
+  // page's (#toGame, h1, #changeBand, the band question #bandAskRow).
+  const benchFrame = async () => { const h = await page.$('#bench-frame'); return h ? h.contentFrame() : null; };
+  const fev = async (fn, arg) => { const f = await benchFrame(); return f ? f.evaluate(fn, arg).catch(() => null) : null; };
+  const inB = (sel) => sel.startsWith('#bench ') || sel === '#bench-input';
+  const M = (sel) => {
+    if (!inB(sel)) return sel;
+    let q = sel.replace(/^#bench /, '');
+    const map = [
+      [/^\.bench-spell\[data-slot="(\d)"\] \.bench-stage$/, '.sb-spell[data-slot="$1"] .sb-stage'],
+      [/^\.bench-spell\[data-slot="(\d)"\]$/, '.sb-spell[data-slot="$1"] :is(.sb-learn, .sb-practise)'],
+      [/^\.bench-spell$/, '.sb-spell:has(.sb-learn, .sb-practise)'],
+      [/^\.bench-reason$/, '.sb-reason'],
+      [/^\.bench-diff/, '.sb-fizzle .bench-diff'],
+      [/^\.bench-done-line$/, '.sb-done-line'],
+      [/^\.bench-done \.bench-stage/, '.sb-done .sb-stage'],
+      [/^\.bench-done-icon$/, '.sb-done-icon'],
+      [/^\.bench-again$/, '.sb-back'],
+      [/^\.bench-back$/, '.sb-back'],
+      [/^\.bench-close$/, '#toGame'],
+      [/^\.bench-title$/, 'h1'],
+      [/^\.bench-change$/, '#changeBand'],
+      [/^\.bench-band(\[data-band[^\]]*\])$/, '#bandAskRow button$1'],
+      [/^\[data-band\]$/, '#bandAskRow [data-band]'],
+      [/^\.bench-/, '.sb-mount .bench-'],
+    ];
+    for (const [re, to] of map) if (re.test(q)) return q.replace(re, to);
+    return q;
+  };
+  const center = async (sel) => {
+    if (inB(sel)) {
+      return fev((q) => {
+        const el = document.querySelector(q);
+        if (!el) return null;
+        el.scrollIntoView({ block: 'nearest' });
+        const f = window.frameElement.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        return r.width ? { x: f.left + r.left + r.width / 2, y: f.top + r.top + r.height / 2, w: r.width, h: r.height } : null;
+      }, M(sel));
+    }
+    return page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+    }, sel);
+  };
   // A real mouse click at the element's centre (test 17: mouse only).
   const clickAt = async (sel) => {
-    const c = await center(sel);
+    let c = await center(sel);
+    for (const t0 = Date.now(); !c && Date.now() - t0 < 20000; await sleep(150)) c = await center(sel);
     if (!c) throw new Error(`no ${sel}`);
     await page.mouse.click(c.x, c.y);
   };
-  const text = (sel) => page.evaluate((sel) => { const el = document.querySelector(sel); return el ? el.textContent : null; }, sel);
-  const cardNames = () => page.evaluate(() => [...document.querySelectorAll('#bench .bench-spell .bench-spell-name')].map((e) => e.textContent));
+  const text = (sel) => (inB(sel) ? fev((q) => { const el = document.querySelector(q); return el ? el.textContent : null; }, M(sel)) : page.evaluate((sel) => { const el = document.querySelector(sel); return el ? el.textContent : null; }, sel));
+  // The spells the Bench offers to build here (the ones with Learn or Practise).
+  const cardNames = () => fev(() => [...document.querySelectorAll('.sb-spell')].filter((c) => c.querySelector('.sb-learn, .sb-practise')).map((c) => c.querySelector('.sb-name').textContent)).then((x) => x || []);
+  const count = (sel) => fev((q) => document.querySelectorAll(q).length, M(sel)).then((x) => x || 0);
+  const has = (sel) => fev((q) => !!document.querySelector(q), M(sel)).then((x) => !!x);
+  const focusId = () => fev(() => document.activeElement && document.activeElement.id);
+  const fillIn = (v) => fev((v) => { const i = document.getElementById('bench-input'); i.value = v; i.dispatchEvent(new Event('input')); i.focus(); }, v);
   // The next result after a Make: one whose n is above the last one seen.
   const resultAfter = async (n0, frames = 10) => withinFrames(bs, (x) => !!x && !!x.result && x.result.n > n0, frames);
   const lastN = async () => { const x = await bs(); return x && x.result ? x.result.n : 0; };
@@ -3104,7 +3164,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   // 14. The B key, locked; and a key held while it opens.
   await run('bench: B opens it from a locked game', async () => {
     const locked = await lockNow();
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     const v = await withinFrames(() => page.evaluate(() => ({
       open: !document.getElementById('bench').hidden,
       lock: document.pointerLockElement !== null,
@@ -3126,7 +3186,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await lockNow();
     await page.keyboard.down('KeyW');
     await frames(5);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(isOpen, (o) => o, 10);
     await page.keyboard.up('KeyW');
     await frames(2);
@@ -3146,7 +3206,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   await run('bench: opened from the pause card, closing returns to it', async () => {
     await load();
     await page.evaluate(() => window.__game.pause(true));
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     const opened = await withinFrames(isOpen, (o) => o, 10);
     await page.keyboard.press('Escape');
     await withinFrames(isOpen, (o) => !o, 10);
@@ -3159,9 +3219,10 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   // 16. Band chooser.
   await run('bench: the band chooser', async () => {
     await load();
-    await page.keyboard.press('KeyB');
-    await withinFrames(isOpen, (o) => o, 10);
-    const bands = await page.evaluate(() => [...document.querySelectorAll('#bench [data-band]')].map((b) => {
+    await page.keyboard.press('KeyB'); await readyWait();
+    await withinFrames(isReady, (o) => o, 60);
+    await withinFrames(() => count('#bench [data-band]'), (n) => n > 0, 30);
+    const bands = await fev(() => [...document.querySelectorAll('#bandAskRow [data-band]')].map((b) => {
       const r = b.getBoundingClientRect();
       return { band: b.getAttribute('data-band'), w: r.width, h: r.height, svg: !!b.querySelector('svg') };
     }));
@@ -3172,17 +3233,17 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     check('bench: choosing 8 to 10 lists the four spells', names.length === 4, names.join(','));
     await clickAt('#bench .bench-close');
     await withinFrames(isOpen, (o) => !o, 10);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(isOpen, (o) => o, 10);
     const u = await bui();
     check('bench: reopened on the same page load it does not ask again', u && u.view !== 'chooser' && u.band === 'seedling', brief(u));
     await clickAt('#bench .bench-change');
     const u2 = await bui();
-    const again = await page.evaluate(() => document.querySelectorAll('#bench .bench-band[data-band]').length);
-    check('bench: Change age shows the chooser again', u2.view === 'chooser' && again === 3, `${brief(u2)} buttons=${again}`);
+    const again = await count('#bench .bench-band[data-band]');
+    check('bench: Change grade shows the chooser again', u2.view === 'chooser' && again === 3, `${brief(u2)} buttons=${again}`);
     await page.keyboard.press('Escape');
     await load();
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(isOpen, (o) => o, 10);
     const u3 = await bui();
     const stored = await page.evaluate(() => {
@@ -3198,30 +3259,25 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   await run('bench: Sprout learns Water with the mouse', async () => {
     await load(['band=sprout'], { settings: null });
     await clearSaid();
-    await clickAt('#benchbtn');
+    await clickAt('#benchbtn'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 3, 10);
     const names = await cardNames();
-    const sizes = await page.evaluate(() => [...document.querySelectorAll('#bench .bench-spell')].map((c) => { const r = c.getBoundingClientRect(); return [r.width, r.height]; }));
+    const sizes = await fev((q) => [...document.querySelectorAll(q)].map((c) => { const r = c.getBoundingClientRect(); return [r.width, r.height]; }), M('#bench .bench-spell'));
     check('bench: Sprout lists exactly Water, Frost and CO2, each card at least 120 px', names.join(',') === 'Water,Frost,CO₂' && sizes.length === 3 && sizes.every(([w, h]) => w >= 120 && h >= 120), `${names.join(',')} ${JSON.stringify(sizes)}`);
     await clickAt('#bench .bench-spell[data-slot="2"]');
-    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-recipe .bench-ball').length), (n) => n > 0, 10);
-    const recipe = await page.evaluate(() => ({
-      H: document.querySelectorAll('#bench .bench-recipe .bench-ball[data-el="H"]').length,
-      O: document.querySelectorAll('#bench .bench-recipe .bench-ball[data-el="O"]').length,
-    }));
+    await withinFrames(() => count('#bench .bench-recipe .bench-ball'), (n) => n > 0, 10);
+    const recipe = { H: await count('#bench .bench-recipe .bench-ball[data-el="H"]'), O: await count('#bench .bench-recipe .bench-ball[data-el="O"]') };
     const s1 = await said();
     check('bench: picking Water speaks the prompt and shows 2 H and 1 O', s1.includes('Make water! Copy the balls in the picture.') && recipe.H === 2 && recipe.O === 1, `said=${JSON.stringify(s1)} recipe=${JSON.stringify(recipe)}`);
-    const cards = await page.evaluate(() => [...document.querySelectorAll('#bench .bench-atom')].map((c) => { const r = c.getBoundingClientRect(); return [c.getAttribute('data-el'), r.width, r.height]; }));
+    const cards = await fev(() => [...document.querySelectorAll('.sb-mount .bench-atom')].map((c) => { const r = c.getBoundingClientRect(); return [c.getAttribute('data-el'), r.width, r.height]; }));
     let n0 = await lastN();
     await clickAt('#bench .bench-atom[data-el="H"]');
     await clickAt('#bench .bench-atom[data-el="O"]');
     await clickAt('#bench .bench-make');
     let x = await resultAfter(n0);
     await frames(1);
-    const fizz = await page.evaluate(() => ({
-      reason: document.querySelector('#bench .bench-reason')?.textContent,
-      cross: !!document.querySelector('#bench .bench-diff[data-el="H"][data-ok="false"] .bench-mark.cross'),
-    }));
+    await withinFrames(() => has('#bench .bench-reason'), (o) => o, 10);
+    const fizz = { reason: await text('#bench .bench-reason'), cross: await has('#bench .bench-diff[data-el="H"][data-ok="false"] .bench-mark.cross') };
     check('bench: H, O then Make fizzles (atoms_off) with the Sprout reason and a crossed H row; atom cards at least 96 px',
       x && x.result && x.result.ok === false && x.result.code === 'atoms_off' && fizz.reason === 'Look again. Count the balls in the picture.' && fizz.cross
         && cards.length === 4 && cards.every(([, w, h]) => w >= 96 && h >= 96) && (await prog(1))?.st === 'unknown',
@@ -3231,10 +3287,8 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await clickAt('#bench .bench-make');
     x = await resultAfter(n0);
     await frames(1);
-    const done = await page.evaluate(() => ({
-      line: document.querySelector('#bench .bench-done-line')?.textContent,
-      badge: document.querySelector('#bench .bench-done .bench-stage[data-stage="learning"]')?.textContent,
-    }));
+    await withinFrames(() => has('#bench .bench-done-line'), (o) => o, 10);
+    const done = { line: await text('#bench .bench-done-line'), badge: await text('#bench .bench-done .bench-stage[data-stage="learning"]') };
     const p = await withinFrames(() => prog(1), (q) => q && q.st === 'learning', 10);
     const s2 = await said();
     check('bench: H then Make learns Water (done panel, Learning badge, xp 10)',
@@ -3248,7 +3302,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       await clickAt('#bench .bench-again');
       await withinFrames(cardNames, (n) => n.length === 3, 10);
       await clickAt('#bench .bench-spell[data-slot="2"]');
-      await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-atom').length), (n) => n === 4, 10);
+      await withinFrames(() => count('#bench .bench-atom'), (n) => n === 4, 10);
       for (const el of ['H', 'H', 'O']) await clickAt(`#bench .bench-atom[data-el="${el}"]`);
       const m0 = await lastN();
       await clickAt('#bench .bench-make');
@@ -3283,7 +3337,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     // 23. Progress survives a reload.
     await load(['band=sprout'], { keep: true });
     const q = await until((s) => s.progress && s.progress[1] && s.progress[1].st === 'learning', 10000);
-    await clickAt('#benchbtn');
+    await clickAt('#benchbtn'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 3, 10);
     const badge = await text('#bench .bench-spell[data-slot="2"] .bench-stage');
     check('bench: after a reload the Water badge reads Learning', q.progress[1].st === 'learning' && /Learning/.test(badge || ''), `prog=${JSON.stringify(q.progress[1])} badge=${badge}`);
@@ -3292,7 +3346,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     // 17 (sound off). With sound:false saved, picking Water speaks nothing.
     await load(['band=sprout'], { settings: JSON.stringify({ sound: false }) });
     await clearSaid();
-    await clickAt('#benchbtn');
+    await clickAt('#benchbtn'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 3, 10);
     await clickAt('#bench .bench-spell[data-slot="2"]');
     await frames(2);
@@ -3306,13 +3360,13 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   // 18. A 9-year-old learns Fire on the scale.
   await run('bench: Seedling learns Fire on the scale', async () => {
     await load(['band=seedling']);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     await clickAt('#bench .bench-spell[data-slot="1"]');
-    await withinFrames(() => page.evaluate(() => !!document.querySelector('#bench .bench-scale')), (o) => o, 10);
-    const pans = () => page.evaluate(() => ({
-      pans: [...document.querySelectorAll('#bench .bench-pan-count')].map((e) => e.textContent),
-      level: document.querySelector('#bench .bench-scale')?.getAttribute('data-level'),
+    await withinFrames(() => has('#bench .bench-scale'), (o) => o, 10);
+    const pans = () => fev(() => ({
+      pans: [...document.querySelectorAll('.sb-mount .bench-pan-count')].map((e) => e.textContent),
+      level: document.querySelector('.sb-mount .bench-scale')?.getAttribute('data-level'),
     }));
     const a = await pans();
     check('bench: Fire at Seedling shows the pans and a tilted beam', a.pans.join('|') === 'C 1, H 4, O 2|C 1, H 2, O 3' && a.level === 'false', JSON.stringify(a));
@@ -3336,7 +3390,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await clickAt('#bench .bench-again');
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     await clickAt('#bench .bench-spell[data-slot="2"]');
-    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-tile').length), (n) => n === 4, 10);
+    await withinFrames(() => count('#bench .bench-tile'), (n) => n === 4, 10);
     await clickAt('#bench .bench-tile[data-el="H"]');
     await clickAt('#bench .bench-tile[data-el="H"]');
     await clickAt('#bench .bench-tile[data-el="O"]');
@@ -3350,22 +3404,22 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   // 19. A 13-year-old learns Frost by typing; keys do not leak.
   await run('bench: Apprentice learns Frost by typing', async () => {
     await load(['band=apprentice']);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     await clickAt('#bench .bench-spell[data-slot="3"]');
-    await withinFrames(() => page.evaluate(() => document.activeElement && document.activeElement.id), (id) => id === 'bench-input', 10);
-    const v0 = await page.evaluate(() => ({ recipe: document.querySelectorAll('#bench .bench-recipe, #bench .bench-ball').length, focus: document.activeElement && document.activeElement.id }));
+    await withinFrames(focusId, (id) => id === 'bench-input', 10);
+    const v0 = await fev(() => ({ recipe: document.querySelectorAll('.sb-mount .bench-recipe, .sb-mount .bench-ball').length, focus: document.activeElement && document.activeElement.id }));
     check('bench: Apprentice shows no recipe and focuses the text box', v0.recipe === 0 && v0.focus === 'bench-input', JSON.stringify(v0));
     const before = await st();
     const pauseBefore = await page.evaluate(() => document.getElementById('pause').classList.contains('hidden'));
     await page.keyboard.type('Br2 R 3 P');
     await frames(5);
     const after = await st();
-    const leak = await page.evaluate(() => ({ open: !document.getElementById('bench').hidden, pauseHidden: document.getElementById('pause').classList.contains('hidden'), value: document.getElementById('bench-input').value }));
+    const leak = { ...(await page.evaluate(() => ({ open: !document.getElementById('bench').hidden, pauseHidden: document.getElementById('pause').classList.contains('hidden') }))), value: await fev(() => document.getElementById('bench-input').value) };
     check('bench: typing does not reach the game (spell, captionId, gameTime unchanged; no reset, no pause toggle)',
       after.spell === before.spell && after.captionId === before.captionId && after.gameTime === before.gameTime && leak.open && leak.pauseHidden === pauseBefore && leak.value === 'Br2 R 3 P',
       `spell ${before.spell}->${after.spell} cap ${before.captionId}->${after.captionId} t ${before.gameTime}->${after.gameTime} ${JSON.stringify(leak)}`);
-    const clearBox = () => page.evaluate(() => { const i = document.getElementById('bench-input'); i.value = ''; i.dispatchEvent(new Event('input')); i.focus(); });
+    const clearBox = () => fillIn('');
     const typeTry = async (s, insert = false) => {
       const m0 = await lastN();
       if (insert) await page.keyboard.insertText(s); else await page.keyboard.type(s);
@@ -3390,7 +3444,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await clickAt('#bench .bench-again');
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     await clickAt('#bench .bench-spell[data-slot="2"]');
-    await withinFrames(() => page.evaluate(() => document.activeElement && document.activeElement.id), (id) => id === 'bench-input', 10);
+    await withinFrames(focusId, (id) => id === 'bench-input', 10);
     const reasons = [];
     for (let k = 0; k < 3; k++) {
       await clearBox();
@@ -3413,8 +3467,9 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   await run('bench: keyboard only', async () => {
     await load(['band=sprout']);
     await page.evaluate(() => document.getElementById('game').focus());
-    await page.keyboard.press('KeyB');
-    await withinFrames(cardNames, (n) => n.length === 3, 10);
+    await page.keyboard.press('KeyB'); await readyWait();
+    await withinFrames(cardNames, (n) => n.length === 3, 60);
+    await withinFrames(() => fev(() => !!document.activeElement && !!document.activeElement.closest('#spellbook')), (o) => o, 20);
     let inside = true;
     const press = async (k) => {
       await page.keyboard.press(k);
@@ -3422,14 +3477,14 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     };
     const focusTo = async (sel, key = 'Tab') => {
       for (let k = 0; k < 30; k++) {
-        if (await page.evaluate((sel) => !!document.activeElement && document.activeElement.matches(sel), sel)) return true;
+        if (await fev((q) => !!document.activeElement && document.activeElement.matches(q), M(`#bench ${sel}`))) return true;
         await press(key);
       }
       return false;
     };
     const reached = await focusTo('.bench-spell[data-slot="2"]', 'ArrowRight');
     await press('Enter');
-    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-atom').length), (n) => n === 4, 10);
+    await withinFrames(() => count('#bench .bench-atom'), (n) => n === 4, 10);
     await focusTo('.bench-atom[data-el="H"]');
     await press('Enter');
     await press('Space');
@@ -3448,10 +3503,10 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
 
   // 24, 25. Sizes, text and contrast in every band's list and build views.
   await run('bench: sizes, text and contrast', async () => {
-    const measure = () => page.evaluate(() => {
-      const root = document.getElementById('bench');
-      const panel = root.querySelector('.bench-panel');
-      const sprout = !!root.querySelector('.band-sprout');
+    const measure = () => fev(() => {
+      const root = document.getElementById('spellbook');
+      const panel = root.closest('.tabpane');
+      const sprout = root.dataset.band === 'sprout';
       const bad = [];
       let texts = 0;
       const rgba = (s) => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(',').map((v) => parseFloat(v)); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
@@ -3485,8 +3540,8 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       const fits = panel.scrollHeight <= panel.clientHeight + 1 || getComputedStyle(panel).overflowY === 'auto';
       const pageScroll = document.documentElement.scrollHeight > innerHeight + 1 || document.documentElement.scrollWidth > innerWidth + 1;
       if (!fits || pageScroll) bad.push(`fit panel=${fits} pageScroll=${pageScroll}`);
-      return { bad, texts, contrast, title: parseFloat(getComputedStyle(root.querySelector('.bench-title')).fontSize) };
-    });
+      return { bad, texts, contrast, title: parseFloat(getComputedStyle(root.querySelector('.sb-name')).fontSize) };
+    }).then((x) => x || { bad: ['no Bench page'], texts: 0, contrast: [], title: 0 });
     const sizeBad = [];
     const contrastBad = [];
     const notes = [];
@@ -3494,11 +3549,11 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       await page.setViewportSize({ width: w, height: h });
       for (const band of ['sprout', 'seedling', 'apprentice']) {
         await load([`band=${band}`]);
-        await page.keyboard.press('KeyB');
-        await withinFrames(cardNames, (n) => n.length >= 3, 10);
+        await page.keyboard.press('KeyB'); await readyWait();
+        await withinFrames(cardNames, (n) => n.length >= 3, 60);
         const list = await measure();
         await clickAt('#bench .bench-spell[data-slot="2"]');
-        await withinFrames(() => page.evaluate(() => !!document.querySelector('#bench .bench-make')), (o) => o, 10);
+        await withinFrames(() => has('#bench .bench-make'), (o) => o, 10);
         const build = await measure();
         for (const [name, m] of [['list', list], ['build', build]]) {
           if (m.texts === 0) sizeBad.push(`${w}x${h} ${band} ${name}: no text`);
@@ -3510,49 +3565,58 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       }
     }
     await page.setViewportSize({ width: VW, height: VH });
-    // Text size 2 doubles the bench's text.
-    await load([], { settings: JSON.stringify({ text: 2 }) });
-    await page.keyboard.press('KeyB');
-    await withinFrames(isOpen, (o) => o, 10);
-    const big = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#bench .bench-title')).fontSize));
+    // Text size 2 doubles the bench's text (a spell's name: 20 px at size 1).
+    await load(['band=seedling'], { settings: JSON.stringify({ text: 2 }) });
+    await page.keyboard.press('KeyB'); await readyWait();
+    await withinFrames(cardNames, (n) => n.length >= 3, 60);
+    const big = await fev(() => parseFloat(getComputedStyle(document.querySelector('#spellbook .sb-name')).fontSize));
     await page.keyboard.press('Escape');
     await page.evaluate((k) => { try { localStorage.removeItem(k); } catch { /* none */ } }, SETTINGS);
     check('bench: every control is at least 48 px (Sprout 96/120), text at least 18 px (Sprout prompt 24), fits the screen; text size 2 doubles it',
-      sizeBad.length === 0 && big === 52, `${sizeBad.slice(0, 4).join(' | ')} title@2=${big} texts ${notes.join(' ')}`);
+      sizeBad.length === 0 && big === 40, `${sizeBad.slice(0, 4).join(' | ')} title@2=${big} texts ${notes.join(' ')}`);
     check('bench: every text has 4.5:1 contrast against its nearest opaque background', contrastBad.length === 0, contrastBad.slice(0, 4).join(' | '));
   });
 
-  // 26. Reduced motion and no flashing (positive control with fake panels under ?debug).
+  // 26. Reduced motion and no flashing. (The old Bench's ?debug fake()
+  // panels are gone: the probe builds Water for real, at Seedling, and reads
+  // the done panel, then reads Fire's beam.)
   await run('bench: animations run once, none under reduced motion', async () => {
-    const FIRE = [
-      { side: 0, coef: 1, formula: 'CH4', atoms: [['C', 1], ['H', 4]], state: null },
-      { side: 0, coef: 2, formula: 'O2', atoms: [['O', 2]], state: null },
-      { side: 1, coef: 1, formula: 'CO2', atoms: [['C', 1], ['O', 2]], state: null },
-      { side: 1, coef: 2, formula: 'H2O', atoms: [['H', 2], ['O', 1]], state: null },
-    ];
-    const spells = [{ slot: 1, id: 'fire', name: 'Fire', formula: 'CH4 + 2O2 -> CO2 + 2H2O', stage: 'unknown', prompt: 'p' }];
-    const probe = (n) => page.evaluate(([spells, FIRE, n]) => {
-      const base = { v: 1, atBench: false, open: true, band: 'seedling', spells, pick: 1, recipe: FIRE };
-      window.__bench.fake(base);
-      const beam = document.querySelector('#bench .bench-beam');
-      const bcs = beam ? getComputedStyle(beam) : null;
-      const beamOut = bcs ? { anim: bcs.animationName, trans: bcs.transitionDuration } : null;
-      window.__bench.fake({ ...base, result: { n, slot: 1, ok: true, code: 'ok', diffs: [], other: 0, bad: '', simplest: '', coef: 0, learned: true, stage: 'learning' } });
-      const icon = document.querySelector('#bench .bench-done-icon');
-      const ic = icon ? getComputedStyle(icon) : null;
-      const ics = ic ? { animationName: ic.animationName, animationIterationCount: ic.animationIterationCount, transitionDuration: ic.transitionDuration } : null;
-      const others = [...document.querySelectorAll('#bench *')].map((e) => getComputedStyle(e)).filter((c) => c.animationName !== 'none').map((c) => c.animationIterationCount);
-      const btn = document.getElementById('benchbtn');
-      btn.classList.add('hint', 'near');
-      const bAnim = getComputedStyle(btn).animationName;
-      btn.classList.remove('hint', 'near');
-      window.__bench.close();
-      return { icon: ics ? { anim: ics.animationName, count: ics.animationIterationCount, trans: ics.transitionDuration } : null, beam: beamOut, others, btn: bAnim };
-    }, [spells, FIRE, n]);
-    await load();
-    const a = await probe(1e6);
+    const probe = async () => {
+      await page.keyboard.press('KeyB'); await readyWait();
+      await withinFrames(cardNames, (n) => n.length === 4, 60);
+      await clickAt('#bench .bench-spell[data-slot="1"]');
+      await withinFrames(() => has('#bench .bench-beam'), (o) => o, 10);
+      const beam = await fev(() => { const c = getComputedStyle(document.querySelector('.sb-mount .bench-beam')); return { anim: c.animationName, trans: c.transitionDuration }; });
+      await clickAt('#bench .bench-back');
+      await withinFrames(cardNames, (n) => n.length === 4, 10);
+      await clickAt('#bench .bench-spell[data-slot="2"]');
+      await withinFrames(() => count('#bench .bench-tile'), (n) => n === 4, 10);
+      for (const el of ['H', 'H', 'O']) await clickAt(`#bench .bench-tile[data-el="${el}"]`);
+      const n0 = await lastN();
+      await clickAt('#bench .bench-make');
+      await resultAfter(n0);
+      await withinFrames(() => has('#bench .bench-done-icon'), (o) => o, 10);
+      const inBench = await fev(() => {
+        const ic = getComputedStyle(document.querySelector('#spellbook .sb-done-icon'));
+        const others = [...document.querySelectorAll('*')].map((e) => getComputedStyle(e)).filter((c) => c.animationName !== 'none').map((c) => c.animationIterationCount);
+        return { icon: { anim: ic.animationName, count: ic.animationIterationCount, trans: ic.transitionDuration }, others };
+      });
+      const btn = await page.evaluate(() => {
+        const b = document.getElementById('benchbtn');
+        b.classList.add('hint', 'near');
+        const a = getComputedStyle(b).animationName;
+        b.classList.remove('hint', 'near');
+        return a;
+      });
+      await page.evaluate(() => window.__bench.close());
+      await withinFrames(isOpen, (o) => !o, 10);
+      return { ...(inBench || { icon: null, others: [] }), beam, btn };
+    };
+    await load(['band=seedling']);
+    const a = await probe();
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    const b = await probe(2e6);
+    await load(['band=seedling']);
+    const b = await probe();
     await page.emulateMedia({ reducedMotion: null });
     check('bench: the done icon pops once (count 1); every bench animation runs once; with reduced motion none, and no transition on the beam',
       a.icon && a.icon.anim !== 'none' && a.icon.count === '1' && a.others.every((c) => c === '1') && b.icon && b.icon.anim === 'none' && b.icon.trans === '0s'
@@ -3564,11 +3628,11 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   await run('bench: one modal gate', async () => {
     await load();
     await page.evaluate(() => { document.getElementById('age').hidden = false; });
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await frames(3);
     const blockedAge = !(await isOpen());
     await page.evaluate(() => { document.getElementById('age').hidden = true; });
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     const opened = await withinFrames(isOpen, (o) => o, 10);
     await page.keyboard.press('Escape');
     await withinFrames(isOpen, (o) => !o, 10);
@@ -3581,12 +3645,12 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       d.style.cssText = 'position:fixed;left:10px;bottom:10px;width:200px;height:80px;background:#000;color:#fff;z-index:950';
       document.body.append(d);
     });
-    await page.keyboard.press('KeyB');
-    await clickAt('#benchbtn');
+    await page.keyboard.press('KeyB'); await readyWait();
+    await clickAt('#benchbtn'); await readyWait();
     await frames(3);
     const blockedOther = !(await isOpen());
     await page.evaluate(() => document.getElementById('stand-in-modal').remove());
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     const opened2 = await withinFrames(isOpen, (o) => o, 10);
     await page.keyboard.press('Escape');
     check('bench: B and the button do nothing while another aria-modal dialog shows', blockedAge && opened && blockedOther && opened2, `age=${blockedAge} open=${opened} other=${blockedOther} open2=${opened2}`);
@@ -3600,7 +3664,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       const r = b.getBoundingClientRect();
       return { w: r.width, h: r.height, label: b.getAttribute('aria-label'), pe: getComputedStyle(b).pointerEvents, hint: b.classList.contains('hint'), vis: getComputedStyle(b).visibility };
     });
-    await clickAt('#benchbtn');
+    await clickAt('#benchbtn'); await readyWait();
     const opened = await withinFrames(isOpen, (o) => o, 10);
     await page.keyboard.press('Escape');
     await withinFrames(isOpen, (o) => !o, 10);
@@ -3611,7 +3675,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     }), (q) => q.locked, 5);
     await page.evaluate(() => { try { document.exitPointerLock(); } catch { /* none */ } });
     check('bench: #benchbtn is 64 px, labelled, opens the bench unlocked; locked it shows with pointer-events none',
-      u.w >= 64 && u.h >= 64 && /Formula Bench/.test(u.label || '') && u.pe === 'auto' && opened && locked && l.locked && l.pe === 'none' && l.w >= 64,
+      u.w >= 64 && u.h >= 64 && /Bench/.test(u.label || '') && u.pe === 'auto' && opened && locked && l.locked && l.pe === 'none' && l.w >= 64,
       `${JSON.stringify(u)} opened=${opened} locked=${locked} ${JSON.stringify(l)}`);
     // 28a.
     await load();
@@ -3621,16 +3685,16 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     const h1 = await withinFrames(() => page.evaluate(() => document.getElementById('benchbtn').classList.contains('hint')), (o) => o, 10);
     const row = await page.evaluate(() => [...document.querySelectorAll('#pause table tr')].some((tr) => {
       const td = [...tr.querySelectorAll('td')].map((d) => d.textContent.trim());
-      return td[0] === 'Formula Bench' && td[1] === 'B';
+      return td[0] === 'Chemistry Bench' && td[1] === 'B';
     }));
-    check('bench: the attention ring shows after the first cast; the pause card lists Formula Bench | B', !h0 && h1 && row, `before=${h0} after cast=${h1} row=${row}`);
-    await page.keyboard.press('KeyB');
-    await withinFrames(isOpen, (o) => o, 10);
+    check('bench: the attention ring shows after the first cast; the pause card lists Chemistry Bench | B', !h0 && h1 && row, `before=${h0} after cast=${h1} row=${row}`);
+    await page.keyboard.press('KeyB'); await readyWait();
+    await withinFrames(isReady, (o) => o, 60);
     await clickAt('#bench .bench-change');
     await clickAt('#bench .bench-band[data-band="sprout"]');
     await withinFrames(cardNames, (n) => n.length === 3, 10);
     await clickAt('#bench .bench-spell[data-slot="2"]');
-    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-atom').length), (n) => n === 4, 10);
+    await withinFrames(() => count('#bench .bench-atom'), (n) => n === 4, 10);
     for (const el of ['H', 'H', 'O']) await clickAt(`#bench .bench-atom[data-el="${el}"]`);
     const n0 = await lastN();
     await clickAt('#bench .bench-make');
@@ -3662,7 +3726,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     while (!(y && y.band === 'apprentice') && Date.now() - t1 < 2000) { await sleep(100); y = await bs(); }
     check('bench: ?band=apprentice reaches the game within 2 s of the first state, without an open', y && y.band === 'apprentice' && y.open === false, `${brief(y)} after ${Date.now() - t1} ms`);
     await load(['band=sprout']);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(isOpen, (o) => o, 10);
     await pcmd('pick 1');
     await frames(3);
@@ -3680,24 +3744,24 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
   // balanced: 1-2-2-1 has 9 atoms on each pan but different elements.
   await run('bench: round 2: an unbalanced equal-total Fire build tilts the beam', async () => {
     await load(['band=seedling']);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     await clickAt('#bench .bench-spell[data-slot="1"]');
-    await withinFrames(() => page.evaluate(() => !!document.querySelector('#bench .bench-scale')), (o) => o, 10);
+    await withinFrames(() => has('#bench .bench-scale'), (o) => o, 10);
     await clickAt('#bench .bench-coef[data-term="1"]');
     await clickAt('#bench .bench-coef[data-term="2"]');
     await frames(2);
     await sleep(300); // past the 200 ms tilt transition
-    const v = await page.evaluate(() => {
-      const sc = document.querySelector('#bench .bench-scale');
+    const v = await fev(() => {
+      const sc = document.querySelector('.sb-mount .bench-scale');
       return {
-        coefs: [...document.querySelectorAll('#bench .bench-coef')].map((c) => c.textContent).join(''),
-        pans: [...document.querySelectorAll('#bench .bench-pan-count')].map((e) => e.textContent),
+        coefs: [...document.querySelectorAll('.sb-mount .bench-coef')].map((c) => c.textContent).join(''),
+        pans: [...document.querySelectorAll('.sb-mount .bench-pan-count')].map((e) => e.textContent),
         level: sc.getAttribute('data-level'),
         tilt: sc.getAttribute('data-tilt'),
         transform: getComputedStyle(sc.querySelector('.bench-beam')).transform,
-        more: [...document.querySelectorAll('#bench .bench-pan-more')].map((e) => e.textContent),
-        marked: document.querySelectorAll('#bench .bench-pan-el[data-ok="false"]').length,
+        more: [...document.querySelectorAll('.sb-mount .bench-pan-more')].map((e) => e.textContent),
+        marked: document.querySelectorAll('.sb-mount .bench-pan-el[data-ok="false"]').length,
       };
     });
     check('bench: round 2: at 1-2-2-1 the beam is not level and is drawn tilted, no pan says more atoms, the mismatches are marked',
@@ -3708,9 +3772,9 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await clickAt('#bench .bench-back');
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     await clickAt('#bench .bench-spell[data-slot="2"]');
-    await withinFrames(() => page.evaluate(() => document.querySelectorAll('#bench .bench-tile').length), (n) => n === 4, 10);
+    await withinFrames(() => count('#bench .bench-tile'), (n) => n === 4, 10);
     await clickAt('#bench .bench-tile[data-el="H"]');
-    const one = await page.evaluate(() => document.querySelector('#bench .bench-tile[data-el="H"] .bench-tile-count').textContent);
+    const one = await text('#bench .bench-tile[data-el="H"] .bench-tile-count');
     check('bench: round 2: one click on a Seedling tile adds exactly one', one === '1', `count=${one}`);
     await page.keyboard.press('Escape');
   });
@@ -3724,7 +3788,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
       const r = p.getBoundingClientRect();
       return getComputedStyle(p).display !== 'none' && getComputedStyle(p).visibility !== 'hidden' && r.width > 0 && r.height > 0;
     });
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(isOpen, (o) => o, 10);
     const a = await shown();
     const pausedA = (await st()).paused;
@@ -3732,7 +3796,7 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await withinFrames(isOpen, (o) => !o, 10);
     await page.evaluate(() => window.__game.pause(true));
     const before = await shown();
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(isOpen, (o) => o, 10);
     const b = await shown();
     await page.keyboard.press('Escape');
@@ -3744,30 +3808,27 @@ async function formulaBench({ page, st, cmd, until, frames, sleep, base, browser
     await page.evaluate(() => window.__game.pause(false));
   });
 
-  // S5. A class link's ?band= fixes the band: no Change age, and the band holds.
+  // S5. A class link's ?band= fixes the band: no Change grade, and the band holds.
   await run('bench: round 2: ?band= fixes the band', async () => {
     await load(['band=sprout']);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 3, 10);
-    const v = await page.evaluate(() => {
-      const c = document.querySelector('#bench .bench-change');
-      return { change: !!c && c.getClientRects().length > 0, ui: window.__bench.ui() };
-    });
+    const v = { change: !!(await fev(() => { const c = document.getElementById('changeBand'); return !!c && c.getClientRects().length > 0; })), ui: await bui() };
     await page.keyboard.press('Escape');
     const x = await bs();
-    check('bench: round 2: with ?band=sprout there is no Change age and the band stays sprout', !v.change && v.ui.band === 'sprout' && x && x.band === 'sprout', `${JSON.stringify(v)} ${brief(x)}`);
+    check('bench: round 2: with ?band=sprout there is no Change grade and the band stays sprout', !v.change && v.ui.band === 'sprout' && x && x.band === 'sprout', `${JSON.stringify(v)} ${brief(x)}`);
   });
 
   // S4 and S2. A double-clicked Make sends one try; only atom misses count
   // toward the third-try help; a 0 coefficient is not the formula.
   await run('bench: round 2: one try per Make, atom misses only, no zero coefficient', async () => {
     await load(['band=apprentice']);
-    await page.keyboard.press('KeyB');
+    await page.keyboard.press('KeyB'); await readyWait();
     await withinFrames(cardNames, (n) => n.length === 4, 10);
     await clickAt('#bench .bench-spell[data-slot="2"]');
-    await withinFrames(() => page.evaluate(() => document.activeElement && document.activeElement.id), (id) => id === 'bench-input', 10);
+    await withinFrames(focusId, (id) => id === 'bench-input', 10);
     const typeAndMake = async (t, dbl = false) => {
-      await page.fill('#bench-input', t);
+      await fillIn(t);
       const n0 = await lastN();
       const c = await center('#bench .bench-make');
       if (dbl) await page.mouse.dblclick(c.x, c.y); else await page.mouse.click(c.x, c.y);
@@ -5352,11 +5413,17 @@ async function valleyPuzzles({ page, st, cmd, until, frames, sleep, base, errors
   await page.keyboard.press('KeyB');
   await poll(async () => { const b = await bs(); return !!(b && b.open && b.spells); }, 15000);
   {
-    const c = await centre('#bench .bench-spell[data-slot="2"]');
+    // I-060: the Bench is bench-free.html?mode=story in an iframe; Water's
+    // Learn button is in its Spells tab, and the builder sits in .sb-mount.
+    const fr = async () => { const h = await page.$('#bench-frame'); return h ? h.contentFrame() : null; };
+    const fcentre = async (sel) => { const f = await fr(); return f ? f.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const o = window.frameElement.getBoundingClientRect(); const r = e.getBoundingClientRect(); return r.width ? { x: o.left + r.left + r.width / 2, y: o.top + r.top + r.height / 2 } : null; }, sel).catch(() => null) : null; };
+    await poll(() => page.evaluate(() => !!window.__bench.ui().ready), 90000);
+    await poll(async () => !!(await fcentre('.sb-spell[data-slot="2"] :is(.sb-learn, .sb-practise)')), 30000);
+    const c = await fcentre('.sb-spell[data-slot="2"] :is(.sb-learn, .sb-practise)');
     if (c) await page.mouse.click(c.x, c.y);
-    await poll(() => page.evaluate(() => document.activeElement && document.activeElement.id === 'bench-input'), 10000);
-    await page.fill('#bench-input', 'H2O(l)');
-    const m = await centre('#bench .bench-make');
+    await poll(async () => { const f = await fr(); return !!f && (await f.evaluate(() => document.activeElement && document.activeElement.id === 'bench-input').catch(() => false)); }, 10000);
+    await (await fr())?.evaluate(() => { const i = document.getElementById('bench-input'); i.value = 'H2O(l)'; i.dispatchEvent(new Event('input')); i.focus(); }).catch(() => {});
+    const m = await fcentre('.sb-mount .bench-make');
     if (m) await page.mouse.click(m.x, m.y);
   }
   s = await until((x) => x.progress && x.progress[1] && x.progress[1].st === 'learning', 20000);

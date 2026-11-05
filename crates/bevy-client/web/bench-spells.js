@@ -200,6 +200,7 @@ export function mountSpells(o) {
     for (const s of list) {
       const row = el('div', 'sb-spell');
       row.dataset.spell = s.id;
+      row.dataset.slot = String(s.slot);
       const icon = el('span', `icon ${ICONS[s.id] || 'water'} sb-icon`);
       icon.setAttribute('aria-hidden', 'true');
       const name = el('b', 'sb-name', pretty(s.name));
@@ -220,7 +221,7 @@ export function mountSpells(o) {
       } else if (story && s.id === 'fire' && sprout()) {
         row.append(el('p', 'sb-facts', 'Fire is a starting spell at Sprout: you can cast it already. You build its equation from Seedling up.'));
       } else if (story) {
-        row.append(el('p', 'sb-facts', `You learn ${pretty(s.name)} at an older band.`));
+        row.append(el('p', 'sb-facts', `You learn ${pretty(s.name)} at a higher grade band.`));
       }
       sec1.append(row);
     }
@@ -244,7 +245,8 @@ export function mountSpells(o) {
         row.append(eq);
       }
       if (s.use) row.append(el('p', 'sb-facts', `In the world: it ${s.use}.`));
-      if (!s.usable) row.append(el('p', 'sb-facts', `This reaction is for ${BAND_NAME[s.band] || 'an older band'} and up.`));
+      const forBand = BAND_NAME[s.band] || 'a higher grade band';
+      if (!s.usable) row.append(el('p', 'sb-facts', `This reaction is for ${forBand} and up.`));
       else if (sprout()) row.append(el('p', 'sb-facts', 'At Sprout it casts at once: no building needed.'));
       else if (s.builds >= MASTERY_BUILDS) row.append(el('p', 'sb-facts', `Built ${s.builds} times: it casts at once.`));
       else if (builds(s)) row.append(el('p', 'sb-facts', `Built ${s.builds} of ${MASTERY_BUILDS}. Build it ${MASTERY_BUILDS - s.builds} more time${MASTERY_BUILDS - s.builds === 1 ? '' : 's'} and it casts at once.`));
@@ -498,7 +500,13 @@ export function mountSpells(o) {
     tick.setAttribute('aria-hidden', 'true');
     wrap.append(icon, tick, el('p', 'sb-done-line', line));
     if (r.learned) wrap.append(badge(r.stage || 'learning'), el('p', 'sb-done-extra', `You learned ${pretty(j.name)}! Cast it with key ${j.slot}.`));
-    if (o.band() !== 'sprout' && r.simplest) wrap.append(el('p', 'sb-done-extra', `Simplest form: ${pretty(r.simplest)}`));
+    // The old Bench's Apprentice lines (the world reads Adept as Apprentice).
+    if (rank() >= 2) {
+      if (r.simplest) wrap.append(el('p', 'sb-done-extra', `Simplest form: ${pretty(r.simplest)}`));
+      const coef = r.coef || 0;
+      const formula = pretty(names[r.slot].formula);
+      if (coef > 1) wrap.append(el('p', 'sb-done-extra', `A ${coef} in front would mean ${coef} molecules. One molecule is ${formula}.`));
+    }
     const count = el('p', 'sb-done-count', '');
     wrap.append(count);
     const fill = () => {

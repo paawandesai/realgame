@@ -83,7 +83,7 @@ function storyShelf(host) {
   const have = {};
   /** @type {Record<string, {label: string, find: string}>} */
   const find = {};
-  for (const f of Array.isArray(ds.air) ? ds.air : ['O2', 'N2']) have[f] = { n: 0, air: true, labels: [] };
+  for (const f of Array.isArray(ds.air) ? ds.air : []) have[f] = { n: 0, air: true, labels: [] };
   for (const b of Array.isArray(ds.shelf) ? ds.shelf : []) {
     if (!find[b.species]) find[b.species] = { label: b.label, find: b.find };
     if (!(b.n > 0)) continue;
@@ -195,7 +195,11 @@ async function main() {
   let openedOnce = false;
   const askBand = () => {
     const box = $('bandAsk'); const row = $('bandAskRow'); row.innerHTML = '';
-    for (const b of BANDS) {
+    // The world's picker offers its own bands (it reads Adept as Apprentice).
+    /** @type {string[]} */
+    let offer = BANDS;
+    try { const w = [...(story?.document.querySelectorAll('#age button[data-band]') || [])].map((x) => /** @type {HTMLElement} */ (x).dataset.band || ''); if (w.length) offer = BANDS.filter((b) => w.includes(b)); } catch { /* every band */ }
+    for (const b of offer) {
       const x = document.createElement('button'); x.type = 'button'; x.className = 'btn'; x.dataset.band = b;
       x.textContent = BAND_NAME[/** @type {keyof typeof BAND_NAME} */ (b)];
       // The world's age picker draws a picture per band; reuse it here.
@@ -220,6 +224,11 @@ async function main() {
       story.__bench.close('escape');
     });
     if (story.__bench.fixed()) document.querySelectorAll('.band button').forEach((x) => { /** @type {HTMLButtonElement} */ (x).disabled = true; });
+    // "Change grade" asks the band question again (not with a class link's ?band=).
+    const change = document.createElement('button'); change.type = 'button'; change.className = 'btn change-band'; change.id = 'changeBand'; change.textContent = 'Change grade';
+    change.hidden = !!story.__bench.fixed();
+    change.addEventListener('click', () => askBand());
+    document.querySelector('.band')?.after(change);
     /** @type {any} */ (window).__benchStory = {
       opened: () => {
         const hb = hostBand();
@@ -228,6 +237,10 @@ async function main() {
         if (!openedOnce) { openedOnce = true; showTab('spells'); }
         spells?.reset();
         if (!hb) askBand();
+        else if (!$('bandAsk').hidden) $('bandAsk').hidden = true;
+        // The keyboard starts on the Spells tab's first control.
+        const first = /** @type {HTMLElement | null} */ (document.querySelector('[data-pane="spells"]:not([hidden]) #spellbook button'));
+        if (hb && first) first.focus();
       },
       closed: () => { try { speechSynthesis.cancel(); } catch { /* no speech */ } },
     };

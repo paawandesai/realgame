@@ -884,7 +884,7 @@ export function startBench() {
   /** @type {any} */
   const hook = {
     state: () => { try { return JSON.parse(w.__benchState); } catch { return null; } },
-    ui: () => ({ open: ui.open, band: urlBand() || chosen || picked, ready, view: ready ? 'bench' : 'wait' }),
+    ui: () => ({ open: ui.open, band: urlBand() || chosen || picked, ready, view: !ready ? 'wait' : (() => { try { return frame && frame.contentDocument && frame.contentDocument.getElementById('bandAsk')?.hidden === false ? 'chooser' : 'bench'; } catch { return 'bench'; } })() }),
     open: () => openBench('api'),
     close: (/** @type {string | undefined} */ via) => closeBench(via === 'escape' ? 'escape' : 'api'),
     cmd: (/** @type {string} */ s) => push(String(s)),

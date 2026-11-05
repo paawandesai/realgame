@@ -237,7 +237,7 @@ h1 small.mode-chip[data-mode="story"] { border-color: var(--good); color: var(--
 .band button:disabled { cursor: default; opacity: 0.6; }
 .band-ask { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(10,13,20,0.82); }
 .band-ask[hidden] { display: none; }
-.band-ask-card { background: var(--panel); border: 2px solid var(--brass); border-radius: 14px; padding: 18px 20px; max-width: min(460px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 10px; }
+.band-ask-card { background: var(--panel); border: 2px solid var(--brass); border-radius: 14px; padding: 18px 20px; max-width: min(600px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 10px; }
 .band-ask-card h2 { font-size: 18px; text-transform: none; letter-spacing: 0; color: var(--ink); margin: 0; }
 .band-ask-card .btn { min-height: 48px; min-width: 96px; font-size: 16px; }
 #spellbook { display: flex; flex-direction: column; gap: 14px; }
@@ -353,3 +353,6 @@ h1 small.mode-chip[data-mode="story"] { border-color: var(--good); color: var(--
 .sb-done-icon.water { animation-name: sb-pop-w; }
 @keyframes sb-pop-w { 0% { transform: rotate(-45deg) scale(0.4); } 70% { transform: rotate(-45deg) scale(1.15); } 100% { transform: rotate(-45deg) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .sb-done-icon { animation: none; } }
+.band-ask-card .btn { min-height: 160px; }
+#changeBand { margin-left: 6px; min-height: 40px; }
+#changeBand[hidden] { display: none; }

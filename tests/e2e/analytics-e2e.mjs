@@ -506,12 +506,17 @@ const parsed = (run) =>
       const benchOpen = async (p) => {
         await p.evaluate(() => document.getElementById('game')?.focus());
         await p.keyboard.press('KeyB');
-        for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(200)) {
-          const v = await p.evaluate(() => ({
-            open: !!document.getElementById('bench') && !document.getElementById('bench').hidden,
-            chooser: document.querySelectorAll('#bench .bench-band[data-band]').length,
-            cards: document.querySelectorAll('#bench .bench-spell').length,
-          }));
+        // I-060: the Bench is bench-free.html?mode=story in an iframe: the
+        // chooser is its band question, the cards its Spells tab's buildable spells.
+        for (const t0 = Date.now(); Date.now() - t0 < 90000; await sleep(200)) {
+          const open = await p.evaluate(() => !!document.getElementById('bench') && !document.getElementById('bench').hidden);
+          const h = await p.$('#bench-frame');
+          const f = h ? await h.contentFrame() : null;
+          const inner = f ? await f.evaluate(() => ({
+            chooser: document.getElementById('bandAsk')?.hidden === false ? document.querySelectorAll('#bandAskRow [data-band]').length : 0,
+            cards: [...document.querySelectorAll('.sb-spell')].filter((c) => c.querySelector('.sb-learn, .sb-practise')).length,
+          })).catch(() => null) : null;
+          const v = { open, chooser: inner ? inner.chooser : 0, cards: inner ? inner.cards : 0 };
           if (v.open && (v.chooser > 0 || v.cards > 0)) return v;
         }
         return p.evaluate(() => ({ open: !document.getElementById('bench')?.hidden, chooser: -1, cards: -1 }));
