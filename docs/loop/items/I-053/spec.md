@@ -21,6 +21,8 @@ A reaction found on the Bench page gets a **Save as a spell** button (on the res
 
 ## 3. Effects: every codex reaction maps to one effect (step 3)
 
+> **Changed by I-054 (B1, `loop/bench-show`):** an effect's `strength` and `tint` now come from the reaction's show record: strength from |ΔH| on a log scale, tint from the flame emitter or the first coloured product. See `docs/loop/items/I-054/spec.md` section 6. The strength and tint rules below and in effects.json describe this branch before I-054.
+
 `content/chem/effects.json` + `crates/chem/src/discover.rs` (`Effects::of`). Ordered rules, first match wins, on data only (family, heat, hazard, whether a product is a gas in `names.json`, whether it has needs); one override (`thermite`).
 
 | | kind rule (look) | strength rule (0 to 1) |
@@ -94,6 +96,8 @@ The world loads the save into the game with `found`, `saved`, `slots`, `quests` 
 
 ## 8. What the graphics thread needs to know
 
+> **Changed by I-054:** `tint` and `strength` are computed from the show record (`show_json(id)`), which the Bench now also passes to `playReaction` as a 4th argument. See I-054 spec section 4.
+
 - **The effect value** (`realgame_chem::discover::Effect`, serialised in `effects_json()` for the Bench page and in `__discState.saved[].effect`): `reaction_id` (codex id), `kind` (fire, water, frost, foam, cloud, glow), `heat` (-1, 0, +1), `strength` (0 to 1), optional `tint` (`#rrggbb`), and `runs` (the gameplay rule). Hit position and normal come from the cast (`SpellLanded.pos`, `.normal`).
 - **How to find it at the impact:** `SpellLanded` has two new fields: `amount` (the emit scale) and `disc: Option<u16>`, the codex index of a discovered spell. `crate::discover::entry(i)` returns `(Entry, Effect)`. Shipped spells have `disc: None`, `amount: 1.0`.
 - **Today:** a discovered spell is drawn by the spawner of the shipped spell on its slot, unchanged: kind fire and glow-that-runs-Fire use Fire's; cloud and glow-that-runs-Water use Water's; frost Frost's; foam (both CO2 and puffs) CO2's. No new shader, material or post-processing; `spell_fx.rs`, `fire_fx.rs`, `voxel_cast.rs` visuals are untouched.
@@ -113,6 +117,8 @@ The world loads the save into the game with `found`, `saved`, `slots`, `quests` 
 - Playable check (Playwright on the release build, section 12 of the report): save on the Bench page, the pack lists it, dig coal, cast twice with builds, then instantly, melt ice, quest done.
 
 ## 11. The mapping table (all 182 codex reactions)
+
+> **Stale after I-054:** the `strength` and `tint` columns below are the pre-I-054 values. The current ones are in `docs/loop/items/I-054/spec.md` section 10.
 
 `world` = every reactant can come from the air or a bottle item today.
 

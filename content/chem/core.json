@@ -895,9 +895,9 @@
    ],
    "heat": "absorbs",
    "say": "Hot ammonia over a catalyst breaks back into nitrogen and hydrogen.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: ammonia gas is toxic.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "hcl_synthesis",
@@ -996,9 +996,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Colourless nitric oxide joins air's oxygen to make brown nitrogen dioxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: nitrogen oxides are toxic.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "ostwald_3",
@@ -1084,9 +1084,9 @@
    ],
    "heat": "absorbs",
    "say": "Hot carbon takes oxygen from carbon dioxide, making carbon monoxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: carbon monoxide is poisonous.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "methanol_synthesis",
@@ -1238,9 +1238,9 @@
    ],
    "heat": "absorbs",
    "say": "Heating red mercury oxide gives mercury and oxygen; Priestley found oxygen this way.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: heating mercury oxide releases poisonous mercury vapour (CLEAPSS Hazcard 56).",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "silver_oxide_heat",
@@ -1268,9 +1268,9 @@
    ],
    "heat": "absorbs",
    "say": "Heated copper nitrate gives black copper oxide and brown nitrogen dioxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: gives off toxic nitrogen dioxide.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "ammonium_chloride_heat",
@@ -1707,10 +1707,10 @@
    "band": "sprout",
    "equation": "CaCO3 + 2HCl -> CaCl2 + H2O + CO2",
    "needs": [],
-   "heat": "releases",
+   "heat": "little",
    "say": "Acid fizzes on chalk or marble and releases carbon dioxide.",
    "short": "Acid makes chalk fizz.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -1720,10 +1720,10 @@
    "band": "seedling",
    "equation": "Na2CO3 + 2HCl -> 2NaCl + H2O + CO2",
    "needs": [],
-   "heat": "releases",
+   "heat": "little",
    "say": "A carbonate and an acid give salt, water and carbon dioxide.",
    "short": "Washing soda fizzes in acid.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -1745,9 +1745,9 @@
    "band": "apprentice",
    "equation": "CuCO3 + H2SO4 -> CuSO4 + H2O + CO2",
    "needs": [],
-   "heat": "releases",
+   "heat": "little",
    "say": "Copper carbonate fizzes in acid and makes blue copper sulfate.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -1845,8 +1845,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Zinc pushes lead out of solution as grey crystals.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: lead salts are toxic (CLEAPSS Hazcard 57).",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "copper_silver_nitrate",
@@ -1898,9 +1899,9 @@
    "needs": [
     "heat"
    ],
-   "heat": "releases",
+   "heat": "little",
    "say": "Carbon monoxide takes the oxygen out of iron ore, leaving iron.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed",
    "hazard": "lab"
   },
@@ -1945,9 +1946,9 @@
    ],
    "heat": "absorbs",
    "say": "Very hot carbon frees zinc from zinc oxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: carbon monoxide and zinc fume are poisonous.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "magnesium_co2",
@@ -1973,9 +1974,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Hydrogen peroxide turns iodide into brown iodine in acid.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: concentrated hydrogen peroxide is corrosive.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "chlorine_bromide",
@@ -2141,11 +2142,11 @@
    "needs": [
     "heat"
    ],
-   "heat": "releases",
+   "heat": "little",
    "say": "Hydrogen over hot sulfur makes smelly hydrogen sulfide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\". Hazard from the I-054 science review: hydrogen sulfide is poisonous.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "sodium_hydride",
@@ -2220,10 +2221,11 @@
    "band": "apprentice",
    "equation": "Pb(NO3)2 + 2KI -> PbI2 + 2KNO3",
    "needs": [],
-   "heat": null,
+   "heat": "releases",
    "say": "Two clear liquids make bright yellow lead iodide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\". Hazard from the I-054 science review: lead salts are toxic (CLEAPSS Hazcard 57).",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "barium_sulfate",
@@ -2234,8 +2236,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Barium chloride makes white barium sulfate with any sulfate.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: soluble barium chloride is toxic (CLEAPSS Hazcard 10).",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "copper_hydroxide",
@@ -2244,9 +2247,9 @@
    "band": "apprentice",
    "equation": "CuSO4 + 2NaOH -> Cu(OH)2 + Na2SO4",
    "needs": [],
-   "heat": null,
+   "heat": "releases",
    "say": "Sodium hydroxide makes a pale blue jelly of copper hydroxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2256,9 +2259,9 @@
    "band": "adept",
    "equation": "FeSO4 + 2NaOH -> Fe(OH)2 + Na2SO4",
    "needs": [],
-   "heat": null,
+   "heat": "little",
    "say": "Iron(II) ions give a dirty green precipitate with sodium hydroxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2268,9 +2271,9 @@
    "band": "adept",
    "equation": "FeCl3 + 3NaOH -> Fe(OH)3 + 3NaCl",
    "needs": [],
-   "heat": null,
+   "heat": "releases",
    "say": "Iron(III) ions give a rust-brown precipitate with sodium hydroxide.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2280,9 +2283,9 @@
    "band": "apprentice",
    "equation": "CaCl2 + Na2CO3 -> CaCO3 + 2NaCl",
    "needs": [],
-   "heat": "absorbs",
+   "heat": "little",
    "say": "Two solutions make solid chalk that settles out; the mix cools very slightly.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2304,10 +2307,11 @@
    "band": "adept",
    "equation": "Pb(NO3)2 + 2NaCl -> PbCl2 + 2NaNO3",
    "needs": [],
-   "heat": null,
+   "heat": "little",
    "say": "Lead nitrate and salt make white lead chloride.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
-   "check": "reviewed"
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\". Hazard from the I-054 science review: lead salts are toxic (CLEAPSS Hazcard 57).",
+   "check": "reviewed",
+   "hazard": "lab"
   },
   {
    "id": "zinc_hydroxide",
@@ -2316,9 +2320,9 @@
    "band": "adept",
    "equation": "ZnSO4 + 2NaOH -> Zn(OH)2 + Na2SO4",
    "needs": [],
-   "heat": null,
+   "heat": "releases",
    "say": "Zinc ions give a white precipitate that dissolves again in more base.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2328,10 +2332,10 @@
    "band": "seedling",
    "equation": "CO2 + H2O -> H2CO3",
    "needs": [],
-   "heat": null,
+   "heat": "little",
    "say": "A little carbon dioxide dissolves and makes weak carbonic acid.",
    "short": "Bubbles make water fizzy.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2341,9 +2345,9 @@
    "band": "adept",
    "equation": "SO2 + H2O -> H2SO3",
    "needs": [],
-   "heat": null,
+   "heat": "releases",
    "say": "Sulfur dioxide dissolves in rain to make sulfurous acid.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2355,9 +2359,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Ammonia dissolves in water and makes it basic (written as ammonium hydroxide).",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: ammonia gas is toxic and corrosive.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "sodium_oxide_water",
@@ -2368,9 +2372,9 @@
    "needs": [],
    "heat": "releases",
    "say": "A metal oxide dissolves in water and makes a base.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: sodium oxide and the hydroxide made are caustic.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "p4o10_water",
@@ -2381,9 +2385,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Phosphorus oxide grabs water fiercely and makes phosphoric acid.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: phosphorus pentoxide reacts violently and is corrosive.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "ethene_hydrogen",
@@ -2501,9 +2505,9 @@
    "needs": [
     "catalyst"
    ],
-   "heat": "releases",
+   "heat": "little",
    "say": "An enzyme splits table sugar into glucose and fructose (both C6H12O6).",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Heat class from the reaction's ΔH computed from standard enthalpies of formation (CRC Handbook; content/chem/show.json records, I-054 science review): |ΔH| within 25 kJ per mole of reaction is \"little\".",
    "check": "reviewed"
   },
   {
@@ -2543,9 +2547,9 @@
    "needs": [],
    "heat": "releases",
    "say": "Brown nitrogen dioxide pairs up into colourless dinitrogen tetroxide when cooled.",
-   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook).",
+   "source": "Standard school chemistry reaction; see OpenStax Chemistry 2e (https://openstax.org/details/books/chemistry-2e). Heat direction from standard enthalpies of formation (NIST Chemistry WebBook). Hazard from the I-054 science review: nitrogen dioxide is toxic.",
    "check": "reviewed",
-   "hazard": "fire"
+   "hazard": "lab"
   },
   {
    "id": "glass_making",
