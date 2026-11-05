@@ -287,6 +287,47 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
         pbr_input.world_normal = n;
         pbr_input.clearcoat_N = n;
     }
+    // Models in the realistic look (Paawan, 2026-11-05: one consistent
+    // look): trunks get bark, canopies leaves, buildings planks, brick and
+    // stone, iron rusty metal, each scan's average pulled to the model's
+    // own colour so a red roof stays red. The material id is in UV_0.x
+    // (`voxel::smooth::model_uv`).
+    if ground.x > 0.5 && mode < 0.5 && glow < 0.01 && !wet && modelled {
+        let mm = i32(round((-0.2 - in.uv.x) / 0.01));
+        var layer = -1;
+        var tile = 1.0;
+        if mm == 7 {
+            layer = 4; // wood: bark
+            tile = 1.6;
+        } else if mm == 8 {
+            layer = 5; // leaves
+            tile = 1.4;
+        } else if mm == 9 {
+            layer = 6; // planks
+            tile = 2.0;
+        } else if mm == 20 {
+            layer = 7; // brick
+            tile = 1.8;
+        } else if mm == 19 {
+            layer = 8; // iron
+            tile = 1.5;
+        } else if mm == 4 || mm == 5 || mm == 6 {
+            layer = 2; // stone, cliffstone, runestone: rock
+            tile = 3.0;
+        } else if mm == 10 {
+            layer = 3; // snow
+            tile = 4.0;
+        }
+        if layer >= 0 && f32(layer) < ground.y {
+            let g = tri_layer(layer, wp, n, tile, wdx, wdy);
+            let mean = textureSampleLevel(ground_albedo, ground_albedo_s, vec2<f32>(0.5), layer, 16.0).rgb;
+            base = toward(g.albedo, max(mean, vec3<f32>(0.01)), col, 0.85);
+            n = g.n;
+            pbr_input.N = n;
+            pbr_input.world_normal = n;
+            pbr_input.clearcoat_N = n;
+        }
+    }
     pbr_input.material.base_color = vec4<f32>(base * mix(1.0, ao, 0.85), alpha);
     pbr_input.diffuse_occlusion = vec3<f32>(mix(1.0, ao, 0.6));
     pbr_input.material.perceptual_roughness = select(0.88 - 0.2 * fine, 0.12, mode > 0.5);
