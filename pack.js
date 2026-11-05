@@ -185,6 +185,13 @@ export function startPack() {
       p.classList.toggle('done', !!q.done);
       p.textContent = `${q.done ? '✓ ' : ''}${q.line}`;
       discBox.append(p);
+      // I-057: the hint names the kind of reaction it needs, not the answer.
+      if (!q.done && q.hint) {
+        const h = document.createElement('p');
+        h.className = 'pack-disc-hint';
+        h.textContent = String(q.hint);
+        discBox.append(h);
+      }
     }
   };
 
