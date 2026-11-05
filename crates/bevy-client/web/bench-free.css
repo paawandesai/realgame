@@ -168,6 +168,7 @@ body[data-band="sprout"] .bottle b { font-family: inherit; font-size: 16px; }
 .hints ol:empty { display: none; }
 .hints li { margin-bottom: 4px; }
 .entry .where { color: var(--ink); margin-top: 3px; }
+.entry .rule, .result .rule { color: var(--muted, var(--ink)); font-style: italic; margin-top: 3px; }
 /* Fit the window (Paawan's playtest): no page scroll on laptop and desktop
    screens. The shelves and the table scroll inside themselves only where
    their lists are long; the Run button sits in a footer that never scrolls

@@ -23,12 +23,13 @@ fn needs(csv: &str) -> Vec<Need> {
         .collect()
 }
 
-/// The whole codex: families and entries (the page hides what a band can't
-/// see yet).
+/// The whole codex: families, entries (the page hides what a band can't see
+/// yet) and the rule tier's rules (I-056: an entry with `"tier": "rule"`
+/// names one, which the page shows as "predicted by rule").
 #[wasm_bindgen]
 pub fn codex_json() -> String {
     let c = codex();
-    json!({ "families": c.families, "reactions": c.entries }).to_string()
+    json!({ "families": c.families, "reactions": c.entries, "rules": c.rules }).to_string()
 }
 
 /// Element display data and everyday substance names

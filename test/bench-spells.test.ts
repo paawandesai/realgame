@@ -136,7 +136,7 @@ test("content: bottles, effects and quests are well formed", () => {
   const core = JSON.parse(readFileSync("content/chem/core.json", "utf8")) as { reactions: { id: string }[] };
   const ids = new Set(core.reactions.map((r) => r.id));
   const fx = JSON.parse(readFileSync("content/chem/effects.json", "utf8")) as { kinds: string[]; overrides: Record<string, unknown> };
-  assert.deepEqual(fx.kinds, ["fire", "water", "frost", "foam", "cloud", "glow"]);
+  assert.deepEqual(fx.kinds, ["fire", "water", "frost", "foam", "cloud", "glow", "wall", "reveal"]);
   for (const id of Object.keys(fx.overrides)) assert.ok(ids.has(id), id);
   const q = JSON.parse(readFileSync("content/chem/quests.json", "utf8")) as { quests: { id: string; live: boolean }[] };
   assert.ok(q.quests.filter((x) => x.live).length >= 1);
