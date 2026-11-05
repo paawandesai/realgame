@@ -22,10 +22,13 @@ export function createBenchScene(canvas, opts) {
   // Quality tier (graphics plan): 'low' drops shadows, glass refraction and
   // the high pixel ratio; 'mid' is the default; 'high' adds sharper shadows.
   /** @type {'low'|'mid'|'high'} */
-  let tier = /** @type {any} */ (opts.tier || new URLSearchParams(location.search).get('tier') || 'mid');
+  // No GPU (a software rasteriser): start on low and draw fewer pixels, so
+  // the page stays responsive.
+  const soft = softwareGL();
+  let tier = /** @type {any} */ (opts.tier || new URLSearchParams(location.search).get('tier') || (soft ? 'low' : 'mid'));
   if (!['low', 'mid', 'high'].includes(tier)) tier = 'mid';
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: tier !== 'low' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier === 'low' ? 1 : tier === 'mid' ? 1.5 : 2));
+  renderer.setPixelRatio(soft && tier === 'low' ? 0.5 : Math.min(window.devicePixelRatio, tier === 'low' ? 1 : tier === 'mid' ? 1.5 : 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
   // Filmic tonemapping keeps bright glass and flame highlights soft.
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -326,4 +329,22 @@ function woodTexture() {
   const t = new THREE.CanvasTexture(c);
   t.encoding = THREE.sRGBEncoding; t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 1);
   return t;
+}
+
+/**
+ * True when WebGL runs on a software rasteriser (SwiftShader, llvmpipe):
+ * no GPU, so the bench starts on the low tier. Headless test browsers and
+ * school machines with GPU acceleration off both land here.
+ */
+function softwareGL() {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return true;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return /swiftshader|llvmpipe|softpipe|software/i.test(name);
+  } catch {
+    return false;
+  }
 }
