@@ -273,16 +273,32 @@ async function main() {
   // A found reaction can be saved as a spell for the game (formula-save.js,
   // shared with the world). Free play keeps unlimited bottles; the world's
   // story mode needs the bottles the player has found.
-  /** @type {Record<string, {kind: string, runs: string}>} */
+  // I-056: every spell does something in the world (`use`); a reaction
+  // with nothing to do out there is Bench only and says why.
+  /** @type {Record<string, {kind: string, runs: string, use?: string, bench_only?: string | null}>} */
   const EFFECTS = JSON.parse(effects_json());
-  const KIND_WORD = { fire: 'a fire spell', water: 'a splash spell', frost: 'a cold spell', foam: 'a fizz spell', cloud: 'a cloud spell', glow: 'a warm glow spell' };
+  const KIND_WORD = { fire: 'a fire spell', water: 'a splash spell', frost: 'a cold spell', foam: 'a fizz spell', cloud: 'a cloud spell', glow: 'a warm glow spell', wall: 'a wall spell', reveal: 'a reveal spell' };
+  /** @type {Record<string, {id: string, name: string, text: string}>} */
+  const RULES = Object.fromEntries((codex.rules || []).map((/** @type {any} */ x) => [x.id, x]));
+  /** "Predicted by rule: <the rule in plain words>" for a rule-tier entry, else "". */
+  const ruleHtml = (/** @type {any} */ r) => {
+    if (r.tier !== 'rule') return '';
+    const x = RULES[r.rule];
+    return `<div class="rule">Predicted by rule${x ? ` (${esc(x.name)}): ${esc(x.text)}` : '.'}</div>`;
+  };
   const saveSpellButton = (/** @type {any} */ r) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn save-spell';
-    const kind = EFFECTS[r.id] ? KIND_WORD[/** @type {keyof typeof KIND_WORD} */ (EFFECTS[r.id].kind)] || '' : '';
+    const fx = EFFECTS[r.id];
+    if (fx?.bench_only) {
+      b.disabled = true; b.textContent = `Bench only: ${fx.bench_only}`; b.title = fx.bench_only;
+      return b;
+    }
+    const kind = fx ? KIND_WORD[/** @type {keyof typeof KIND_WORD} */ (fx.kind)] || '' : '';
     const done = () => { b.disabled = true; b.textContent = 'Saved! Open your pack in the game (Tab) to use it.'; };
     if (r.id in readSpells(localStorage).saved) done();
     else {
       b.textContent = kind ? `✨ Save as a spell (${kind})` : '✨ Save as a spell';
+      if (fx?.use) b.textContent += `: it ${fx.use}`;
       b.addEventListener('click', () => { if (saveSpell(localStorage, r.id)) done(); });
     }
     return b;
@@ -300,7 +316,7 @@ async function main() {
       html += `<details class="fam"><summary><b>${esc(FAMILY[fam] || fam)}</b> <span>${got} of ${rs.length}</span></summary>`;
       for (const r of rs) {
         html += seen.has(r.id)
-          ? `<div class="entry found" data-id="${esc(r.id)}"><b>${esc(r.name)}</b><div class="eq">${eqFor(r.equation)}</div><div>${esc(describe(r))}</div>${isYoung() && guide?.where_you_see_it[r.id] ? `<div class="where">👀 ${esc(guide.where_you_see_it[r.id])}</div>` : ''}</div>`
+          ? `<div class="entry found" data-id="${esc(r.id)}"><b>${esc(r.name)}</b><div class="eq">${eqFor(r.equation)}</div><div>${esc(describe(r))}</div>${ruleHtml(r)}${isYoung() && guide?.where_you_see_it[r.id] ? `<div class="where">👀 ${esc(guide.where_you_see_it[r.id])}</div>` : ''}</div>`
           : `<div class="entry"><b>?</b><div>${r.needs.length ? 'Needs ' + r.needs.map(condName).join(' and ') + '.' : 'Needs nothing special.'}</div></div>`;
       }
       html += '</details>';
@@ -464,7 +480,7 @@ async function main() {
       if (isNew) { found = [...found, r.id]; store.set('found', found); }
       drawCodex();
       const show = showOf(r.id);
-      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${seeHtml(show)}${show?.feel ? `<p>${esc(show.feel)}</p>` : r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
+      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${ruleHtml(r)}${seeHtml(show)}${show?.feel ? `<p>${esc(show.feel)}</p>` : r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
       $('result').append(saveSpellButton(r));
       note(eqText, r.name, true); animate(inSide, out, fxFor(r, out), show); return;
     }

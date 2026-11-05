@@ -1,6 +1,7 @@
 /**
- * The whole codex: families and entries (the page hides what a band can't
- * see yet).
+ * The whole codex: families, entries (the page hides what a band can't see
+ * yet) and the rule tier's rules (I-056: an entry with `"tier": "rule"`
+ * names one, which the page shows as "predicted by rule").
  * @returns {string}
  */
 export function codex_json() {

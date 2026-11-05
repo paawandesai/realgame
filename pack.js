@@ -110,6 +110,13 @@ export function startPack() {
       info.textContent = s.usable === false ? 'for an older age group' : `${where} · ${built}`;
       top.append(name, info);
       row.append(top);
+      // What it does out in the world (I-056).
+      if (s.effect && s.effect.use) {
+        const use = document.createElement('p');
+        use.className = 'pack-disc-uses';
+        use.textContent = `In the world: it ${s.effect.use}.`;
+        row.append(use);
+      }
       // What it uses up from the pack, and where to get it (I-053 bottles).
       for (const u of Array.isArray(s.uses) ? s.uses : []) {
         const items = Array.isArray(u.items) ? u.items.join(' or ') : '';
