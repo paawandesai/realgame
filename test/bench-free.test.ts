@@ -76,3 +76,21 @@ test("the page fits the window: Run sits outside the scrolling table and the coa
   assert.match(js, /previewIn\(\);\n {2}\};/, "drawTable previews the in side");
   assert.match(js, /sceneCount: \(\) => chamberMols \+ atoms\.length/);
 });
+
+test("every Bench page script parses as a module (a duplicate declaration stops the whole page loading)", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { mkdtempSync, copyFileSync, rmSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "bench-parse-"));
+  try {
+    for (const f of ["bench-free.js", "bench-free-lib.js", "bench-scene.js"]) {
+      const out = join(dir, f.replace(/\.js$/, ".mjs"));
+      copyFileSync(`crates/bevy-client/web/${f}`, out);
+      const r = spawnSync(process.execPath, ["--check", out], { encoding: "utf8" });
+      assert.equal(r.status, 0, `${f} does not parse: ${r.stderr}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

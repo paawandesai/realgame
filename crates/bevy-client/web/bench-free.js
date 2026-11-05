@@ -345,7 +345,7 @@ async function main() {
   const listWords = (/** @type {string[]} */ xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
   const STATE_WORD = { s: 'solid', l: 'liquid', g: 'gas', aq: 'dissolved' };
   /** A substance's everyday name without its bracketed second name ("carbon (charcoal)" is carbon). */
-  const plain = (/** @type {string} */ f) => nameOf(f).replace(/ \(.*\)$/, '');
+  const bare = (/** @type {string} */ f) => nameOf(f).replace(/ \(.*\)$/, '');
   /** "a" or "an" before a word. */
   const an = (/** @type {string} */ w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
   /** A gas's name: names.json names some substances by their solution (HCl is hydrochloric acid); as a gas it is hydrogen chloride. */
@@ -359,21 +359,21 @@ async function main() {
     const parts = [];
     const add = (/** @type {string} */ x) => { if (!parts.includes(x)) parts.push(x); };
     // A colour as an adjective ("blue copper sulfate"); none when colourless, or when it repeats the name ("shiny silver" silver).
-    const tone = (/** @type {any} */ c, /** @type {string} */ f = '') => (c && !c.described.startsWith('colourless') && !(f && c.described.includes(plain(f))) ? `${c.described} ` : '');
+    const tone = (/** @type {any} */ c, /** @type {string} */ f = '') => (c && !c.described.startsWith('colourless') && !(f && c.described.includes(bare(f))) ? `${c.described} ` : '');
     for (const v of s.visible) {
       if (v === 'flame') add(s.flame && s.flame.emitter !== 'unknown' ? `${an(s.flame.described)} flame` : 'a flame');
       else if (v === 'glow') add(glowWord(s.glow?.temp));
       else if (v === 'bubbles') { const g = s.gases.filter((/** @type {any} */ x) => x.side === 'product').map((/** @type {any} */ x) => gasName(x.formula).replace(/ \(.*\)$/, '')); add(g.length ? `bubbles of ${listWords(g)}` : 'bubbles'); }
-      else if (v === 'precipitate') for (const x of s.precipitates) add(`${an(`${tone(x.colour)}solid`)} (${plain(x.formula)}) ${x.grain === 'grainy' ? 'settling to the bottom' : 'clouding the liquid'}`);
-      else if (v === 'coating') for (const x of s.coatings) add(`${tone(x.colour, x.formula)}${plain(x.formula)} coating the ${x.on === 'electrode' ? 'electrode' : plain(x.on)}`);
+      else if (v === 'precipitate') for (const x of s.precipitates) add(`${an(`${tone(x.colour)}solid`)} (${bare(x.formula)}) ${x.grain === 'grainy' ? 'settling to the bottom' : 'clouding the liquid'}`);
+      else if (v === 'coating') for (const x of s.coatings) add(`${tone(x.colour, x.formula)}${bare(x.formula)} coating the ${x.on === 'electrode' ? 'electrode' : bare(x.on)}`);
       else if (v === 'colour_change') {
         const gone = s.colour_changes.filter((/** @type {any} */ c) => !c.appears);
         const comes = s.colour_changes.filter((/** @type {any} */ c) => c.appears);
         if (young) {
           const c = gone[0] || comes[0];
           if (c) add(`the ${c.colour.described} colour ${c.appears ? 'appearing' : 'fading'}`);
-        } else if (gone.length || comes.length) add(`a colour change: ${listWords([...gone.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${plain(c.formula)} going`), ...comes.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${plain(c.formula)} appearing`)])}`);
-      } else if (v === 'smoke') for (const x of s.smoke) add(x.kind === 'vapour' ? `${tone(x.colour)}${plain(x.formula)} vapour` : `${tone(x.colour)}${x.kind}`);
+        } else if (gone.length || comes.length) add(`a colour change: ${listWords([...gone.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${bare(c.formula)} going`), ...comes.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${bare(c.formula)} appearing`)])}`);
+      } else if (v === 'smoke') for (const x of s.smoke) add(x.kind === 'vapour' ? `${tone(x.colour)}${bare(x.formula)} vapour` : `${tone(x.colour)}${x.kind}`);
       else if (v === 'frost') add('frost');
       else if (v === 'shimmer') add('the hot air shimmering above it');
       else if (v === 'condensation') add('droplets forming on the cool glass');
