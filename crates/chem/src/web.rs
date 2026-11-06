@@ -23,13 +23,12 @@ fn needs(csv: &str) -> Vec<Need> {
         .collect()
 }
 
-/// The whole codex: families, entries (the page hides what a band can't see
-/// yet) and the rule tier's rules (I-056: an entry with `"tier": "rule"`
-/// names one, which the page shows as "predicted by rule").
+/// The whole codex: families and entries (the page hides what a band can't
+/// see yet).
 #[wasm_bindgen]
 pub fn codex_json() -> String {
     let c = codex();
-    json!({ "families": c.families, "reactions": c.entries, "rules": c.rules }).to_string()
+    json!({ "families": c.families, "reactions": c.entries }).to_string()
 }
 
 /// Element display data and everyday substance names
@@ -77,63 +76,4 @@ pub fn literature_key_json(input: &str) -> String {
         .to_string(),
         Err(e) => json!({ "kind": "parse_error", "message": e.to_string() }).to_string(),
     }
-}
-
-fn effects() -> &'static crate::discover::Effects {
-    static E: OnceLock<crate::discover::Effects> = OnceLock::new();
-    E.get_or_init(crate::discover::Effects::load)
-}
-
-/// Every codex reaction's spell effect (`discover::Effects`, I-053), keyed
-/// by reaction id, so the page can say what a saved discovery casts as.
-#[wasm_bindgen]
-pub fn effects_json() -> String {
-    let fx = effects();
-    let map: serde_json::Map<String, serde_json::Value> = fx
-        .all(codex())
-        .into_iter()
-        .map(|f| (f.reaction_id.clone(), json!(f)))
-        .collect();
-    serde_json::Value::Object(map).to_string()
-}
-
-/// The reaction show record of codex reaction `id` (`show::ShowRecord`,
-/// I-054): states, colours, visible changes, ΔH, speed, flame, gases,
-/// precipitates and the atom story. `null` for an unknown id.
-#[wasm_bindgen]
-pub fn show_json(id: &str) -> String {
-    match effects().shows().get(id) {
-        Some(r) => serde_json::to_string(r).unwrap_or_else(|_| "null".into()),
-        None => "null".into(),
-    }
-}
-
-/// One frame of reaction `id` at time `t` (0..1): atoms (Å), bonds with
-/// their stretch, the events under way and the effect with each visible
-/// change's intensity (`show::frame`). `null` for an unknown id.
-#[wasm_bindgen]
-pub fn show_frame_json(id: &str, t: f32) -> String {
-    let fx = effects();
-    match (fx.shows().get(id), codex().get(id)) {
-        (Some(r), Some(e)) => {
-            let f = crate::show::frame(r, &fx.shows().geometry, &fx.of(e), t);
-            serde_json::to_string(&f).unwrap_or_else(|_| "null".into())
-        }
-        _ => "null".into(),
-    }
-}
-
-/// The geometry of one species (`content/chem/geometry.json`), or `null`.
-#[wasm_bindgen]
-pub fn geometry_json(formula: &str) -> String {
-    match effects().shows().geometry.species.get(formula) {
-        Some(g) => serde_json::to_string(g).unwrap_or_else(|_| "null".into()),
-        None => "null".into(),
-    }
-}
-
-/// Every source key the show records cite, with its full reference.
-#[wasm_bindgen]
-pub fn show_sources_json() -> String {
-    serde_json::to_string(&effects().shows().sources).unwrap_or_else(|_| "{}".into())
 }

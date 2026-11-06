@@ -1,7 +1,6 @@
 //! The Formula Bench in the courtyard (I-028): the lab pad landmark, the
 //! bench's command queue (`window.__gameIn.bench`) and its view
-//! (`window.__benchState`). Judging is `realgame_sim::bench::judge_with` and
-//! the shared codex (`spells::ClientSpells::judge`); the UI is
+//! (`window.__benchState`). Judging is `realgame_sim::bench::judge`; the UI is
 //! `web/bench.js`. See `docs/loop/items/I-028/spec.md`, sections 1, 5 and 6.
 //!
 //! The pad is a landmark, never a trigger: standing on it only sets
@@ -208,7 +207,7 @@ pub fn apply(
             let Some(band) = st.band else {
                 return Err("try before a band");
             };
-            let v = crate::spells::book().judge(spells, slot, band, &text);
+            let v = sim::judge(spells, slot, band, &text);
             record(st, book, spells, slot, v);
         }
     }

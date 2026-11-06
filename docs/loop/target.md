@@ -9,7 +9,7 @@ The game is a **first-person 3D game**. You move and look like a shooter, but th
 - The 2D game (web/) is retired. It stays live only until the 3D slice passes its first playtest.
 
 ## Core loop (Paawan, 2026-10-30; roadmap doc https://claude.ai/artifact/7kDsNoHNmPDVauroqLczSJ)
-- Every spell moves Unknown -> Learning -> Practised -> Mastered. You learn it by building its formula at the Formula Bench, at your band's level. Since I-059 the bands are school grades, not ages: Sprout grades 6-7, Seedling grades 8-9, Apprentice grades 10-11, Adept grade 12+ (AP, college and adult players); see docs/loop/items/I-059/spec.md for what each band covers.
+- Every spell moves Unknown -> Learning -> Practised -> Mastered. You learn it by building its formula at the Formula Bench, at your age band's level (Sprout 4-7 picture cards, Seedling 8-10 atom tiles, Apprentice 11-15 typed formulas, Adept 16+ equations with conditions).
 - Before mastery every cast is a **worked cast** (rebuild the formula in a quick overlay, about 3-10 s). Worked casts earn XP even before mastery.
 - Mastery = 3 unaided correct builds spread over 2 days + 1 "predict what happens" question in a new situation. Then the spell is an **instant cast** from the hotbar and becomes moddable. Mastery never fades; an optional keep-it-sharp check only adds a bonus.
 - Crafting: free for Apprentice and Adept (the engine shows what really happens, including nothing); guided recipes for Sprout and Seedling. A spell = a real reaction + settings (amount, form, temperature, trigger); energy is the mana. Wrong or unbalanced formulas fizzle with a kind reason.

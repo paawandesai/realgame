@@ -11,8 +11,7 @@
 // (walkthroughs, lessons, hints, challenges, everyday lines) comes from
 // content/chem/guide.json, shipped as chem-guide.json.
 
-import init, { codex_json, effects_json, judge_json, literature_key_json, names_json, show_json } from './chem.js';
-import { readSpells, saveSpell } from './formula-save.js';
+import init, { codex_json, judge_json, literature_key_json, names_json } from './chem.js';
 import { parseFormula as parseWith, hill, sideOf, sideText } from './bench-free-lib.js';
 import { createBenchScene } from './bench-scene.js';
 
@@ -24,9 +23,7 @@ const NAMES = {};
 const parseFormula = (/** @type {string} */ f) => parseWith(f, (el) => !!EL[el]);
 
 const BANDS = ['sprout', 'seedling', 'apprentice', 'adept'];
-// Grade bands (I-059): band names with the school grades they are for. The
-// ids are unchanged, so progress saved by band stays valid.
-const BAND_NAME = { sprout: 'Sprout (grades 6–7)', seedling: 'Seedling (grades 8–9)', apprentice: 'Apprentice (grades 10–11)', adept: 'Adept (grade 12+)' };
+const BAND_NAME = { sprout: 'Sprout', seedling: 'Seedling', apprentice: 'Apprentice', adept: 'Adept' };
 
 /** @type {Set<string>} */
 const GASES = new Set();
@@ -80,20 +77,18 @@ async function main() {
   /** Reactions the player balanced by writing both sides (Guide challenges). @type {string[]} */
   let balanced = store.get('balanced', []);
 
-  // ---------- grade bands (I-059) ----------
-  // Sprout (grades 6-7) sees formulas, with a word equation under each
-  // equation, and never balances by hand: its result card offers "Show me
-  // how" instead. Sprout and Seedling (grades 8-9) get tap-to-read (an
-  // accessibility option), colour-coded atom counts, a "show me" for
-  // balancing and safety badges in plain words. See
-  // docs/loop/items/I-059/spec.md.
+  // ---------- age bands ----------
+  // Sprout (4 to 7) sees names and pictures, never formulas; Sprout and
+  // Seedling (8 to 10) get read-aloud, colour-coded atom counts, a "show me"
+  // for balancing and safety badges in plain words. See the Bench plan,
+  // section 1 (age-band audit).
   const isSprout = () => band === 'sprout';
   const isYoung = () => rank(band) <= rank('seedling');
   const nameOf = (/** @type {string} */ f) => NAMES[f] || f;
-  /** A word equation: each formula's everyday name. */
-  const wordEq = (/** @type {string} */ eq) => eq.split(' -> ').map((side) => side.split(' + ').map((t) => nameOf(t.replace(/^\d+/, '').trim())).join(' + ')).join(' → ');
-  /** An equation as this band reads it: formulas, with the word equation under it at Sprout. */
-  const eqFor = (/** @type {string} */ eq) => (isSprout() ? `${showEq(eq)}<br><small>${esc(wordEq(eq))}</small>` : showEq(eq));
+  /** An equation as this band reads it: names for Sprout, formulas otherwise. */
+  const eqFor = (/** @type {string} */ eq) => (isSprout()
+    ? esc(eq.split(' -> ').map((side) => side.split(' + ').map((t) => nameOf(t.replace(/^\d+/, '').trim())).join(' + ')).join(' → '))
+    : showEq(eq));
   /** Conditions a Sprout never needs: hidden to keep the panel small. */
   const SPROUT_HIDES = new Set(['electricity', 'pressure']);
   /** @type {Record<string, string>} */
@@ -172,7 +167,7 @@ async function main() {
     if (!keys.length) box.insertAdjacentHTML('beforeend', `<span class="empty">${label === 'In' ? 'Take a bottle, or build a molecule.' : 'Optional: your guess.'}</span>`);
     for (const f of keys) {
       const row = document.createElement('div'); row.className = 'mol';
-      row.innerHTML = `<strong title="${esc(NAMES[f] || f)}"><span class="coef">${side[f] > 1 ? side[f] : ''}</span>${show(f)}</strong>`;
+      row.innerHTML = `<strong title="${esc(NAMES[f] || f)}">${isSprout() ? `${esc(nameOf(f))}${side[f] > 1 ? ` <span class="coef">×${side[f]}</span>` : ''}` : `<span class="coef">${side[f] > 1 ? side[f] : ''}</span>${show(f)}`}</strong>`;
       const minus = document.createElement('button'); minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label', `One less ${f}`);
       const plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', `One more ${f}`);
       minus.addEventListener('click', () => { side[f]--; if (side[f] <= 0) delete side[f]; drawTable(); });
@@ -189,7 +184,6 @@ async function main() {
     for (const e of els) { const a = L[e] || 0, b = R[e] || 0; diff += (a - b); html += `<span>${isYoung() ? `<i class="dot" style="background:${hex(EL[e]?.c ?? 0xcccccc)}"></i>${esc(EL[e]?.name ?? e)}` : e}</span><span>${a}</span><span>${b}</span><span class="${a === b ? 'ok' : 'no'}">${a === b ? '✓' : '✗'}</span>`; }
     $('tally').innerHTML = guessing && els.length ? html : '<span class="empty" style="grid-column:1/-1">Fill in “out” and the scale weighs the atoms on each side.</span>';
     tilt = guessing ? Math.max(-14, Math.min(14, diff * 1.5)) : 0;
-    previewIn();
   };
   const putOn = (/** @type {Record<string, number>} */ side, /** @type {string} */ f) => { side[f] = Math.min((side[f] || 0) + 1, 40); drawTable(); };
   $('toLeft').addEventListener('click', () => { if (plateOk()) { putOn(left, plateFormula()); clearPlate(); } });
@@ -207,7 +201,7 @@ async function main() {
     for (const f of list) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'bottle';
       const dots = atomsOf(f).slice(0, 8).map((e) => `<i style="background:${hex(EL[e].c)}"></i>`).join('');
-      b.innerHTML = `<span class="dots">${dots}</span><span><b>${show(f)}</b><small>${esc(NAMES[f] || '')}</small></span>`;
+      b.innerHTML = isSprout() ? `<span class="dots">${dots}</span><span><b>${esc(nameOf(f))}</b></span>` : `<span class="dots">${dots}</span><span><b>${show(f)}</b><small>${esc(NAMES[f] || '')}</small></span>`;
       b.setAttribute('aria-label', `${NAMES[f] || f} (${f}): put on the table`);
       b.dataset.formula = f;
       b.addEventListener('click', () => { putOn(left, f); guideDid('tap_bottle', f); });
@@ -273,40 +267,6 @@ async function main() {
   const learnUsual = (/** @type {string} */ f) => { const a = parseFormula(f); if (a) { const h = hill(a); if (!usual.has(h)) usual.set(h, f); } };
   for (const f of Object.keys(names.substances)) learnUsual(f);
   const plain = (/** @type {string} */ eq) => eq.split(' -> ').map((side) => side.split(' + ').map((t) => { const m = t.match(/^(\d*)(.+)$/); return m ? m[1] + (usual.get(m[2] ?? '') ?? m[2]) : t; }).join(' + ')).join(' -> ');
-  // ---------- discoveries become spells (I-053) ----------
-  // A found reaction can be saved as a spell for the game (formula-save.js,
-  // shared with the world). Free play keeps unlimited bottles; the world's
-  // story mode needs the bottles the player has found.
-  // I-056: every spell does something in the world (`use`); a reaction
-  // with nothing to do out there is Bench only and says why.
-  /** @type {Record<string, {kind: string, runs: string, use?: string, bench_only?: string | null}>} */
-  const EFFECTS = JSON.parse(effects_json());
-  const KIND_WORD = { fire: 'a fire spell', water: 'a splash spell', frost: 'a cold spell', foam: 'a fizz spell', cloud: 'a cloud spell', glow: 'a warm glow spell', wall: 'a wall spell', reveal: 'a reveal spell' };
-  /** @type {Record<string, {id: string, name: string, text: string}>} */
-  const RULES = Object.fromEntries((codex.rules || []).map((/** @type {any} */ x) => [x.id, x]));
-  /** "Predicted by rule: <the rule in plain words>" for a rule-tier entry, else "". */
-  const ruleHtml = (/** @type {any} */ r) => {
-    if (r.tier !== 'rule') return '';
-    const x = RULES[r.rule];
-    return `<div class="rule">Predicted by rule${x ? ` (${esc(x.name)}): ${esc(x.text)}` : '.'}</div>`;
-  };
-  const saveSpellButton = (/** @type {any} */ r) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn save-spell';
-    const fx = EFFECTS[r.id];
-    if (fx?.bench_only) {
-      b.disabled = true; b.textContent = `Bench only: ${fx.bench_only}`; b.title = fx.bench_only;
-      return b;
-    }
-    const kind = fx ? KIND_WORD[/** @type {keyof typeof KIND_WORD} */ (fx.kind)] || '' : '';
-    const done = () => { b.disabled = true; b.textContent = 'Saved! Open your pack in the game (Tab) to use it.'; };
-    if (r.id in readSpells(localStorage).saved) done();
-    else {
-      b.textContent = kind ? `✨ Save as a spell (${kind})` : '✨ Save as a spell';
-      if (fx?.use) b.textContent += `: it ${fx.use}`;
-      b.addEventListener('click', () => { if (saveSpell(localStorage, r.id)) done(); });
-    }
-    return b;
-  };
   const drawCodex = () => {
     const seen = new Set(found);
     const vis = codex.reactions.filter(visible);
@@ -320,7 +280,7 @@ async function main() {
       html += `<details class="fam"><summary><b>${esc(FAMILY[fam] || fam)}</b> <span>${got} of ${rs.length}</span></summary>`;
       for (const r of rs) {
         html += seen.has(r.id)
-          ? `<div class="entry found" data-id="${esc(r.id)}"><b>${esc(r.name)}</b><div class="eq">${eqFor(r.equation)}</div><div>${esc(describe(r))}</div>${ruleHtml(r)}${isYoung() && guide?.where_you_see_it[r.id] ? `<div class="where">👀 ${esc(guide.where_you_see_it[r.id])}</div>` : ''}</div>`
+          ? `<div class="entry found"><b>${esc(r.name)}</b><div class="eq">${eqFor(r.equation)}</div><div>${esc(describe(r))}</div>${isYoung() && guide?.where_you_see_it[r.id] ? `<div class="where">👀 ${esc(guide.where_you_see_it[r.id])}</div>` : ''}</div>`
           : `<div class="entry"><b>?</b><div>${r.needs.length ? 'Needs ' + r.needs.map(condName).join(' and ') + '.' : 'Needs nothing special.'}</div></div>`;
       }
       html += '</details>';
@@ -329,29 +289,12 @@ async function main() {
     if (labFinds.length) html += `<details class="fam" open><summary><b>Lab records</b> <span>${labFinds.length}</span></summary>${labFinds.map((m) => `<div class="entry found"><div class="eq">${eqFor(plain(m))}</div><div>Recorded by real chemists.</div></div>`).join('')}</details>`;
     html += `<p class="note">${LAB_CREDIT}</p>`;
     $('codex').innerHTML = html;
-    for (const el of $('codex').querySelectorAll('.entry.found[data-id]')) { const r = byId[/** @type {HTMLElement} */ (el).dataset.id || '']; if (r) el.append(saveSpellButton(r)); }
     drawGuide();
   };
   const drawNotes = () => {
     $('notes').innerHTML = notes.length ? notes.map((x) => `<div class="entry${x.ok ? ' found' : ''}"><div class="eq">${eqFor(x.eq)}</div><div>${esc(x.what)}</div></div>`).join('') : '<p class="note">Nothing yet.</p>';
   };
   const note = (/** @type {string} */ eq, /** @type {string} */ what, /** @type {boolean} */ ok) => { notes = [{ t: new Date().toISOString(), eq, what, ok }, ...notes].slice(0, 40); store.set('notes', notes); drawNotes(); };
-
-  // ---------- Sprout's "Show me how" (I-059) ----------
-  // Sprout sees balanced equations but never balances by hand: this counts
-  // each kind of atom on both sides of the equation it just ran.
-  const showHow = (/** @type {string} */ eq) => {
-    if (!isSprout()) return null;
-    const [l = {}, r = {}] = eq.split(' -> ').map((s) => totals(sideOf(s)));
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Show me how';
-    b.addEventListener('click', () => {
-      const rows = Object.keys(l).map((e) => `<li>${esc(EL[e]?.name ?? e)} (${e}): ${l[e]} in, ${r[e] || 0} out</li>`).join('');
-      const box = document.createElement('div'); box.className = 'how';
-      box.innerHTML = `<p><b>How it balances.</b> Count each kind of atom on both sides. The big numbers in front make the counts match:</p><ul>${rows}</ul>`;
-      b.replaceWith(box);
-    });
-    return b;
-  };
 
   // ---------- running the chamber ----------
   /** A "read it to me" button for Sprout and Seedling (plays only when tapped), or null. */
@@ -370,77 +313,6 @@ async function main() {
   };
   /** @type {Record<string, string>} */
   const HEAT = names.heat;
-  // ---------- what you would really see (reaction show records, I-054) ----------
-  // Each codex reaction's show record (crates/chem/src/show.rs) says what a
-  // real bench shows: states, sourced colours, the visible changes, ΔH and
-  // speed. The card says it in the band's words: plain words for Sprout and
-  // Seedling, states from Apprentice, ΔH at Adept.
-  /** @type {Record<string, any>} */
-  const SHOWS = {};
-  const showOf = (/** @type {string} */ id) => (SHOWS[id] ??= JSON.parse(show_json(id)));
-  const listWords = (/** @type {string[]} */ xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
-  const STATE_WORD = { s: 'solid', l: 'liquid', g: 'gas', aq: 'dissolved' };
-  /** A substance's everyday name without its bracketed second name ("carbon (charcoal)" is carbon). */
-  const bare = (/** @type {string} */ f) => nameOf(f).replace(/ \(.*\)$/, '');
-  /** "a" or "an" before a word. */
-  const an = (/** @type {string} */ w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
-  /** A gas's name: names.json names some substances by their solution (HCl is hydrochloric acid); as a gas it is hydrogen chloride. */
-  const GAS_NAME = { HCl: 'hydrogen chloride' };
-  const gasName = (/** @type {string} */ f) => GAS_NAME[/** @type {keyof typeof GAS_NAME} */ (f)] || nameOf(f);
-  /** A glow's colour word from its temperature (no temperature: an externally heated solid). */
-  const glowWord = (/** @type {any} */ t) => (!t ? 'a glow from the hot solid' : t.k < 1200 ? 'a red-hot glow' : t.k < 1800 ? 'an orange-hot glow' : 'a white-hot glow');
-  /** The visible changes of a show record, as short phrases. Sprout gets the two plainest. */
-  const seeParts = (/** @type {any} */ s, young = false) => {
-    /** @type {string[]} */
-    const parts = [];
-    const add = (/** @type {string} */ x) => { if (!parts.includes(x)) parts.push(x); };
-    // A colour as an adjective ("blue copper sulfate"); none when colourless, or when it repeats the name ("shiny silver" silver).
-    const tone = (/** @type {any} */ c, /** @type {string} */ f = '') => (c && !c.described.startsWith('colourless') && !(f && c.described.includes(bare(f))) ? `${c.described} ` : '');
-    for (const v of s.visible) {
-      if (v === 'flame') add(s.flame && s.flame.emitter !== 'unknown' ? `${an(s.flame.described)} flame` : 'a flame');
-      else if (v === 'glow') add(glowWord(s.glow?.temp));
-      else if (v === 'bubbles') { const g = s.gases.filter((/** @type {any} */ x) => x.side === 'product').map((/** @type {any} */ x) => gasName(x.formula).replace(/ \(.*\)$/, '')); add(g.length ? `bubbles of ${listWords(g)}` : 'bubbles'); }
-      else if (v === 'precipitate') for (const x of s.precipitates) add(`${an(`${tone(x.colour)}solid`)} (${bare(x.formula)}) ${x.grain === 'grainy' ? 'settling to the bottom' : 'clouding the liquid'}`);
-      else if (v === 'coating') for (const x of s.coatings) add(`${tone(x.colour, x.formula)}${bare(x.formula)} coating the ${x.on === 'electrode' ? 'electrode' : bare(x.on)}`);
-      else if (v === 'colour_change') {
-        const gone = s.colour_changes.filter((/** @type {any} */ c) => !c.appears);
-        const comes = s.colour_changes.filter((/** @type {any} */ c) => c.appears);
-        if (young) {
-          const c = gone[0] || comes[0];
-          if (c) add(`the ${c.colour.described} colour ${c.appears ? 'appearing' : 'fading'}`);
-        } else if (gone.length || comes.length) add(`a colour change: ${listWords([...gone.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${bare(c.formula)} going`), ...comes.map((/** @type {any} */ c) => `${tone(c.colour, c.formula)}${bare(c.formula)} appearing`)])}`);
-      } else if (v === 'smoke') for (const x of s.smoke) add(x.kind === 'vapour' ? `${tone(x.colour)}${bare(x.formula)} vapour` : `${tone(x.colour)}${x.kind}`);
-      else if (v === 'frost') add('frost');
-      else if (v === 'shimmer') add('the hot air shimmering above it');
-      else if (v === 'condensation') add('droplets forming on the cool glass');
-    }
-    return young ? parts.slice(0, 2) : parts;
-  };
-  const DRIFT = { rises: 'so it rises', sinks: 'so it sinks', mixes: 'close enough that it mixes with the air instead of rising or sinking' };
-  /** The "what you would see" lines of the result card, for this band. */
-  const seeHtml = (/** @type {any} */ s) => {
-    if (!s) return '';
-    const parts = seeParts(s, isSprout());
-    // Phrases that hold their own list are kept apart with semicolons.
-    const seen = parts.some((x) => /, | and /.test(x)) ? parts.join('; ') : listWords(parts);
-    let h = parts.length ? `<p class="see"><b>What you’d see:</b> ${esc(seen)}.</p>` : '';
-    if (s.note) h += `<p class="see">${esc(s.note)}</p>`;
-    if (s.sped_up) h += `<p class="see">For real this takes ${esc(s.timescale)}, so the Bench shows it sped up.</p>`;
-    if (rank(band) >= rank('apprentice')) {
-      const st = s.species.map((/** @type {any} */ x) => `${x.coef > 1 ? x.coef : ''}${subs(x.formula)}(${x.state})`);
-      const nr = s.species.filter((/** @type {any} */ x) => x.side === 'reactant').length;
-      h += `<p class="see eq">${st.slice(0, nr).join(' + ')} → ${st.slice(nr).join(' + ')}</p>`;
-      h += `<p class="see">States: ${esc(listWords([...new Set(s.species.map((/** @type {any} */ x) => `${x.state} = ${STATE_WORD[/** @type {keyof typeof STATE_WORD} */ (x.state)]}`))]))}.</p>`;
-    }
-    if (rank(band) >= rank('adept')) {
-      if (s.dh.kj !== null) h += `<p class="see">ΔH = ${s.dh.kj > 0 ? '+' : '−'}${Math.abs(s.dh.kj).toFixed(1)} kJ per mole of reaction as written${s.dh.dh_estimated ? ' (estimated)' : ''}, from standard enthalpies of formation.</p>`;
-      const t = s.flame?.temp || s.glow?.temp;
-      if (t) h += `<p class="see">Up to about ${Math.round(t.k / 100) * 100} K: an estimated upper bound (no heat lost).</p>`;
-      if (s.flame?.typical_k) h += `<p class="see">Its glowing soot is nearer ${Math.round(s.flame.typical_k / 100) * 100} K, which gives the yellow.</p>`;
-      for (const g of s.gases.filter((/** @type {any} */ x) => x.side === 'product')) h += `<p class="see">${esc(gasName(g.formula).replace(/ \(.*\)$/, ''))}: ${g.density_rel_air.toFixed(2)} times as dense as air, ${DRIFT[/** @type {keyof typeof DRIFT} */ (g.drift)]}.</p>`;
-    }
-    return h;
-  };
   const fxFor = (/** @type {any} */ r, /** @type {Record<string, number>} */ out) => (names.effects[r.family] === 'flame' ? 'flame' : Object.keys(out).some((f) => GASES.has(f)) ? 'bubbles' : names.effects[r.family] || 'glow');
   // Lab records: published reactions (Open Reaction Database), fetched the
   // first time a try isn't in the codex. Keys come from the engine.
@@ -499,11 +371,8 @@ async function main() {
       if (rt && !balanced.includes(r.id)) { balanced = [...balanced, r.id]; store.set('balanced', balanced); }
       if (isNew) { found = [...found, r.id]; store.set('found', found); }
       drawCodex();
-      const show = showOf(r.id);
-      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${ruleHtml(r)}${seeHtml(show)}${show?.feel ? `<p>${esc(show.feel)}</p>` : r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
-      $('result').append(saveSpellButton(r));
-      const how = showHow(eqText); if (how) $('result').append(how);
-      note(eqText, r.name, true); animate(inSide, out, fxFor(r, out), show); return;
+      result('good', `<p><b>${esc(r.name)}!</b> ${esc(describe(r))}</p><p class="eq">${eqFor(eqText)}</p>${r.heat ? `<p>${HEAT[r.heat]}</p>` : ''}${r.hazard ? `<p class="hazard">${hazardText(r.hazard)}</p>` : ''}<p>${isNew ? 'New codex entry!' : 'Already in your codex.'}</p>`);
+      note(eqText, r.name, true); animate(inSide, out, fxFor(r, out)); return;
     }
     if (raw.kind === 'unbalanced') {
       const near = raw.close ? `<p>You’re close: these really do react. ${rank(band) <= rank('seedling') ? 'Try changing how many of each you use.' : 'Change the numbers in front.'}</p>` : '<p>Atoms are never made or destroyed, so both sides need the same atoms.</p>';
@@ -547,44 +416,14 @@ async function main() {
     const input = Object.keys(right).length ? `${sideText(left)} -> ${sideText(right)}` : sideText(left);
     runChamber(input);
   });
-  const emptyChamber = () => { scene3d.emptyChamber(); chamberMols = 0; previewKey = ''; ran = false; drawChamberTag(); };
-  // After a run this puts back what is on "in", ready to run again.
-  $('emptyChamber').addEventListener('click', () => { emptyChamber(); $('result').hidden = true; previewIn(); });
+  const emptyChamber = () => scene3d.emptyChamber();
+  $('emptyChamber').addEventListener('click', () => { emptyChamber(); $('result').hidden = true; });
   $('clearTable').addEventListener('click', () => { for (const s of [left, right]) for (const k of Object.keys(s)) delete s[k]; emptyChamber(); $('result').hidden = true; drawTable(); });
 
   // The chamber animation is drawn by bench-scene.js; here each side becomes
   // up to 12 molecules with their drawn bonds.
   const mols = (/** @type {Record<string, number>} */ side) => Object.entries(side).flatMap(([f, n]) => Array(Math.min(n, 6)).fill(f)).slice(0, 12).map((f) => { const els = atomsOf(f); return { els, bonds: structure(els).bonds }; });
-  // The show record goes to the scene as an optional 4th argument (the
-  // graphics thread draws from it; today's scene ignores it).
-  const animate = (/** @type {Record<string, number>} */ inSide, /** @type {Record<string, number>} */ outSide, /** @type {any} */ fx, /** @type {any} */ show = undefined) => {
-    const a = mols(inSide); /** @type {any} */ (scene3d).playReaction(a, mols(outSide), fx, show); chamberMols = a.length; previewKey = sideText(left); ran = true; drawChamberTag();
-  };
-
-  // What is on "in" always shows in the 3D chamber: one molecule per count
-  // (up to 6 of each and 12 in all, as in a run), standing still until Run
-  // plays the reaction. Clear the table (or taking everything off) empties
-  // it. A small tag on the view names what is there, in the band's words.
-  let chamberMols = 0;
-  let previewKey = '';
-  /** The chamber shows a run's result, not "in": the tag waits for the next change. */
-  let ran = false;
-  const drawChamberTag = () => {
-    const tag = $('chamberTag'); const keys = Object.keys(left);
-    tag.hidden = ran || !keys.length;
-    if (tag.hidden) { tag.textContent = ''; return; }
-    const what = keys.map((f) => `${(left[f] ?? 0) > 1 ? left[f] : ''}${show(f)}`).join(' + ');
-    const total = Object.values(left).reduce((n, k) => n + k, 0);
-    tag.innerHTML = `In the chamber: <b>${what}</b>${total > chamberMols ? ` <small>(showing ${chamberMols})</small>` : ''}`;
-  };
-  const previewIn = () => {
-    const key = sideText(left);
-    if (key === previewKey) { drawChamberTag(); return; }
-    previewKey = key; ran = false;
-    if (!Object.keys(left).length) { scene3d.emptyChamber(); chamberMols = 0; }
-    else { const a = mols(left); scene3d.playReaction(a, a, 'fizzle'); chamberMols = a.length; }
-    drawChamberTag();
-  };
+  const animate = (/** @type {Record<string, number>} */ inSide, /** @type {Record<string, number>} */ outSide, /** @type {any} */ fx) => scene3d.playReaction(mols(inSide), mols(outSide), fx);
 
   /** @type {AudioContext | null} */
   let ac = null;
@@ -600,9 +439,10 @@ async function main() {
   let walk = null;
   const TAB_OF = /** @type {Record<string, string>} */ ({ codex: 'codex', notebook: 'notes', guide: 'guide' });
   const squash = (/** @type {string} */ s) => s.replace(/\s+/g, '').replace('→', '->');
-  /** Formulas in guide prose shown with subscripts and arrows, at every band (I-059). */
+  /** Formulas in guide prose shown with subscripts and arrows (Apprentice and Adept only; Sprout text has none). */
   const prose = (/** @type {string} */ s) => {
-    const h = esc(s).replace(/&lt;=&gt;/g, '⇌').replace(/-&gt;/g, '→');
+    let h = esc(s).replace(/&lt;=&gt;/g, '⇌').replace(/-&gt;/g, '→');
+    if (isYoung()) return h;
     return h.split(' ').map((w) => {
       const m = w.match(/^(\d*)([A-Za-z0-9()]+)([.,;:]?)$/);
       return m && /\d/.test(m[2] ?? '') && /[A-Z]/.test(m[2] ?? '') && parseFormula(m[2] ?? '') ? `${m[1]}${subs(m[2] ?? '')}${m[3]}` : w;
@@ -635,8 +475,6 @@ async function main() {
     unmark();
     const [k] = stepAction(step);
     if (k === 'condition' || k === 'run') showTab('bench');
-    // A switch the player already turned on counts: no need to turn it off and on again.
-    if (k === 'condition' && conds.has(stepAction(step)[1])) { walk.i++; if (walk.i < g.walkthrough.length) showStep(); return; }
     const t = targetOf(step);
     if (t) { t.classList.add('guide-target'); t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     coach(`Step ${walk.i + 1} of ${g.walkthrough.length}`, prose(step.say), []);
@@ -759,14 +597,10 @@ async function main() {
     const ls = sec('Lessons');
     for (const l of g.lessons) {
       const d = document.createElement('div'); d.className = 'lesson';
-      // I-057: a lesson's `world` points at the chemistry quest that uses it.
-      const world = l.world && l.world.say ? `<p class="world">${prose(l.world.say)}</p>` : '';
-      // I-059: an Adept lesson also names its AP Chemistry topic.
-      const ap = l.ap ? ` <small class="ngss" title="AP Chemistry Course and Exam Description topic">AP Chemistry ${esc(l.ap)}</small>` : '';
-      d.innerHTML = `<b>${prose(l.title)}</b><p>${prose(l.idea)}</p>${world}<small class="ngss" title="Next Generation Science Standards">NGSS ${esc(l.ngss)}</small>${ap}`;
+      d.innerHTML = `<b>${prose(l.title)}</b><p>${prose(l.idea)}</p><small class="ngss" title="Next Generation Science Standards">NGSS ${esc(l.ngss)}</small>`;
       const row = document.createElement('div'); row.className = 'row';
       if (l.try) row.append(button('Try it', () => tryLesson(l)));
-      const say = sayButton(`${l.title}. ${l.idea}${l.world && l.world.say ? ` ${l.world.say}` : ''}`); if (say) row.append(say);
+      const say = sayButton(`${l.title}. ${l.idea}`); if (say) row.append(say);
       d.append(row); ls.append(d);
     }
   };
@@ -783,7 +617,7 @@ async function main() {
   setBand(band);
   drawTable(); drawNotes(); restructure();
   $('loading').hidden = true;
-  /** @type {any} */ (window).__benchFree = { codex, run: runChamber, left, right, conds, found: () => found, setBand, walk: () => walk, guide: () => guide, sceneCount: () => chamberMols + atoms.length, chamberCount: () => chamberMols, plateCount: () => atoms.length };
+  /** @type {any} */ (window).__benchFree = { codex, run: runChamber, left, right, conds, found: () => found, setBand, walk: () => walk, guide: () => guide };
   requestAnimationFrame(frame);
 }
 

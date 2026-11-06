@@ -284,17 +284,12 @@ pub fn rig_stand() -> Mesh {
 /// own space: forearm along +z behind the hand, fingers towards -z.
 /// Returns the bronze-and-gold body; `gauntlet_runes` is the inlay, drawn
 /// with the glowing rune material.
-///
-/// `real` (the realistic look, `?look=new`): worn steel plates, aged
-/// brass trim and dark oiled leather instead of the toy-like bronze and
-/// gold, so the hand matches the scanned world.
-pub fn gauntlet(real: bool) -> Mesh {
+pub fn gauntlet() -> Mesh {
     let mut b = Builder::default();
-    let (bronze, dark, gold, leather) = if real {
-        (hex(0x8A8D90), hex(0x4A4C4F), hex(0x9C7F4A), hex(0x2E2119))
-    } else {
-        (hex(0xB0763F), hex(0x7A4E2A), hex(0xE0B050), hex(0x5A3A26))
-    };
+    let bronze = hex(0xB0763F);
+    let dark = hex(0x7A4E2A);
+    let gold = hex(0xE0B050);
+    let leather = hex(0x5A3A26);
     let along = |d: Vec3| Quat::from_rotation_arc(Vec3::Y, d.normalize());
     let back = Vec3::NEG_Z;
     // Forearm: a leather sleeve, then a bronze bracer over it.

@@ -7,11 +7,8 @@
 //! - **Powers (F).** The selected spell's traversal power: Fire's Flare (a
 //!   light for dark caves), Water's H2 lift (rise like a hydrogen balloon),
 //!   Frost's ice walkway (freeze the water's surface ahead) and CO2's dash
-//!   (a gas burst pushes you the other way). A spell's power is locked until
-//!   the player knows the spell: learned at the Formula Bench, or cast in
-//!   the world (Paawan's playtest: Fire was cast at the charcoal clamp, by a
-//!   build or at once, yet Flare stayed locked because only the Bench
-//!   counted). A cast unlocks it for the run (`Powers::cast`).
+//!   (a gas burst pushes you the other way). An Unknown spell's power is
+//!   locked until it is learned at the Formula Bench.
 //! - **Stronger with practice.** A Practised or Mastered spell flies further,
 //!   recharges faster, and its power is bigger (`Scale`).
 //! - **Caches.** Four optional places, one per spell, stamped into the world
@@ -524,20 +521,6 @@ impl Motion {
         true
     }
 
-    /// A burst of gas from `from` pushes the player away from it at `speed`
-    /// (a discovered spell's Push, I-056): the dash's launch, on or off the
-    /// ground, along the line from the burst (the view when on top of it).
-    pub fn push(&mut self, player: &mut Player, from: Vec3, speed: f32) {
-        let away = Vec2::new(player.pos.x - from.x, player.pos.z - from.z);
-        let dir = if away.length() > 0.2 {
-            away.normalize()
-        } else {
-            Vec2::new(-player.yaw.sin(), -player.yaw.cos())
-        };
-        player.vel = Vec3::new(dir.x * speed, DASH_UP, dir.y * speed);
-        player.grounded = false;
-    }
-
     /// Runs after the frame's movement: holds the lift's rise until it has
     /// gained its height (or hit a ceiling) and limits drift until landing.
     pub fn after_move(&mut self, player: &mut Player, dt: f32) {
@@ -579,9 +562,6 @@ pub struct Powers {
     /// Flare light left, seconds.
     pub flare: f32,
     pub stages: [Stage; 4],
-    /// Each shipped spell was cast in this run (not a discovery on its key):
-    /// the player knows it, so its power unlocks.
-    pub cast: [bool; 4],
     pub rank: usize,
     pub points: u32,
     pub rank_ups: u32,
@@ -682,19 +662,10 @@ impl Powers {
         up
     }
 
-    /// The stage spell `i`'s power works at: its stage, or Learning once it
-    /// was cast in this run.
-    pub fn power_stage(&self, i: usize) -> Stage {
-        power_stage(
-            self.stages.get(i).copied().unwrap_or_default(),
-            self.cast.get(i).copied().unwrap_or(false),
-        )
-    }
-
     pub fn json(&self, spell: usize) -> String {
         let (name, _) = RANKS[self.rank];
         let next = RANKS.get(self.rank + 1);
-        let stage = self.power_stage(spell);
+        let stage = self.stages.get(spell).copied().unwrap_or_default();
         let caches: Vec<String> = self
             .built
             .iter()
@@ -719,7 +690,7 @@ impl Powers {
             .map(|s| format!("\"{}\"", s.as_str()))
             .collect();
         format!(
-            "{{\"rank\":{},\"rankName\":\"{}\",\"points\":{},\"next\":{},\"nextAt\":{},\"rankUps\":{},\"spell\":{},\"power\":\"{}\",\"spellName\":\"{}\",\"unlocked\":{},\"cd\":{:.2},\"lifting\":{},\"floating\":{},\"flare\":{:.1},\"used\":[{},{},{},{}],\"walkway\":{},\"stages\":[{}],\"found\":{},\"guide\":\"{}\",\"caches\":[{}]}}",
+            "{{\"rank\":{},\"rankName\":\"{}\",\"points\":{},\"next\":{},\"nextAt\":{},\"rankUps\":{},\"spell\":{},\"power\":\"{}\",\"unlocked\":{},\"cd\":{:.2},\"lifting\":{},\"floating\":{},\"flare\":{:.1},\"used\":[{},{},{},{}],\"walkway\":{},\"stages\":[{}],\"found\":{},\"guide\":\"{}\",\"caches\":[{}]}}",
             self.rank,
             name,
             self.points,
@@ -728,7 +699,6 @@ impl Powers {
             self.rank_ups,
             spell,
             POWER_NAMES.get(spell).copied().unwrap_or(""),
-            SPELL_NAMES.get(spell).copied().unwrap_or(""),
             stage != Stage::Unknown,
             self.cd[spell.min(3)].max(0.0),
             self.motion.lift_to.is_some(),
@@ -744,16 +714,6 @@ impl Powers {
             self.hint,
             caches.join(",")
         )
-    }
-}
-
-/// The stage a power works at: a spell cast in this run counts as known
-/// (Learning) even if the Bench never taught it.
-pub fn power_stage(stage: Stage, cast: bool) -> Stage {
-    if stage == Stage::Unknown && cast {
-        Stage::Learning
-    } else {
-        stage
     }
 }
 
@@ -829,11 +789,8 @@ pub fn line(u: &Use, spell: usize, cd: f32) -> String {
     let i = spell.min(3);
     match u {
         Use::Locked => format!(
-            "{p} is locked until you know {s}. Press {k} and cast {s} once (or learn it at the Formula Bench, B). {p}: {h}.",
-            p = POWER_NAMES[i],
-            s = SPELL_NAMES[i],
-            k = i + 1,
-            h = POWER_HINTS[i]
+            "{} is locked. Learn {} at the Formula Bench (B) to unlock it: {}.",
+            POWER_NAMES[i], SPELL_NAMES[i], POWER_HINTS[i]
         ),
         Use::Cooling => format!("{} recharging: {:.1} s", POWER_NAMES[i], cd.max(0.0)),
         Use::Flare => "Flare! Burning fuel gives out light as well as heat.".into(),
@@ -859,15 +816,6 @@ struct Orb(usize);
 
 #[derive(Component)]
 struct FlareLight;
-
-/// The Flare's glowing ember, up and to the right of the view: in daylight
-/// the light alone shows nothing (Paawan's playtest, "Flare doesn't work?"),
-/// so the ember says it is lit wherever the player stands.
-#[derive(Component)]
-struct FlareOrb;
-
-/// Where the ember floats, in the camera's frame (right, up, forward -z).
-const FLARE_ORB_AT: Vec3 = Vec3::new(0.42, 0.3, -1.1);
 
 #[derive(Component)]
 struct Beam;
@@ -965,20 +913,6 @@ fn spawn(
         Transform::default(),
         FlareLight,
     ));
-    // The ember: the cache orbs' mesh and look (an emissive ball), smaller.
-    let ember = materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.75, 0.45),
-        emissive: LinearRgba::rgb(1.0, 0.55, 0.2) * 8.0,
-        ..default()
-    });
-    commands.spawn((
-        Mesh3d(ball),
-        MeshMaterial3d(ember),
-        Transform::from_scale(Vec3::splat(0.22)),
-        NotShadowCaster,
-        FlareOrb,
-        Visibility::Hidden,
-    ));
 }
 
 /// The stage a spell counts as now (the save, raised by this run's practice).
@@ -1020,7 +954,7 @@ fn commands(
         return;
     }
     let spell = game.spell.min(3);
-    let stage = power_stage(stages(&prog, &working)[spell], pw.cast[spell]);
+    let stage = stages(&prog, &working)[spell];
     let used = use_power(
         &mut pw,
         world.as_mut().map(|w| &mut w.0),
@@ -1043,7 +977,6 @@ fn run(
     prog: Res<crate::Progress>,
     working: Res<crate::Working>,
     story: Option<Res<crate::story::Keys>>,
-    disc: Option<Res<crate::discover::Disc>>,
 ) {
     let st = stages(&prog, &working);
     boost.0 = st.map(|s| scale(s).range);
@@ -1052,11 +985,6 @@ fn run(
     let fire_first = story.as_ref().is_some_and(|k| k.quest <= 1);
     // A cast this frame: a Practised or Mastered spell recharges faster.
     if game.casts != pw.last_casts {
-        // A shipped spell cast (not a discovery on its key): its power unlocks.
-        let k = game.spell.min(3);
-        if disc.as_ref().is_none_or(|d| d.active(k).is_none()) {
-            pw.cast[k] = true;
-        }
         if game.cooldown > 0.0 {
             let k = scale(st[game.spell.min(3)]).cooldown;
             game.cooldown -= crate::COOLDOWN * (1.0 - k);
@@ -1122,40 +1050,12 @@ fn run(
     }
 }
 
-/// The cache orbs and beams `draw` moves.
-type OrbQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static Orb,
-        &'static mut Transform,
-        &'static mut Visibility,
-        Has<Beam>,
-    ),
-    (Without<FlareLight>, Without<FlareOrb>),
->;
-/// The Flare's light.
-type FlareQuery<'w, 's> = Query<
-    'w,
-    's,
-    (&'static mut PointLight, &'static mut Transform),
-    (With<FlareLight>, Without<FlareOrb>),
->;
-/// The Flare's ember.
-type EmberQuery<'w, 's> = Query<
-    'w,
-    's,
-    (&'static mut Transform, &'static mut Visibility),
-    (With<FlareOrb>, Without<Orb>),
->;
-
 fn draw(
     time: Res<Time>,
     pw: Res<Powers>,
     player: Res<Player>,
-    mut orbs: OrbQuery,
-    mut flare: FlareQuery,
-    mut ember: EmberQuery,
+    mut orbs: Query<(&Orb, &mut Transform, &mut Visibility, Has<Beam>), Without<FlareLight>>,
+    mut flare: Query<(&mut PointLight, &mut Transform), With<FlareLight>>,
 ) {
     let t = time.elapsed_secs();
     for (o, mut tr, mut v, beam) in &mut orbs {
@@ -1188,23 +1088,6 @@ fn draw(
             l.intensity = want;
         }
         tr.translation = player.eye() + Vec3::Y * 0.6;
-    }
-    if let Ok((mut tr, mut v)) = ember.single_mut() {
-        let on = pw.flare > 0.0;
-        let want = if on {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
-        if *v != want {
-            *v = want;
-        }
-        if on {
-            let k = (pw.flare / 2.0).clamp(0.0, 1.0);
-            let bob = Vec3::Y * 0.02 * (t * 3.0).sin();
-            tr.translation = player.eye() + player.rotation() * (FLARE_ORB_AT + bob);
-            tr.scale = Vec3::splat(0.22 * (0.4 + 0.6 * k));
-        }
     }
 }
 
@@ -1473,11 +1356,7 @@ mod tests {
         let mut p = at(0.5, 40, 0.5, 0.0);
         let u = use_power(&mut pw, None, &mut p, 1, Stage::Unknown);
         assert_eq!(u, Use::Locked);
-        let l = line(&u, 1, 0.0);
-        assert!(
-            l.contains("Formula Bench") && l.contains("Press 2 and cast Water once"),
-            "{l}"
-        );
+        assert!(line(&u, 1, 0.0).contains("Formula Bench"));
         assert_eq!(p.vel, Vec3::ZERO);
         // Learned: it works, then recharges.
         assert_eq!(
@@ -1796,25 +1675,5 @@ mod tests {
         }
         let ice = cells.iter().filter(|q| w2.get(**q).mat == mat::ICE).count();
         assert_eq!(ice, cells.len(), "30 s later the walkway is still ice");
-    }
-
-    #[test]
-    fn casting_a_spell_unlocks_its_power() {
-        // Paawan's playtest: Fire cast in the world (never at the Bench)
-        // left Flare locked. A cast this run unlocks it at Learning.
-        let mut pw = Powers::default();
-        let mut p = at(0.5, 40, 0.5, 0.0);
-        assert_eq!(power_stage(Stage::Unknown, false), Stage::Unknown);
-        assert_eq!(power_stage(Stage::Unknown, true), Stage::Learning);
-        assert_eq!(power_stage(Stage::Mastered, true), Stage::Mastered);
-        assert!(pw.json(0).contains("\"unlocked\":false"));
-        assert!(pw.json(0).contains("\"spellName\":\"Fire\""));
-        pw.cast[0] = true;
-        assert_eq!(pw.power_stage(0), Stage::Learning);
-        assert!(pw.json(0).contains("\"unlocked\":true"));
-        let st = pw.power_stage(0);
-        assert_eq!(use_power(&mut pw, None, &mut p, 0, st), Use::Flare);
-        assert_eq!(pw.flare, scale(Stage::Learning).flare);
-        assert_eq!(pw.used[0], 1);
     }
 }

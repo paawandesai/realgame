@@ -138,10 +138,7 @@ pub(crate) fn douse(
         return;
     };
     for l in landed.read() {
-        if l.spell == Spell::Water
-            && l.normal != [0, 0, 0]
-            && crate::discover::lands_as_matter(l.disc)
-        {
+        if l.spell == Spell::Water && l.normal != [0, 0, 0] {
             let reached = douse_at(&mut matter.world, &mut vox.0, l.pos);
             let burning = matter.world.burning_cells().any(in_store);
             if !reached && burning && in_workshop(l.pos) {

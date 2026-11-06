@@ -103,12 +103,7 @@ export function startRank() {
       name.textContent = `Rank: ${st.rankName}`;
       fill.style.width = `${Math.round(toNext(st, RANK_AT[st.rank] || 0) * 100)}%`;
       next.textContent = st.next ? `${st.points} / ${st.nextAt} to ${st.next}` : `${st.points} points: top rank`;
-      // Paawan's playtest ("Flare doesn't work?"): a locked power says how
-      // to unlock it, and a lit Flare says how long it lasts.
-      const lock = !st.unlocked
-        ? ` (locked: cast ${st.spellName || 'the spell'} once)`
-        : st.spell === 0 && st.flare > 0 ? ` (lit: ${Math.ceil(st.flare)} s)`
-          : st.cd > 0 ? ` (${st.cd.toFixed(1)} s)` : '';
+      const lock = st.unlocked ? (st.cd > 0 ? ` (${st.cd.toFixed(1)} s)` : '') : ' (locked)';
       power.textContent = `F: ${st.power}${lock}`;
       power.classList.toggle('rank-locked', !st.unlocked);
       // Save found caches on this device.

@@ -346,19 +346,7 @@ pub(crate) fn drive(
             continue;
         }
         let n = IVec3::new(l.normal[0].into(), l.normal[1].into(), l.normal[2].into());
-        // I-053: a discovered spell scales its rule's emit by its strength;
-        // a puff (amount 0) changes nothing.
-        if l.amount <= 0.0 {
-            continue;
-        }
-        // I-056: a Wall, Reveal, Lift or Push is carried out by `world_use`;
-        // the shipped spell it flies as does not also land as matter.
-        if !crate::discover::lands_as_matter(l.disc) {
-            continue;
-        }
-        let mut emit = on_impact(l.spell, l.pos, n);
-        emit.amount = l.amount;
-        matter.world.emit(emit);
+        matter.world.emit(on_impact(l.spell, l.pos, n));
     }
     let now = time.elapsed_secs();
     // break-2 B1: the world holds while the game is paused (the formula

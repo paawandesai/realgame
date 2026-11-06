@@ -4165,21 +4165,11 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "js-sys",
- "realgame-chem",
  "realgame-matter",
  "realgame-sim",
  "realgame-voxel",
  "wasm-bindgen",
  "web-sys",
-]
-
-[[package]]
-name = "realgame-chem"
-version = "0.1.0"
-dependencies = [
- "realgame-sim",
- "serde",
- "serde_json",
 ]
 
 [[package]]
