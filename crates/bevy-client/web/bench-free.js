@@ -38,6 +38,17 @@ const showEq = (/** @type {string} */ eq) => eq.split(' -> ').map((s) => s.split
 const hex = (/** @type {number} */ n) => '#' + n.toString(16).padStart(6, '0');
 const LAB_CREDIT = 'Lab records: Open Reaction Database (Kearnes et al. 2021), CC BY-SA 4.0. <a href="https://github.com/open-reaction-database/ord-data" target="_blank" rel="noopener">ord-data</a>';
 const esc = (/** @type {string} */ s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] || c);
+// The deployed site's CSP (style-src 'self') blocks style="" attributes in
+// HTML strings, but not styles set from script. Markup writes data-css="..."
+// instead, and this copies it onto element.style as nodes are added.
+const applyCss = (/** @type {Element} */ root) => {
+  for (const el of [root, ...root.querySelectorAll('[data-css]')]) {
+    const css = el.getAttribute('data-css');
+    if (css !== null && el instanceof HTMLElement) { el.style.cssText = css; el.removeAttribute('data-css'); }
+  }
+};
+new MutationObserver((muts) => { for (const m of muts) for (const n of m.addedNodes) if (n instanceof Element) applyCss(n); })
+  .observe(document.documentElement, { childList: true, subtree: true });
 
 const store = {
   get(/** @type {string} */ k, /** @type {any} */ d) { try { const v = JSON.parse(localStorage.getItem('formula.bench.' + k) || 'null'); return v ?? d; } catch { return d; } },
@@ -181,8 +192,8 @@ async function main() {
     const L = totals(left), R = totals(right); const els = [...new Set([...Object.keys(L), ...Object.keys(R)])];
     const guessing = Object.keys(right).length > 0;
     let diff = 0; let html = '<span class="h">Atom</span><span class="h">In</span><span class="h">Out</span><span class="h"></span>';
-    for (const e of els) { const a = L[e] || 0, b = R[e] || 0; diff += (a - b); html += `<span>${isYoung() ? `<i class="dot" style="background:${hex(EL[e]?.c ?? 0xcccccc)}"></i>${esc(EL[e]?.name ?? e)}` : e}</span><span>${a}</span><span>${b}</span><span class="${a === b ? 'ok' : 'no'}">${a === b ? '✓' : '✗'}</span>`; }
-    $('tally').innerHTML = guessing && els.length ? html : '<span class="empty" style="grid-column:1/-1">Fill in “out” and the scale weighs the atoms on each side.</span>';
+    for (const e of els) { const a = L[e] || 0, b = R[e] || 0; diff += (a - b); html += `<span>${isYoung() ? `<i class="dot" data-css="background:${hex(EL[e]?.c ?? 0xcccccc)}"></i>${esc(EL[e]?.name ?? e)}` : e}</span><span>${a}</span><span>${b}</span><span class="${a === b ? 'ok' : 'no'}">${a === b ? '✓' : '✗'}</span>`; }
+    $('tally').innerHTML = guessing && els.length ? html : '<span class="empty" data-css="grid-column:1/-1">Fill in “out” and the scale weighs the atoms on each side.</span>';
     tilt = guessing ? Math.max(-14, Math.min(14, diff * 1.5)) : 0;
   };
   const putOn = (/** @type {Record<string, number>} */ side, /** @type {string} */ f) => { side[f] = Math.min((side[f] || 0) + 1, 40); drawTable(); };
@@ -200,7 +211,7 @@ async function main() {
     const box = $('bottles'); box.innerHTML = '';
     for (const f of list) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'bottle';
-      const dots = atomsOf(f).slice(0, 8).map((e) => `<i style="background:${hex(EL[e].c)}"></i>`).join('');
+      const dots = atomsOf(f).slice(0, 8).map((e) => `<i data-css="background:${hex(EL[e].c)}"></i>`).join('');
       b.innerHTML = isSprout() ? `<span class="dots">${dots}</span><span><b>${esc(nameOf(f))}</b></span>` : `<span class="dots">${dots}</span><span><b>${show(f)}</b><small>${esc(NAMES[f] || '')}</small></span>`;
       b.setAttribute('aria-label', `${NAMES[f] || f} (${f}): put on the table`);
       b.dataset.formula = f;
@@ -212,7 +223,7 @@ async function main() {
     const jars = $('jars'); jars.innerHTML = '';
     for (const k of Object.keys(EL).filter((e) => els.has(e))) {
       const e = EL[k]; const b = document.createElement('button'); b.type = 'button'; b.className = 'jar';
-      b.innerHTML = `<i class="ball" style="background:${hex(e.c)};--glow:${hex(e.c)}66"></i><b>${k}</b><span>${e.name}</span>`;
+      b.innerHTML = `<i class="ball" data-css="background:${hex(e.c)};--glow:${hex(e.c)}66"></i><b>${k}</b><span>${e.name}</span>`;
       b.setAttribute('aria-label', `${e.name} (${k})`);
       b.addEventListener('click', () => addAtom(k));
       jars.append(b);
@@ -591,7 +602,7 @@ async function main() {
     for (const c of g.challenges) {
       const [n, of] = progress(c.goal);
       const d = document.createElement('div'); d.className = 'challenge' + (n >= of ? ' done' : '');
-      d.innerHTML = `<b>${n >= of ? '✓ ' : ''}${prose(c.title)}</b><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${of}" aria-valuenow="${n}" aria-label="${esc(c.title)}"><i style="width:${Math.round((100 * n) / of)}%"></i></div><small>${n} of ${of}</small>`;
+      d.innerHTML = `<b>${n >= of ? '✓ ' : ''}${prose(c.title)}</b><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${of}" aria-valuenow="${n}" aria-label="${esc(c.title)}"><i data-css="width:${Math.round((100 * n) / of)}%"></i></div><small>${n} of ${of}</small>`;
       ch.append(d);
     }
     const ls = sec('Lessons');
