@@ -487,7 +487,7 @@ struct Working {
 
 impl Working {
     /// The stage worked casts use for spell `i`: Practised (instant cast)
-    /// only once the spell is practised in this run, 3 correct
+    /// only once the spell is practised in this run, 2 correct
     /// casts (break-2 should-fix 2; saved XP alone reached it after the
     /// Bench and 2 casts). Mastered stays Mastered.
     fn stage(&self, prog: &Progress, i: usize) -> progress::Stage {
@@ -2473,8 +2473,10 @@ fn work_cmd(
             match game.work.submit(id, v.ok) {
                 worked::Submit::Cast { spell, earns } => {
                     wk.prog.0.worked_cast(spell, earns);
-                    // Only a cast built before the answer was shown counts.
-                    wk.working.cast_log.push((spell, earns));
+                    // Every correct build counts toward run practice, help
+                    // or not (Paawan, 2026-11-06: Water "never becomes
+                    // practiced"); XP still needs a build without help.
+                    wk.working.cast_log.push((spell, true));
                     wk.working.done += 1;
                     game.paused = web_paused;
                     *accepted = Some(game.work_aim);
@@ -3316,7 +3318,7 @@ mod practice_tests {
     use super::*;
     use progress::Stage::*;
 
-    /// break-2 should-fix 2: instant cast comes from 3 correct
+    /// break-2 should-fix 2: instant cast comes from 2 correct
     /// casts in this run, never from saved XP alone.
     #[test]
     fn instant_cast_needs_practice_in_this_run() {

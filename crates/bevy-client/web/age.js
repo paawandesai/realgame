@@ -1,8 +1,8 @@
 // @ts-check
-// The grade picker (it was the age picker before I-059): four pictures with
+// The grade picker (it was the age picker before I-059): three pictures with
 // a band and its school grades under each ("Sprout · Grades 6–7", "Seedling ·
-// Grades 8–9", "Apprentice · Grades 10–11", "Adept · Grade 12+"; Adept is the
-// fourth choice since I-060, and analytics counts four bands), shown once per page load before play, only when analytics is
+// Grades 8–9", "Apprentice · Grade 10+"; the world reads Adept as Apprentice,
+// and analytics counts three bands), shown once per page load before play, only when analytics is
 // on (the rg-analytics switch) and the browser has not opted out (DNT or GPC).
 // The choice is deliberately not stored: on shared classroom devices a
 // remembered band would be counted for the next child. See docs/ANALYTICS.md.
@@ -103,7 +103,7 @@ export function startAgePicker() {
     const root = document.getElementById('age');
     if (!root) return false;
     const buttons = /** @type {HTMLButtonElement[]} */ ([...root.querySelectorAll('button[data-band]')]);
-    if (buttons.length !== 4) return false;
+    if (buttons.length !== 3) return false;
     style(root);
     // Free a pointer lock taken before the picker appeared (a click on the
     // canvas while age.js was still loading), and make the game behind the
@@ -127,7 +127,7 @@ export function startAgePicker() {
       next?.focus();
     };
     // Modal: keys never reach the game or the HUD behind it (Esc, R, WASD...).
-    // Tab and the arrow keys move between the four pictures; Enter and Space
+    // Tab and the arrow keys move between the three pictures; Enter and Space
     // keep their default action (pressing the focused button).
     const onKey = (/** @type {KeyboardEvent} */ e) => {
       e.stopImmediatePropagation();

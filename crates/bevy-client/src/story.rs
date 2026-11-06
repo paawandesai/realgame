@@ -349,7 +349,7 @@ pub fn fire_progress(
 }
 
 /// Run practice (Paawan, 2026-11-01): each correct worked cast this frame
-/// (or a cast with nothing to build) counts toward its spell; three make it
+/// (or a cast with nothing to build) counts toward its spell; two make it
 /// Practised for this run, which makes it cast instantly
 /// (`Working::practised`) and opens the biome gate that needs it.
 fn practice_sync(
@@ -681,8 +681,8 @@ mod tests {
         assert_eq!(s.pack.hot, [None, Some(3), None, None]);
         run_command(&mut s, "bind 3 5");
         assert_eq!(s.pack.hot, [None, Some(3), None, None], "only keys 6-9");
-        // Practice: three correct worked casts of Water.
-        for _ in 0..3 {
+        // Practice: two correct worked casts of Water.
+        for _ in 0..2 {
             run_command(&mut s, "worked_ok 1");
         }
         assert!(s.practice.practised(1));

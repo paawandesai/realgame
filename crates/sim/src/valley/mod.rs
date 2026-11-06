@@ -777,8 +777,9 @@ pub fn usable(def: &SpellDef, band: Tier, stage: u8) -> bool {
 /// its worked cast to a one-step confirm. Full Mastered stays the 2-day rule
 /// (I-030). Biome gates need the previous biome's spell Practised.
 pub mod practice {
-    /// Correct worked casts in a run that make a spell Practised.
-    pub const PRACTISE_CASTS: u8 = 3;
+    /// Correct worked casts in a run that make a spell Practised: two
+    /// (Paawan, 2026-11-03: spells cast instantly after 2 builds).
+    pub const PRACTISE_CASTS: u8 = 2;
     /// Spells in `Spell::ALL` order: Fire, Water, Frost, CO2.
     pub const SPELLS: usize = 4;
 
@@ -1224,14 +1225,13 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn three_correct_worked_casts_make_a_spell_practised_in_the_run() {
+    fn two_correct_worked_casts_make_a_spell_practised_in_the_run() {
         use practice::*;
         let mut run = RunPractice::default();
         assert!(!run.practised(1));
         assert!(!run.record(1));
-        assert!(!run.record(1));
-        assert!(!run.practised(1), "two casts are not enough");
-        assert!(run.record(1), "the third makes Water Practised");
+        assert!(!run.practised(1), "one cast is not enough");
+        assert!(run.record(1), "the second makes Water Practised");
         assert!(run.practised(1));
         assert!(!run.record(1), "it becomes Practised once");
         assert!(!run.practised(2), "other spells are separate");
@@ -1240,7 +1240,7 @@ mod tests {
         assert_eq!(run.stage(1, 3), 3, "Mastered stays Mastered");
         assert_eq!(run.stage(2, 1), 1, "an unpractised spell keeps its stage");
         assert_eq!(run.stage(1, 0), 2);
-        assert_eq!(PRACTISE_CASTS, 3);
+        assert_eq!(PRACTISE_CASTS, 2);
         // Out-of-range spells are ignored.
         assert!(!run.record(9));
         assert!(!run.practised(9));

@@ -17,7 +17,6 @@ use realgame_sim::spellbook::SpellDef;
 use realgame_sim::tier::Tier;
 
 use crate::bridge::{self, WebIn};
-use crate::discover::Disc;
 use crate::player::Player;
 use crate::progress::{Book, Stage};
 use crate::Progress;
@@ -43,10 +42,6 @@ pub struct BenchState {
     pub n: u32,
     /// The last JSON published, so `__benchState` is written only on change.
     pub last_json: String,
-    /// The one Bench (I-060): a saved discovery picked to practise (its
-    /// codex index). A `try` while it is set is judged against its own
-    /// reaction and counts toward its mastery only.
-    pub disc: Option<usize>,
 }
 
 /// One command from `window.__gameIn.bench`.
@@ -58,8 +53,6 @@ pub enum Cmd {
     /// The slot and the rest of the line, words joined by one space.
     Try(u8, String),
     Close,
-    /// `learn <codex id>`: pick a saved discovery to practise (I-060).
-    Learn(String),
 }
 
 /// Parses one command line; `None` for an unknown word or a malformed
@@ -82,14 +75,6 @@ pub fn parse(line: &str) -> Option<Cmd> {
             let slot = words.next()?.parse::<u8>().ok()?;
             let text = words.collect::<Vec<_>>().join(" ");
             Some(Cmd::Try(slot, text))
-        }
-        "learn" => {
-            let id = words.next()?;
-            let ok = id.len() <= 48
-                && id
-                    .bytes()
-                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_');
-            (ok && words.next().is_none()).then(|| Cmd::Learn(id.to_string()))
         }
         _ => None,
     }
@@ -185,14 +170,12 @@ pub fn apply(
             st.band = Some(t);
             if st.open {
                 st.pick = 0;
-                st.disc = None;
                 st.result = None;
             }
         }
         Cmd::Open => {
             st.open = true;
             st.pick = 0;
-            st.disc = None;
             st.result = None;
         }
         Cmd::Close => {
@@ -201,7 +184,6 @@ pub fn apply(
             }
             st.open = false;
             st.pick = 0;
-            st.disc = None;
             st.result = None;
         }
         Cmd::Pick(slot) => {
@@ -214,7 +196,6 @@ pub fn apply(
             match def_by_slot(spells, slot) {
                 Some(d) if sim::learnable(d, band) => {
                     st.pick = slot;
-                    st.disc = None;
                     st.result = None;
                 }
                 _ => return Err("pick: not learnable at this band"),
@@ -230,94 +211,8 @@ pub fn apply(
             let v = crate::spells::book().judge(spells, slot, band, &text);
             record(st, book, spells, slot, v);
         }
-        Cmd::Learn(_) => return Err("learn: needs the discoveries (apply_disc)"),
     }
     Ok(())
-}
-
-/// The one Bench (I-060): practising a saved discovery. `learn <id>` picks
-/// one the band builds (Seedling and up, its codex band or older); a `try`
-/// while it is picked is judged by the same judge as a worked cast of it
-/// (`judge_with` against `Disc::def`) and a correct one counts one build
-/// (two builds, then it casts instantly). It never touches the shipped
-/// spells' book or practice. `None`: not a discovery command (`apply`
-/// handles it).
-pub fn apply_disc(
-    st: &mut BenchState,
-    disc: &mut Disc,
-    cmd: &Cmd,
-) -> Option<Result<(), &'static str>> {
-    match cmd {
-        Cmd::Learn(id) => Some(learn(st, disc, id)),
-        Cmd::Try(slot, text) if st.disc.is_some() => Some(try_disc(st, disc, *slot, text)),
-        _ => None,
-    }
-}
-
-fn learn(st: &mut BenchState, disc: &Disc, id: &str) -> Result<(), &'static str> {
-    if !st.open {
-        return Err("learn while closed");
-    }
-    let Some(band) = st.band else {
-        return Err("learn before a band");
-    };
-    let Some(i) = crate::discover::index_of(id).filter(|i| disc.saved.iter().any(|s| s.0 == *i))
-    else {
-        return Err("learn: not a saved discovery");
-    };
-    if Disc::learnable(i, Some(band)) != Some(true) {
-        return Err("learn: this band does not build it");
-    }
-    let Some(def) = Disc::def(i) else {
-        return Err("learn: no spell for it");
-    };
-    st.disc = Some(i);
-    st.pick = def.slot;
-    st.result = None;
-    Ok(())
-}
-
-fn try_disc(
-    st: &mut BenchState,
-    disc: &mut Disc,
-    slot: u8,
-    text: &str,
-) -> Result<(), &'static str> {
-    if !st.open {
-        return Err("try while closed");
-    }
-    let (Some(band), Some(i)) = (st.band, st.disc) else {
-        return Err("try before a band");
-    };
-    let Some(def) = Disc::def(i) else {
-        return Err("try: no spell for it");
-    };
-    if slot != def.slot {
-        return Err("try: not the picked discovery");
-    }
-    let v = crate::spells::book().judge(std::slice::from_ref(&def), def.slot, band, text);
-    st.n += 1;
-    if v.ok {
-        disc.record_build(i);
-    }
-    st.result = Some(ResultView {
-        n: st.n,
-        slot,
-        verdict: v,
-        learned: false,
-        stage: disc_stage(disc, i).to_string(),
-    });
-    Ok(())
-}
-
-/// A discovery's stage word: Mastered (casts instantly) once built
-/// `MASTERY_BUILDS` times, else Learning.
-fn disc_stage(disc: &Disc, i: usize) -> &'static str {
-    if disc.stage(i) >= 3 {
-        Stage::Mastered.as_str()
-    } else {
-        Stage::Learning.as_str()
-    }
 }
 
 /// The view `__benchState` carries: closed, or the full open view.
@@ -344,7 +239,7 @@ pub fn view(st: &BenchState, book: &Book, spells: &[SpellDef], at: bool) -> Benc
                 })
                 .collect(),
         );
-        if st.pick != 0 && st.disc.is_none() {
+        if st.pick != 0 {
             v.pick = Some(st.pick);
             if band < Tier::Apprentice {
                 v.recipe = def_by_slot(spells, st.pick).map(sim::recipe);
@@ -353,44 +248,6 @@ pub fn view(st: &BenchState, book: &Book, spells: &[SpellDef], at: bool) -> Benc
     }
     v.result = st.result.clone();
     v
-}
-
-/// `__benchState`: the view, and while a discovery is picked (I-060) its
-/// card after the shipped spells', its recipe, and `"disc": <codex id>`.
-pub fn view_json(
-    st: &BenchState,
-    book: &Book,
-    spells: &[SpellDef],
-    at: bool,
-    disc: &Disc,
-) -> String {
-    let mut v = view(st, book, spells, at);
-    let picked = st
-        .disc
-        .filter(|_| st.open)
-        .and_then(|i| Some((i, Disc::def(i)?, st.band?)));
-    let Some((i, def, band)) = picked else {
-        return v.to_json();
-    };
-    if let Some(cards) = v.spells.as_mut() {
-        cards.push(SpellCard {
-            slot: def.slot,
-            id: def.id.clone(),
-            name: def.name.clone(),
-            formula: def.formula.text.clone(),
-            stage: disc_stage(disc, i).to_string(),
-            prompt: sim::prompt(&def, band).unwrap_or_default().to_string(),
-        });
-    }
-    v.pick = Some(def.slot);
-    v.recipe = (band < Tier::Apprentice).then(|| sim::recipe(&def));
-    let mut json = v.to_json();
-    json.pop();
-    json.push_str(&format!(
-        ",\"disc\":{}}}",
-        realgame_chem::serde_json::to_string(&def.id).unwrap_or_else(|_| "null".into())
-    ));
-    json
 }
 
 /// `Startup`: inserts `BenchState` (so `main.rs` needs no `init_resource`)
@@ -456,31 +313,20 @@ pub fn run(
     player: Res<Player>,
     voxel: Option<Res<crate::voxel_view::VoxWorld>>,
     mut working: Option<ResMut<crate::Working>>,
-    mut disc: ResMut<Disc>,
 ) {
     let spells = crate::spells::book().all();
     for line in std::mem::take(&mut web.bench) {
         let before = bench.n;
-        let mut shipped = true;
         let ignored = match parse(&line) {
-            Some(cmd) => match apply_disc(&mut bench, &mut disc, &cmd) {
-                Some(r) => {
-                    shipped = false;
-                    r
-                }
-                None => apply(&mut bench, &mut progress.0, spells, cmd),
-            },
+            Some(cmd) => apply(&mut bench, &mut progress.0, spells, cmd),
             None => Err("unknown or malformed command"),
         };
         if let Err(why) = ignored {
             warn!("bench: ignored {line:?}: {why}");
         }
         // Paawan's playtest (2026-11-04): every correct build at the Bench
-        // ("Build another") counts toward Practised, like a worked cast. A
-        // discovery's build counts toward its own mastery only.
-        if let (true, Some(i), Some(w)) =
-            (shipped, practice_index(&bench, before), working.as_mut())
-        {
+        // ("Build another") counts toward Practised, like a worked cast.
+        if let (Some(i), Some(w)) = (practice_index(&bench, before), working.as_mut()) {
             w.cast_log.push((i, true));
         }
     }
@@ -489,7 +335,7 @@ pub fn run(
     } else {
         at_bench(player.pos)
     };
-    let json = view_json(&bench, &progress.0, spells, at, &disc);
+    let json = view(&bench, &progress.0, spells, at).to_json();
     if json != bench.last_json {
         bridge::publish_bench(&json);
         bench.last_json = json;
@@ -679,89 +525,5 @@ mod tests {
             assert_eq!(c.stage, "unknown");
         }
         assert!(v.pick.is_none() && v.recipe.is_none() && v.result.is_none());
-    }
-
-    #[test]
-    fn learn_parses_a_codex_id_only() {
-        assert_eq!(
-            parse("learn carbon_burns"),
-            Some(Cmd::Learn("carbon_burns".into()))
-        );
-        for bad in ["learn", "learn Carbon", "learn a b", "learn a-b"] {
-            assert_eq!(parse(bad), None, "{bad:?}");
-        }
-    }
-
-    /// I-060: the one Bench practises a saved discovery: picked with
-    /// `learn`, judged against its own reaction, a correct build counts
-    /// toward its two builds, and the shipped spells are never touched.
-    #[test]
-    fn the_bench_practises_a_saved_discovery_twice_then_it_is_instant() {
-        let mut st = BenchState::default();
-        let mut book = Book::default();
-        let mut disc = Disc::default();
-        let s = spells();
-        let learn = Cmd::Learn("carbon_burns".into());
-        // Closed, no band, or not saved: ignored.
-        assert!(apply_disc(&mut st, &mut disc, &learn).unwrap().is_err());
-        apply(&mut st, &mut book, s, Cmd::Band(Tier::Seedling)).unwrap();
-        apply(&mut st, &mut book, s, Cmd::Open).unwrap();
-        assert!(apply_disc(&mut st, &mut disc, &learn).unwrap().is_err());
-        disc.command("saved carbon_burns:0");
-        let i = crate::discover::index_of("carbon_burns").unwrap();
-        // A shipped-spell command is not a discovery command.
-        assert!(apply_disc(&mut st, &mut disc, &Cmd::Pick(2)).is_none());
-        apply_disc(&mut st, &mut disc, &learn).unwrap().unwrap();
-        assert_eq!(st.disc, Some(i));
-        let slot = Disc::def(i).unwrap().slot;
-        let json = view_json(&st, &book, s, false, &disc);
-        assert!(json.contains("\"disc\":\"carbon_burns\""), "{json}");
-        assert!(
-            json.contains("\"recipe\""),
-            "Seedling gets the recipe: {json}"
-        );
-        // A wrong build counts nothing; a try on another slot is refused.
-        let wrong = Cmd::Try(slot, "C + O2 -> CO".into());
-        apply_disc(&mut st, &mut disc, &wrong).unwrap().unwrap();
-        assert_eq!(disc.builds(i), 0);
-        assert!(!st.result.as_ref().unwrap().verdict.ok);
-        let other = if slot == 1 { 2 } else { 1 };
-        let off = Cmd::Try(other, "C + O2 -> CO2".into());
-        assert!(apply_disc(&mut st, &mut disc, &off).unwrap().is_err());
-        // Two correct builds: mastered (instant), with its own count only.
-        let ok = Cmd::Try(slot, "C + O2 -> CO2".into());
-        apply_disc(&mut st, &mut disc, &ok).unwrap().unwrap();
-        assert_eq!(disc.builds(i), 1);
-        assert_eq!(st.result.as_ref().unwrap().stage, "learning");
-        apply_disc(&mut st, &mut disc, &ok).unwrap().unwrap();
-        assert_eq!(disc.builds(i), 2);
-        let r = st.result.clone().unwrap();
-        assert!(r.verdict.ok && !r.learned);
-        assert_eq!(r.stage, "mastered");
-        assert_eq!(disc.stage(i), 3);
-        for k in 0..4 {
-            assert_eq!(book.get(k).unwrap().stage, Stage::Unknown, "spell {k}");
-        }
-        // Picking a shipped spell, or closing, drops the discovery.
-        apply(&mut st, &mut book, s, Cmd::Pick(2)).unwrap();
-        assert_eq!(st.disc, None);
-        assert!(!view_json(&st, &book, s, false, &disc).contains("\"disc\""));
-        apply_disc(&mut st, &mut disc, &learn).unwrap().unwrap();
-        apply(&mut st, &mut book, s, Cmd::Close).unwrap();
-        assert_eq!(st.disc, None);
-    }
-
-    #[test]
-    fn a_sprout_never_builds_a_discovery_at_the_bench() {
-        let mut st = BenchState::default();
-        let mut book = Book::default();
-        let mut disc = Disc::default();
-        disc.command("saved carbon_burns:0");
-        let s = spells();
-        apply(&mut st, &mut book, s, Cmd::Band(Tier::Sprout)).unwrap();
-        apply(&mut st, &mut book, s, Cmd::Open).unwrap();
-        let learn = Cmd::Learn("carbon_burns".into());
-        assert!(apply_disc(&mut st, &mut disc, &learn).unwrap().is_err());
-        assert_eq!(st.disc, None);
     }
 }
