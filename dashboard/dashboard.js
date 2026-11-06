@@ -9,7 +9,8 @@ const SVG = "http://www.w3.org/2000/svg";
 /** @type {readonly ["sprout", "seedling", "apprentice"]} */
 const BANDS = ["sprout", "seedling", "apprentice"];
 /** @type {Record<string, string>} */
-const BAND_LABEL = { sprout: "Sprout (4-7)", seedling: "Seedling (8-10)", apprentice: "Apprentice (11+)" };
+// 3D game bands are school grades since I-059; the Classic game still labels them by age.
+const BAND_LABEL = { sprout: "Sprout (grades 6-7; Classic ages 4-7)", seedling: "Seedling (grades 8-9; Classic ages 8-10)", apprentice: "Apprentice (grade 10+; Classic ages 11+)" };
 /** @type {Record<string, string>} */
 const DURATION_LABEL = {
   lt1m: "Under 1 min",

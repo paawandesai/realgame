@@ -107,7 +107,7 @@ export function startPack() {
       info.className = 'pack-disc-info';
       const built = s.instant ? 'casts at once' : `built ${Math.min(s.builds, s.need)} of ${s.need}`;
       const where = s.key ? `on key ${s.key}` : 'not on a key yet';
-      info.textContent = s.usable === false ? 'for an older age group' : `${where} · ${built}`;
+      info.textContent = s.usable === false ? 'for a higher grade band' : `${where} · ${built}`;
       top.append(name, info);
       row.append(top);
       // What it does out in the world (I-056).
@@ -120,7 +120,8 @@ export function startPack() {
       // What it uses up from the pack, and where to get it (I-053 bottles).
       for (const u of Array.isArray(s.uses) ? s.uses : []) {
         const items = Array.isArray(u.items) ? u.items.join(' or ') : '';
-        const what = sprout ? items : `${items} (${sub(u.species)})`;
+        // I-059: formulas show at every band, Sprout included.
+        const what = `${items} (${sub(u.species)})`;
         const line = document.createElement('p');
         line.className = 'pack-disc-uses';
         line.classList.toggle('missing', !u.have);
@@ -176,7 +177,7 @@ export function startPack() {
     const bl = document.createElement('p');
     bl.className = 'pack-disc-bottles';
     bl.textContent = bottles.length
-      ? `Bottles (things in your pack that Bench spells use up): ${bottles.map((/** @type {any} */ x) => (sprout ? `${x.label} ×${x.n}` : `${x.label} (${sub(x.species)}) ×${x.n}`)).join(', ')}`
+      ? `Bottles (things in your pack that Bench spells use up): ${bottles.map((/** @type {any} */ x) => `${x.label} (${sub(x.species)}) ×${x.n}`).join(', ')}`
       : `Bottles are things in your pack that Bench spells use up, like charcoal. You have none yet. ${st.starter || ''}`.trim();
     discBox.append(bl);
     for (const q of Array.isArray(st.quests) ? st.quests : []) {

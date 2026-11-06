@@ -189,7 +189,7 @@ C = "COLOUR-GE"
 COLOURS = {
     "AgCl": {"s": ("white", "#f4f4f4", C)},
     "AgBr": {"s": ("cream", "#f1e6b0", C)},
-    "AgI": {"s": ("pale yellow", "#f2df73", C)},
+    "AgI": {"s": ("yellow", "#f0d43c", C)},  # I-058: Wikipedia "Silver iodide": "a bright yellow salt"
     "PbI2": {"s": ("bright yellow", "#ffd21f", C)},
     "PbCl2": {"s": ("white", "#f4f4f4", C)},
     "BaSO4": {"s": ("white", "#f4f4f4", C)},
@@ -248,7 +248,7 @@ COLOURS = {
     "Na2O": {"s": ("white", "#f4f4f4", C)},
     "NH4Cl": {"s": ("white", "#f4f4f4", C)},
     "Mg3N2": {"s": ("greenish-yellow", "#c9c46a", C)},
-    "Li3N": {"s": ("red-brown", "#8a3b2a", C)},
+    "Li3N": {"s": ("reddish-pink", "#c4716e", C)},  # I-058: Wikipedia "Lithium nitride": "a reddish-pink solid"
     "NI3": {"s": ("black-purple", "#2a1830", C)},
     "MgCl2": {"s": ("white", "#f4f4f4", C)}, "NaCl": {"s": ("white", "#f4f4f4", C)},
     "KCl": {"s": ("white", "#f4f4f4", C)}, "CaCl2": {"s": ("white", "#f4f4f4", C)},
