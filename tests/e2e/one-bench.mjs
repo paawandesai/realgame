@@ -84,6 +84,12 @@ function check(name, ok, detail = '') {
 
   // Pack bottles: walking up to the workshop stash gives copper sulfate and iron.
   const packN = (s, item) => ((s && s.pack) || []).filter((e) => e.item === item).reduce((n, e) => n + e.n, 0);
+  // The world runs so the stash is picked up: close the story intro (it
+  // pauses the world at quest 0), then unpause.
+  for (const t0 = Date.now(); Date.now() - t0 < 60000 && !(await page.evaluate(() => { const b = document.querySelector('#intro .intro-play'); return !!b && !document.getElementById('intro').hidden; })); ) await sleep(500);
+  await page.evaluate(() => { const b = document.querySelector('#intro .intro-play'); if (b && !document.getElementById('intro').hidden) b.click(); });
+  await sleep(1000);
+  await page.evaluate(() => window.__game.pause(false));
   await cmd('tp 137.6 35 190.5');
   // (The stash gives its bottles once the world has loaded round the new spot: slow in software rendering.)
   const s0 = await poll(st, (x) => packN(x, 'copper_sulfate') >= 4 && packN(x, 'iron') >= 4, 360000);
