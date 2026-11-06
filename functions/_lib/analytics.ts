@@ -10,7 +10,8 @@ import type { D1Database } from "./d1.ts";
 // quest_complete comes from the first-person 3D client (the site root);
 // room_complete and trial_complete from the classic 2D game at /classic/.
 export const EVENT_TYPES = ["session_start", "quest_complete", "room_complete", "trial_complete", "session_end"] as const;
-export const BANDS = ["sprout", "seedling", "apprentice"] as const;
+// "adept" (grade 12+) is the 3D game's fourth band (I-060, migration 0003).
+export const BANDS = ["sprout", "seedling", "apprentice", "adept"] as const;
 /** Session length buckets, in order. Stored as their index (0-4). */
 export const DURATIONS = ["lt1m", "1to5m", "5to15m", "15to30m", "30mplus"] as const;
 /** Highest room index accepted (0-based). The game has 4-5 rooms; this leaves headroom. */
@@ -246,7 +247,7 @@ export interface Stats {
 }
 
 function zeroBands(): BandCounts {
-  return { sprout: 0, seedling: 0, apprentice: 0 };
+  return { sprout: 0, seedling: 0, apprentice: 0, adept: 0 };
 }
 
 function addBand(target: BandCounts & { all?: number }, band: string, n: number): void {
@@ -256,7 +257,7 @@ function addBand(target: BandCounts & { all?: number }, band: string, n: number)
 
 /**
  * Turns raw query rows into the dashboard's shape: every day of the window
- * present (zero-filled), oldest first, bands always all three, quests and
+ * present (zero-filled), oldest first, bands always all four, quests and
  * rooms dense from 0 to the highest seen.
  */
 export function shapeStats(

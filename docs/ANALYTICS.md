@@ -48,7 +48,7 @@ Five event types, and nothing else. The 3D game sends `session_start`, `quest_co
 | `session_end` | The tab is hidden or closed, and the session's length bucket has grown since the last one sent | `band`, `dur` |
 
 - `v` is always `1` (the format version).
-- `band` is one of `sprout`, `seedling`, `apprentice`: the band the player picked, not an age, grade or birth date. In the 3D game the bands are school grades since I-059 (`sprout` grades 6 to 7, `seedling` grades 8 to 9, `apprentice` grade 10 and up; the Chemistry Bench's fourth band, Adept, grade 12+, is not a picker choice and is not counted). The Classic (2D) game still labels them by age (4 to 7, 8 to 10, 11 and up).
+- `band` is one of `sprout`, `seedling`, `apprentice`, `adept`: the band the player picked, not an age, grade or birth date. In the 3D game the bands are school grades since I-059 (`sprout` grades 6 to 7, `seedling` grades 8 to 9, `apprentice` grades 10 to 11, `adept` grade 12 and up; Adept became the picker's fourth choice in I-060, and migration `0003_adept_band.sql` adds it to the `band` CHECK). The Classic (2D) game sends only the first three, and still labels them by age (4 to 7, 8 to 10, 11 and up).
 - `dur` is one of `lt1m`, `1to5m`, `5to15m`, `15to30m`, `30mplus`. The server keeps the longest bucket per device per day.
 - `id` is 32 random hex characters (128 bits from `crypto.getRandomValues`) made on the device and replaced the first time it is read on a new UTC day. A play session reads it once when it starts, so a session that runs past UTC midnight keeps its id until it ends, and a page left open more than 24 hours sends nothing more. It lets the server count a day's unique players. Because it changes every day (apart from that one session crossing midnight) and is derived from nothing about the device, it cannot link one day's play to the next, and it is never shared with anyone.
 
@@ -65,10 +65,10 @@ The 3D client reads quest completion from the game's existing `window.__game.sta
 
 ## The age picker (3D game)
 
-When analytics is on and the browser has not opted out, the 3D game opens with one short heading, "Pick your grade", and three large picture buttons: "Sprout · Grades 6–7" (`sprout`), "Seedling · Grades 8–9" (`seedling`) and "Apprentice · Grade 10+" (`apprentice`) (grade bands since I-059; they were ages 4 to 7, 8 to 10 and 11 and up). Each has a low-poly figure of a clearly different size and shape, so the choice can be made by picture as well as by label, and an accessible name such as "Sprout, grades 6 to 7". There is no text box, birthday field or anything else to type. The markup is in `crates/bevy-client/web/index.html` (hidden) and `age.js` styles it through the CSSOM, which the CSP allows.
+When analytics is on and the browser has not opted out, the 3D game opens with one short heading, "Pick your grade", and four large picture buttons: "Sprout · Grades 6–7" (`sprout`), "Seedling · Grades 8–9" (`seedling`), "Apprentice · Grades 10–11" (`apprentice`) and "Adept · Grade 12+" (`adept`) (grade bands since I-059, they were ages 4 to 7, 8 to 10 and 11 and up; Adept was added in I-060). Each has a low-poly figure of a clearly different size and shape, so the choice can be made by picture as well as by label, and an accessible name such as "Sprout, grades 6 to 7". There is no text box, birthday field or anything else to type. The markup is in `crates/bevy-client/web/index.html` (hidden) and `age.js` styles it through the CSSOM, which the CSP allows.
 
 - It shows once per page load, before play, over the loading screen; the WASM keeps loading behind it. It has no timer, countdown or auto-pick.
-- It is modal: it takes focus on its first button, Tab and the arrow keys move between the three pictures, Enter or a click picks, and keys and clicks do not reach the game behind it.
+- It is modal: it takes focus on its first button, Tab and the arrow keys move between the four pictures, Enter or a click picks, and keys and clicks do not reach the game behind it.
 - After a pick it closes, sends nothing by itself, and resets the courtyard once (queued until the game's first state if the pick came before boot finished), so time spent on the picker costs no quest time. Focus goes to the game, and the usual "Click to look around" flow follows.
 - The choice is **not stored**. On shared classroom devices a remembered band would be counted for the next child, so a reload asks again.
 - With Do Not Track or Global Privacy Control set it never shows, because nothing would be collected.
@@ -175,7 +175,7 @@ CARGO_TARGET_DIR=... npm run build:site           # or SKIP_BUILD=1 to reuse web
 QUERY=?low node tests/e2e/analytics-e2e.mjs
 ```
 
-It applies the migrations to a fresh local D1 directory, starts `wrangler pages dev web/dist` with a random `DASHBOARD_TOKEN`, then drives headless Chromium: a main run (picker shown with three 96 px or larger buttons and nothing to type in, picks "8 to 10", wins "Save the Greenhouse", hides and closes the page), a keyboard-only run (arrow and Tab to "11 and up", Enter), and two opt-out runs (GPC, DNT: no picker, no request). It then checks the rows in D1, `/api/stats` (with and without the token), every event body on the wire (exactly the allowed keys, one daily id per run, no other origin), `/classic/` and its assets, and the table's columns. It prints PASS or FAIL per check and exits 1 on any failure.
+It applies the migrations to a fresh local D1 directory, starts `wrangler pages dev web/dist` with a random `DASHBOARD_TOKEN`, then drives headless Chromium: a main run (picker shown with four 96 px or larger buttons and nothing to type in, picks "8 to 10", wins "Save the Greenhouse", hides and closes the page), a keyboard-only run (arrow and Tab to "11 and up", Enter), and two opt-out runs (GPC, DNT: no picker, no request). It then checks the rows in D1, `/api/stats` (with and without the token), every event body on the wire (exactly the allowed keys, one daily id per run, no other origin), `/classic/` and its assets, and the table's columns. It prints PASS or FAIL per check and exits 1 on any failure.
 
 ## Changing what is collected
 

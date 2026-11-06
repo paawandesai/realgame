@@ -88,6 +88,40 @@ test("migration 0002 keeps 0001 rows and adds quest_complete with the same CHECK
   assert.match(strict.sql, /\)\s*STRICT\s*$/);
 });
 
+test("migration 0003 keeps the rows and adds the adept band with the same CHECKs (I-060)", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(migration("0001_events.sql"));
+  db.exec(migration("0002_quest_complete.sql"));
+  const ins = db.prepare("INSERT INTO events (day, daily_id, type, band, room, dur) VALUES (?, ?, ?, ?, ?, ?)");
+  ins.run("2026-10-28", ID, "session_start", "sprout", null, null);
+  ins.run("2026-10-29", ID, "quest_complete", "apprentice", 2, null);
+  // 0002 rejects the new band.
+  assert.throws(() => ins.run("2026-10-29", ID, "session_start", "adept", null, null), /CHECK/);
+  const before = db.prepare("SELECT * FROM events ORDER BY id").all().map((r) => ({ ...r }));
+
+  db.exec(migration("0003_adept_band.sql"));
+  const after = db.prepare("SELECT * FROM events ORDER BY id").all().map((r) => ({ ...r }));
+  assert.deepEqual(after, before, "rows survive the table rebuild unchanged");
+
+  const ins3 = db.prepare("INSERT INTO events (day, daily_id, type, band, room, dur) VALUES (?, ?, ?, ?, ?, ?)");
+  ins3.run("2026-10-29", ID, "session_start", "adept", null, null);
+  ins3.run("2026-10-29", ID, "quest_complete", "adept", 15, null);
+  assert.throws(() => ins3.run("2026-10-29", ID, "session_start", "grade 12", null, null), /CHECK/);
+  assert.throws(() => ins3.run("2026-10-29", ID, "session_start", "my name is Ada", null, null), /CHECK/);
+  assert.throws(() => ins3.run("2026-10-29", ID, "quest_complete", "adept", 16, null), /CHECK/);
+  assert.throws(() => ins3.run("2026-10-29", ID, "quest_completed", "adept", 0, null), /CHECK/);
+  assert.throws(() => ins3.run("2026-10-29", "short", "session_start", "adept", null, null), /CHECK/);
+  assert.throws(() => ins3.run("2026-10-29", ID, "session_end", "adept", null, 5), /CHECK/);
+  assert.throws(() => ins3.run("2026-10-29", ID, "quest_complete", "adept", "zero", null));
+
+  const cols = db.prepare("PRAGMA table_info(events)").all().map((r) => r.name);
+  assert.deepEqual(cols, ["id", "day", "daily_id", "type", "band", "room", "dur"], "no new column");
+  const idx = db.prepare("PRAGMA index_list(events)").all().map((r) => r.name);
+  assert.ok(idx.includes("events_day_id"), "the day/id index is re-created");
+  const strict = db.prepare("SELECT sql FROM sqlite_schema WHERE name = 'events'").get() as { sql: string };
+  assert.match(strict.sql, /\)\s*STRICT\s*$/);
+});
+
 // ---------------------------------------------------------------- handlers
 
 const ORIGIN = "https://realgame.example";
@@ -128,9 +162,9 @@ test("quest_complete is stored in the room column and shows in funnel.quests", a
   assert.equal(r.status, 200);
   const s = await r.json();
   assert.deepEqual(s.funnel.quests, [
-    { quest: 0, sprout: 0, seedling: 1, apprentice: 0, all: 1 },
-    { quest: 1, sprout: 0, seedling: 0, apprentice: 0, all: 0 },
-    { quest: 2, sprout: 0, seedling: 0, apprentice: 1, all: 1 },
+    { quest: 0, sprout: 0, seedling: 1, apprentice: 0, adept: 0, all: 1 },
+    { quest: 1, sprout: 0, seedling: 0, apprentice: 0, adept: 0, all: 0 },
+    { quest: 2, sprout: 0, seedling: 0, apprentice: 1, adept: 0, all: 1 },
   ]);
   assert.deepEqual(
     s.funnel.rooms.map((x: { room: number; all: number }) => [x.room, x.all]),

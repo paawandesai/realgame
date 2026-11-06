@@ -40,6 +40,14 @@ test("valid events are stored with the server's UTC day and nothing else", async
   assert.equal(r.headers.get("Cache-Control"), "no-store");
 });
 
+test("the adept band (I-060, the grade picker's fourth choice) is stored as one fixed value", async () => {
+  const e = env();
+  const r = await handleEvent(post({ v: 1, type: "session_start", id: id(2), band: "adept" }), e, NOW);
+  assert.equal(r.status, 204);
+  const rows = e.DB.raw.prepare("SELECT band FROM events").all();
+  assert.deepEqual(rows.map((x) => ({ ...x })), [{ band: "adept" }]);
+});
+
 test("bad payloads, methods, origins and content types are rejected and not stored", async () => {
   const e = env();
   const cases: [Request, number][] = [
@@ -121,18 +129,18 @@ test("stats aggregate players, bands, sessions, funnel and durations", async () 
   const s = await r.json();
   assert.equal(s.today, "2026-10-29");
   assert.equal(s.players.today, 2);
-  assert.deepEqual(s.players.todayByBand, { sprout: 1, seedling: 0, apprentice: 1 });
+  assert.deepEqual(s.players.todayByBand, { sprout: 1, seedling: 0, apprentice: 1, adept: 0 });
   assert.equal(s.players.playerDays, 3);
-  assert.deepEqual(s.players.playerDaysByBand, { sprout: 1, seedling: 1, apprentice: 1 });
+  assert.deepEqual(s.players.playerDaysByBand, { sprout: 1, seedling: 1, apprentice: 1, adept: 0 });
   assert.deepEqual(s.sessions, { today: 3, total: 4 });
   assert.equal(s.daily.length, 30);
-  assert.deepEqual(s.daily[28], { day: "2026-10-28", players: 1, sessions: 1, byBand: { sprout: 0, seedling: 1, apprentice: 0 } });
-  assert.deepEqual(s.funnel.started, { sprout: 1, seedling: 1, apprentice: 1, all: 3 });
+  assert.deepEqual(s.daily[28], { day: "2026-10-28", players: 1, sessions: 1, byBand: { sprout: 0, seedling: 1, apprentice: 0, adept: 0 } });
+  assert.deepEqual(s.funnel.started, { sprout: 1, seedling: 1, apprentice: 1, adept: 0, all: 3 });
   assert.deepEqual(
     s.funnel.rooms.map((x: { all: number }) => x.all),
     [2, 2, 1, 1],
   );
-  assert.deepEqual(s.funnel.trialComplete, { sprout: 0, seedling: 0, apprentice: 1, all: 1 });
+  assert.deepEqual(s.funnel.trialComplete, { sprout: 0, seedling: 0, apprentice: 1, adept: 0, all: 1 });
   assert.deepEqual(
     s.durations.map((d: { bucket: string; players: number }) => [d.bucket, d.players]),
     [
@@ -165,8 +173,8 @@ test("a session across UTC midnight is one player, counted on the day it started
   assert.equal(day("2026-10-30").players, 0);
   // Zero row: the new day's band rows say 0 for seedling, not missing or 1.
   assert.equal(s.players.todayByBand.seedling, 0);
-  assert.deepEqual(s.players.todayByBand, { sprout: 0, seedling: 0, apprentice: 0 });
+  assert.deepEqual(s.players.todayByBand, { sprout: 0, seedling: 0, apprentice: 0, adept: 0 });
   assert.equal(day("2026-10-30").byBand.seedling, 0);
   assert.equal(day("2026-10-29").byBand.seedling, 1);
-  assert.deepEqual(s.players.playerDaysByBand, { sprout: 0, seedling: 1, apprentice: 0 });
+  assert.deepEqual(s.players.playerDaysByBand, { sprout: 0, seedling: 1, apprentice: 0, adept: 0 });
 });
