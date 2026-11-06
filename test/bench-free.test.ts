@@ -33,7 +33,7 @@ test("every codex substance parses, has an element colour and an everyday name",
 test("the title links to the bench, and the build ships the page and the engine", () => {
   assert.match(readFileSync("crates/bevy-client/web/title.js", "utf8"), /bench-free\.html/);
   const build = readFileSync("crates/bevy-client/build-web.sh", "utf8");
-  for (const f of ["bench-free.html", "bench-free.js", "bench-free-lib.js", "bench-scene.js", "three.min.js", "realgame_chem.wasm", "vendor/README.txt"]) assert.match(build, new RegExp(f.replace(".", "\\.")), f);
+  for (const f of ["bench-free.html", "bench-free.js", "bench-free-lib.js", "bench-scene.js", "bench-spells.js", "chem-quests.json", "three.min.js", "realgame_chem.wasm", "vendor/README.txt"]) assert.match(build, new RegExp(f.replace(".", "\\.")), f);
 });
 
 test("lab records ship with their licence, use only Bench elements, and match the JS Hill order", () => {
@@ -84,7 +84,7 @@ test("every Bench page script parses as a module (a duplicate declaration stops 
   const { tmpdir } = await import("node:os");
   const dir = mkdtempSync(join(tmpdir(), "bench-parse-"));
   try {
-    for (const f of ["bench-free.js", "bench-free-lib.js", "bench-scene.js"]) {
+    for (const f of ["bench-free.js", "bench-free-lib.js", "bench-scene.js", "bench-spells.js", "bench.js", "formula-save.js"]) {
       const out = join(dir, f.replace(/\.js$/, ".mjs"));
       copyFileSync(`crates/bevy-client/web/${f}`, out);
       const r = spawnSync(process.execPath, ["--check", out], { encoding: "utf8" });

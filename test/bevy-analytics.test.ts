@@ -97,6 +97,8 @@ test("the payload builder emits exactly the allowed keys", () => {
   });
   assert.deepEqual(keys(eventBody({ type: "quest_complete", band: "sprout", quest: 0 }, ID)), ["band", "id", "quest", "type", "v"]);
   assert.deepEqual(keys(eventBody({ type: "session_end", band: "apprentice", dur: "lt1m" }, ID)), ["band", "dur", "id", "type", "v"]);
+  // I-060: Adept is the grade picker's fourth band.
+  assert.deepEqual(keys(eventBody({ type: "session_start", band: "adept" }, ID)), ["band", "id", "type", "v"]);
   // Extra or wrong fields never make it out: the event is dropped, not trimmed.
   const loose = { type: "session_start", band: "seedling", ua: "Mozilla/5.0" } as unknown as Parameters<typeof eventBody>[0];
   assert.equal(eventBody(loose, ID), null);

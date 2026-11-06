@@ -6,11 +6,11 @@
 
 const TOKEN_KEY = "rg.dashboardToken";
 const SVG = "http://www.w3.org/2000/svg";
-/** @type {readonly ["sprout", "seedling", "apprentice"]} */
-const BANDS = ["sprout", "seedling", "apprentice"];
+/** @type {readonly ["sprout", "seedling", "apprentice", "adept"]} */
+const BANDS = ["sprout", "seedling", "apprentice", "adept"];
 /** @type {Record<string, string>} */
 // 3D game bands are school grades since I-059; the Classic game still labels them by age.
-const BAND_LABEL = { sprout: "Sprout (grades 6-7; Classic ages 4-7)", seedling: "Seedling (grades 8-9; Classic ages 8-10)", apprentice: "Apprentice (grade 10+; Classic ages 11+)" };
+const BAND_LABEL = { sprout: "Sprout (grades 6-7; Classic ages 4-7)", seedling: "Seedling (grades 8-9; Classic ages 8-10)", apprentice: "Apprentice (grades 10-11; Classic ages 11+)", adept: "Adept (grade 12+; 3D game only)" };
 /** @type {Record<string, string>} */
 const DURATION_LABEL = {
   lt1m: "Under 1 min",
@@ -21,7 +21,7 @@ const DURATION_LABEL = {
 };
 
 /**
- * @typedef {{ sprout: number, seedling: number, apprentice: number }} BandCounts
+ * @typedef {{ sprout: number, seedling: number, apprentice: number, adept: number }} BandCounts
  * @typedef {BandCounts & { all: number }} BandCountsAll
  * @typedef {{
  *   generatedAt: string, today: string, windowDays: number, retentionDays: number,

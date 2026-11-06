@@ -22,10 +22,10 @@ import { after, before, test } from "node:test";
 
 const SRC = resolve("crates/bevy-client/web");
 const PKG = resolve(process.env.BENCH_PKG || join(SRC, "pkg-out"));
-const OWN = new Set(["bench-free.html", "bench-free.css", "bench-free.js", "bench-scene.js", "bench-free-lib.js"]);
+const OWN = new Set(["bench-free.html", "bench-free.css", "bench-free.js", "bench-scene.js", "bench-free-lib.js", "bench-spells.js", "bench.js", "formula-save.js"]);
 const SIZES: [number, number][] = [[1280, 720], [1440, 800], [1536, 864], [1920, 1080]];
 const BANDS = ["sprout", "seedling", "apprentice", "adept"] as const;
-const TABS = ["bench", "codex", "notes", "guide"];
+const TABS = ["bench", "codex", "notes", "guide", "spells"];
 
 function loadPlaywright(): any {
   const tries = [process.env.NODE_PATH, (() => { try { return execSync("npm root -g", { encoding: "utf8" }).trim(); } catch { return ""; } })()];

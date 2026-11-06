@@ -522,6 +522,19 @@ impl Disc {
                 })
             })
             .collect();
+        // The one Bench (I-060) in story mode: every bottle item with how
+        // many the pack holds (none too), and what the air gives free.
+        let shelf: Vec<_> = data()
+            .bottles
+            .items
+            .iter()
+            .map(|b| {
+                let it = Item::from_key(&b.item);
+                let label = it.map_or(b.item.clone(), |it| it.label());
+                let n = it.map_or(0, |it| pack.count(it));
+                json!({ "item": b.item, "label": label, "species": b.species, "n": n, "used": b.consumed, "find": b.find })
+            })
+            .collect();
         let sprout = band == Some(Tier::Sprout);
         let quests: Vec<_> = data()
             .quests
@@ -574,6 +587,8 @@ impl Disc {
             "kinds": kinds,
             "on": self.on,
             "bottles": bottles,
+            "shelf": shelf,
+            "air": data().bottles.air,
             "quests": quests,
             "save": { "v": 1, "saved": saved_map, "slots": slots, "quests": self.quests_done },
         })
@@ -956,6 +971,29 @@ mod tests {
         assert_eq!(v["save"]["quests"][0], "melt_with_reaction");
         assert_eq!(v["save"]["saved"]["carbon_burns"], 1);
         assert_eq!(v["saved"][0]["effect"]["kind"], "fire");
+    }
+
+    /// I-060: the one Bench's story shelf: every bottle item with the
+    /// pack's count (none too) and its find line, and the air's gases.
+    #[test]
+    fn the_state_carries_the_benchs_story_shelf_and_the_air() {
+        let mut pack = realgame_sim::valley::Pack::default();
+        let coal = Item::from_key("charcoal").unwrap();
+        pack.add(coal, 2);
+        let json = Disc::default().state_json(Some(Tier::Seedling), &pack);
+        let v: realgame_chem::serde_json::Value =
+            realgame_chem::serde_json::from_str(&json).unwrap();
+        let shelf = v["shelf"].as_array().unwrap();
+        assert_eq!(shelf.len(), data().bottles.items.len());
+        let c = shelf.iter().find(|x| x["item"] == "charcoal").unwrap();
+        assert_eq!(
+            (c["species"].as_str(), c["n"].as_u64()),
+            (Some("C"), Some(2))
+        );
+        assert!(c["find"].as_str().is_some_and(|f| !f.is_empty()));
+        let salt = shelf.iter().find(|x| x["item"] == "salt").unwrap();
+        assert_eq!(salt["n"], 0);
+        assert_eq!(v["air"], realgame_chem::serde_json::json!(["O2", "N2"]));
     }
 
     /// A live quest by id.

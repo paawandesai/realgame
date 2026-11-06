@@ -14,6 +14,7 @@
   --sprout: #2a78d6;
   --seedling: #eb6834;
   --apprentice: #1baf7a;
+  --adept: #8a5cc7;
   --bar: #2a78d6;
   --bar-soft: #86b6ef;
   --error: #b42318;
@@ -32,6 +33,7 @@
     --sprout: #3987e5;
     --seedling: #d95926;
     --apprentice: #199e70;
+    --adept: #a07ad9;
     --bar: #3987e5;
     --bar-soft: #184f95;
     --error: #f97066;
@@ -50,6 +52,7 @@
   --sprout: #3987e5;
   --seedling: #d95926;
   --apprentice: #199e70;
+  --adept: #a07ad9;
   --bar: #3987e5;
   --bar-soft: #184f95;
   --error: #f97066;
@@ -291,6 +294,10 @@ input {
 .fill-apprentice {
   fill: var(--apprentice);
   background: var(--apprentice);
+}
+.fill-adept {
+  fill: var(--adept);
+  background: var(--adept);
 }
 .fill-bar {
   fill: var(--bar);

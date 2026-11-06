@@ -105,11 +105,11 @@ test("shapeStats zero-fills 30 days, all bands and every room up to the highest"
   assert.equal(s.daily[0]!.day, "2026-09-30");
   assert.equal(s.daily[29]!.day, "2026-10-29");
   assert.equal(s.players.today, 3);
-  assert.deepEqual(s.players.todayByBand, { sprout: 2, seedling: 0, apprentice: 1 });
+  assert.deepEqual(s.players.todayByBand, { sprout: 2, seedling: 0, apprentice: 1, adept: 0 });
   assert.equal(s.players.playerDays, 4);
-  assert.deepEqual(s.players.playerDaysByBand, { sprout: 2, seedling: 1, apprentice: 1 });
+  assert.deepEqual(s.players.playerDaysByBand, { sprout: 2, seedling: 1, apprentice: 1, adept: 0 });
   assert.deepEqual(s.sessions, { today: 4, total: 5 });
-  assert.deepEqual(s.funnel.started, { sprout: 2, seedling: 0, apprentice: 2, all: 4 });
+  assert.deepEqual(s.funnel.started, { sprout: 2, seedling: 0, apprentice: 2, adept: 0, all: 4 });
   assert.deepEqual(
     s.funnel.rooms.map((r) => [r.room, r.all]),
     [

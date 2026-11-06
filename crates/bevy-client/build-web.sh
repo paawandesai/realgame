@@ -18,7 +18,7 @@ fi
 cargo build --release --locked --target wasm32-unknown-unknown ${FEATURES[@]+"${FEATURES[@]}"}
 OUT=web/pkg-out
 rm -rf "$OUT" && mkdir -p "$OUT"
-cp web/index.html web/style.css web/boot.js web/hud.js web/progress.js web/bench.js web/worked.js web/story.js web/pack.js web/music.js web/sfx.js web/late.js web/rank.js web/title.js web/feel.js web/ambience.js web/loading.js web/favicon.svg web/bench-free.html web/bench-free.css web/bench-free.js web/bench-free-lib.js web/bench-scene.js web/formula-save.js web/discover.js web/terrain-tex.js web/hit-lens.js "$OUT/"
+cp web/index.html web/style.css web/boot.js web/hud.js web/progress.js web/bench.js web/worked.js web/story.js web/pack.js web/music.js web/sfx.js web/late.js web/rank.js web/title.js web/feel.js web/ambience.js web/loading.js web/favicon.svg web/bench-free.html web/bench-free.css web/bench-free.js web/bench-free-lib.js web/bench-scene.js web/bench-spells.js web/formula-save.js web/discover.js web/terrain-tex.js web/hit-lens.js "$OUT/"
 # The realistic look's scanned ground textures (CC0; tools/textures/fetch.py).
 mkdir -p "$OUT/tex" && cp web/tex/terrain-albedo.jpg web/tex/terrain-normal.jpg web/tex/CREDITS.txt "$OUT/tex/"
 # The Chemistry Bench free play page: vendored three.js and the chemistry
@@ -29,6 +29,8 @@ mkdir -p "$OUT/vendor" && cp vendor/three.min.js vendor/OrbitControls.js vendor/
 cp ../../content/chem/literature.json "$OUT/chem-literature.json"
 # Teaching content for the Guide tab (walkthroughs, lessons, hints, challenges).
 cp ../../content/chem/guide.json "$OUT/chem-guide.json"
+# The chemistry quests' lines for the one Bench's Spells tab in free play (I-060).
+cp ../../content/chem/quests.json "$OUT/chem-quests.json"
 ( cd ../.. && cargo build --release --locked --target wasm32-unknown-unknown -p realgame-chem --features web )
 CHEM_TARGET="${CARGO_TARGET_DIR:-../../target}"
 wasm-bindgen --target web --no-typescript --out-dir "$OUT" --out-name bevy-client \
