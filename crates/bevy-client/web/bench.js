@@ -669,7 +669,7 @@ export function startBench() {
   const header = mk(document, 'div', 'bench-head');
   const title = mk(document, 'h1', 'bench-title', 'Formula Bench');
   title.id = 'bench-title';
-  const change = mk(document, 'button', 'bench-change', 'Change age');
+  const change = mk(document, 'button', 'bench-change', 'Change grade');
   change.setAttribute('type', 'button');
   const closeBtn = mk(document, 'button', 'bench-close', 'Close');
   closeBtn.setAttribute('type', 'button');
@@ -769,7 +769,8 @@ export function startBench() {
   const showChooser = () => {
     clearBody();
     ui.view = 'chooser';
-    const q = 'How old are you?';
+    // Grade bands (I-059): the band names with their school grades.
+    const q = 'What grade are you in?';
     const wrap = mk(document, 'div', 'bench-chooser');
     const head = mk(document, 'h2', 'bench-question', q);
     // P10 follow-up: no band looks picked when the chooser opens; focus sits
@@ -779,9 +780,9 @@ export function startBench() {
     wrap.append(head);
     const row = mk(document, 'div', 'bench-bands');
     const labels = /** @type {Record<string, [string, string]>} */ ({
-      sprout: ['4 to 7', '4 to 7 years old'],
-      seedling: ['8 to 10', '8 to 10 years old'],
-      apprentice: ['11 and up', '11 years old and up'],
+      sprout: ['Sprout · Grades 6–7', 'Sprout, grades 6 to 7'],
+      seedling: ['Seedling · Grades 8–9', 'Seedling, grades 8 to 9'],
+      apprentice: ['Apprentice · Grade 10+', 'Apprentice, grade 10 and up'],
     });
     for (const b of BANDS) {
       const [label, aria] = labels[b] || ['', ''];
@@ -839,7 +840,7 @@ export function startBench() {
     // Paawan's playtest asked why Fire is missing: at the youngest band it is
     // a starting spell (methane is a Seedling-band equation), so say so.
     if (spells.length && !spells.some((s) => s.id === 'fire')) {
-      wrap.append(mk(document, 'p', 'bench-list-note', 'Fire is a starting spell at your age band: you can cast it already. You build its equation from the Seedling band up.'));
+      wrap.append(mk(document, 'p', 'bench-list-note', 'Fire is a starting spell at your grade band: you can cast it already. You build its equation from the Seedling band up.'));
     }
     // I-052: the block world's "Make things" section (recipes from the pack).
     if (make) wrap.append(makeSection(make));

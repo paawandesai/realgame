@@ -37,10 +37,34 @@ struct SkyParams {
     low: vec4<f32>,
     sun: vec4<f32>,
     haze: vec4<f32>,
+    top: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0)
 var<uniform> params: SkyParams;
+
+// The realistic look's sky: single scattering in a plane-parallel air
+// column, Rayleigh (blue sky, red sunsets) plus Mie (the white glow round
+// the sun and the pale horizon). Optical depths are air masses over a
+// scale height (8 km air, 1.2 km haze); coefficients per km at sea level.
+fn physical_sky(d: vec3<f32>, sun: vec3<f32>) -> vec3<f32> {
+    let rayleigh = vec3<f32>(5.8e-3, 13.5e-3, 33.1e-3);
+    let mie = 12e-3;
+    let mu = dot(d, sun);
+    let zen = max(d.y, 0.0);
+    let od_r = 8.0 / (zen + 0.15);
+    let od_m = 1.2 / (zen + 0.15);
+    let sy = max(sun.y, 0.0);
+    let sun_t = exp(-(rayleigh * (8.0 / (sy + 0.15)) + mie * 1.1 * (1.2 / (sy + 0.15))));
+    let ext = rayleigh * od_r + vec3<f32>(mie * 1.1 * od_m);
+    let t = exp(-ext);
+    let pr = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
+    let g = 0.76;
+    let pm = 3.0 / (8.0 * 3.14159265) * ((1.0 - g * g) * (1.0 + mu * mu))
+        / ((2.0 + g * g) * pow(1.0 + g * g - 2.0 * g * mu, 1.5));
+    let ins = (rayleigh * pr * od_r + vec3<f32>(mie * pm * od_m)) * sun_t * (1.0 - t) / ext;
+    return ins * 30.0;
+}
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -54,15 +78,30 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let horizon = pow(params.haze.rgb, vec3<f32>(2.2)) * 1.1;
     // Relit Kiln: dusk. The band above the horizon turns orange and the
     // zenith a deep dusky blue-violet.
-    let mid = mix(mix(vec3<f32>(0.42, 0.66, 0.95), horizon, 0.25), vec3<f32>(0.95, 0.42, 0.20), warm * 0.8);
-    let zenith = mix(vec3<f32>(0.16, 0.38, 0.80), vec3<f32>(0.14, 0.12, 0.34), warm * 0.85);
+    var mid = mix(mix(vec3<f32>(0.42, 0.66, 0.95), horizon, 0.25), vec3<f32>(0.95, 0.42, 0.20), warm * 0.8);
+    var zenith = mix(vec3<f32>(0.16, 0.38, 0.80), vec3<f32>(0.14, 0.12, 0.34), warm * 0.85);
+    let new_look = params.top.w > 0.5;
+    if new_look {
+        // The new look: each region's own sky overhead, fading to its haze
+        // through a warm band near the horizon (painted depth).
+        zenith = pow(params.top.rgb, vec3<f32>(2.2));
+        mid = mix(horizon, zenith, 0.45);
+    }
     var col = mix(horizon, mid, smoothstep(0.0, 0.25, up));
     col = mix(col, zenith, smoothstep(0.25, 0.9, up));
+    if new_look {
+        // Real sky for this sun, settling into the fog's colour right at
+        // the horizon so far hills fade into the same air.
+        col = physical_sky(vec3<f32>(d.x, max(d.y, 0.0), d.z), sun);
+        col = mix(col, horizon, smoothstep(0.08, 0.0, up) * 0.6);
+    }
     // Below the horizon: the fog colour (the far ground fades into it).
     col = mix(col, horizon * 0.95, smoothstep(0.0, -0.1, up));
     // A faint teal aurora band low in the north (cultivation sky).
     let north = smoothstep(0.2, 1.0, -d.z) * smoothstep(0.05, 0.18, up) * smoothstep(0.45, 0.2, up);
-    if params.low.x < 0.5 {
+    if new_look {
+        // Only science glows in the new look: no aurora.
+    } else if params.low.x < 0.5 {
         let wave = n2(vec2<f32>(d.x * 6.0 + globals.time * 0.03, up * 10.0));
         col = col + vec3<f32>(0.10, 0.45, 0.40) * north * wave * 0.35;
     } else {

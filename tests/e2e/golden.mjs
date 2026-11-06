@@ -11,7 +11,7 @@
 //
 // Env: BASE_URL (test a running server instead), ONLY=formulaBench (just
 // that section and the console-error check; also spellProgress, workedCasts,
-// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, valleyPowers, valleyFirstLift, comma-separated; `playthrough` runs only when named), QUERY (for example `?low`,
+// voxelEngine, blockMatter, valleyStory, voxelCast, valleyPuzzles, valleyLate, valleyPowers, valleyFirstLift, hudFit, comma-separated; `playthrough` runs only when named), QUERY (for example `?low`,
 // faster on a software GPU), SHOTS (directory for screenshots; none if
 // unset), VW/VH (viewport, default 1280x720), IDLE_MS (idle time before the
 // closing STATS/CPUFRAME lines). The page always gets `debug` added (the
@@ -114,6 +114,7 @@ function check(name, ok, detail = '') {
     valleyLate: () => valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs }),
     valleyPowers: () => valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase }),
     valleyFirstLift: () => valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase }),
+    hudFit: () => hudFit({ page, st, cmd, until, frames, sleep, base: voxelBase }),
     playthrough: () => playthrough({ page, st, cmd, until, frames, sleep, base: voxelBase }),
   };
   if (process.env.ONLY) {
@@ -407,6 +408,7 @@ function check(name, ok, detail = '') {
   await valleyLate({ page, st, cmd, until, frames, sleep, base: voxelBase, logs });
   await valleyPowers({ page, st, cmd, until, frames, sleep, base: voxelBase });
   await valleyFirstLift({ page, st, cmd, until, frames, sleep, base: voxelBase });
+  await hudFit({ page, st, cmd, until, frames, sleep, base: voxelBase });
 
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const fails = results.filter((r) => !r.ok);
@@ -6006,6 +6008,174 @@ async function valleyFirstLift({ page, st, cmd, until, frames, sleep, base }) {
     /Press F/.test(g3) && P && P.caches.find((c) => c.id === 'ledge').found && P.rankName === 'Kindler' && P.rankUps === 1
       && /Kindler/.test(banner) && s.pos[1] >= tower.h + 4.9 && (await card()) === '',
     `g3=${g3} pos=${s.pos} rank=${P && P.rankName} ups=${P && P.rankUps} banner=${banner}`);
+}
+
+// ---------------------------------------------------------------------------
+// HUD fit (Paawan's playtest 2, 2026-11-04, a Mac at about 1440x800): the
+// hotbar ran off both sides of the screen, the "E: the charcoal clamp"
+// prompt sat on the caption, and nothing may scroll the page. At 1280x720,
+// 1440x800, 1536x864 and 1920x1080, with nine hotbar slots, the clamp's E
+// prompt and a caption up: the hotbar is inside the window, the prompt, the
+// caption and the hotbar do not overlap, and the page does not scroll; the
+// pack (Tab) and the worked formula builder fit too. Then a hotbar forced
+// onto one line at 150 % text is scaled to fit. ONLY=hudFit.
+async function hudFit({ page, st, cmd, until, frames, sleep, base }) {
+  console.log('  -- HUD fit: hotbar, prompt and caption at four window sizes --');
+  const url = base.replace(/([?&])classic=1(&|$)/, (m, a, b) => (b ? a : '')).replace(/[?&]$/, '') + '&band=seedling';
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.goto(url);
+  // A spell saved on the Bench, so the pack lists one with its key picker.
+  await page.evaluate(() => {
+    try {
+      localStorage.removeItem('rg.progress.v1');
+      localStorage.setItem('formula.spells.v1', JSON.stringify({ v: 1, saved: { carbon_burns: 0 }, slots: [null, null, null, null], quests: [] }));
+    } catch { /* none */ }
+  });
+  await page.goto(url);
+  for (const t0 = Date.now(); !(await page.evaluate(() => !!window.__gameState && !!window.__game && !!window.__lateState));) {
+    if (Date.now() - t0 > 120000) throw new Error('page did not start within 120 s');
+    await sleep(250);
+  }
+  await frames(3);
+  for (const t0 = Date.now(); Date.now() - t0 < 8000; await sleep(100)) {
+    const open = await page.evaluate(() => { const e = document.getElementById('intro'); return !!e && !e.hidden; });
+    if (open) { await page.click('#intro .intro-play', { timeout: 3000 }).catch(() => {}); break; }
+    if (((await st()) || {}).quest > 0) break;
+  }
+  await until((x) => x.quest > 0 && !x.paused, 20000);
+  const story = (c) => page.evaluate((c) => { const w = window; w.__gameIn = w.__gameIn || {}; (w.__gameIn.story = w.__gameIn.story || []).push(c); }, c);
+  for (const c of ['give torch 3', 'give charcoal 2', 'give snow 5', 'give coal 4', 'bind 0 6', 'bind 1 7', 'bind 2 8', 'bind 3 9']) await story(c);
+  /** Boxes of the HUD parts that are drawn (fixed chips have no offsetParent). */
+  const boxes = () => page.evaluate(() => {
+    const vis = (el) => !!el && !el.hidden && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden'
+      && Number(getComputedStyle(el).opacity) > 0.05;
+    const box = (el) => { if (!vis(el)) return null; const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
+    const de = document.documentElement;
+    return {
+      vw: de.clientWidth, vh: de.clientHeight,
+      scroll: { w: Math.max(de.scrollWidth, document.body.scrollWidth), h: Math.max(de.scrollHeight, document.body.scrollHeight), x: window.scrollX, y: window.scrollY },
+      slots: [...document.querySelectorAll('#hotbar > *')].map(box).filter(Boolean),
+      chips: [...document.querySelectorAll('.late-chip')].map(box).filter(Boolean),
+      caption: document.getElementById('caption').classList.contains('show') ? box(document.getElementById('caption')) : null,
+      hint: box(document.getElementById('hint')),
+      pack: box(document.querySelector('#pack .pack-card')),
+      worked: box(document.getElementById('worked')),
+      // The whole builder shows (its title and Cancel are not scrolled away).
+      workedWhole: (() => { const p = document.getElementById('worked'); return !!p && p.scrollTop === 0 && p.scrollHeight <= p.clientHeight + 1; })(),
+    };
+  });
+  const overlap = (a, b) => !!a && !!b && a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5;
+  const inside = (a, v) => !!a && a.l >= -0.5 && a.t >= -0.5 && a.r <= v.vw + 0.5 && a.b <= v.vh + 0.5;
+  const noScroll = (v) => v.scroll.w <= v.vw && v.scroll.h <= v.vh && v.scroll.x === 0 && v.scroll.y === 0;
+  const late = () => page.evaluate(() => { try { return JSON.parse(window.__lateState || 'null'); } catch { return null; } });
+  for (const [w, h] of [[1280, 720], [1440, 800], [1536, 864], [1920, 1080]]) {
+    await page.setViewportSize({ width: w, height: h });
+    // At the charcoal clamp: its E prompt shows (it goes by where the
+    // player stands, not where they look).
+    await cmd('castmode instant');
+    await cmd('select 2');
+    let near = null;
+    for (let k = 0; k < 4 && !(near && near.near === 'clamp'); k++) {
+      await cmd('tp 64.5 43 72.5');
+      await cmd('face 60.5 45.0 72.5');
+      for (const t0 = Date.now(); Date.now() - t0 < 6000; await sleep(200)) { near = await late(); if (near && near.near === 'clamp') break; }
+    }
+    // Paawan's case: Water's cast caption ("Water soaks up heat ...") up
+    // with the clamp's prompt and the hotbar. Cast at the sky, so the water
+    // lands nowhere near the clamp, then look at the clamp again.
+    let v = await boxes();
+    for (let k = 0; k < 4 && !(v.caption && v.chips.length && v.slots.length >= 9); k++) {
+      await cmd('face 64.5 200 140');
+      await sleep(400);
+      await cmd('cast');
+      for (const t0 = Date.now(); !(v.caption && v.chips.length) && Date.now() - t0 < 15000; await sleep(200)) v = await boxes();
+    }
+    await cmd('face 60.5 45.0 72.5');
+    await sleep(300);
+    const v2 = await boxes();
+    if (v2.caption && v2.chips.length) v = v2;
+    await screenshot(page, `hudfit-${w}x${h}.png`);
+    const out = v.slots.filter((s) => !inside(s, v));
+    check(`hud fit ${w}x${h}: all ${v.slots.length} hotbar slots are inside the window`,
+      v.slots.length >= 9 && out.length === 0, `out=${JSON.stringify(out)} vw=${v.vw}`);
+    const hits = [];
+    const named = [['prompt', ...v.chips], ['caption', v.caption], ['hint', v.hint]];
+    for (const [n, ...bs] of named) for (const b of bs) {
+      if (v.slots.some((s) => overlap(s, b))) hits.push(`${n}/hotbar`);
+      for (const [m, ...cs] of named) if (m !== n) for (const c of cs) if (overlap(b, c)) hits.push(`${n}/${m}`);
+    }
+    check(`hud fit ${w}x${h}: the E prompt, the caption and the hotbar do not overlap`,
+      v.chips.length >= 1 && !!v.caption && hits.length === 0,
+      `chips=${JSON.stringify(v.chips)} caption=${JSON.stringify(v.caption)} hits=${hits.join(',')}`);
+    check(`hud fit ${w}x${h}: the page does not scroll`, noScroll(v), JSON.stringify(v.scroll));
+    // The pack (Tab): its card fits and the page still does not scroll.
+    await page.keyboard.press('Tab');
+    for (const t0 = Date.now(); !(v = await boxes()).pack && Date.now() - t0 < 8000;) await sleep(200);
+    await sleep(500);
+    v = await boxes();
+    const keys = await page.evaluate(() => document.querySelectorAll('#pack .pack-disc-key').length);
+    await screenshot(page, `hudfit-pack-${w}x${h}.png`);
+    check(`hud fit ${w}x${h}: the pack fits the window, with the saved spell's key picker`,
+      inside(v.pack, v) && noScroll(v) && keys === 4, `pack=${JSON.stringify(v.pack)} keys=${keys} scroll=${JSON.stringify(v.scroll)}`);
+    await page.keyboard.press('Escape');
+    for (const t0 = Date.now(); (await boxes()).pack && Date.now() - t0 < 8000;) await sleep(200);
+    // The worked formula builder: Fire is new at Seedling, so a cast opens it.
+    await cmd('castmode worked');
+    await cmd('select 1');
+    await sleep(400);
+    await cmd('cast');
+    for (const t0 = Date.now(); !(v = await boxes()).worked && Date.now() - t0 < 15000;) await sleep(200);
+    await sleep(500);
+    v = await boxes();
+    await screenshot(page, `hudfit-worked-${w}x${h}.png`);
+    check(`hud fit ${w}x${h}: the worked formula builder fits the window, whole`,
+      inside(v.worked, v) && v.workedWhole && noScroll(v), `worked=${JSON.stringify(v.worked)} whole=${v.workedWhole} scroll=${JSON.stringify(v.scroll)}`);
+    await page.evaluate(() => document.querySelector('#worked .worked-close')?.click());
+    for (const t0 = Date.now(); (await boxes()).worked && Date.now() - t0 < 8000;) await sleep(200);
+    await until((x) => !x.paused, 10000);
+  }
+  // The guard: a hotbar forced onto one line at 150 % text is scaled to fit.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  // (Through the CSSOM: the page's CSP blocks an injected <style>.)
+  const force = (on) => page.evaluate((on) => {
+    const bar = document.getElementById('hotbar');
+    document.documentElement.style.setProperty('--ui', on ? '1.5' : '1');
+    bar.style.flexWrap = on ? 'nowrap' : '';
+    bar.style.maxWidth = on ? 'none' : '';
+    const kids = [...bar.children].filter((el) => el.getClientRects().length);
+    return kids.reduce((a, el) => a + el.offsetWidth, 0);
+  }, on);
+  const natural = await force(true);
+  await sleep(1500);
+  const v = await boxes();
+  const out = v.slots.filter((s) => !inside(s, v));
+  check('hud fit: a hotbar wider than the window is scaled down to fit inside it',
+    natural > v.vw && v.slots.length >= 9 && out.length === 0 && noScroll(v), `natural=${natural} out=${JSON.stringify(out)} vw=${v.vw}`);
+  await force(false);
+  // Paawan: "Flare doesn't work?" Fire was cast in the world but never
+  // learned at the Bench, so its power stayed locked with no reason given.
+  // Now the badge says how to unlock it, a Fire cast unlocks it, and the
+  // real F key lights it.
+  const pw = () => page.evaluate(() => { try { return JSON.parse(window.__powersState || 'null'); } catch { return null; } });
+  const badge = () => page.evaluate(() => document.querySelector('.rank-badge')?.textContent || '');
+  await cmd('castmode instant');
+  await cmd('select 1');
+  await sleep(600);
+  let P = await pw();
+  const before = await badge();
+  check('hud fit: before Fire is cast, the badge says Flare is locked and how to unlock it',
+    !!P && P.unlocked === false && /Flare \(locked: cast Fire once\)/.test(before), `unlocked=${P && P.unlocked} badge=${before}`);
+  await cmd('cast');
+  for (const t0 = Date.now(); !((P = await pw()) && P.unlocked) && Date.now() - t0 < 20000;) await sleep(250);
+  await page.evaluate(() => document.getElementById('game').focus());
+  for (let k = 0; k < 4 && !(P && P.flare > 0); k++) {
+    await page.keyboard.press('KeyF');
+    for (const t0 = Date.now(); !((P = await pw()) && P.flare > 0) && Date.now() - t0 < 6000;) await sleep(250);
+  }
+  const after = await badge();
+  await screenshot(page, 'hudfit-flare.png');
+  check('hud fit: after one Fire cast, F lights the Flare and the badge says it is lit',
+    !!P && P.unlocked && P.flare > 0 && P.used[0] >= 1, `unlocked=${P && P.unlocked} flare=${P && P.flare} used=${P && P.used} badge=${after}`);
 }
 
 // ---------------------------------------------------------------------------

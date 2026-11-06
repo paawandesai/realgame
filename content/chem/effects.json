@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "about": "Which spell effect each codex reaction (content/chem/core.json) casts as once a Bench discovery is saved as a spell (docs/loop/items/I-053/spec.md). The effect is derived from the reaction's own data by the ordered rules below (the first match wins), never written per reaction, except the listed overrides. kind is the look the renderer styles (fire, water, frost, foam, cloud, glow, wall, reveal); runs is the world use: a shipped spell's matter rule (fire, water, frost, foam) or a use I-056 adds (wall: a short-lived wall of blocks; reveal: hidden caches nearby show for a while; lift: hydrogen lifts a player near the landing; push: a burst of gas pushes a player near the landing), or none: Bench only, never saved as a spell, with bench_only saying why (docs/loop/items/I-056/spec.md). A fizz that does not smother takes the first gas_uses rule that matches; any reaction with a product in poisons is Bench only, whatever its kind. world holds the new uses' data values, each scaled by strength between its two numbers; strength (0 to 1) scales that rule's emit, 1 being the shipped spell; heat is -1 (absorbs), 0 or +1 (releases). tint is an optional sRGB colour of the visible change (flame colour, coloured gas or precipitate) from the reaction's show record (tint_rule); absent means the renderer's default. strength comes from the show record's ΔH where there is one (strength_scale). Show data is draft until the science review.",
+  "kinds": ["fire", "water", "frost", "foam", "cloud", "glow", "wall", "reveal"],
+  "runs": {
+    "fire": "fire",
+    "water": "water",
+    "frost": "frost",
+    "foam": "foam",
+    "cloud": "water",
+    "glow": "fire",
+    "wall": "wall",
+    "reveal": "reveal"
+  },
+  "smothers": ["CO2", "N2"],
+  "poisons": {
+    "species": ["NO", "NO2", "N2O4", "NH3", "HCl", "HBr", "HF", "Cl2", "Br2", "F2", "H2S", "SO2", "CO", "CH3Cl", "Hg", "O3"],
+    "names": { "HCl": "hydrogen chloride", "HBr": "hydrogen bromide", "HF": "hydrogen fluoride", "Hg": "mercury vapour", "O3": "ozone", "Br2": "bromine", "Cl2": "chlorine", "F2": "fluorine", "NH3": "ammonia", "CO": "carbon monoxide", "SO2": "sulfur dioxide", "H2S": "hydrogen sulfide", "NO": "nitric oxide", "NO2": "nitrogen dioxide", "N2O4": "dinitrogen tetroxide", "CH3Cl": "chloromethane" },
+    "bench_only": "It makes {gas}, which is poisonous to breathe, so it stays on the Bench.",
+    "why": "a reaction with any product that is a poisonous gas or vapour (GHS acute inhalation toxicity) is never thrown around the world, whatever its kind: checked on every product, after the kind and gas rules (I-056 review M1)"
+  },
+  "gas_uses": [
+    { "when": { "visible_any": ["flame"] }, "runs": "fire", "why": "the gas catches fire as it forms: it burns" },
+    { "when": { "gas_any": ["H2"] }, "runs": "lift", "why": "hydrogen is far lighter than air: it lifts, like the H2 lift" },
+    { "when": {}, "runs": "push", "why": "any other gas made fast pushes, like the CO2 dash" }
+  ],
+  "world": {
+    "wall": { "material": "ash", "width": [1, 5], "height": [1, 3], "seconds": 15.0 },
+    "reveal": { "radius_m": [24.0, 64.0], "seconds": 20.0 },
+    "lift": { "radius_m": 6.0, "blocks": [3.0, 8.0] },
+    "push": { "radius_m": 6.0, "speed": [8.0, 20.0] }
+  },
+  "aqueous_families": ["neutralisation", "displacement", "metal_acid", "carbonate_acid", "precipitation", "halogen"],
+  "kind_rules": [
+    { "when": { "family": ["combustion"] }, "kind": "fire", "why": "a burning: a flame" },
+    { "when": { "family": ["precipitation"] }, "kind": "wall", "why": "a solid appears in a solution: it builds a short-lived wall" },
+    { "when": { "heat": ["absorbs"], "needs_any": false }, "kind": "frost", "why": "it takes heat in by itself, with no heat, light or electricity driving it, so it feels cold (a driven reaction only soaks up what drives it: I-056 review M5)" },
+    { "when": { "gas_product": true }, "kind": "foam", "why": "it gives off a gas: a fizz" },
+    { "when": { "heat": ["releases"], "hazard": ["fire"] }, "kind": "fire", "why": "it gives off heat strongly (flames or strong heat)" },
+    { "when": { "family": ["neutralisation", "displacement", "metal_acid", "carbonate_acid", "halogen"], "visible_any": ["coating", "colour_change"] }, "kind": "reveal", "why": "a colour appears or a metal coats a surface in a solution: it marks and reveals" },
+    { "when": { "heat": ["releases"] }, "kind": "glow", "why": "it gives off heat without a flame" },
+    { "when": {}, "kind": "water", "why": "little heat change and no gas: a liquid splash" }
+  ],
+  "strength_rules": [
+    { "when": { "family": ["combustion"] }, "strength": 1.0, "why": "a burning, like the Fire spell" },
+    { "when": { "heat": ["releases"], "hazard": ["fire"] }, "strength": 0.8, "why": "gives off heat strongly" },
+    { "when": { "heat": ["releases"] }, "strength": 0.5, "why": "gives off heat" },
+    { "when": { "heat": ["absorbs"], "needs_any": false }, "strength": 0.6, "why": "takes heat in by itself, so it feels cold" },
+    { "when": { "heat": ["absorbs"] }, "strength": 0.3, "why": "only takes in the heat, light or electricity it is given" },
+    { "when": {}, "strength": 0.4, "why": "little heat change" }
+  ],
+  "overrides": {
+    "thermite": { "kind": "fire", "strength": 1.0, "why": "thermite burns white hot with sparks, though its hazard badge is lab" }
+  },
+  "strength_scale": "When the reaction's show record has a ΔH (content/chem/show.json, crates/chem/src/show.rs), strength = ln(1 + |ΔH| / kJ) / ln(1 + 800), clamped to 0.1..1 and rounded to 0.01: a burning (several hundred kJ per mole of reaction) is a full-strength spell, a neutralisation (about 56 kJ) about 0.6, a few kJ about 0.2. A reaction that takes in heat only while it is given heat, light or electricity chills little, so it counts a quarter (at least 0.05). With no ΔH the strength_rules above apply. Gameplay scale; ΔH itself is sourced (docs/loop/items/I-054/spec.md section 6).",
+  "tint_rule": "tint comes from the reaction's show record: for an effect that runs Fire, the colour of its flame's emitter (sodium yellow-orange, lithium crimson, ...); otherwise the first product with a rendered colour (a precipitate, coloured gas or coloured solution), never water. Colours and their sources are in content/chem/substances.json and show.json."
+}

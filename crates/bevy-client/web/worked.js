@@ -100,7 +100,10 @@ export function createWorked({ doc, win, cmd, bench }) {
       let left = 0;
       try {
         const st = JSON.parse(w.__workState);
-        left = Math.max(0, (Number(st.need) || 0) - (Number((st.casts || [])[work.spell]) || 0));
+        // I-053: a discovered spell counts its own builds (2, then instant).
+        left = st.disc
+          ? Math.max(0, (Number(st.disc.need) || 0) - (Number(st.disc.builds) || 0))
+          : Math.max(0, (Number(st.need) || 0) - (Number((st.casts || [])[work.spell]) || 0));
       } catch { /* no state */ }
       if (left > 0) {
         const word = left === 1 ? 'Build it 1 more time' : `Build it ${left} more times`;
@@ -284,6 +287,23 @@ export function startWorked() {
   });
   let raw = '';
   /** @type {WorkState | null} */ let ws = null;
+  // Paawan's playtest 2: at 1280x720 a Seedling's first Fire build was
+  // taller than the room under the crosshair, so its title and Cancel
+  // scrolled out of sight. The panel starts under the crosshair when it
+  // fits there, else rises just enough to show whole (the game is paused
+  // while it is open); only a panel taller than the window scrolls.
+  const fit = () => {
+    const p = document.getElementById('worked');
+    if (!p) return;
+    const vh = window.innerHeight;
+    const need = p.scrollHeight + (p.offsetHeight - p.clientHeight);
+    const top = Math.max(8, Math.min(Math.round(vh / 2 + 40), vh - 8 - need));
+    const key = `${top}|${vh}`;
+    if (p.dataset.fit === key) return;
+    p.dataset.fit = key;
+    p.style.top = `${top}px`;
+    p.style.maxHeight = `${vh - top - 8}px`;
+  };
   const tick = () => {
     const now = w.__workState;
     if (typeof now === 'string' && now !== raw) {
@@ -291,6 +311,7 @@ export function startWorked() {
       try { ws = JSON.parse(now); } catch { ws = null; }
       api.update(ws);
     } else if (api.isOpen()) api.update(ws);
+    fit();
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

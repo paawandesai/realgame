@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { hill, parseFormula, sideOf } from "../crates/bevy-client/web/bench-free-lib.js";
 
-type Reaction = { id: string; family: string; band: string; equation: string; needs: string[] };
+type Reaction = { id: string; family: string; band: string; equation: string; needs: string[]; evidence?: { kind: string } };
 type Step = { id: string; say: string; do: Record<string, unknown> };
 type Lesson = {
   id: string;
@@ -18,6 +18,10 @@ type Lesson = {
   ngss: string;
   reactions: string[];
   sources: string[];
+  /** I-057: the chemistry quest that uses this lesson in the block world. */
+  world?: { quest: string; say: string };
+  /** I-059: an Adept lesson's AP Chemistry topic (College Board CED). */
+  ap?: string;
 };
 type Goal = { kind: string; family?: string; ids?: string[]; count?: number; reaction?: string };
 type Band = {
@@ -35,7 +39,10 @@ type Guide = {
   where_you_see_it_sources: Record<string, string[]>;
 };
 
-const core = JSON.parse(readFileSync("content/chem/core.json", "utf8")) as { families: string[]; reactions: Reaction[] };
+const coreFile = JSON.parse(readFileSync("content/chem/core.json", "utf8")) as { families: string[]; reactions: Reaction[] };
+/** I-058: the engine plays only reactions with textbook or data evidence (Codex::load hides the rest), so the guide may name only those. */
+const playable = (r: Reaction) => r.evidence?.kind === "textbook" || r.evidence?.kind === "data";
+const core = { ...coreFile, reactions: coreFile.reactions.filter(playable) };
 const names = JSON.parse(readFileSync("content/chem/names.json", "utf8")) as {
   elements: Record<string, unknown>;
   substances: Record<string, string>;
@@ -43,6 +50,9 @@ const names = JSON.parse(readFileSync("content/chem/names.json", "utf8")) as {
   conditions_young: Record<string, string>;
 };
 const guide = JSON.parse(readFileSync("content/chem/guide.json", "utf8")) as Guide;
+const quests = JSON.parse(readFileSync("content/chem/quests.json", "utf8")) as { quests: { id: string; live: boolean; solved_by?: string[] }[] };
+/** The rule tier (rules.json): quests may be solved by a rule reaction too. */
+const rules = JSON.parse(readFileSync("content/chem/rules.json", "utf8")) as { reactions: Reaction[] };
 
 const BANDS = ["sprout", "seedling", "apprentice", "adept"];
 const rank = (b: string) => BANDS.indexOf(b);
@@ -135,19 +145,49 @@ function reachable(band: string, r: Reaction): boolean {
   return bottles || typed;
 }
 
-const FORMULA_WORD = /\b[A-Z][a-z]?\d/;
-/** A formula a pre-reader can't use: digits after a symbol, or a two-letter-plus formula word like NaCl or Fe. */
-function hasFormula(s: string): string | null {
-  if (FORMULA_WORD.test(s)) return s;
-  for (const w of s.match(/[A-Za-z()]+/g) ?? []) if (w.length >= 2 && (w in names.substances || w in names.elements)) return `${w} in "${s}"`;
-  return null;
+/**
+ * I-059: Sprout is grades 6 to 7, so its text may show formulas, but only the
+ * simple formulas of very familiar substances (MS-PS1-1 level).
+ */
+const SPROUT_FORMULAS = new Set(["H2", "O2", "H2O", "CO2", "NaCl"]);
+/** Formula words in `s` (a symbol with digits, or a formula or element word of two letters or more like NaCl or Fe), coefficients dropped. */
+function formulasIn(s: string): string[] {
+  const out: string[] = [];
+  for (const w of s.match(/[A-Za-z0-9()]+/g) ?? []) {
+    // A bracket around a word ("(NaCl)") is prose, not part of the formula.
+    let f = /^\(.*\)$/.test(w) ? w.slice(1, -1) : w;
+    while ((f.match(/\(/g) ?? []).length > (f.match(/\)/g) ?? []).length && f.startsWith("(")) f = f.slice(1);
+    while ((f.match(/\)/g) ?? []).length > (f.match(/\(/g) ?? []).length && f.endsWith(")")) f = f.slice(0, -1);
+    f = f.replace(/^\d+/, "");
+    if (/^[A-Z][a-z]?\d/.test(f) || /[a-z)][A-Z]/.test(f) || (f.length >= 2 && (f in names.substances || f in names.elements))) out.push(f);
+  }
+  return out;
 }
 
+/**
+ * NGSS performance expectations per grade band (I-059): Sprout (grades 6-7)
+ * at MS-PS1-1, 2 and 5 level, plus the middle-school energy and life-science
+ * ones; Seedling (8-9) middle school to early high school; Apprentice
+ * (10-11) high school; Adept (grade 12+) the deepest high-school ones, with
+ * an AP Chemistry topic as well.
+ */
 const NGSS: Record<string, RegExp> = {
-  sprout: /^(K|1|2)-(PS|LS)\d-\d$/,
-  seedling: /^(3|4|5)-(PS|LS)\d-\d$/,
-  apprentice: /^MS-(PS|LS)\d-\d$/,
-  adept: /^HS-(PS|LS)\d-\d$/,
+  sprout: /^MS-(PS1-[1256]|LS1-[67])$/,
+  seedling: /^(MS-(PS1-[1-6]|LS1-[67])|HS-PS1-[27])$/,
+  apprentice: /^HS-(PS|LS)\d-\d$/,
+  adept: /^HS-PS1-\d$/,
+};
+/** AP Chemistry Course and Exam Description topics an Adept lesson may cite (R9). */
+const AP_TOPICS: Record<string, string> = {
+  "1.7": "Periodic Trends",
+  "4.2": "Net Ionic Equations",
+  "4.5": "Stoichiometry",
+  "4.7": "Types of Chemical Reactions",
+  "4.9": "Oxidation-Reduction (Redox) Reactions",
+  "5.11": "Catalysis",
+  "6.7": "Bond Enthalpies",
+  "6.8": "Enthalpy of Formation",
+  "7.9": "Introduction to Le Chatelier's Principle",
 };
 /** Performance expectations the guide may cite (NGSS, 2013). */
 const NGSS_CODES = new Set([
@@ -243,6 +283,9 @@ for (const band of BANDS) {
       assert.ok(sentences >= 1 && sentences <= 3, `${where}: ${sentences} sentences`);
       assert.match(l.ngss, NGSS[band]!, `${where}: ${l.ngss} is not a ${band} grade-band code`);
       assert.ok(NGSS_CODES.has(l.ngss), `${where}: unknown NGSS code ${l.ngss}`);
+      if (band === "adept") assert.ok(l.ap && l.ap in AP_TOPICS, `${where}: an Adept lesson names its AP Chemistry topic, not ${l.ap}`);
+      else assert.equal(l.ap, undefined, `${where}: only Adept cites AP topics`);
+      if (l.ap) assert.ok(l.sources.includes("R9"), `${where}: cites the AP course description (R9)`);
       checkSources(where, l.sources);
       assert.ok(l.reactions.length > 0, `${where}: no reactions`);
       for (const id of l.reactions) reaction(where, id, band);
@@ -317,23 +360,112 @@ for (const band of BANDS) {
   });
 }
 
-test("sprout text has no formulas (it is read aloud to pre-readers)", () => {
+test("sprout text is grade 6-7 wording: only simple, familiar formulas and short sentences (I-059)", () => {
   const g = guide.bands.sprout!;
   const texts = [
     ...g.walkthrough.map((s) => s.say),
-    ...g.lessons.flatMap((l) => [l.title, l.idea]),
+    ...g.lessons.flatMap((l) => [l.title, l.idea, l.world?.say ?? ""]),
     ...Object.values(g.hints).flat(),
     ...g.challenges.map((c) => c.title),
     ...core.reactions.filter((r) => r.band === "sprout").map((r) => guide.where_you_see_it[r.id] ?? ""),
   ];
-  for (const t of texts) assert.equal(hasFormula(t), null);
-  // Sprout has no element shelf, no atom plate, no "out" side and no type box.
-  for (const t of texts) assert.doesNotMatch(t, /\bplate\b|\belement shelf\b|["“]out["”]|\bout side\b|\btype\b|\bscale\b/i, `Sprout has no such control: ${t}`);
-  // Read aloud: short sentences, and not too many of them.
+  // Formulas are shown at Sprout now, but the text names only very familiar ones.
+  for (const t of texts) for (const f of formulasIn(t)) assert.ok(SPROUT_FORMULAS.has(f), `Sprout text names ${f}, not a familiar formula: ${t}`);
+  // The lessons are no longer picture-only: they use formulas and model words.
+  const ideas = g.lessons.map((l) => l.idea).join(" ");
+  assert.ok(formulasIn(ideas).length >= 5, "Sprout lessons show simple formulas");
+  assert.match(ideas, /\batoms?\b/);
+  assert.match(ideas, /\bmolecules?\b/);
+  assert.match(ideas, /\bevidence\b/);
+  // Sprout has no "out" side, no type box and no balance scale (it never balances by hand).
+  for (const t of texts) assert.doesNotMatch(t, /["“]out["”]|\bout side\b|\btype\b|\bscale\b/i, `Sprout has no such control: ${t}`);
+  // Short, plain sentences.
   for (const t of texts) {
-    assert.ok(t.length <= 160, `too long for Sprout: ${t}`);
-    for (const s of t.split(/(?<=[.!?])\s+/)) assert.ok(s.length <= 100, `sentence too long for Sprout: ${s}`);
+    assert.ok(t.length <= 200, `too long for Sprout: ${t}`);
+    for (const s of t.split(/(?<=[.!?])\s+/)) assert.ok(s.length <= 120, `sentence too long for Sprout: ${s}`);
   }
+});
+
+test("sprout is the simplest band: few bottles, core reactions only, no balancing by hand (I-059)", () => {
+  const all = [...core.reactions, ...rules.reactions.filter(playable)];
+  const sproutAll = all.filter((r) => r.band === "sprout");
+  assert.ok(sproutAll.length >= 10 && sproutAll.length <= 16, `${sproutAll.length} Sprout reactions`);
+  assert.ok(sproutAll.every((r) => !r.id.startsWith("rule_")), "no rule reaction at Sprout");
+  // The page's shelf: every reactant of a reaction the band sees (core and rule tier).
+  const shelfAll = (band: string) => new Set(all.filter((r) => rank(r.band) <= rank(band)).flatMap((r) => Object.keys(halves(r.equation)[0])));
+  const n = shelfAll("sprout").size;
+  assert.ok(n <= 16, `${n} bottles at Sprout`);
+  assert.ok(n < shelfAll("seedling").size, "Sprout has fewer bottles than Seedling");
+  // Every bottle's formula parses, so the page can show it (no picture-only shelf).
+  for (const f of shelfAll("sprout")) assert.ok(parseFormula(f, isEl), `${f} is not a formula`);
+  // Each band adds reactions to the one below it.
+  for (let i = 1; i < BANDS.length; i++) {
+    const at = all.filter((r) => r.band === BANDS[i]).length;
+    assert.ok(at > 0, `${BANDS[i]} adds no reactions`);
+  }
+  assert.ok(!guide.bands.sprout!.challenges.some((c) => c.goal.kind === "balance"), "Sprout never balances by hand");
+});
+
+test("every band's walkthrough reaches a discovery that is playable in that band (I-059)", () => {
+  for (const band of BANDS) {
+    const g = guide.bands[band]!;
+    const left: Side = {};
+    const have = new Set<string>();
+    let outcome: Outcome | null = null;
+    for (const step of g.walkthrough) {
+      const [k, v] = Object.entries(step.do)[0]!;
+      if (k === "tap_bottle") left[String(v)] = (left[String(v)] ?? 0) + 1;
+      else if (k === "condition") have.add(String(v));
+      else if (k === "run") outcome = run(left, have, band);
+      else if (k === "type" && /->/.test(String(v))) outcome = judge(String(v), have, band);
+      else if (k === "type") {
+        const c = parseFormula(String(v), isEl);
+        const f = c ? (written[hill(c)] ?? String(v)) : String(v);
+        left[f] = (left[f] ?? 0) + 1;
+      }
+    }
+    const o = outcome as Outcome | null;
+    assert.equal(o?.kind, "known", `${band}: the walkthrough ends in ${JSON.stringify(o)}`);
+    const r = byId.get(o!.id!);
+    assert.ok(r && playable(r), `${band}: ${o!.id} is not playable`);
+    assert.ok(rank(r.band) <= rank(band), `${band}: ${r.id} is taught at ${r.band}`);
+    assert.ok(reachable(band, r), `${band}: ${r.id} cannot be reached at ${band}`);
+  }
+});
+
+test("every live quest has a solving reaction playable in every band (I-059)", () => {
+  const all = new Map([...core.reactions, ...rules.reactions.filter(playable)].map((r) => [r.id, r]));
+  for (const q of quests.quests.filter((x) => x.live)) {
+    for (const band of BANDS) {
+      const ok = (q.solved_by ?? []).some((id) => {
+        const r = all.get(id);
+        return !!r && rank(r.band) <= rank(band);
+      });
+      assert.ok(ok, `${q.id}: no solving reaction is playable at ${band}`);
+    }
+    // And one is a Sprout reaction, so every band can do every quest.
+    assert.ok((q.solved_by ?? []).some((id) => all.get(id)?.band === "sprout"), `${q.id}: no Sprout solver`);
+  }
+});
+
+test("lessons point at the live chemistry quest that uses them (I-057)", () => {
+  const live = new Map(quests.quests.filter((q) => q.live).map((q) => [q.id, q]));
+  const linked = new Set<string>();
+  for (const band of BANDS) {
+    for (const l of guide.bands[band]!.lessons) {
+      if (!l.world) continue;
+      const where = `${band} lesson ${l.id}`;
+      const q = live.get(l.world.quest);
+      assert.ok(q, `${where}: no live quest ${l.world.quest}`);
+      assert.match(l.world.say, /^Try it in the world: [a-z].*[.!]$/, `${where}: ${l.world.say}`);
+      assert.ok(l.world.say.length <= 160, `${where}: too long`);
+      linked.add(l.world.quest);
+    }
+  }
+  // Every live quest is linked from at least one lesson, and Sprout links all of them.
+  assert.deepEqual([...linked].sort(), [...live.keys()].sort());
+  const sprout = new Set(guide.bands.sprout!.lessons.flatMap((l) => (l.world ? [l.world.quest] : [])));
+  assert.deepEqual([...sprout].sort(), [...live.keys()].sort());
 });
 
 test("sprout and seedling text names conditions by their young labels", () => {
@@ -345,7 +477,7 @@ test("sprout and seedling text names conditions by their young labels", () => {
   assert.ok(swapped.includes("Catalyst") && swapped.includes("Spark"), swapped.join(", "));
   for (const band of ["sprout", "seedling"]) {
     const g = guide.bands[band]!;
-    const texts = [...g.walkthrough.map((s) => s.say), ...g.lessons.flatMap((l) => [l.title, l.idea]), ...Object.values(g.hints).flat(), ...g.challenges.map((c) => c.title)];
+    const texts = [...g.walkthrough.map((s) => s.say), ...g.lessons.flatMap((l) => [l.title, l.idea, l.world?.say ?? ""]), ...Object.values(g.hints).flat(), ...g.challenges.map((c) => c.title)];
     for (const t of texts) for (const label of swapped) assert.ok(!new RegExp(`\\b${label}\\b`).test(t), `${band} names ${label}, not its young label: ${t}`);
   }
 });
@@ -373,6 +505,9 @@ test("fixture: the replayed engine matches by ratio and names what is missing", 
   assert.deepEqual(run({ K: 1, H2O: 1 }, new Set(), "seedling"), { kind: "locked", id: "potassium_water" });
   assert.deepEqual(run({ H2O: 1 }, new Set(["electricity"]), "seedling"), { kind: "known", id: "water_splits" });
   assert.deepEqual(run({ CO2: 1, H2O: 1 }, new Set(["light"]), "sprout"), { kind: "known", id: "photosynthesis" });
+  // I-059: burning magnesium is a Seedling reaction now (grades 8-9, conservation of mass).
+  assert.deepEqual(run({ Mg: 2, O2: 1 }, new Set(["heat"]), "sprout"), { kind: "locked", id: "magnesium_burns" });
+  assert.deepEqual(run({ Mg: 2, O2: 1 }, new Set(["heat"]), "seedling"), { kind: "known", id: "magnesium_burns" });
   assert.deepEqual(judge("2K + 2H2O -> 2KOH + H2", new Set(), "seedling"), { kind: "locked", id: "potassium_water" });
   assert.deepEqual(judge("4H2 + 2O2 -> 4H2O", new Set(["spark"]), "adept"), { kind: "known", id: "hydrogen_burns" });
   assert.equal(judge("H2 + O2 -> H2O", new Set(["spark"]), "adept").kind, "unbalanced");

@@ -24,6 +24,7 @@ mod bridge;
 mod chem;
 mod clock;
 mod cues;
+mod discover;
 mod ending;
 mod feel;
 mod fire_fx;
@@ -31,8 +32,10 @@ mod firebreak;
 mod fx;
 mod gates;
 mod late;
+mod lens;
 mod level2;
 mod level3;
+mod look;
 mod models;
 mod mood;
 mod motion;
@@ -42,6 +45,7 @@ mod progress;
 mod sky;
 mod spell_fx;
 mod spells;
+mod stash;
 mod steps;
 mod story;
 mod tuning;
@@ -50,6 +54,7 @@ mod voxel_tex;
 mod voxel_view;
 mod worked;
 mod world;
+mod world_use;
 
 use bevy::anti_alias::fxaa::Fxaa;
 use bevy::asset::AssetMetaCheck;
@@ -173,6 +178,11 @@ pub(crate) struct SpellLanded {
     pub spell: Spell,
     pub pos: Vec3,
     pub normal: [i8; 3],
+    /// The emit's scale: 1.0 for a shipped spell, a discovered spell's
+    /// strength (0 for a puff that changes nothing), I-053.
+    pub amount: f32,
+    /// The discovered spell (codex index), if this was one.
+    pub disc: Option<u16>,
 }
 
 /// What `control` needs in voxel mode (one parameter, so the system stays
@@ -185,6 +195,9 @@ struct VoxCtl<'w, 's> {
     walk: Option<ResMut<'w, voxel_view::Walk>>,
     matter: Option<ResMut<'w, blockchem::Matter>>,
     probes: Local<'s, u32>,
+    /// I-053: a key pressed on its own selected slot switches between the
+    /// shipped spell and the discovery saved there.
+    disc: ResMut<'w, discover::Disc>,
 }
 
 impl VoxCtl<'_, '_> {
@@ -510,7 +523,14 @@ struct WorkCtx<'w> {
     working: ResMut<'w, Working>,
     prog: ResMut<'w, Progress>,
     bench: Res<'w, bench::BenchState>,
+    /// I-053: discovered spells, and the pack their bottles come from
+    /// (voxel mode only).
+    disc: ResMut<'w, discover::Disc>,
+    pack: Option<ResMut<'w, Pack>>,
 }
+
+/// Said when a saved discovery is above the player's band.
+const DISC_OLDER: &str = "That reaction is for an older band.";
 
 /// The definition of spell index `i` (`Spell::ALL` order): the one with
 /// `slot == i + 1`.
@@ -846,6 +866,7 @@ fn main() {
         .init_resource::<voxel_view::Keys>()
         .init_resource::<blockchem::Keys>()
         .init_resource::<story::Keys>()
+        .init_resource::<discover::Disc>()
         .add_message::<PlayerEvent>()
         .add_message::<MatterEvent>()
         .add_message::<SpellLanded>()
@@ -885,9 +906,14 @@ fn main() {
             story::plugin,
             voxel_cast::plugin,
             late::plugin,
+            look::plugin,
+            lens::plugin,
             mood::plugin,
             powers::plugin,
             firebreak::plugin,
+            discover::plugin,
+            world_use::plugin,
+            stash::plugin,
         ));
     }
     app.run();
@@ -1127,6 +1153,10 @@ fn setup(
     // default (TonyMcMapface) needs a pre-made KTX2 texture embedded in the
     // wasm, and every asset must be generated (docs/art-bible.md).
     camera.insert(TONEMAPPING);
+    // The new look grades each region (`look`, `?look=new`).
+    if look::on() {
+        camera.insert(bevy::render::view::ColorGrading::default());
+    }
     camera.insert(if settings.msaa {
         Msaa::Sample4
     } else {
@@ -1140,15 +1170,20 @@ fn setup(
     // forearm, cuff, hand and fingers, with a rune inlay and gem that glow
     // in the selected spell's colour, brighten while a cast is held and
     // flash when it goes (`viewmodel`).
+    let real = look::on();
     let body = materials.add(StandardMaterial {
         base_color: Color::WHITE,
-        metallic: 0.2,
-        perceptual_roughness: 0.45,
+        metallic: if real { 0.55 } else { 0.2 },
+        perceptual_roughness: if real { 0.5 } else { 0.45 },
         ..default()
     });
     let rune = materials.add(StandardMaterial {
         base_color: Color::srgb(0.25, 1.0, 0.85),
-        emissive: LinearRgba::rgb(0.2, 2.0, 1.6),
+        emissive: if real {
+            LinearRgba::rgb(0.1, 1.0, 0.8)
+        } else {
+            LinearRgba::rgb(0.2, 2.0, 1.6)
+        },
         ..default()
     });
     let vm = |t: Transform, m: &Handle<StandardMaterial>, mesh: Handle<Mesh>| {
@@ -1162,7 +1197,7 @@ fn setup(
     };
     let cam_id = camera.id();
     let (vm_rest, vm_tilt) = feel::vm_rest(settings.fov_y());
-    let gauntlet = meshes.add(models::gauntlet());
+    let gauntlet = meshes.add(models::gauntlet(real));
     let inlay = meshes.add(models::gauntlet_runes());
     let gem = meshes.add(models::gem());
     let pick_mesh = meshes.add(models::pick());
@@ -1307,6 +1342,14 @@ fn control(
     .enumerate()
     {
         if keys.just_pressed(key) && !game.work.is_open() {
+            let again = vx.keys.as_ref().is_some_and(|v| v.hot == k as u8 + 1);
+            if again && vx.on() && vx.disc.toggle(k) {
+                let line = match vx.disc.active(k).and_then(discover::entry) {
+                    Some((e, _)) => e.name.clone(),
+                    None => Spell::ALL[k].name().to_string(),
+                };
+                game.say(&line);
+            }
             game.spell = k;
             if let Some(v) = vx.keys.as_mut() {
                 v.hot = k as u8 + 1;
@@ -2168,13 +2211,70 @@ fn aim_and_cast(
             def_of(spells, i).and_then(|d| wk.bench.band.map(|b| simbench::learnable(d, b)));
         wk.working.routes[i] =
             worked::route(st as u8, learnable, wk.working.mode, wk.working.ready);
+        // I-053: a discovered spell on this slot: built twice, then instant.
+        if let Some(di) = voxel.then(|| wk.disc.active(i)).flatten() {
+            let learnable = discover::Disc::learnable(di, wk.bench.band);
+            wk.working.routes[i] = worked::route(
+                wk.disc.stage(di),
+                learnable,
+                wk.working.mode,
+                wk.working.ready,
+            );
+        }
     }
     // The accepted worked cast (if any) is the first one cast below.
     let mut worked_first = accepted.is_some();
     let mut gated: Vec<Aim> = accepted.into_iter().collect();
     if !ended {
         let sp = game.spell;
+        let disc_now = voxel.then(|| wk.disc.active(sp)).flatten();
         for aim in casts {
+            // I-053: a discovered spell needs the band and its bottles.
+            if let Some(di) = disc_now {
+                let older = discover::entry(di).is_some_and(|(e, _)| {
+                    wk.bench
+                        .band
+                        .is_some_and(|b| !realgame_chem::discover::usable(e, b))
+                });
+                if older {
+                    game.say(DISC_OLDER);
+                    continue;
+                }
+                if let Some(plan) = wk
+                    .pack
+                    .as_ref()
+                    .and_then(|p| discover::Disc::plan(di, &p.0))
+                {
+                    if !plan.missing.is_empty() {
+                        game.say(&discover::Disc::need_line(&plan.missing));
+                        continue;
+                    }
+                }
+                match wk.working.routes[sp] {
+                    worked::Route::Instant => gated.push(aim),
+                    worked::Route::Worked => {
+                        let id = wk.working.next_id;
+                        if game.work.request(id, sp, worked::Route::Worked) {
+                            wk.working.next_id = id.wrapping_add(1).max(1);
+                            wk.disc.working = Some(di);
+                            game.work_aim = aim;
+                            game.cast_queue.clear();
+                            game.paused = true;
+                            if let (Some(band), Some(def)) =
+                                (wk.bench.band, discover::Disc::def(di))
+                            {
+                                game.work.set_view(&work_view(
+                                    &def,
+                                    band,
+                                    progress::Stage::Learning,
+                                    None,
+                                ));
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
             match wk.working.routes[sp] {
                 worked::Route::Instant => {
                     let st = wk.prog.0.get(sp).map(|p| p.stage);
@@ -2195,6 +2295,7 @@ fn aim_and_cast(
                     let id = wk.working.next_id;
                     if game.work.request(id, sp, worked::Route::Worked) {
                         wk.working.next_id = id.wrapping_add(1).max(1);
+                        wk.disc.working = None;
                         game.work_aim = aim;
                         game.cast_queue.clear();
                         game.paused = true;
@@ -2213,6 +2314,21 @@ fn aim_and_cast(
             break;
         }
         let spell = Spell::ALL[game.spell];
+        // I-053: a discovered spell uses up its bottles as it is cast.
+        let disc_now = voxel.then(|| wk.disc.active(game.spell)).flatten();
+        if let (Some(di), Some(pack)) = (disc_now, wk.pack.as_mut()) {
+            match discover::Disc::plan(di, &pack.0) {
+                Some(plan) if plan.missing.is_empty() => discover::Disc::take(&plan, &mut pack.0),
+                Some(plan) => {
+                    game.say(&discover::Disc::need_line(&plan.missing));
+                    continue;
+                }
+                None => {}
+            }
+        }
+        let tag = disc_now.map_or(discover::CastTag::PLAIN, discover::Disc::tag);
+        // A discovery flies by its own rule, whichever key it sits on.
+        let fly = disc_now.and_then(discover::Disc::fly).unwrap_or(game.spell);
         // If the cooldown ran out during this frame, the part of the frame
         // past zero counts toward the next one, so held fire keeps one cast
         // per 0.3 s of game time at any frame rate (at 4 fps, a cast every
@@ -2226,7 +2342,10 @@ fn aim_and_cast(
         game.cooldown = COOLDOWN + carry;
         game.recoil = 1.0;
         game.casts += 1;
-        game.say(spell.cast_caption());
+        match disc_now {
+            Some(di) => game.say(&discover::Disc::caption(di, wk.bench.band)),
+            None => game.say(spell.cast_caption()),
+        }
         let hand = eye + player.rotation() * Vec3::new(0.2, -0.15, -0.5);
         // I-051-voxel: in the block world the spell flies its arc or cone
         // through the blocks (voxel_cast.rs) instead of the courtyard beam.
@@ -2234,9 +2353,9 @@ fn aim_and_cast(
             if std::mem::take(&mut worked_first) {
                 // break-2 B1: a worked cast never charged (its press opened
                 // the builder), so it lobs to the crosshair instead.
-                v.shoot_aimed(game.spell, hand, eye, player.forward(), game.epoch);
+                v.shoot_aimed(fly, hand, eye, player.forward(), game.epoch, tag);
             } else {
-                v.shoot(game.spell, hand, player.forward(), game.held, game.epoch);
+                v.shoot(fly, hand, player.forward(), game.held, game.epoch, tag);
             }
             continue;
         }
@@ -2299,6 +2418,7 @@ fn work_cmd(
         (Some("work"), Some("cancel")) => {
             if id().is_some_and(|id| game.work.cancel(id)) {
                 game.paused = web_paused;
+                wk.disc.working = None;
             }
         }
         (Some("work"), Some("submit")) => {
@@ -2308,11 +2428,48 @@ fn work_cmd(
             let Some(spell) = game.work.open().filter(|w| w.id == id).map(|w| w.spell) else {
                 return;
             };
+            // I-053: a discovered spell's build is judged by the codex
+            // against its own reaction, and counts toward its mastery only.
+            if let Some(di) = wk.disc.working {
+                let Some(def) = discover::Disc::def(di) else {
+                    return;
+                };
+                let text = a.get(3..).unwrap_or_default().join(" ");
+                let v = spells::book().judge(std::slice::from_ref(&def), def.slot, band, &text);
+                match game.work.submit(id, v.ok) {
+                    worked::Submit::Cast { .. } => {
+                        wk.disc.record_build(di);
+                        wk.disc.working = None;
+                        wk.working.done += 1;
+                        game.paused = web_paused;
+                        *accepted = Some(game.work_aim);
+                    }
+                    worked::Submit::Wrong { .. } => {
+                        wk.working.wrong += 1;
+                        let n = game.work.open().map_or(0, |w| u32::from(w.wrong));
+                        let result = simbench::ResultView {
+                            n,
+                            slot: def.slot,
+                            verdict: v,
+                            learned: false,
+                            stage: progress::Stage::Learning.as_str().to_string(),
+                        };
+                        game.work.set_view(&work_view(
+                            &def,
+                            band,
+                            progress::Stage::Learning,
+                            Some(result),
+                        ));
+                    }
+                    worked::Submit::Stale => {}
+                }
+                return;
+            }
             let Some(def) = def_of(spells, spell) else {
                 return;
             };
             let text = a.get(3..).unwrap_or_default().join(" ");
-            let v = simbench::judge(spells, def.slot, band, &text);
+            let v = spells::book().judge(spells, def.slot, band, &text);
             match game.work.submit(id, v.ok) {
                 worked::Submit::Cast { spell, earns } => {
                     wk.prog.0.worked_cast(spell, earns);
@@ -2377,8 +2534,17 @@ fn publish_work(wk: &mut WorkCtx, game: &Game) {
         worked::CastMode::Worked => "worked",
         worked::CastMode::Instant => "instant",
     };
+    // I-053: the open worked cast builds a discovered spell: its own count.
+    let disc = match wk.disc.working {
+        Some(di) => format!(
+            "{{\"builds\":{},\"need\":{}}}",
+            wk.disc.builds(di),
+            realgame_chem::discover::MASTERY_BUILDS
+        ),
+        None => "null".to_string(),
+    };
     let json = format!(
-        "{{\"v\":1,\"mode\":\"{mode}\",\"ready\":{},\"band\":{band},\"routes\":[{}],\"stages\":[{}],\"casts\":[{}],\"need\":{},\"work\":{},\"done\":{},\"wrong\":{}}}",
+        "{{\"v\":1,\"mode\":\"{mode}\",\"ready\":{},\"band\":{band},\"routes\":[{}],\"stages\":[{}],\"casts\":[{}],\"need\":{},\"disc\":{disc},\"work\":{},\"done\":{},\"wrong\":{}}}",
         wk.working.ready,
         routes.join(","),
         stages.join(","),
@@ -2539,6 +2705,8 @@ fn projectiles(
                 spell: p.spell,
                 pos: p.to,
                 normal: p.normal,
+                amount: 1.0,
+                disc: None,
             });
         }
         if let Some(i) = p.obj {

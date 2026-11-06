@@ -10,7 +10,7 @@ Please report security or child-safety issues privately to the maintainer throug
 
 Anonymous play counts, and nothing that identifies a child. The full contract is in `docs/ANALYTICS.md`.
 
-- **Sent:** when play starts, the age band picked (4 to 7, 8 to 10, or 11 and up); which rooms are cleared and whether the trial is finished; and a coarse session length (under 1 minute, 1 to 5, 5 to 15, 15 to 30, or 30 minutes and more). Each event also carries a random number the browser replaces every UTC day, so the game can count each day's players without being able to recognise anyone from one day to the next.
+- **Sent:** when play starts, the band picked (3D game: grades 6 to 7, 8 to 9, or 10 and up; Classic game: ages 4 to 7, 8 to 10, or 11 and up); which rooms are cleared and whether the trial is finished; and a coarse session length (under 1 minute, 1 to 5, 5 to 15, 15 to 30, or 30 minutes and more). Each event also carries a random number the browser replaces every UTC day, so the game can count each day's players without being able to recognise anyone from one day to the next.
 - **Never collected:** names, emails, ages or birth dates, anything typed into the game (formulas included), cookies, IP addresses, user agents, device fingerprints or location.
 - **Where it goes:** only to the game's own address (`/api/event`), stored in the game's own Cloudflare D1 database. No third-party analytics, ads, scripts, fonts or trackers. Cloudflare is the hosting provider.
 - **Opt-out:** if the browser sends Do Not Track or Global Privacy Control, nothing is sent.
