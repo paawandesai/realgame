@@ -4,9 +4,14 @@
 #
 #   npm run deploy            create what is missing, migrate, build, deploy
 #   npm run db:setup          only the database steps (for the GitHub-connected setup)
+#   deploy.sh --prebuilt      deploy web/dist as it is (the GitHub Actions
+#                             workflow builds it in an earlier job)
 #
 # Environment overrides: PAGES_PROJECT (default realgame), DEPLOY_BRANCH
-# (default main, the production branch; anything else makes a preview).
+# (default main, the production branch; anything else makes a preview and
+# skips the database migrations, so unmerged migrations never touch the real
+# database). Logs in with CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID when
+# they are set (CI), otherwise with `npx wrangler login`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,7 +19,13 @@ PROJECT="${PAGES_PROJECT:-realgame}"
 DB_NAME="realgame-analytics"
 BRANCH="${DEPLOY_BRANCH:-main}"
 DB_ONLY=0
-[ "${1:-}" = "--db-only" ] && DB_ONLY=1
+PREBUILT=0
+case "${1:-}" in
+  --db-only) DB_ONLY=1 ;;
+  --prebuilt) PREBUILT=1 ;;
+esac
+IN_CI=0
+[ "${GITHUB_ACTIONS:-}" = true ] && IN_CI=1
 
 say() { printf '\n==> %s\n' "$*"; }
 wrangler() { npx --no-install wrangler "$@"; }
@@ -53,8 +64,12 @@ node -e '
   if (t !== s) { fs.writeFileSync("wrangler.toml", t); console.log("Wrote the database id into wrangler.toml: commit that change."); }
 ' "$DB_ID"
 
-say "Applying database migrations (remote)"
-wrangler d1 migrations apply "$DB_NAME" --remote
+if [ "$BRANCH" = main ] || [ "$DB_ONLY" = 1 ]; then
+  say "Applying database migrations (remote)"
+  wrangler d1 migrations apply "$DB_NAME" --remote
+else
+  say "Preview deploy: skipping database migrations"
+fi
 
 [ "$DB_ONLY" = 1 ] && { say "Database ready."; exit 0; }
 
@@ -75,6 +90,15 @@ fi
 say "Dashboard token"
 if wrangler pages secret list --project-name "$PROJECT" 2>/dev/null | grep -q "DASHBOARD_TOKEN"; then
   echo "DASHBOARD_TOKEN is already set (unchanged)."
+elif [ "$IN_CI" = 1 ]; then
+  # Never print a secret into a CI log (the repository is public). Use the
+  # DASHBOARD_TOKEN repository secret when there is one.
+  if [ -n "${DASHBOARD_TOKEN:-}" ]; then
+    printf '%s' "$DASHBOARD_TOKEN" | wrangler pages secret put DASHBOARD_TOKEN --project-name "$PROJECT" >/dev/null
+    echo "Set DASHBOARD_TOKEN from the repository secret."
+  else
+    echo "::warning::DASHBOARD_TOKEN is not set, so /dashboard/ will refuse everyone. Add it as a repository secret (or set it in the Cloudflare dashboard) and deploy again."
+  fi
 else
   TOKEN="$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')"
   printf '%s' "$TOKEN" | wrangler pages secret put DASHBOARD_TOKEN --project-name "$PROJECT" >/dev/null
@@ -83,8 +107,13 @@ else
   echo "    $TOKEN"
 fi
 
-say "Building the game and the dashboard"
-bash scripts/build-site.sh
+if [ "$PREBUILT" = 1 ]; then
+  [ -f web/dist/index.html ] || { echo "--prebuilt: web/dist/index.html is missing." >&2; exit 1; }
+  say "Using the prebuilt web/dist"
+else
+  say "Building the game and the dashboard"
+  bash scripts/build-site.sh
+fi
 
 say "Deploying to Cloudflare Pages (branch: $BRANCH)"
 wrangler pages deploy --project-name "$PROJECT" --branch "$BRANCH" --commit-dirty=true
