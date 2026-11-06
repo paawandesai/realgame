@@ -7,13 +7,6 @@
 //! `window.__benchState` carries; building it here keeps escaping of
 //! player-typed text in one tested place.
 //!
-//! One engine (I-052 lane one-engine): when a spell's formula is a reaction
-//! in the shared chemistry codex (`crates/chem`, `content/chem/core.json`),
-//! `judge_with` asks the codex whether the typed equation is that reaction,
-//! so the in-world bench and the free-play Bench agree. This crate cannot
-//! depend on `realgame-chem` (chem depends on it), so the codex sits behind
-//! the `ReactionCodex` trait, which chem implements. `judge` is `judge_with`
-//! with no codex: the spell's own formula is then the only reference.
 
 use crate::formula::{normalize, parse_equation, side_atoms, Equation, ParseError, Term};
 use crate::spellbook::SpellDef;
@@ -71,65 +64,10 @@ pub struct RecipeTerm {
     pub state: Option<String>,
 }
 
-/// What a reaction codex says about a whole written equation.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CodexCall {
-    /// A codex reaction (any whole multiple), taught at or below the band.
-    Known(String),
-    /// A codex reaction taught above the band.
-    Locked(String),
-    /// The atoms do not balance.
-    Unbalanced,
-    /// Balanced, but not a codex reaction (or there is no codex).
-    Other,
-}
-
-/// The shared chemistry codex, as the bench's judge sees it. `realgame-chem`
-/// implements it for its `Codex`. The conditions a reaction needs (spark,
-/// heat, ...) are not asked: casting the spell supplies them.
-pub trait ReactionCodex {
-    fn call(&self, eq: &Equation, band: Tier) -> CodexCall;
-}
-
-/// No codex: every reaction spell is judged against its own formula only.
-pub struct NoCodex;
-
-impl ReactionCodex for NoCodex {
-    fn call(&self, _eq: &Equation, _band: Tier) -> CodexCall {
-        CodexCall::Other
-    }
-}
-
-/// The codex id of a spell's reaction, when its formula is a codex reaction.
-/// `None` for a single substance (Water, Frost, CO2, whose reaction refs are
-/// a phase change or a register entry) and for a reaction the codex lacks.
-pub fn codex_id(codex: &dyn ReactionCodex, def: &SpellDef) -> Option<String> {
-    if !def.formula.is_reaction() {
-        return None;
-    }
-    match codex.call(&def.formula.equation, Tier::Adept) {
-        CodexCall::Known(id) | CodexCall::Locked(id) => Some(id),
-        CodexCall::Unbalanced | CodexCall::Other => None,
-    }
-}
-
 /// Judges `text` as a build of the spell in `slot` (1-4, looked up by the
-/// def's `slot` field, never an index) at `band`, with no codex (see
-/// `judge_with`). Spec section 4; the first matching rule wins.
+/// def's `slot` field, never an index) at `band`. Spec section 4; the first
+/// matching rule wins.
 pub fn judge(spells: &[SpellDef], slot: u8, band: Tier, text: &str) -> Verdict {
-    judge_with(&NoCodex, spells, slot, band, text)
-}
-
-/// `judge`, with the shared codex deciding whether a reaction spell's build
-/// is the real reaction (balanced, the codex's species and ratio, taught at
-/// the band). The game calls this with `realgame_chem::Codex`.
-pub fn judge_with(
-    codex: &dyn ReactionCodex,
-    spells: &[SpellDef],
-    slot: u8,
-    band: Tier,
-    text: &str,
-) -> Verdict {
     // 1. Which spell, and may this band learn it?
     let Some(def) = spells.iter().find(|d| d.slot == slot) else {
         return fizzle(Code::NotForBand);
@@ -167,7 +105,7 @@ pub fn judge_with(
     }
     match def.formula.single() {
         Some(target) => judge_single(spells, def, target, band, &typed),
-        None => judge_reaction(codex, spells, def, band, &typed),
+        None => judge_reaction(spells, def, &typed),
     }
 }
 
@@ -288,16 +226,7 @@ fn judge_single(
 }
 
 /// Rule 4: the target is a reaction (Fire). Typed states are not judged.
-/// Which spell a build names (`OtherSpell`, `WrongSpecies`) is the spell
-/// book's question; whether a balanced build of the spell's species is the
-/// real reaction is the codex's, when the spell's formula is in the codex.
-fn judge_reaction(
-    codex: &dyn ReactionCodex,
-    spells: &[SpellDef],
-    def: &SpellDef,
-    band: Tier,
-    typed: &Equation,
-) -> Verdict {
+fn judge_reaction(spells: &[SpellDef], def: &SpellDef, typed: &Equation) -> Verdict {
     let target = &def.formula.equation;
     if !typed.has_arrow || typed.products.is_empty() {
         return fizzle(Code::NoProducts);
@@ -336,19 +265,8 @@ fn judge_reaction(
         };
     }
     let (simple, k) = typed.simplest();
-    match codex_id(codex, def) {
-        // The codex decides: its reaction, at any whole multiple, at the band.
-        Some(id) => match codex.call(typed, band) {
-            CodexCall::Known(got) if got == id => {}
-            CodexCall::Locked(got) if got == id => return fizzle(Code::NotForBand),
-            _ => return fizzle(Code::WrongSpecies),
-        },
-        // Not a codex reaction: the spell's own formula is the reference.
-        None => {
-            if coefs(&simple) != coefs(&target.simplest().0) {
-                return fizzle(Code::WrongSpecies);
-            }
-        }
+    if coefs(&simple) != coefs(&target.simplest().0) {
+        return fizzle(Code::WrongSpecies);
     }
     Verdict {
         simplest: if k > 1 || typed.per > 1 {
@@ -1111,87 +1029,5 @@ mod tests {
         ];
         let rp: Vec<usize> = rk.iter().map(|k| r.find(k).unwrap()).collect();
         assert!(rp.windows(2).all(|w| w[0] < w[1]), "{r}");
-    }
-
-    /// A stand-in codex: knows methane burning (taught at `band`, as the
-    /// reduced equation) and nothing else. The real one is `realgame_chem`,
-    /// tested against this judge in `crates/chem/tests/one_engine.rs`.
-    struct Stub {
-        band: Tier,
-        id: &'static str,
-    }
-
-    impl ReactionCodex for Stub {
-        fn call(&self, eq: &Equation, band: Tier) -> CodexCall {
-            if !eq.is_balanced() {
-                return CodexCall::Unbalanced;
-            }
-            let fire = parse_equation("CH4 + 2O2 -> CO2 + 2H2O").unwrap();
-            if coefs(&eq.simplest().0) != coefs(&fire) {
-                return CodexCall::Other;
-            }
-            if self.band > band {
-                CodexCall::Locked(self.id.into())
-            } else {
-                CodexCall::Known(self.id.into())
-            }
-        }
-    }
-
-    #[test]
-    fn a_codex_decides_reaction_spells_only() {
-        let s = spells();
-        let at = |band| Stub { band, id: "burns" };
-        let ap = Tier::Apprentice;
-        assert_eq!(
-            codex_id(&at(Tier::Sprout), def(&s, FIRE)),
-            Some("burns".into())
-        );
-        assert_eq!(codex_id(&NoCodex, def(&s, FIRE)), None);
-        for slot in [WATER, FROST, CO2] {
-            assert_eq!(codex_id(&at(Tier::Sprout), def(&s, slot)), None);
-        }
-        // The codex agrees with the spell book: the same verdicts as no codex.
-        for (slot, band, text, _, _) in test1_oks() {
-            let got = judge_with(&at(Tier::Sprout), &s, slot, band, text);
-            assert_eq!(got, judge(&s, slot, band, text), "{text:?}");
-            agrees(&s, slot, band, text, &got);
-        }
-        // A codex that teaches the reaction later locks it, never calls it wrong.
-        assert_eq!(
-            judge_with(&at(Tier::Adept), &s, FIRE, ap, "CH4 + 2O2 -> CO2 + 2H2O"),
-            v(Code::NotForBand)
-        );
-        // Spell identity and balance stay the spell book's checks.
-        let c = at(Tier::Sprout);
-        assert_eq!(
-            judge_with(&c, &s, FIRE, ap, "2H2 + O2 -> 2H2O"),
-            v(Code::WrongSpecies)
-        );
-        assert_eq!(
-            judge_with(&c, &s, FIRE, ap, "CH4 + O2 -> CO2 + H2O").code,
-            Code::Unbalanced
-        );
-        assert_eq!(
-            judge_with(&c, &s, FIRE, ap, "CH4 + 2O2").code,
-            Code::NoProducts
-        );
-        // A codex that names a different reaction for the spell's species is
-        // not the spell: WrongSpecies, never Ok.
-        struct Elsewhere;
-        impl ReactionCodex for Elsewhere {
-            fn call(&self, eq: &Equation, _band: Tier) -> CodexCall {
-                let fire = parse_equation("CH4 + 2O2 -> CO2 + 2H2O").unwrap();
-                if coefs(&eq.simplest().0) == coefs(&fire) && eq.per == 1 && eq.simplest().1 == 1 {
-                    CodexCall::Known("burns".into())
-                } else {
-                    CodexCall::Known("other".into())
-                }
-            }
-        }
-        assert_eq!(
-            judge_with(&Elsewhere, &s, FIRE, ap, "2CH4 + 4O2 -> 2CO2 + 4H2O"),
-            v(Code::WrongSpecies)
-        );
     }
 }

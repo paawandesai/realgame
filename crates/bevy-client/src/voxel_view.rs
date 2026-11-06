@@ -24,7 +24,6 @@ use realgame_voxel::{self as vox, materials, smooth, Biome, Cell, RayMode, World
 use crate::motion::{self, Body, Box3};
 use crate::player::{MoveInput, Player};
 use crate::{bridge::WebIn, clock, Game, PlayerEvent, Settings};
-use bevy::pbr::{DistanceFog, FogFalloff};
 
 /// This plugin's values for the voxel-mode state keys (spec section 8);
 /// `publish` formats them. Values, not JSON fragments (except `probe`, a
@@ -98,12 +97,6 @@ struct Chunks {
     smooth: Option<crate::voxel_tex::SmoothMats>,
     /// The spawn ring (3 x 2 x 3 chunks around the start) is meshed.
     ring_done: bool,
-    /// Meshing time owed (ms): a chunk that ran over the frame's budget
-    /// is paid back by skipping meshing in the next frames, so one heavy
-    /// chunk is one slow frame, not a slow frame every frame.
-    debt: f32,
-    /// Chunks hidden because they are wholly past the fog (`cull_far`).
-    culled: Vec<bool>,
 }
 
 /// What the Pick is doing.
@@ -171,7 +164,7 @@ pub fn plugin(app: &mut App) {
     .add_systems(PostStartup, hide_courtyard)
     .add_systems(
         Update,
-        (tools, mesh_chunks, prop_lod, cull_far)
+        (tools, mesh_chunks, prop_lod)
             .chain()
             .after(crate::control)
             .before(crate::aim_and_cast),
@@ -233,8 +226,6 @@ fn setup(
         clear: m.clear,
         smooth,
         ring_done: false,
-        debt: 0.0,
-        culled: vec![false; n],
     };
     // Everything is dirty after generation: queue it all.
     for c in 0..n {
@@ -502,17 +493,8 @@ pub fn walk(player: &mut Player, walk: &mut Walk, world: &World, input: MoveInpu
     let soft = |b: &[f32; 6]| {
         smooth::kind(world.get([b[0] as i32, b[1] as i32, b[2] as i32]).mat) == smooth::Kind::Soft
     };
-    // Leaves never stop the body: low canopies at head
-    // height and bushes were the most common snag (Paawan, 2026-11-05:
-    // "places that movement gets stuck"). Protected thickets (the Ember
-    // Vault's door, which cannot be dug) and trunks still do.
-    let canopy = |b: &[f32; 6]| {
-        let c = [b[0] as i32, b[1] as i32, b[2] as i32];
-        world.get(c).mat == vox::mat::LEAVES && (b[1] >= p.y + 1.0 - 1e-3 || world.can_break(c))
-    };
     let mut solids: Vec<Box3> = vox::solid_boxes(world, aabb)
         .iter()
-        .filter(|b| !canopy(b))
         .filter(|b| !smooth || !soft(b) || b[1] >= p.y + 1.0 - 1e-3)
         .map(box3)
         .collect();
@@ -1317,11 +1299,8 @@ fn ring(p: Vec3) -> Vec<usize> {
 }
 
 /// Remeshes dirty chunks, nearest first, within the frame's time budget
-/// (4 ms, 2 ms with `?low`). A chunk that runs over is paid back from the
-/// next frames' budgets (`Chunks::debt`, at most `MAX_DEBT_FRAMES`
-/// frames). Until the spawn ring is meshed, and while the game is paused
-/// (the title, the intro, a menu), the budget is `PAUSED_MESH_MS`, so the
-/// whole valley is usually meshed before play starts. With
+/// (4 ms, 2 ms with `?low`; at least one chunk a frame). Until the spawn
+/// ring is meshed the budget is larger, while the intro shows. With
 /// `?debug&meshms=N` (capture scripts on software GPUs, where a frame takes
 /// seconds) the budget is N ms.
 #[allow(clippy::too_many_arguments)]
@@ -1335,7 +1314,6 @@ fn mesh_chunks(
     mut chunks: ResMut<Chunks>,
     mut keys: ResMut<Keys>,
     mesh3d: Query<&Mesh3d>,
-    game: Res<Game>,
 ) {
     let t0 = Instant::now();
     let dirty = if chunks.smooth.is_some() {
@@ -1358,8 +1336,8 @@ fn mesh_chunks(
     });
     let budget_ms = if let Some(ms) = debug_ms {
         ms
-    } else if !chunks.ring_done || game.paused {
-        PAUSED_MESH_MS
+    } else if !chunks.ring_done {
+        40.0
     } else if settings.low {
         2.0
     } else {
@@ -1376,15 +1354,7 @@ fn mesh_chunks(
             .distance_squared(me)
             .total_cmp(&centre(a).distance_squared(me))
     });
-    // Pay back what earlier frames ran over before meshing again.
-    let allowance = budget_ms - chunks.debt;
-    if allowance <= 0.0 {
-        chunks.debt -= budget_ms;
-    }
-    while allowance > 0.0 && !chunks.queue.is_empty() {
-        let Some(c) = chunks.queue.pop() else {
-            break;
-        };
+    while let Some(c) = chunks.queue.pop() {
         chunks.queued[c] = false;
         let o = World::chunk_origin(c);
         // The smooth surface may bulge a little past the chunk's cells, and
@@ -1450,21 +1420,13 @@ fn mesh_chunks(
                         e.insert(Visibility::Hidden);
                         chunks.far[c] = None;
                     }
-                    if chunks.culled[c] {
-                        // Past the fog (`cull_far` shows it when near).
-                        e.insert(Visibility::Hidden);
-                    }
                     chunks.ents[c][pass] = Some(e.id());
                 }
             }
         }
-        if t0.elapsed().as_secs_f32() * 1000.0 >= allowance {
+        if t0.elapsed().as_secs_f32() * 1000.0 >= budget_ms {
             break;
         }
-    }
-    if allowance > 0.0 {
-        let over = t0.elapsed().as_secs_f32() * 1000.0 - allowance;
-        chunks.debt = over.clamp(0.0, budget_ms * MAX_DEBT_FRAMES);
     }
     if !chunks.ring_done {
         let r = ring(me);
@@ -1490,7 +1452,7 @@ fn prop_lod(player: Res<Player>, mut chunks: ResMut<Chunks>, mut vis: Query<&mut
     let me = player.pos;
     for c in 0..chunks.ents.len() {
         let [.., near, far] = chunks.ents[c];
-        if (near.is_none() && far.is_none()) || chunks.culled[c] {
+        if near.is_none() && far.is_none() {
             continue;
         }
         let o = World::chunk_origin(c);
@@ -1512,67 +1474,6 @@ fn prop_lod(player: Res<Player>, mut chunks: ResMut<Chunks>, mut vis: Query<&mut
                     Visibility::Inherited
                 } else {
                     Visibility::Hidden
-                };
-            }
-        }
-    }
-}
-
-/// The meshing budget before play (the spawn ring, the title, the intro,
-/// a menu): large, so the valley is meshed while nobody is walking.
-const PAUSED_MESH_MS: f32 = 120.0;
-/// The most frames one chunk's overrun may skip (so an edit near the
-/// player, a burning block, still shows within a few frames).
-const MAX_DEBT_FRAMES: f32 = 3.0;
-/// Chunks wholly this far past the fog's end are hidden (m).
-const CULL_MARGIN_M: f32 = 6.0;
-
-/// Hides chunks that lie wholly past the distance fog's end: they would
-/// be drawn as flat haze anyway (the new look's painted ridges stand in
-/// for the far valley). Fewer draws and far fewer triangles, which is most
-/// of a frame's cost on WebGL2. With 8 m of hysteresis.
-fn cull_far(
-    cam: Query<(&GlobalTransform, &DistanceFog), With<Camera3d>>,
-    mut chunks: ResMut<Chunks>,
-    mut vis: Query<&mut Visibility>,
-) {
-    let Some((t, fog)) = cam.iter().next() else {
-        return;
-    };
-    let end = match fog.falloff {
-        FogFalloff::Linear { end, .. } => end,
-        _ => return,
-    };
-    let eye = t.translation();
-    for c in 0..chunks.ents.len() {
-        if chunks.ents[c].iter().all(Option::is_none) {
-            continue;
-        }
-        let o = World::chunk_origin(c);
-        let lo = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32);
-        let hi = lo + Vec3::splat(CHUNK as f32);
-        let d = eye.clamp(lo, hi).distance(eye);
-        let was = chunks.culled[c];
-        let cull = if was {
-            d > end + CULL_MARGIN_M - 8.0
-        } else {
-            d > end + CULL_MARGIN_M
-        };
-        if cull == was {
-            continue;
-        }
-        chunks.culled[c] = cull;
-        if !cull {
-            // `prop_lod` sets the props again.
-            chunks.far[c] = None;
-        }
-        for (pass, e) in chunks.ents[c].iter().enumerate() {
-            let props = pass == PROPS_NEAR || pass == PROPS_FAR;
-            if let Some(mut v) = e.and_then(|e| vis.get_mut(e).ok()) {
-                *v = if cull || props {
-                    Visibility::Hidden
-                } else {
-                    Visibility::Inherited
                 };
             }
         }
@@ -1665,138 +1566,6 @@ mod tests {
             top = top.max(p.pos.y);
         }
         top
-    }
-
-    /// Sweep for places where walking snags (Paawan, 2026-11-05: "some
-    /// places that movement gets stuck"). Not a check: run with
-    /// `cargo test snag_sweep -- --ignored --nocapture` to list them.
-    #[test]
-    #[ignore]
-    fn snag_sweep() {
-        let world = vox::generate(vox::DEFAULT_SEED);
-        let dirs: Vec<f32> = (0..8)
-            .map(|i| i as f32 * std::f32::consts::FRAC_PI_4)
-            .collect();
-        let (mut trapped, mut snags) = (Vec::new(), Vec::new());
-        let mut x = 4.5f32;
-        while x < 252.0 {
-            let mut z = 4.5f32;
-            while z < 252.0 {
-                let y0 = vox::gen::ground_below(&world, x as i32, z as i32, 90);
-                if y0 > 2 {
-                    let vox::Ground::Floor(g) =
-                        vox::ground(&world, x, z, y0 as f32 + 1.5, y0 as f32 - 3.0)
-                    else {
-                        z += 3.0;
-                        continue;
-                    };
-                    let mut free = 0;
-                    for &yaw in &dirs {
-                        let mut p = Player {
-                            pos: Vec3::new(x, g, z),
-                            yaw,
-                            grounded: true,
-                            ..Player::default()
-                        };
-                        let mut w = Walk::default();
-                        press(&mut p, &mut w, &world, Vec2::ZERO, false, 10);
-                        let start = p.pos;
-                        press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 30);
-                        let d = (p.pos - start).xz().length();
-                        if d > 0.8 {
-                            free += 1;
-                            continue;
-                        }
-                        // Gentle ground ahead (the drawn surface 1.5 m on
-                        // rises less than a step) yet blocked: a snag.
-                        let ahead = start + Vec3::new(-yaw.sin(), 0.0, -yaw.cos()) * 1.5;
-                        if let vox::Ground::Floor(h) =
-                            vox::ground(&world, ahead.x, ahead.z, start.y + 1.0, start.y - 2.0)
-                        {
-                            if h - start.y < 0.45 {
-                                // What is in the way: the first solid cell
-                                // ahead at knee to head height.
-                                let mut what = String::from("-");
-                                'find: for k in 1..8 {
-                                    let q = start
-                                        + Vec3::new(-yaw.sin(), 0.0, -yaw.cos())
-                                            * (k as f32 * 0.25);
-                                    for dy in [0.3f32, 0.9, 1.5] {
-                                        let c = world.get([
-                                            q.x.floor() as i32,
-                                            (start.y + dy).floor() as i32,
-                                            q.z.floor() as i32,
-                                        ]);
-                                        if materials::flags(c.mat).solid || c.mat == vox::mat::ICE {
-                                            what = format!(
-                                                "{} dy{dy} soft{}",
-                                                c.mat,
-                                                smooth::kind(c.mat) == smooth::Kind::Soft
-                                            );
-                                            break 'find;
-                                        }
-                                    }
-                                }
-                                snags.push((start, yaw.to_degrees() as i32, d, h - start.y, what));
-                            }
-                        }
-                    }
-                    if free == 0 {
-                        trapped.push(Vec3::new(x, g, z));
-                    }
-                }
-                z += 3.0;
-            }
-            x += 3.0;
-        }
-        println!("trapped {}:", trapped.len());
-        for t in &trapped {
-            println!("  T {:.1} {:.1} {:.1}", t.x, t.y, t.z);
-        }
-        println!("snags {}:", snags.len());
-        for (p, yaw, d, rise, what) in &snags {
-            println!(
-                "  S {:.1} {:.1} {:.1} yaw {yaw} moved {d:.2} rise {rise:.2} hit {what}",
-                p.x, p.y, p.z
-            );
-        }
-    }
-
-    /// Paawan, 2026-11-05: "stuck right before the ice gate and it takes
-    /// jumping": a rock spur and a tree stood in front of the gate. Down the
-    /// approach ramp, W through a gap melted in the plug walks into the
-    /// passage and out the far side without a jump.
-    #[test]
-    fn w_walks_through_a_gap_melted_in_the_ice_gate() {
-        let mut world = vox::generate(vox::DEFAULT_SEED);
-        let g = vox::stamp::ICE_GATE;
-        let plug = g.max[2] - 1;
-        // Water melted a two-wide hole, the rest of the plug still stands.
-        for x in 59..61 {
-            for y in 36..=38 {
-                world.set([x, y, plug], Cell::AIR);
-            }
-        }
-        let mut p = Player {
-            // Down the slope from the north side of the Frozen Fields, in
-            // line with the gap.
-            pos: Vec3::new(60.0, 47.0, plug as f32 + 17.0),
-            grounded: true,
-            ..Player::default()
-        };
-        let mut w = Walk::default();
-        press(&mut p, &mut w, &world, Vec2::ZERO, false, 20);
-        let mut path = Vec::new();
-        for _ in 0..60 * 6 {
-            press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 1);
-            path.push(p.pos);
-        }
-        assert!(
-            p.pos.z < g.min[2] as f32 - 1.0,
-            "through the gate without jumping: stopped at {:?} (from {:?})",
-            p.pos,
-            path.iter().step_by(30).collect::<Vec<_>>()
-        );
     }
 
     #[test]

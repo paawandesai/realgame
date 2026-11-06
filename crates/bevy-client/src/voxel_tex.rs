@@ -39,23 +39,6 @@ pub type SmoothMat = ExtendedMaterial<StandardMaterial, SmoothLook>;
 pub struct SmoothLook {
     #[uniform(100)]
     pub mode: Vec4,
-    /// The rim light's colour (sRGB) and strength (`mood`; the new look
-    /// tints it per region).
-    #[uniform(101)]
-    pub rim: Vec4,
-    /// The ground fog's colour (sRGB) and the height it lies under.
-    #[uniform(102)]
-    pub low_fog: Vec4,
-    /// The realistic look's scanned ground (`look`): x is 1 once the
-    /// texture arrays below are set.
-    #[uniform(103)]
-    pub ground: Vec4,
-    #[texture(104, dimension = "2d_array")]
-    #[sampler(105)]
-    pub ground_albedo: Option<Handle<Image>>,
-    #[texture(106, dimension = "2d_array")]
-    #[sampler(107)]
-    pub ground_normal: Option<Handle<Image>>,
 }
 
 impl MaterialExtension for SmoothLook {
@@ -95,11 +78,6 @@ pub fn smooth_materials(mats: &mut Assets<SmoothMat>, low: bool) -> SmoothMats {
             },
             extension: SmoothLook {
                 mode: Vec4::new(mode, if low { 1.0 } else { 0.0 }, 0.0, 0.0),
-                rim: Vec4::new(0.35, 0.5, 0.75, 0.03),
-                low_fog: Vec4::new(0.62, 0.66, 0.36, 33.4),
-                ground: Vec4::ZERO,
-                ground_albedo: None,
-                ground_normal: None,
             },
         })
     };

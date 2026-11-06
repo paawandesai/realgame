@@ -924,45 +924,6 @@ fn ice_sheets(g: &Grid, lo: [i32; 3], hi: [i32; 3]) -> MeshData {
     out
 }
 
-/// UV_0.x on modelled geometry (buildings, trees, crystals' stands): a
-/// small negative value, so a client can tell modelled shapes from the
-/// ground (the realistic look puts scanned ground textures only on the
-/// ground). Below zero reads as no glow; wet surfaces stay under -0.5.
-pub const MODEL_MARK: f32 = -0.2;
-
-/// The UV_0.x a modelled vertex of material `mat` carries: `MODEL_MARK`
-/// less a hundredth per material id, so the shader can tell a model from
-/// the terrain (any value in (-0.5, -0.1)) and texture it by what it is
-/// made of (bark, planks, brick; the realistic look).
-pub fn model_uv(mat: u8) -> f32 {
-    MODEL_MARK - mat as f32 * 0.01
-}
-
-/// Marks a model's non-glowing vertices (`model_uv`).
-pub fn mark_modelled(m: MeshData) -> MeshData {
-    mark(m, false)
-}
-
-/// Marks a building's vertices: its wood is sawn timber (beams, frames,
-/// doors), so it is textured as planks, not as a tree's bark.
-pub fn mark_built(m: MeshData) -> MeshData {
-    mark(m, true)
-}
-
-fn mark(mut m: MeshData, timber: bool) -> MeshData {
-    for (uv, &mat) in m.uvs.iter_mut().zip(&m.mats) {
-        if uv[0] == 0.0 {
-            let as_mat = if timber && mat == crate::mat::WOOD {
-                crate::mat::PLANKS
-            } else {
-                mat
-            };
-            uv[0] = model_uv(as_mat);
-        }
-    }
-    m
-}
-
 /// Appends mesh `b` to `a`.
 fn append(a: &mut MeshData, b: MeshData) {
     let off = a.positions.len() as u32;
@@ -1160,8 +1121,8 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
         // Open air can still hold a tree's crown.
         return if first == Kind::Empty {
             SmoothMesh {
-                props: mark_modelled(crate::props::models(world, lo, hi)),
-                props_far: mark_modelled(crate::props::models_far(world, lo, hi)),
+                props: crate::props::models(world, lo, hi),
+                props_far: crate::props::models_far(world, lo, hi),
                 ..SmoothMesh::default()
             }
         } else {
@@ -1170,11 +1131,11 @@ pub fn mesh_region(world: &World, lo: [i32; 3], hi: [i32; 3]) -> SmoothMesh {
     }
     let mut opaque = surface(&g, lo, hi, Pass::Opaque, true);
     craggy(&mut opaque);
-    append(&mut opaque, mark_built(crate::built::models(world, lo, hi)));
+    append(&mut opaque, crate::built::models(world, lo, hi));
     SmoothMesh {
         opaque,
-        props: mark_modelled(crate::props::models(world, lo, hi)),
-        props_far: mark_modelled(crate::props::models_far(world, lo, hi)),
+        props: crate::props::models(world, lo, hi),
+        props_far: crate::props::models_far(world, lo, hi),
         clear: if g.has(Kind::Clear) {
             let mut m = surface(&g, lo, hi, Pass::Clear, true);
             append(&mut m, ice_sheets(&g, lo, hi));

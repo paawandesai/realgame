@@ -114,18 +114,9 @@ fn place(
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut beams: Query<(&mut Transform, &mut Visibility), With<Beam>>,
     mut top: Local<Option<((f32, f32), f32)>>,
-    uses: Option<Res<crate::world_use::Uses>>,
 ) {
-    // I-056: while a Reveal spell lasts, the beam stands on the hidden
-    // cache it showed (as for a live quest step) instead.
-    let revealed = uses.as_ref().and_then(|u| u.revealed());
-    let step = if revealed.is_some() {
-        1
-    } else {
-        story.quest.step()
-    };
-    let Some((tx, tz)) = revealed.or_else(|| crate::story::aim(&story, water_known(&progress)))
-    else {
+    let step = story.quest.step();
+    let Some((tx, tz)) = crate::story::aim(&story, water_known(&progress)) else {
         for (_, mut v) in &mut beams {
             *v = Visibility::Hidden;
         }

@@ -1,8 +1,6 @@
 // @ts-check
-// The grade picker (it was the age picker before I-059): three pictures with
-// a band and its school grades under each ("Sprout · Grades 6–7", "Seedling ·
-// Grades 8–9", "Apprentice · Grade 10+"; the world reads Adept as Apprentice,
-// and analytics counts three bands), shown once per page load before play, only when analytics is
+// The age picker: three pictures with a number under each ("4 to 7", "8 to 10",
+// "11 and up"), shown once per page load before play, only when analytics is
 // on (the rg-analytics switch) and the browser has not opted out (DNT or GPC).
 // The choice is deliberately not stored: on shared classroom devices a
 // remembered band would be counted for the next child. See docs/ANALYTICS.md.

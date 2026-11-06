@@ -41,15 +41,6 @@ pub struct Mood {
     pub fog: Vec2,
     /// Ground fog in the lowlands (0-1).
     pub ground_fog: f32,
-    /// The rest is used by the new look only (`look`, `?look=new`).
-    /// The sky overhead (sRGB).
-    pub sky_top: Vec3,
-    /// The rim light on every silhouette (sRGB) and its strength.
-    pub rim: Vec4,
-    /// The ground fog's colour (sRGB) and the height it lies under (m).
-    pub low_fog: Vec4,
-    /// Colour grade: exposure (EV), saturation, temperature.
-    pub grade: Vec3,
 }
 
 impl Mood {
@@ -64,10 +55,6 @@ impl Mood {
             haze: self.haze.lerp(o.haze, t),
             fog: self.fog.lerp(o.fog, t),
             ground_fog: self.ground_fog + (o.ground_fog - self.ground_fog) * t,
-            sky_top: self.sky_top.lerp(o.sky_top, t),
-            rim: self.rim.lerp(o.rim, t),
-            low_fog: self.low_fog.lerp(o.low_fog, t),
-            grade: self.grade.lerp(o.grade, t),
         }
     }
 }
@@ -84,10 +71,6 @@ const DAY: Mood = Mood {
     haze: Vec3::new(0.86, 0.92, 0.96),
     fog: Vec2::new(150.0, 230.0),
     ground_fog: 0.0,
-    sky_top: Vec3::new(0.16, 0.38, 0.80),
-    rim: Vec4::new(0.35, 0.5, 0.75, 0.03),
-    low_fog: Vec4::new(0.62, 0.66, 0.36, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
 };
 
 /// Cooler and brighter: a lowish, warm-white sun from the south-south-west
@@ -105,10 +88,6 @@ const FROZEN: Mood = Mood {
     haze: Vec3::new(0.90, 0.94, 0.98),
     fog: Vec2::new(170.0, 300.0),
     ground_fog: 0.0,
-    sky_top: Vec3::new(0.16, 0.38, 0.80),
-    rim: Vec4::new(0.35, 0.5, 0.75, 0.03),
-    low_fog: Vec4::new(0.62, 0.66, 0.36, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
 };
 
 /// Hazy, low contrast, yellow-green; the haze is pale enough that the
@@ -123,10 +102,6 @@ const MARSH: Mood = Mood {
     haze: Vec3::new(0.74, 0.78, 0.55),
     fog: Vec2::new(45.0, 170.0),
     ground_fog: 0.7,
-    sky_top: Vec3::new(0.16, 0.38, 0.80),
-    rim: Vec4::new(0.35, 0.5, 0.75, 0.03),
-    low_fog: Vec4::new(0.62, 0.66, 0.36, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
 };
 
 /// Underground: the cover dims sun and fill to almost nothing; the haze is
@@ -141,10 +116,6 @@ const CAVE: Mood = Mood {
     haze: Vec3::new(0.03, 0.04, 0.05),
     fog: Vec2::new(14.0, 70.0),
     ground_fog: 0.0,
-    sky_top: Vec3::new(0.16, 0.38, 0.80),
-    rim: Vec4::new(0.35, 0.5, 0.75, 0.03),
-    low_fog: Vec4::new(0.62, 0.66, 0.36, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
 };
 
 /// What the relit Kiln does to the valley's light: dusk. A low orange sun
@@ -160,126 +131,7 @@ const KILN_WARM: Mood = Mood {
     haze: Vec3::new(0.98, 0.64, 0.42),
     fog: Vec2::new(90.0, 220.0),
     ground_fog: 0.0,
-    sky_top: Vec3::new(0.16, 0.38, 0.80),
-    rim: Vec4::new(0.35, 0.5, 0.75, 0.03),
-    low_fog: Vec4::new(0.62, 0.66, 0.36, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
 };
-
-/// The realistic look's moods (`?look=new`; Paawan, 2026-11-04: "a game
-/// that is real to this real world"). Real daylight: a near-white sun of
-/// about 5500 K, blue sky fill, haze the colour of real air (the sky
-/// shader's physical sky sets the sky itself); no rim or tinted grade.
-const fn srgb(r: u8, g: u8, b: u8) -> Vec3 {
-    Vec3::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
-}
-
-/// Village: a clear afternoon, sun in the south-west.
-const NEW_VILLAGE: Mood = Mood {
-    sun: Vec3::new(1.0, 0.95, 0.88),
-    sun_lux: 11_000.0,
-    elevation: 0.72,
-    azimuth: -0.85,
-    fill: Vec3::new(0.66, 0.77, 1.0),
-    fill_lux: 1_900.0,
-    haze: srgb(0xB4, 0xC6, 0xDC),
-    fog: Vec2::new(140.0, 250.0),
-    ground_fog: 0.0,
-    sky_top: Vec3::ZERO,
-    rim: Vec4::ZERO,
-    low_fog: Vec4::new(0.85, 0.88, 0.92, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
-};
-
-/// Frozen Fields: a low winter sun, long shadows, cold clear air with a
-/// little mist over the river.
-const NEW_FROZEN: Mood = Mood {
-    sun: Vec3::new(1.0, 0.94, 0.86),
-    sun_lux: 13_000.0,
-    elevation: 0.38,
-    azimuth: -0.45,
-    fill: Vec3::new(0.66, 0.78, 1.0),
-    fill_lux: 2_400.0,
-    haze: srgb(0xC4, 0xD2, 0xE2),
-    fog: Vec2::new(150.0, 260.0),
-    ground_fog: 0.3,
-    sky_top: Vec3::ZERO,
-    rim: Vec4::ZERO,
-    low_fog: Vec4::new(0.88, 0.91, 0.95, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
-};
-
-/// Marsh: overcast and humid; soft light from the whole sky, grey-white
-/// mist lying on the water.
-const NEW_MARSH: Mood = Mood {
-    sun: Vec3::new(0.96, 0.96, 0.94),
-    sun_lux: 4_200.0,
-    elevation: 0.9,
-    azimuth: -0.6,
-    fill: Vec3::new(0.80, 0.83, 0.86),
-    fill_lux: 2_800.0,
-    haze: srgb(0xB0, 0xB4, 0xAE),
-    fog: Vec2::new(40.0, 170.0),
-    ground_fog: 0.75,
-    sky_top: Vec3::ZERO,
-    rim: Vec4::ZERO,
-    low_fog: Vec4::new(0.80, 0.82, 0.80, 33.4),
-    grade: Vec3::new(0.0, 0.92, 0.0),
-};
-
-/// Crystal Cave: dark rock; only the crystals and the torch give light.
-const NEW_CAVE: Mood = Mood {
-    sun: Vec3::new(0.9, 0.9, 1.0),
-    sun_lux: 6_000.0,
-    elevation: 0.8,
-    azimuth: -0.6,
-    fill: Vec3::new(0.45, 0.52, 0.62),
-    fill_lux: 650.0,
-    haze: Vec3::new(0.02, 0.03, 0.035),
-    fog: Vec2::new(14.0, 70.0),
-    ground_fog: 0.0,
-    sky_top: Vec3::ZERO,
-    rim: Vec4::ZERO,
-    low_fog: Vec4::new(0.3, 0.3, 0.3, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
-};
-
-/// Kiln terrace: the same afternoon as the Village, a little dust in the
-/// air over the clay.
-const NEW_KILN: Mood = Mood {
-    haze: srgb(0xBE, 0xC4, 0xCC),
-    ground_fog: 0.15,
-    low_fog: Vec4::new(0.80, 0.76, 0.70, 33.4),
-    ..NEW_VILLAGE
-};
-
-/// The relit Kiln: real evening light, a low orange sun.
-const NEW_KILN_WARM: Mood = Mood {
-    sun: Vec3::new(1.0, 0.62, 0.36),
-    sun_lux: 6_000.0,
-    elevation: 0.16,
-    azimuth: -1.35,
-    fill: Vec3::new(0.62, 0.62, 0.78),
-    fill_lux: 900.0,
-    haze: srgb(0xD8, 0xA8, 0x88),
-    fog: Vec2::new(110.0, 240.0),
-    ground_fog: 0.0,
-    sky_top: Vec3::ZERO,
-    rim: Vec4::ZERO,
-    low_fog: Vec4::new(0.80, 0.66, 0.56, 33.4),
-    grade: Vec3::new(0.0, 1.0, 0.0),
-};
-
-/// The target mood for an area in the new look.
-pub fn area_mood_new(b: Biome) -> Mood {
-    match b {
-        Biome::Village => NEW_VILLAGE,
-        Biome::Kiln => NEW_KILN,
-        Biome::Frozen => NEW_FROZEN,
-        Biome::Marsh => NEW_MARSH,
-        Biome::Cave => NEW_CAVE,
-    }
-}
 
 /// How much of the sun and fill is left deep in the cave (spec 5.9: dim,
 /// never black).
@@ -305,14 +157,6 @@ struct Live {
     low: bool,
     /// The player's position last frame.
     last: Option<Vec3>,
-    /// The new look (`?look=new`).
-    new: bool,
-}
-
-/// What the new look (`look`) updates each frame.
-#[derive(bevy::ecs::system::SystemParam)]
-pub struct NewLookParams<'w, 's> {
-    grades: Query<'w, 's, &'static mut bevy::render::view::ColorGrading>,
 }
 
 /// A teal point light that sits at one of the nearest crystal clusters.
@@ -328,19 +172,12 @@ pub fn plugin(app: &mut App) {
         .add_systems(Update, apply.after(crate::late::LightSet));
 }
 
-fn setup(
-    mut commands: Commands,
-    settings: Res<crate::Settings>,
-    world: Option<Res<VoxWorld>>,
-    look: Option<Res<crate::look::NewLook>>,
-) {
-    let new = look.is_some_and(|l| l.0);
+fn setup(mut commands: Commands, settings: Res<crate::Settings>, world: Option<Res<VoxWorld>>) {
     commands.insert_resource(Live {
-        mood: if new { NEW_VILLAGE } else { DAY },
+        mood: DAY,
         warm: 0.0,
         low: settings.low,
         last: None,
-        new,
     });
     // Crystal clusters: the cave's crystals binned on a 6 m grid.
     let mut bins: Vec<([i32; 3], Vec3, u32)> = Vec::new();
@@ -406,16 +243,11 @@ fn apply(
     mut smooth: ResMut<Assets<crate::voxel_tex::SmoothMat>>,
     sky: Query<&MeshMaterial3d<crate::sky::SkyMat>>,
     mut sky_mats: ResMut<Assets<crate::sky::SkyMat>>,
-    mut new_look: NewLookParams,
 ) {
     let dt = time.delta_secs().min(0.1);
     let p = player.pos;
     let b = gen::biome_at([p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32]);
-    let target = if live.new {
-        area_mood_new(b)
-    } else {
-        area_mood(b)
-    };
+    let target = area_mood(b);
     let lit = late.as_ref().is_some_and(|l| l.kiln_lit);
     live.warm += ((if lit { 1.0 } else { 0.0 }) - live.warm) * (dt * 0.6).min(1.0);
     // A jump of more than 20 m in a frame (a respawn or a teleport) takes
@@ -426,7 +258,7 @@ fn apply(
     let mood = live.mood.lerp(&target, k);
     live.mood = mood;
     let mut m = mood.lerp(
-        if live.new { &NEW_KILN_WARM } else { &KILN_WARM },
+        &KILN_WARM,
         live.warm * if b == Biome::Cave { 0.0 } else { 1.0 },
     );
     let cover = cave.map_or(0.0, |c| c.0);
@@ -460,18 +292,12 @@ fn apply(
     if let Some(h) = chunks.as_ref() {
         // (Touch an asset only when it changes: a changed material is
         // prepared and uploaded again.)
-        let rim = m.rim;
-        let low_fog = m.low_fog;
         for id in h.0.iter() {
-            let stale = smooth.get(id).is_some_and(|mat| {
-                (mat.extension.mode.z - m.ground_fog).abs() > 0.01
-                    || (mat.extension.rim - rim).abs().max_element() > 0.004
-                    || (mat.extension.low_fog - low_fog).abs().max_element() > 0.004
-            });
+            let stale = smooth
+                .get(id)
+                .is_some_and(|mat| (mat.extension.mode.z - m.ground_fog).abs() > 0.01);
             if let Some(mut mat) = stale.then(|| smooth.get_mut(id)).flatten() {
                 mat.extension.mode.z = m.ground_fog;
-                mat.extension.rim = rim;
-                mat.extension.low_fog = low_fog;
             }
         }
     }
@@ -479,21 +305,15 @@ fn apply(
     let (se, ce) = m.elevation.sin_cos();
     let (sa, ca) = m.azimuth.sin_cos();
     let sun = Vec4::new(sa * ce, se, ca * ce, live.warm);
-    let top = m.sky_top.extend(if live.new { 1.0 } else { 0.0 });
     for handle in &sky {
         let stale = sky_mats.get(&handle.0).is_some_and(|s| {
             (s.params.haze - haze).abs().max_element() > 0.005
                 || (s.params.sun - sun).abs().max_element() > 0.005
-                || (s.params.top - top).abs().max_element() > 0.005
         });
         if let Some(mut s) = stale.then(|| sky_mats.get_mut(&handle.0)).flatten() {
             s.params.haze = haze;
             s.params.sun = sun;
-            s.params.top = top;
         }
-    }
-    if live.new {
-        crate::look::apply(&m, &mut new_look.grades);
     }
     // Teal light at the nearest crystal clusters, only in the dark.
     let mut near: Vec<&(Vec3, u32)> = clusters.0.iter().collect();
@@ -540,24 +360,5 @@ mod tests {
         assert!(day.sun.x > day.sun.z);
         // The relit Kiln warms the light.
         assert!(KILN_WARM.sun.z < day.sun.z && KILN_WARM.fill.x > day.fill.x);
-    }
-
-    #[test]
-    fn the_realistic_look_uses_real_daylight() {
-        let v = area_mood_new(Biome::Village);
-        let f = area_mood_new(Biome::Frozen);
-        let m = area_mood_new(Biome::Marsh);
-        let c = area_mood_new(Biome::Cave);
-        // A near-white sun (no stylised tint) and a blue sky fill.
-        for r in [v, f] {
-            assert!(r.sun.min_element() > 0.8 && r.fill.z > r.fill.x);
-            assert!(r.haze.z > r.haze.x, "air hazes blue");
-            assert_eq!(r.rim.w, 0.0);
-        }
-        // Winter sun is low; the marsh is overcast (fill close to sun) and misty.
-        assert!(f.elevation < v.elevation);
-        assert!(m.fill_lux / m.sun_lux > v.fill_lux / v.sun_lux && m.ground_fog > 0.5);
-        assert!(c.haze.length() < 0.1);
-        assert!(NEW_KILN_WARM.sun.z < v.sun.z && NEW_KILN_WARM.elevation < v.elevation);
     }
 }

@@ -889,38 +889,6 @@ fn stamps(w: &mut World) {
         c(mat::STONE),
     );
 
-    // The approach: a clear snowy ramp down into the trench, the gate's
-    // width and a block either side, with no rock spurs or trees in it
-    // (Paawan, 2026-11-05: "stuck right before the ice gate and it takes
-    // jumping"). One block up for each block out, from the trench floor.
-    // Never higher than the ground was, so it meets the slope above.
-    let g = stamp::ICE_GATE;
-    for z in g.max[2] + 3..g.max[2] + 16 {
-        let ramp = 35 + (z - (g.max[2] + 3));
-        for x in g.min[0] - 2..g.max[0] + 2 {
-            let ground = (33..70)
-                .rev()
-                .find(|&y| {
-                    matches!(
-                        w.get([x, y, z]).mat,
-                        mat::SNOW | mat::DIRT | mat::GRASS | mat::STONE | mat::CLIFFSTONE
-                    )
-                })
-                .unwrap_or(35);
-            let top = ramp.min(ground);
-            for y in 33..top.max(35) + 8 {
-                let m = if y < top {
-                    mat::STONE
-                } else if y == top {
-                    mat::SNOW
-                } else {
-                    mat::AIR
-                };
-                w.set([x, y, z], c(m));
-            }
-        }
-    }
-
     // The coal seam behind the ice gate: stone with coal ore, the top of
     // the seam open to the sky.
     let s = stamp::COAL_SEAM;

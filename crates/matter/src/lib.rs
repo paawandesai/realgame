@@ -192,9 +192,6 @@ pub struct Stats {
 struct Flame {
     pos: [f32; 3],
     left: u8,
-    /// The emit's `amount`: scales the heat each step (1.0 for the Fire
-    /// spell; a discovered spell's strength, I-053).
-    amount: f32,
 }
 
 /// The matter simulation's own state: the gas field, pending emits, the
@@ -914,14 +911,13 @@ impl World {
                 self.flames.push(Flame {
                     pos: e.pos,
                     left: FIRE_EMIT_STEPS,
-                    amount: amount.min(1.0),
                 });
                 self.gas.add(
                     vox,
                     &self.solid,
                     gas::of_block(land),
                     gas::CO2,
-                    (FIRE_CO2_UNITS as f32 * amount.min(1.0)).round() as u32,
+                    FIRE_CO2_UNITS,
                 );
             }
             EmitKind::Co2 => {
@@ -936,7 +932,7 @@ impl World {
         let flames = std::mem::take(&mut self.flames);
         for mut f in flames {
             for p in Self::in_radius(f.pos) {
-                self.heat_toward(vox, p, FIRE_EMIT_J * f.amount, FIRE_K, ev);
+                self.heat_toward(vox, p, FIRE_EMIT_J, FIRE_K, ev);
                 self.check_phase(vox, p, ev);
             }
             f.left -= 1;

@@ -129,110 +129,6 @@ pub(crate) fn sprite(flame: bool) -> Image {
     )
 }
 
-/// Value noise for the realistic sprites (tileable enough at this size).
-fn vnoise(x: f32, y: f32, seed: u32) -> f32 {
-    let h = |i: i32, j: i32| {
-        let mut n =
-            (i as u32).wrapping_mul(0x27d4_eb2d) ^ (j as u32).wrapping_mul(0x1656_67b1) ^ seed;
-        n ^= n >> 15;
-        n = n.wrapping_mul(0x2c1b_3c6d);
-        n ^= n >> 12;
-        (n & 0xffff) as f32 / 65535.0
-    };
-    let (i, j) = (x.floor() as i32, y.floor() as i32);
-    let (fx, fy) = (x - x.floor(), y - y.floor());
-    let (sx, sy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
-    let a = h(i, j) + (h(i + 1, j) - h(i, j)) * sx;
-    let b = h(i, j + 1) + (h(i + 1, j + 1) - h(i, j + 1)) * sx;
-    a + (b - a) * sy
-}
-
-fn fbm(x: f32, y: f32, seed: u32) -> f32 {
-    let (mut v, mut amp, mut f) = (0.0, 0.5, 1.0);
-    for o in 0..4 {
-        v += amp * vnoise(x * f, y * f, seed.wrapping_add(o));
-        amp *= 0.5;
-        f *= 2.0;
-    }
-    v
-}
-
-/// Blackbody-ish colour of a flame at heat `t` (0 edge, 1 core), sRGB:
-/// deep red at the cool edge, orange, yellow, near-white at the core.
-fn flame_colour(t: f32) -> [f32; 3] {
-    let stops = [
-        (0.0, [0.45, 0.04, 0.0]),
-        (0.35, [0.95, 0.30, 0.03]),
-        (0.65, [1.0, 0.62, 0.12]),
-        (1.0, [1.0, 0.93, 0.70]),
-    ];
-    for k in 0..stops.len() - 1 {
-        let (a, ca) = stops[k];
-        let (b, cb) = stops[k + 1];
-        if t <= b {
-            let u = ((t - a) / (b - a)).clamp(0.0, 1.0);
-            return [0, 1, 2].map(|c| ca[c] + (cb[c] - ca[c]) * u);
-        }
-    }
-    stops[3].1
-}
-
-/// The realistic look's sprites (2026-11-05, Paawan: one consistent real
-/// look): a turbulent flame tongue coloured by temperature, drawn
-/// additively; or a billowy smoke puff with darker folds.
-pub(crate) fn sprite_real(flame: bool, seed: u32) -> Image {
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-    const N: u32 = 128;
-    let mut data = Vec::with_capacity((N * N * 4) as usize);
-    for y in 0..N {
-        for x in 0..N {
-            let (u, v) = ((x as f32 + 0.5) / N as f32, (y as f32 + 0.5) / N as f32);
-            if flame {
-                // Turbulence bends the tongue sideways more towards the tip.
-                let up = 1.0 - v;
-                let n = fbm(u * 4.0, v * 3.0, seed);
-                let uu = u + (n - 0.5) * 0.35 * up;
-                let a0 = sprite_alpha(true, uu, v);
-                let breakup =
-                    (fbm(u * 6.0, v * 5.0 + 3.1, seed ^ 0x55) * 1.6 - 0.25).clamp(0.0, 1.0);
-                let a = (a0 * mix(1.0, breakup, up * 0.8)).clamp(0.0, 1.0);
-                let heat = (a0.powf(0.7) * (1.0 - up * 0.45)).clamp(0.0, 1.0);
-                let c = flame_colour(heat);
-                // Additive: brightness in the colour, alpha as the mask.
-                data.extend_from_slice(&[
-                    (c[0] * a * 255.0) as u8,
-                    (c[1] * a * 255.0) as u8,
-                    (c[2] * a * 255.0) as u8,
-                    (a * 255.0) as u8,
-                ]);
-            } else {
-                let d = sprite_alpha(false, u, v);
-                let n = fbm(u * 5.0, v * 5.0, seed);
-                let a = (d * (0.55 + 0.9 * n) - 0.12).clamp(0.0, 1.0);
-                let shade = 0.75 + 0.5 * fbm(u * 3.0 + 7.0, v * 3.0, seed ^ 0x99);
-                let g = (shade.min(1.0) * 255.0) as u8;
-                data.extend_from_slice(&[g, g, g, (a * 255.0) as u8]);
-            }
-        }
-    }
-    Image::new(
-        Extent3d {
-            width: N,
-            height: N,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::RENDER_WORLD,
-    )
-}
-
-fn mix(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
-
 fn glow(mats: &mut Assets<StandardMaterial>, c: Color, e: LinearRgba) -> Handle<StandardMaterial> {
     mats.add(StandardMaterial {
         base_color: c,
@@ -267,17 +163,8 @@ fn setup(
             ));
         }
     }
-    let real = crate::look::on();
-    let flame_tex = images.add(if real {
-        sprite_real(true, 7)
-    } else {
-        sprite(true)
-    });
-    let puff_tex = images.add(if real {
-        sprite_real(false, 11)
-    } else {
-        sprite(false)
-    });
+    let flame_tex = images.add(sprite(true));
+    let puff_tex = images.add(sprite(false));
     let kit = FireKit {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         flame: glow(
@@ -315,22 +202,6 @@ fn setup(
     ] {
         if let Some(mut m) = mats.get_mut(h) {
             m.base_color_texture = Some(tex.clone());
-        }
-    }
-    if real {
-        // Real fire is light: flames add to what is behind them, white
-        // tinted by the sprite's temperature colours; smoke is a dark,
-        // slightly translucent soot grey.
-        for h in [&kit.flame, &kit.core] {
-            if let Some(mut m) = mats.get_mut(h) {
-                m.base_color = Color::srgba(1.0, 1.0, 1.0, 1.0);
-                m.emissive = LinearRgba::rgb(2.2, 2.2, 2.2);
-                m.emissive_texture = Some(flame_tex.clone());
-                m.alpha_mode = AlphaMode::Add;
-            }
-        }
-        if let Some(mut m) = mats.get_mut(&kit.smoke) {
-            m.base_color = Color::srgba(0.16, 0.15, 0.14, 0.7);
         }
     }
     for i in 0..FLAMES {

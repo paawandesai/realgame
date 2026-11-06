@@ -936,74 +936,24 @@ export function startHud() {
   // Paawan's playtest (2026-11-04): the hint and a two-line caption (or a
   // hotbar that wrapped to two rows) overlapped. Stack them from the real
   // heights: hotbar, then caption, then hint, 8 px apart.
-  // Paawan's playtest 2 (2026-11-04, about 1440x800): the E prompt chip
-  // ("E: the charcoal clamp", late.js / bench.js) sat on the caption, and
-  // the hotbar ran off both sides of the screen. Now the stack is, from the
-  // bottom: hotbar, prompt chips, caption, hint, then the power guide and
-  // the "+1" pickup chips, each from its real height. The hotbar is scaled
-  // down if it would ever be wider than the window.
   let stackKey = '';
-  /** Scales the hotbar to fit the window width (a guard: it wraps first). */
-  const fitBar = (/** @type {HTMLElement} */ bar) => {
-    const vw = document.documentElement.clientWidth || window.innerWidth;
-    // Measure the bar as laid out: a scale set on an earlier frame comes off
-    // first (only while one is set, so a bar that fits costs no extra layout).
-    if (bar.style.transform) bar.style.transform = '';
-    const kids = [...bar.children].filter((el) => el.getClientRects().length > 0);
-    if (!kids.length) return;
-    let left = Infinity;
-    let right = -Infinity;
-    for (const el of kids) {
-      const r = el.getBoundingClientRect();
-      left = Math.min(left, r.left);
-      right = Math.max(right, r.right);
-    }
-    const width = right - left;
-    if (left >= 7.5 && right <= vw - 7.5) return;
-    // Too wide (one row that cannot wrap): scale it about its own left edge
-    // and centre what is drawn in the window, 8 px clear of each side.
-    const fit = Math.min(1, Math.max(0.5, Math.floor(((vw - 16) / width) * 1000) / 1000));
-    const box = bar.getBoundingClientRect();
-    const tx = Math.round(((vw - width * fit) / 2 - (box.left + (left - box.left) * fit)) * 10) / 10;
-    bar.style.transformOrigin = '0 100%';
-    bar.style.transform = `translateX(${tx}px) scale(${fit})`;
-  };
-  // Fixed chips have no offsetParent: a box drawn and not hidden counts.
-  const shown = (/** @type {Element | null} */ el) => !!el && !(/** @type {HTMLElement} */ (el).hidden)
-    && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
   const stack = () => {
     const bar = document.getElementById('hotbar');
     if (!bar) return;
-    fitBar(bar);
-    const chips = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.late-chip')]).filter(shown);
-    const guide = /** @type {HTMLElement | null} */ (document.getElementById('power-guide'));
-    const pickups = /** @type {HTMLElement | null} */ (document.getElementById('pickup-chips'));
     const barTop = window.innerHeight - bar.getBoundingClientRect().top;
     const capOn = caption.classList.contains('show') && !!caption.textContent;
     const capH = capOn ? caption.offsetHeight : 0;
-    const hintOn = shown(hint) && !!hint.textContent;
-    const hintH = hintOn ? hint.offsetHeight : 0;
-    const guideH = shown(guide) && guide && guide.textContent ? guide.offsetHeight : 0;
-    const key = [Math.round(barTop), capH, hintH, guideH, window.innerHeight, ...chips.map((c) => `${c.id}:${c.offsetHeight}`)].join('|');
+    const key = `${Math.round(barTop)}|${capH}`;
     if (key === stackKey) return;
     stackKey = key;
-    const all = [caption, hint, ...document.querySelectorAll('.late-chip'), guide, pickups];
     if (barTop <= 0 || barTop > window.innerHeight * 0.6) {
-      for (const el of all) if (el) /** @type {HTMLElement} */ (el).style.bottom = '';
+      caption.style.bottom = '';
+      hint.style.bottom = '';
       return;
     }
-    let y = barTop + 8;
-    for (const c of chips) {
-      c.style.bottom = `${Math.round(y)}px`;
-      y += c.offsetHeight + 8;
-    }
-    caption.style.bottom = `${Math.round(y)}px`;
-    if (capOn) y += capH + 8;
-    hint.style.bottom = `${Math.round(y)}px`;
-    if (hintOn) y += hintH + 8;
-    if (guide) guide.style.bottom = `${Math.round(y)}px`;
-    if (guideH) y += guideH + 8;
-    if (pickups) pickups.style.bottom = `${Math.round(y)}px`;
+    const capBottom = barTop + 8;
+    caption.style.bottom = `${Math.round(capBottom)}px`;
+    hint.style.bottom = `${Math.round(capOn ? capBottom + capH + 8 : capBottom)}px`;
   };
   requestAnimationFrame(frame);
 }

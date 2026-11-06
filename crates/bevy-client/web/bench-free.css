@@ -121,8 +121,6 @@ header .btn { text-decoration: none; }
 .result.mystery { border-color: var(--brass); }
 .result.info { border-color: #7fa8ff; }
 .result.lab { border-color: #6fd3a8; }
-.result p.see { font-size: 13px; }
-.result p.see.eq { font-size: 14px; }
 .result .credit, .tabpane .note a { font-size: 11px; color: var(--dim, #9aa6bf); }
 .result .credit a { color: inherit; }
 .result ul { margin: 0 0 6px; padding-left: 18px; }
@@ -133,11 +131,9 @@ header .btn { text-decoration: none; }
 .sides .arrow { padding-top: 0; text-align: center; transform: rotate(90deg); line-height: 1; }
 .side { min-height: 56px; }
 .mol strong { overflow-wrap: anywhere; }
-/* Grade bands (I-059): Sprout (grades 6-7) builds molecules on the plate as
-   models, but never balances by hand, so it has no "out" side. */
-body[data-band="sprout"] #toRight, body[data-band="sprout"] .sides .arrow, body[data-band="sprout"] #rightSide, body[data-band="sprout"] #outNote { display: none; }
-.band button small { font-size: 11px; font-weight: 400; }
-.result .how ul { margin: 4px 0 6px; }
+/* Age bands (Bench plan section 1): Sprout builds no molecules by hand. */
+body[data-band="sprout"] #elementBox, body[data-band="sprout"] .readout, body[data-band="sprout"] .sides .arrow, body[data-band="sprout"] #rightSide, body[data-band="sprout"] #outNote { display: none; }
+body[data-band="sprout"] .bottle b { font-family: inherit; font-size: 16px; }
 .tally .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .result .hazard { color: #ffcf7a; font-weight: 600; }
 .result .say { margin-top: 6px; }
@@ -165,66 +161,8 @@ body[data-band="sprout"] #toRight, body[data-band="sprout"] .sides .arrow, body[
 .challenge.done .bar i { background: var(--good); }
 .lesson p { margin: 4px 0 6px; color: var(--ink); }
 .lesson .ngss { display: block; }
-.lesson .world { margin: 0 0 6px; color: var(--muted); font-style: italic; }
 .hints { clear: both; margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .hints ol { margin: 0; padding-left: 20px; }
 .hints ol:empty { display: none; }
 .hints li { margin-bottom: 4px; }
 .entry .where { color: var(--ink); margin-top: 3px; }
-.entry .rule, .result .rule { color: var(--muted, var(--ink)); font-style: italic; margin-top: 3px; }
-/* Fit the window (Paawan's playtest): no page scroll on laptop and desktop
-   screens. The shelves and the table scroll inside themselves only where
-   their lists are long; the Run button sits in a footer that never scrolls
-   away, and the Guide coach takes its own strip above the 3D view instead of
-   covering it. */
-body { margin: 0; }
-.stage { display: flex; flex-direction: column; }
-.view { position: relative; flex: 1 1 auto; min-height: 0; }
-.coach { position: static; transform: none; width: auto; margin: 8px 12px 0; flex: none; font-size: 15px; }
-.coach p { margin: 4px 0 6px; }
-.coach .row:empty { display: none; }
-.chamber-tag { position: absolute; top: 44px; right: 12px; max-width: min(46%, 300px); font-size: 13px; color: var(--ink); background: rgba(18,22,31,0.82); border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px; }
-.chamber-tag[hidden] { display: none; }
-.chamber-tag b { color: var(--brass); }
-.table { gap: 10px; }
-.pane-scroll { min-height: 0; }
-.bench-pane .pane-scroll { display: flex; flex-direction: column; gap: 12px; }
-.actions { display: flex; flex-direction: column; gap: 6px; }
-.actions #test { font-size: 16px; padding: 10px 12px; }
-.actions .row .btn { flex: 1; font-size: 13px; padding: 6px 8px; }
-.bottle { padding: 5px 8px; }
-.cond { padding: 5px 8px; }
-.scale svg { max-height: 72px; }
-.side { min-height: 48px; }
-.jars { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 6px; }
-.jar { padding: 8px 2px 5px; gap: 3px; border-radius: 12px 12px 9px 9px; }
-.jar::before { top: -4px; height: 6px; }
-.jar .ball { width: 22px; height: 22px; box-shadow: inset -4px -4px 7px rgba(0,0,0,0.45), 0 0 10px var(--glow, transparent); }
-.jar b { font-size: 15px; }
-.jar span { font-size: 10px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (min-width: 901px) {
-  html, body { height: 100dvh; overflow: hidden; }
-  .app { height: 100dvh; }
-  aside { overflow: hidden; padding: 12px 14px; gap: 12px; }
-  .shelf > section { display: flex; flex-direction: column; min-height: 0; }
-  .shelf > section[hidden] { display: none; }
-  .shelf > section h2 { margin-bottom: 4px; }
-  .shelf > section .note { margin-bottom: 6px; }
-  .shelf .bottle-box { flex: 1.5 1 0; min-height: 140px; }
-  .shelf #elementBox { flex: 1 1 0; min-height: 110px; }
-  .shelf #typeBox { flex: none; }
-  /* Scrolling lists keep room round their items for the Guide's glow. */
-  .bottles, .jars { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; padding: 8px 8px 8px 6px; margin: 0 -8px 0 -6px; align-content: start; }
-  .tabpane:not([hidden]) { flex: 1 1 auto; min-height: 0; }
-  .pane-scroll { overflow-y: auto; }
-  .tabpane.pane-scroll, .bench-pane .pane-scroll { flex: 1 1 auto; padding: 4px 8px 8px 6px; margin: -4px -8px 0 -6px; }
-  .bench-pane { gap: 10px; }
-  .bench-pane .actions { flex: none; padding-top: 8px; border-top: 1px solid var(--line); }
-}
-@media (min-width: 901px) and (max-height: 760px) {
-  header { padding-block: 6px; }
-  .bench-pane .pane-scroll { gap: 8px; }
-  .scale svg { max-height: 54px; }
-  #outNote { display: none; }
-  h2 { margin-bottom: 5px; }
-}
