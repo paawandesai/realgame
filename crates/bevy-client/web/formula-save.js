@@ -12,16 +12,13 @@
 //                        instant), which spell slot each sits on, and the
 //                        chemistry quests done.
 //
-// Shipped-spell progress stays in `rg.progress.v1` (web/progress.js writes
-// it; the one Bench, I-060, only reads it here with `readProgress`) and the
-// Bench page's band in `formula.bench.band`, which is not shared (the world
-// asks the age band each visit, for privacy). Every access is wrapped:
-// blocked or corrupt storage costs only saving.
+// Shipped-spell progress stays in `rg.progress.v1` (web/progress.js) and the
+// Bench page's band in `formula.bench.band`; neither is shared (the world asks
+// the age band each visit, for privacy). Every access is wrapped: blocked or
+// corrupt storage costs only saving.
 
 export const FOUND_KEY = 'formula.bench.found';
 export const SPELLS_KEY = 'formula.spells.v1';
-/** The world's shipped-spell progress (web/progress.js STORE_KEY); read only here. */
-export const PROGRESS_KEY = 'rg.progress.v1';
 /** Builds before a discovered spell casts instantly (crates/chem discover::MASTERY_BUILDS). */
 export const MASTERY_BUILDS = 2;
 const ID_RE = /^[a-z0-9_]{1,48}$/;
@@ -128,52 +125,4 @@ export function loadCommands(s, found) {
     `slots ${s.slots.map((x) => x || '-').join(',')}`,
     `quests ${s.quests.join(',') || '-'}`,
   ];
-}
-
-/**
- * Counts one correct build of a saved spell (the one Bench in free play,
- * I-060; in the world the game counts it and writes the save back).
- * @param {any} storage @param {string} id
- * @returns {number} the builds now, or -1 when it is not a saved spell
- */
-export function recordBuild(storage, id) {
-  const s = readSpells(storage);
-  if (!(id in s.saved)) return -1;
-  s.saved[id] = Math.min(255, (s.saved[id] ?? 0) + 1);
-  write(storage, SPELLS_KEY, s);
-  return s.saved[id];
-}
-
-/**
- * Puts a saved spell on spell key 1-4 (free play; the world's pack sends
- * `equip` instead), off any other key; key 0 takes it off.
- * @param {any} storage @param {string} id @param {number} key
- */
-export function putOnKey(storage, id, key) {
-  const s = readSpells(storage);
-  if (!(id in s.saved) || !(key >= 0 && key <= 4)) return false;
-  s.slots = s.slots.map((x, i) => (i === key - 1 ? id : x === id ? null : x));
-  return write(storage, SPELLS_KEY, s);
-}
-
-const STAGES = ['unknown', 'learning', 'practised', 'mastered'];
-/**
- * The shipped spells' progress as the world saved it (`rg.progress.v1`,
- * `p1|id:stage:xp:builds:days:last:predicted`): stage word and XP per spell
- * id. Anything unreadable reads as New.
- * @param {any} storage
- * @returns {Record<string, { stage: string, xp: number }>}
- */
-export function readProgress(storage) {
-  /** @type {Record<string, { stage: string, xp: number }>} */
-  const out = {};
-  let raw = null;
-  try { raw = storage.getItem(PROGRESS_KEY); } catch { raw = null; }
-  if (typeof raw !== 'string' || raw.length > 512 || !/^p1(\|[a-z0-9:.]+)*$/.test(raw)) return out;
-  for (const part of raw.split('|').slice(1)) {
-    const [id, st, xp] = part.split(':');
-    if (!id || !/^[a-z0-9]+$/.test(id)) continue;
-    out[id] = { stage: STAGES[Number(st)] || 'unknown', xp: Math.max(0, Number(xp) || 0) };
-  }
-  return out;
 }

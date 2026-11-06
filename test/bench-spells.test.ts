@@ -12,18 +12,13 @@ import {
   loadCommands,
   MASTERY_BUILDS,
   mergeSaves,
-  PROGRESS_KEY,
-  putOnKey,
   readFound,
-  readProgress,
   readSpells,
-  recordBuild,
   saveSpell,
   SPELLS_KEY,
   writeSpells,
 } from "../crates/bevy-client/web/formula-save.js";
 import { startDiscover } from "../crates/bevy-client/web/discover.js";
-import { mountSpells } from "../crates/bevy-client/web/bench-spells.js";
 
 type Store = { data: Map<string, string>; getItem(k: string): string | null; setItem(k: string, v: string): void };
 function memoryStorage(init: Record<string, string> = {}): Store {
@@ -162,39 +157,4 @@ test("content: bottles, effects and quests are well formed", () => {
   assert.match(build, /web\/formula-save\.js/);
   assert.match(build, /web\/discover\.js/);
   assert.match(readFileSync("crates/bevy-client/web/boot.js", "utf8"), /discover\.js/);
-});
-
-// I-060: the one Bench counts a free-play build of a saved spell, puts it on
-// a key, and reads the world's shipped-spell progress, all through
-// formula-save.js.
-test("the one Bench: builds, keys and the world's progress in the shared save", () => {
-  const s = memoryStorage();
-  assert.equal(recordBuild(s, "carbon_burns"), -1, "not saved: nothing counted");
-  assert.equal(s.data.get(SPELLS_KEY), undefined);
-  saveSpell(s, "carbon_burns");
-  assert.equal(recordBuild(s, "carbon_burns"), 1);
-  assert.equal(recordBuild(s, "carbon_burns"), MASTERY_BUILDS);
-  assert.equal(readSpells(s).saved.carbon_burns, 2);
-  // A world write later never lowers it (merge keeps the larger count).
-  writeSpells(s, { v: 1, saved: { carbon_burns: 0 }, slots: [null, null, null, null], quests: [] });
-  assert.equal(readSpells(s).saved.carbon_burns, 2);
-  // Keys: one key per spell; key 0 takes it off; unknown spells and keys refused.
-  assert.ok(putOnKey(s, "carbon_burns", 3));
-  assert.deepEqual(readSpells(s).slots, [null, null, "carbon_burns", null]);
-  assert.ok(putOnKey(s, "carbon_burns", 1));
-  assert.deepEqual(readSpells(s).slots, ["carbon_burns", null, null, null]);
-  assert.ok(putOnKey(s, "carbon_burns", 0));
-  assert.deepEqual(readSpells(s).slots, [null, null, null, null]);
-  assert.equal(putOnKey(s, "methane_burns", 1), false);
-  assert.equal(putOnKey(s, "carbon_burns", 5), false);
-  assert.deepEqual(loadCommands(readSpells(s), [])[1], "saved carbon_burns:2");
-  // The world's progress line (progress.rs encode), read only.
-  assert.equal(PROGRESS_KEY, "rg.progress.v1");
-  assert.match(readFileSync("crates/bevy-client/web/progress.js", "utf8"), /STORE_KEY = 'rg\.progress\.v1'/);
-  const p = memoryStorage({ [PROGRESS_KEY]: "p1|water:1:10:0:0:0:0|fire:3:40:3:2:20756:1" });
-  assert.deepEqual(readProgress(p), { water: { stage: "learning", xp: 10 }, fire: { stage: "mastered", xp: 40 } });
-  assert.deepEqual(readProgress(memoryStorage({ [PROGRESS_KEY]: "nonsense" })), {});
-  assert.deepEqual(readProgress(throwing), {});
-  assert.equal(recordBuild(throwing, "carbon_burns"), -1);
-  assert.equal(typeof mountSpells, "function");
 });

@@ -17,7 +17,7 @@
 const ENDPOINT = '/api/event';
 const STORAGE_KEY = 'rg.dailyId';
 /** @type {readonly string[]} */
-export const BANDS = ['sprout', 'seedling', 'apprentice', 'adept'];
+export const BANDS = ['sprout', 'seedling', 'apprentice'];
 /** Highest quest index the server accepts (0-based; "Save the Greenhouse" is 0). */
 export const MAX_QUEST = 15;
 /** How often the game state is read for quest completion, in ms (not per frame: CPU budget). */

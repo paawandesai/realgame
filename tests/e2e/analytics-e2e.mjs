@@ -189,7 +189,7 @@ const parsed = (run) =>
       };
     });
     check('the age picker is shown', picker?.visible, JSON.stringify(picker?.buttons));
-    check('the picker has exactly four buttons (Adept since I-060) and nothing to type in', picker?.buttons.length === 4 && picker.typed === 0);
+    check('the picker has exactly three buttons and nothing to type in', picker?.buttons.length === 3 && picker.typed === 0);
     check('each picker button is at least 96x96 CSS px at 1366x768', picker?.buttons.every((b) => b.w >= 96 && b.h >= 96));
     check('the picker takes focus on its first button', picker?.focused === 'sprout', String(picker?.focused));
     await page.click('#age button[data-band="seedling"]');
@@ -256,12 +256,6 @@ const parsed = (run) =>
     await kb.page.keyboard.press('Tab');
     const f2 = await focusedBand();
     check('keyboard: arrow and Tab reach the third picture', f0 === 'sprout' && f1 === 'seedling' && f2 === 'apprentice', `${f0} -> ${f1} -> ${f2}`);
-    // I-060: a fourth picture, Adept; the arrows reach it and come back.
-    await kb.page.keyboard.press('ArrowRight');
-    const f3 = await focusedBand();
-    await kb.page.keyboard.press('ArrowLeft');
-    const f4 = await focusedBand();
-    check('keyboard: the arrows reach the fourth picture (Adept) and back', f3 === 'adept' && f4 === 'apprentice', `${f2} -> ${f3} -> ${f4}`);
     await kb.page.keyboard.press('Enter');
     const kbClosed = await kb.page.evaluate(() => document.getElementById('age')?.hidden === true);
     check('keyboard: Enter picks it and closes the picker', kbClosed);
@@ -512,17 +506,12 @@ const parsed = (run) =>
       const benchOpen = async (p) => {
         await p.evaluate(() => document.getElementById('game')?.focus());
         await p.keyboard.press('KeyB');
-        // I-060: the Bench is bench-free.html?mode=story in an iframe: the
-        // chooser is its band question, the cards its Spells tab's buildable spells.
-        for (const t0 = Date.now(); Date.now() - t0 < 90000; await sleep(200)) {
-          const open = await p.evaluate(() => !!document.getElementById('bench') && !document.getElementById('bench').hidden);
-          const h = await p.$('#bench-frame');
-          const f = h ? await h.contentFrame() : null;
-          const inner = f ? await f.evaluate(() => ({
-            chooser: document.getElementById('bandAsk')?.hidden === false ? document.querySelectorAll('#bandAskRow [data-band]').length : 0,
-            cards: [...document.querySelectorAll('.sb-spell')].filter((c) => c.querySelector('.sb-learn, .sb-practise')).length,
-          })).catch(() => null) : null;
-          const v = { open, chooser: inner ? inner.chooser : 0, cards: inner ? inner.cards : 0 };
+        for (const t0 = Date.now(); Date.now() - t0 < 10000; await sleep(200)) {
+          const v = await p.evaluate(() => ({
+            open: !!document.getElementById('bench') && !document.getElementById('bench').hidden,
+            chooser: document.querySelectorAll('#bench .bench-band[data-band]').length,
+            cards: document.querySelectorAll('#bench .bench-spell').length,
+          }));
           if (v.open && (v.chooser > 0 || v.cards > 0)) return v;
         }
         return p.evaluate(() => ({ open: !document.getElementById('bench')?.hidden, chooser: -1, cards: -1 }));
@@ -545,7 +534,7 @@ const parsed = (run) =>
       await firstState(dnt.page);
       await sleep(1000);
       const d = await benchOpen(dnt.page);
-      check('bench: with DNT (no picker) the bench asks with its chooser (four bands)', d.open && d.chooser === 4, JSON.stringify(d));
+      check('bench: with DNT (no picker) the bench asks with its chooser', d.open && d.chooser === 3, JSON.stringify(d));
       await dnt.context.close();
     }
   } catch (err) {

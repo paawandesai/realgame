@@ -3,7 +3,7 @@
 //! once the previous biome's spell is Practised in this run
 //! (`valley::practice`): the Frozen Fields need Water, the Marsh needs
 //! Frost, the Crystal Cave needs CO2. Each gate has a sign the page draws
-//! over it ("Cast Water 3 times anywhere to open"). The walls are physical, like
+//! over it ("Cast Water 2 times anywhere to open"). The walls are physical, like
 //! every gate in the valley (spec section 7): they are protected blocks,
 //! not quest checks. Voxel mode only (registered by `story`).
 
@@ -305,25 +305,24 @@ mod tests {
         let saved = crate::Progress::default();
         assert_eq!(
             sign_text("frozen", &s),
-            "Cast Water 3 times anywhere to open (0/3)"
+            "Cast Water 2 times anywhere to open (0/2)"
         );
         assert!(!is_open("frozen", &s, &saved));
         s.practice.record(1);
         assert_eq!(
             sign_text("frozen", &s),
-            "Cast Water 3 times anywhere to open (1/3)"
+            "Cast Water 2 times anywhere to open (1/2)"
         );
-        s.practice.record(1);
         s.practice.record(1);
         assert!(is_open("frozen", &s, &saved));
         assert!(!is_open("marsh", &s, &saved), "the Marsh needs Frost");
         assert_eq!(
             sign_text("cave", &s),
-            "Cast CO₂ 3 times anywhere to open (0/3)"
+            "Cast CO₂ 2 times anywhere to open (0/2)"
         );
         assert!(is_open("village", &s, &saved), "no gate");
         // The cave needs CO2 practised and the hollow crossed.
-        for _ in 0..3 {
+        for _ in 0..2 {
             s.practice.record(3);
         }
         assert!(!is_open("cave", &s, &saved), "the hollow still burns");

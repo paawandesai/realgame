@@ -174,9 +174,7 @@ test("10: fizzle reasons are kind, and Sprout reasons are short", () => {
 test("11: bandFrom: URL, then the age picker, then the bench chooser", () => {
   assert.equal(bandFrom("?band=sprout", null, null), "sprout");
   assert.equal(bandFrom("?low&band=seedling&debug", null, null), "seedling");
-  // I-060: Adept is its own band in the world (the picker's fourth choice).
-  assert.equal(bandFrom("?band=adept", null, null), "adept");
-  assert.equal(bandFrom("", "adept", null), "adept");
+  assert.equal(bandFrom("?band=adept", null, null), "apprentice");
   assert.equal(bandFrom("?band=toddler", null, null), null);
   assert.equal(bandFrom("", null, null), null);
   assert.equal(bandFrom("", "seedling", null), "seedling");
