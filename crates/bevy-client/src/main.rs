@@ -489,8 +489,11 @@ fn run_stage(saved: progress::Stage, practised: bool) -> progress::Stage {
     use progress::Stage::*;
     match (saved, practised) {
         (Mastered, _) => Mastered,
-        (Unknown, _) => Unknown,
+        // A spell first built in the world (never at the Bench) is still
+        // New in the save; 2 right builds in this run make it instant too
+        // (Paawan, 2026-11-06: "after doing it twice i still have to build it").
         (_, true) => Practised,
+        (Unknown, false) => Unknown,
         (_, false) => Learning,
     }
 }
@@ -3158,7 +3161,8 @@ mod practice_tests {
         assert_eq!(run_stage(Learning, true), Practised);
         assert_eq!(run_stage(Practised, true), Practised);
         assert_eq!(run_stage(Mastered, false), Mastered);
-        assert_eq!(run_stage(Unknown, true), Unknown);
+        assert_eq!(run_stage(Unknown, true), Practised);
+        assert_eq!(run_stage(Unknown, false), Unknown);
     }
 
     /// Only casts with nothing to build count as practice; a spell that
