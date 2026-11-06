@@ -3,6 +3,8 @@
 #   1. the first-person 3D client (crates/bevy-client) at the site root, with
 #      its rg-analytics switch flipped to "on" (anonymous analytics and the age
 #      picker; docs/ANALYTICS.md). The source page and web/pkg-out stay "off".
+#      RG_ANALYTICS=off leaves it off (preview deploys, so test plays never
+#      reach the real counts).
 #   2. the classic 2D game (web/, wasm-pack + tsc + Vite) at /classic/
 #   3. the strict security headers (web/public/_headers) for the whole site
 #   4. the analytics dashboard (static files from dashboard/) at /dashboard/
@@ -32,10 +34,14 @@ cp "$CLIENT/analytics.js" "$CLIENT/age.js" "$OUT/"
 OFF='<meta name="rg-analytics" content="off">'
 ON='<meta name="rg-analytics" content="on">'
 [ "$(grep -cF "$OFF" "$OUT/index.html")" = 1 ] || fail "expected exactly one rg-analytics=off switch in $OUT/index.html"
-sed -i.bak "s|$OFF|$ON|" "$OUT/index.html"
-rm -f "$OUT/index.html.bak"
-[ "$(grep -cF "$ON" "$OUT/index.html")" = 1 ] || fail "rg-analytics switch was not flipped to on"
-grep -qF "$OFF" "$OUT/index.html" && fail "an rg-analytics=off switch is left in $OUT/index.html"
+if [ "${RG_ANALYTICS:-on}" = off ]; then
+  echo "build-site: RG_ANALYTICS=off, so this build sends no analytics"
+else
+  sed -i.bak "s|$OFF|$ON|" "$OUT/index.html"
+  rm -f "$OUT/index.html.bak"
+  [ "$(grep -cF "$ON" "$OUT/index.html")" = 1 ] || fail "rg-analytics switch was not flipped to on"
+  if grep -qF "$OFF" "$OUT/index.html"; then fail "an rg-analytics=off switch is left in $OUT/index.html"; fi
+fi
 grep -qF "$OFF" "$CLIENT/index.html" || fail "the source $CLIENT/index.html must keep rg-analytics=off"
 
 # 2. The classic 2D game at /classic/ (arguments after -- go to `vite build`).
