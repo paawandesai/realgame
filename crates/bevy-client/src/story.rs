@@ -49,6 +49,10 @@ pub struct Story {
     biome: String,
     /// Water has put out a burning block in the workshop (step 1).
     water_on_workshop: bool,
+    /// The player has walked through the ice gate (step 3 is then done
+    /// whenever the quest reaches it, and the ford step with it: the far
+    /// side of the gate is across the stream).
+    gate_passed: bool,
     /// The biome gates and their signs, as JSON (`gates`, round 2).
     pub gates_json: String,
     /// The Kiln door is open (`late` sets it), so step 7's arrow moves on
@@ -70,6 +74,7 @@ impl Default for Story {
             craft: None,
             biome: "village".to_string(),
             water_on_workshop: false,
+            gate_passed: false,
             gates_json: "[]".to_string(),
             door_open: false,
         }
@@ -384,7 +389,11 @@ pub fn crossing_progress(story: &mut Story, pos: Vec3, gate_ice: u32) {
         && pos.z > (g.min[2] - 8) as f32
         && pos.x >= (g.min[0] - 2) as f32
         && pos.x < (g.max[0] + 2) as f32;
-    if gate_ice == 0 || through {
+    story.gate_passed |= through;
+    if story.gate_passed {
+        story.quest.on(QuestEvent::CrossedFord);
+    }
+    if gate_ice == 0 || story.gate_passed {
         story.quest.on(QuestEvent::GateMelted);
     }
 }
@@ -768,6 +777,25 @@ mod tests {
         assert_eq!(s.quest.step(), 3, "north of the ridge but not at the gate");
         crossing_progress(&mut s, Vec3::new(60.5, 36.0, 84.5), 9);
         assert_eq!(s.quest.step(), 4, "through the gate");
+
+        // Through the gate before the quest asked for it (the ford crossed
+        // somewhere else): both steps complete, now or once reached.
+        let mut s = Story {
+            quest: Quest::at(2),
+            ..Story::default()
+        };
+        crossing_progress(&mut s, Vec3::new(60.5, 36.0, 84.5), 9);
+        assert_eq!(s.quest.step(), 4, "through the gate from step 2");
+        let mut s = Story {
+            quest: Quest::at(1),
+            ..Story::default()
+        };
+        crossing_progress(&mut s, Vec3::new(60.5, 36.0, 84.5), 9);
+        crossing_progress(&mut s, Vec3::new(60.5, 40.0, 70.0), 9);
+        assert_eq!(s.quest.step(), 1, "the workshop fire still comes first");
+        s.quest.on(QuestEvent::WorkshopOut { by_water: true });
+        crossing_progress(&mut s, Vec3::new(128.0, 40.0, 200.0), 9);
+        assert_eq!(s.quest.step(), 4, "remembered once reached");
     }
 
     /// Round 2 (P3): step 5 completes when no vent in the hollow burns and

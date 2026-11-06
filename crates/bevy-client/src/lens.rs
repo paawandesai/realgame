@@ -54,12 +54,15 @@ fn on_land(time: Res<Time>, mut lens: ResMut<Lens>, mut landed: MessageReader<cr
 
 #[cfg(target_arch = "wasm32")]
 fn show(key: &str) {
-    use wasm_bindgen::JsValue;
+    use wasm_bindgen::{JsCast, JsValue};
     use web_sys::js_sys::{Array, Reflect};
     let Some(win) = web_sys::window() else { return };
     let q = Reflect::get(&win, &"__hitLens".into()).unwrap_or(JsValue::UNDEFINED);
+    // Not `Array::from`: that is JavaScript's `Array.from`, a copy, so every
+    // key after the first went into a throwaway array (Paawan, 2026-11-05:
+    // "i only see the 'atom' when water is used, and only the first time").
     let q = if Array::is_array(&q) {
-        Array::from(&q)
+        q.unchecked_into::<Array>()
     } else {
         let a = Array::new();
         let _ = Reflect::set(&win, &"__hitLens".into(), &a);

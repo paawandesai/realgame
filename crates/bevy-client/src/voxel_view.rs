@@ -1762,6 +1762,43 @@ mod tests {
         }
     }
 
+    /// Paawan, 2026-11-05: "stuck right before the ice gate and it takes
+    /// jumping": a rock spur and a tree stood in front of the gate. Down the
+    /// approach ramp, W through a gap melted in the plug walks into the
+    /// passage and out the far side without a jump.
+    #[test]
+    fn w_walks_through_a_gap_melted_in_the_ice_gate() {
+        let mut world = vox::generate(vox::DEFAULT_SEED);
+        let g = vox::stamp::ICE_GATE;
+        let plug = g.max[2] - 1;
+        // Water melted a two-wide hole, the rest of the plug still stands.
+        for x in 59..61 {
+            for y in 36..=38 {
+                world.set([x, y, plug], Cell::AIR);
+            }
+        }
+        let mut p = Player {
+            // Down the slope from the north side of the Frozen Fields, in
+            // line with the gap.
+            pos: Vec3::new(60.0, 47.0, plug as f32 + 17.0),
+            grounded: true,
+            ..Player::default()
+        };
+        let mut w = Walk::default();
+        press(&mut p, &mut w, &world, Vec2::ZERO, false, 20);
+        let mut path = Vec::new();
+        for _ in 0..60 * 6 {
+            press(&mut p, &mut w, &world, Vec2::new(0.0, 1.0), false, 1);
+            path.push(p.pos);
+        }
+        assert!(
+            p.pos.z < g.min[2] as f32 - 1.0,
+            "through the gate without jumping: stopped at {:?} (from {:?})",
+            p.pos,
+            path.iter().step_by(30).collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn holding_w_into_a_one_block_step_never_hops() {
         // The Kiln terrace's first brick step is at z 180 (top y 36).
