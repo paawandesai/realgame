@@ -20,7 +20,7 @@
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
     "typescript": "5.9.3",
-    "wrangler": "4.153.0"
+    "wrangler": "4.159.0"
   },
   "engines": {
     "node": ">=22.18"
